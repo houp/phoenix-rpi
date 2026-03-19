@@ -2,73 +2,73 @@
 
 ## Metadata
 
-- Step ID: `STEP-0013`
-- Title: Expose architectural timer interrupts from the AArch64 DTB parser
+- Step ID: `STEP-0014`
+- Title: Define the first runtime-oriented kernel step after DTB preparation
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- extend the kernel AArch64 DTB parser so it exposes architectural timer interrupt metadata from the root-level `timer` node, while preserving the existing `aarch64a53-zynqmp` path and without introducing a runtime generic timer implementation yet
+- define and bound the first runtime-oriented kernel change needed after the current DTB preparation series, so the next implementation step stays small and explicitly chooses between a generic ARM timer path and broader AArch64 target/platform work
 
 ## Scope
 
 In scope:
 
 - update `phoenix-rtos-kernel/hal/aarch64/dtb.c`
-- update `phoenix-rtos-kernel/hal/aarch64/dtb.c`
-- update `phoenix-rtos-kernel/hal/aarch64/dtb.h`
-- recognize the root-level `timer` node used by local QEMU `virt`
-- parse the `interrupts` property from that node into a small AArch64 DTB timer structure
-- keep the change preparatory only: no new runtime timer code, no target changes
-- validate that the existing `aarch64a53-zynqmp-qemu` build still succeeds after the parser change
+- inspect the current AArch64 kernel runtime dependencies after the completed DTB parser steps
+- compare the narrowest next-step options:
+  - a generic ARM architectural timer implementation path
+  - a broader generic AArch64 target or platform split
+- select one small next implementation step with explicit touched files, validation lane, and acceptance criteria
+- keep this as a planning and scoping step only
 
 Out of scope:
 
+- implementation of the selected runtime step itself
 - adding a new QEMU target
 - adding PL011 console code
-- adding generic timer runtime code
 - changing `plo`
 - Raspberry Pi-specific code
 
 ## Expected Repositories
 
-- `phoenix-rtos-kernel`
 - coordination repo
+- likely `phoenix-rtos-kernel`
 
 ## Expected Files Or Subsystems
 
-- `sources/phoenix-rtos-kernel/hal/aarch64/dtb.c`
-- `sources/phoenix-rtos-kernel/hal/aarch64/dtb.h`
-- copied-buildroot AArch64 validation workflow
-- tracking files and manifest updates after validation
+- AArch64 kernel HAL timer and console paths
+- `hal/aarch64/Makefile`
+- `hal/aarch64/zynqmp/timer.c`
+- `hal/aarch64/zynqmp/console.c`
+- tracking files and manifest updates for the chosen next step
 
 ## Acceptance Criteria
 
-- the AArch64 DTB parser exposes architectural timer interrupt metadata from the root-level `timer` node
-- the change stays small and limited to DTB parsing and DTB API surface
-- `TARGET=aarch64a53-zynqmp-qemu ./phoenix-rtos-build/build.sh clean host core project` still succeeds inside `phoenix-dev` using the copied buildroot
+- the next runtime-oriented kernel step is explicitly scoped with exact touched files, rationale, validation command, and success criteria
+- the selected next step is narrow enough to implement and validate in one controlled follow-up session
 
 ## Validation Plan
 
 - Build:
-  refresh the copied buildroot, then run the existing `aarch64a53-zynqmp-qemu` build path in `phoenix-dev`
+  not applicable for this planning step
 - Emulator:
-  inspect the local QEMU `virt` `timer` node and confirm the parser covers the observed interrupt tuple layout
+  inspect the current QEMU `virt` timer and console dependencies as needed to choose the narrowest next step
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-gic-reg-decoding.md`
+  `manifests/2026-03-20-aarch64-dtb-timer-metadata.md`
 
 ## Notes
 
 - Risks:
-  timer metadata exposure alone will not complete a generic QEMU lane, but it should keep future timer work split into smaller reviewable patches
+  the next runtime step is the first one that can widen materially, so it must be explicitly bounded before any new code lands
 - Dependencies:
-  completed AArch64 GIC parsing step and a working AArch64 validation toolchain in `phoenix-dev`
+  completed DTB preparation series for GIC, serial, and timer metadata, plus a working AArch64 validation toolchain in `phoenix-dev`
 - User-visible control point before next step:
-  present the exact DTB timer parsing change, validation command, and resulting commit before moving into runtime timer, console, or target-definition work
+  present the exact selected runtime step before moving into timer implementation, console implementation, or target-definition work

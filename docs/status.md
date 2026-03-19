@@ -74,14 +74,16 @@ Start-gate status:
 - Local `virt` inspection also confirmed that the GIC `reg` property uses 16-byte tuples, so the next narrow generic-QEMU follow-up should stay in `hal/aarch64/dtb.c` and generalize interrupt-controller `reg` decoding before broader AArch64 platform work.
 - The kernel DTB parser now decodes both the existing 12-byte GIC `reg` tuples and the 16-byte tuples used by local QEMU `virt`, and the existing `aarch64a53-zynqmp-qemu` build still succeeds with that change.
 - There is still no reusable PL011 or ARM architectural timer implementation in the current Phoenix AArch64 tree, so the next smallest preparatory step is to expose root-level `timer` node interrupt metadata from the DTB parser before adding any runtime generic timer code.
+- The AArch64 DTB API now exposes architectural timer interrupt metadata from the root-level `timer` node, and the existing `aarch64a53-zynqmp-qemu` build still succeeds with that change.
+- The DTB preparation series is now far enough that the next step must introduce runtime code or new target/build structure, so the next active step is a bounded planning step to choose the smallest safe runtime follow-up.
 - Phoenix upstream style is conservative and review-oriented: file headers, tabs in C, localized `clang-format off/on`, direct control flow, `static const` hardware tables, and warning-clean builds enforced by `-Werror` in `phoenix-rtos-build/Makefile.common`.
 - Pi 4 uses BCM2711 with GIC-400, PL011, BCM2711 PCIe, VL805 xHCI over PCIe, GENET Ethernet, and Broadcom SDHCI.
 - Pi 5 uses BCM2712 plus RP1, with most I/O behind a PCIe-connected southbridge-like peripheral controller.
 
 ## Immediate Next Implementation Milestones
 
-1. Expose architectural timer interrupts from the AArch64 DTB parser.
-2. Reassess the smallest runtime follow-up step for a generic non-Xilinx AArch64 QEMU lane after that timer metadata change.
+1. Define the first runtime-oriented kernel follow-up after the DTB preparation series.
+2. Implement that selected runtime-oriented kernel step in one narrow patch.
 3. Implement a generic AArch64 FDT parser suitable for Raspberry Pi DTBs.
 4. Add a Raspberry Pi 4 `plo` platform with PL011 UART, MMU, GICv2, and a real boot path from Raspberry Pi firmware.
 5. Boot the Phoenix kernel on Pi 4 with a minimal RAM-backed rootfs.

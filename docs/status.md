@@ -22,19 +22,19 @@ Execution readiness on the current workstation:
 
 Known remaining start-gate tasks before the first implementation step:
 
-1. complete the sibling Phoenix repo set required by `phoenix-rtos-project`
-2. define the local buildroot wiring between `phoenix-rtos-project` and the sibling repos
-3. verify one clean Phoenix Linux build in the VM
+1. verify one clean Phoenix Linux build in the VM using the documented sibling-clone buildroot workflow
 
 Completed start-gate tasks:
 
 - missing host prerequisite tools installed on the current workstation
-- Phoenix upstream repositories cloned into `sources/`
+- the initial Phoenix upstream repositories cloned into `sources/`
 - first baseline integration manifest created under `manifests/`
 - `phoenix-dev` Linux VM created and verified
 - the documented Linux package baseline installed and verified inside `phoenix-dev`
+- the full current `phoenix-rtos-project/.gitmodules` repo set cloned as sibling repos under `sources/`
+- the local sibling-clone buildroot workflow has been defined and automated with `scripts/prepare-buildroot.sh`
 
-Once the remaining three tasks are complete, code implementation can start immediately with Milestone A.
+Once the remaining task is complete, code implementation can start immediately with Milestone A.
 
 ## Strategic Decisions Already Made
 
@@ -58,7 +58,8 @@ Once the remaining three tasks are complete, code implementation can start immed
 - Phoenix's existing test runner is already structured for UART-driven DUT automation and can be extended for Raspberry Pi targets.
 - Phoenix officially documents Linux build flows and Linux package prerequisites; native macOS builds should not be treated as the primary path.
 - On the current host, Homebrew, Xcode, QEMU, `dtc`, `uv`, `expect`, `jq`, `limactl`, `yq`, `socat`, `picocom`, `mtools`, and `socket_vmnet` are present, and the `phoenix-dev` Ubuntu 24.04 VM now has the documented package baseline installed.
-- `phoenix-rtos-project` expects a populated multi-repo tree via its submodule paths, so the sibling-clone workflow needs an explicit local buildroot strategy instead of treating the initial seven-repo set as sufficient for builds.
+- `phoenix-rtos-project` expects a populated multi-repo tree via its submodule paths. The full current `.gitmodules` repo set is now cloned under `sources/`, but the sibling-clone workflow still needs an explicit local buildroot strategy instead of nested submodule clones.
+- In the current Lima setup, the shared workspace path is effectively read-only from inside the Linux guest, so disposable buildroots should fall back to VM-local storage such as `~/phoenix-buildroots/phoenix-rtos-project`.
 - Phoenix upstream style is conservative and review-oriented: file headers, tabs in C, localized `clang-format off/on`, direct control flow, `static const` hardware tables, and warning-clean builds enforced by `-Werror` in `phoenix-rtos-build/Makefile.common`.
 - Pi 4 uses BCM2711 with GIC-400, PL011, BCM2711 PCIe, VL805 xHCI over PCIe, GENET Ethernet, and Broadcom SDHCI.
 - Pi 5 uses BCM2712 plus RP1, with most I/O behind a PCIe-connected southbridge-like peripheral controller.

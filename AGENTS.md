@@ -60,6 +60,7 @@ Use them as follows:
 - There must be only one active implementation step at a time, tracked in `tracking/current-step.md`.
 - After every successful implementation step, commit the relevant changes in every touched upstream repository and then commit the coordination-repo documentation or manifest update that records the tested integration state.
 - Manage Phoenix as multiple sibling git repositories, not as a rewritten monorepo. Keep repository coordination in this repo through documentation and manifest files.
+- Use the disposable local buildroot prepared by `scripts/prepare-buildroot.sh` for `phoenix-rtos-project` builds; do not turn nested submodule clones into the primary working model.
 - On this workstation, treat Linux as the authoritative build and emulation environment. Use macOS natively for coordination, editing, and hardware control; use a Linux VM for Phoenix builds and most QEMU runs unless a task is explicitly documented as safe on the host.
 - Optimize all future code for readability and upstreamability: keep changes small, consistent with nearby Phoenix code, warning-clean, and free of gratuitous formatting churn.
 - Do not bury important findings in chat history. Update the docs when new constraints, addresses, boot flows, test commands, or risks are discovered.

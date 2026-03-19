@@ -27,13 +27,22 @@ phoenix-rpi/
   skills/
   manifests/
   sources/
+    libphoenix/
     phoenix-rtos-kernel/
+    phoenix-rtos-corelibs/
     plo/
+    phoenix-rtos-doc/
     phoenix-rtos-devices/
     phoenix-rtos-filesystems/
     phoenix-rtos-build/
+    phoenix-rtos-hostutils/
+    phoenix-rtos-lwip/
+    phoenix-rtos-ports/
+    phoenix-rtos-posixsrv/
     phoenix-rtos-project/
     phoenix-rtos-tests/
+    phoenix-rtos-usb/
+    phoenix-rtos-utils/
 ```
 
 Notes:
@@ -42,6 +51,26 @@ Notes:
 - do not copy their contents into this coordination repo
 - do not use git submodules initially unless there is a specific operational need that plain sibling clones cannot satisfy
 - on this workstation, keep `sources/` on the macOS filesystem and mount it into the Linux VM rather than hiding the primary working copy inside the VM disk
+- treat `sources/phoenix-rtos-project/.gitmodules` as the authoritative repo inventory for local build prerequisites and re-check it before assuming the sibling set is complete
+
+## 2.1 Local buildroot rule
+
+Do not run the main `phoenix-rtos-project` build directly in the upstream `sources/phoenix-rtos-project` working copy.
+
+Reason:
+
+- `phoenix-rtos-project` still expects component paths shaped like populated submodules
+- the sibling-clone workflow should remain the canonical editable source state
+- build artifacts should not spill into the upstream working copy unnecessarily
+
+Use the generated disposable buildroot instead:
+
+- prepare it with `scripts/prepare-buildroot.sh`
+- default output path:
+  writable repo checkout: `buildroots/phoenix-rtos-project`
+  read-only shared checkout in the Linux VM: `~/phoenix-buildroots/phoenix-rtos-project`
+- treat the buildroot as disposable and reproducible
+- re-run the script after changing `phoenix-rtos-project` itself or after the repo inventory changes
 
 ## 3. Why Not Start With Submodules
 

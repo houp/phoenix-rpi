@@ -55,6 +55,7 @@ Implication:
 - the host now has the documented prerequisite tools for the Linux VM workflow
 - the `phoenix-dev` VM has also been created and bootstrapped with the documented package baseline
 - the remaining gates are local Phoenix build-tree wiring and the first clean baseline build
+- in the current Lima setup, the shared workspace is readable from the guest but should be treated as read-only for build artifacts; use VM-local disposable buildroots when building inside Linux
 
 ## 2. Recommendation Summary
 

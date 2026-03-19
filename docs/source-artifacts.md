@@ -45,11 +45,38 @@ This file indexes the most important websites, repositories, documents, and sour
 - Build scripts:
   <https://github.com/phoenix-rtos/phoenix-rtos-build>
 
+- libphoenix:
+  <https://github.com/phoenix-rtos/libphoenix>
+
+- Core libraries:
+  <https://github.com/phoenix-rtos/phoenix-rtos-corelibs>
+
 - Project/targets:
   <https://github.com/phoenix-rtos/phoenix-rtos-project>
 
 - Tests:
   <https://github.com/phoenix-rtos/phoenix-rtos-tests>
+
+- Host utilities:
+  <https://github.com/phoenix-rtos/phoenix-rtos-hostutils>
+
+- lwIP integration:
+  <https://github.com/phoenix-rtos/phoenix-rtos-lwip>
+
+- Ports:
+  <https://github.com/phoenix-rtos/phoenix-rtos-ports>
+
+- POSIX server:
+  <https://github.com/phoenix-rtos/phoenix-rtos-posixsrv>
+
+- USB stack:
+  <https://github.com/phoenix-rtos/phoenix-rtos-usb>
+
+- Utilities:
+  <https://github.com/phoenix-rtos/phoenix-rtos-utils>
+
+- Documentation:
+  <https://github.com/phoenix-rtos/phoenix-rtos-doc>
 
 ## 3. Crucial Phoenix Source Paths
 
@@ -75,6 +102,7 @@ This file indexes the most important websites, repositories, documents, and sour
 
 ### Build and target definitions
 
+- `phoenix-rtos-project/.gitmodules`
 - `phoenix-rtos-build/build.sh`
 - `phoenix-rtos-build/build-core-aarch64a53-zynqmp.sh`
 - `phoenix-rtos-build/target/aarch64.mk`

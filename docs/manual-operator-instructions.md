@@ -159,7 +159,8 @@ Later for network-boot lab work:
 Before implementation begins, verify:
 
 - the host workspace is mounted into the VM
-- the VM can read and write the shared workspace
+- the VM can read the shared workspace
+- re-verify whether the shared workspace is writable; on the current Lima setup it should be treated as effectively read-only for build artifacts
 - a simple package install succeeds
 - a simple QEMU command runs
 
@@ -168,15 +169,40 @@ Before implementation begins, verify:
 Before implementation starts, the operator or agent must:
 
 1. create `sources/` if it does not exist
-2. clone these Phoenix repositories into `sources/`:
-   - `phoenix-rtos-kernel`
-   - `plo`
-   - `phoenix-rtos-devices`
-   - `phoenix-rtos-filesystems`
+2. clone the current `phoenix-rtos-project/.gitmodules` repo set into `sources/` as sibling repositories:
+   - `libphoenix`
    - `phoenix-rtos-build`
+   - `phoenix-rtos-corelibs`
+   - `phoenix-rtos-devices`
+   - `phoenix-rtos-doc`
+   - `phoenix-rtos-filesystems`
+   - `phoenix-rtos-hostutils`
+   - `phoenix-rtos-kernel`
+   - `phoenix-rtos-lwip`
+   - `phoenix-rtos-ports`
+   - `phoenix-rtos-posixsrv`
+   - `plo`
    - `phoenix-rtos-project`
    - `phoenix-rtos-tests`
-3. record the clean baseline SHAs in a manifest under `manifests/`
+   - `phoenix-rtos-usb`
+   - `phoenix-rtos-utils`
+3. do not treat the smaller initial planning subset as sufficient for local builds; `phoenix-rtos-project` expects the broader repo tree above
+4. record the clean baseline SHAs in a manifest under `manifests/`
+
+### Required local buildroot preparation
+
+Before running the main Phoenix project build locally, the operator or agent must:
+
+1. prepare the disposable buildroot with:
+   - `scripts/prepare-buildroot.sh`
+2. use the default generated buildroot or an explicitly chosen replacement path
+   - on the current Lima setup, if the shared workspace is read-only inside the VM, the script should use `~/phoenix-buildroots/phoenix-rtos-project`
+3. re-run the script after:
+   - changing files in `sources/phoenix-rtos-project`
+   - changing the sibling repo inventory
+4. treat the generated buildroot as disposable:
+   - do not use nested submodule clones as the primary editable workspace
+   - do not rely on the upstream `sources/phoenix-rtos-project` working copy as the main artifact directory
 
 If forks are used, also configure:
 

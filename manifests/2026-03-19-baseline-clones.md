@@ -30,8 +30,8 @@
 ## Notes
 
 - New constraints discovered:
-  none
+  this manifest captures only the initial coordination-selected repo subset; `phoenix-rtos-project/.gitmodules` later showed that a broader sibling repo set is required for local builds
 - Docs updated:
   tracking and readiness state will be updated after this manifest
 - Next smallest task:
-  install the missing host tools, create the `phoenix-dev` Linux VM, and verify one clean Phoenix Linux build
+  complete the remaining project submodule repositories as sibling clones and then define the local buildroot wiring for clean builds

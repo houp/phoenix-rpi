@@ -29,6 +29,7 @@ Then determine:
 - what the commit boundary for this step will be
 - whether the work should run on the macOS host or in the Linux VM
 - whether the work fits the currently active step without widening scope
+- whether the disposable local buildroot needs to be refreshed with `scripts/prepare-buildroot.sh` before any `phoenix-rtos-project` build
 
 ## 2. Session Scoping Rule
 

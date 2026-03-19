@@ -1,5 +1,6 @@
 # Local upstream working copies
 sources/
+buildroots/
 
 # macOS filesystem noise
 .DS_Store

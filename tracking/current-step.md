@@ -2,28 +2,29 @@
 
 ## Metadata
 
-- Step ID: `STEP-0005`
-- Title: Complete the sibling Phoenix repo set required for local builds
+- Step ID: `STEP-0007`
+- Title: Verify a clean baseline Phoenix Linux build in `phoenix-dev`
 - Status: `in_progress`
 - Date: `2026-03-19`
 - Milestone / phase: `Phase 0`
 
 ## Objective
 
-- Clone the remaining Phoenix repositories needed for a clean local `phoenix-rtos-project` build into `sources/`
+- Verify that the current workspace can complete one clean upstream Phoenix build inside `phoenix-dev` using the documented sibling-clone buildroot workflow
 
 ## Scope
 
 In scope:
 
-- inspect `phoenix-rtos-project/.gitmodules` and the current local repo set
-- clone the missing build-relevant Phoenix repositories into `sources/`
-- record the expanded repo set in manifests and coordination docs
+- refresh the disposable buildroot with `scripts/prepare-buildroot.sh`
+- run one clean upstream baseline build inside `phoenix-dev`
+- capture the exact target, command, and artifact paths that succeed
+- update docs and tracking based on the result
 
 Out of scope:
 
-- wiring the local buildroot for the sibling-clone workflow
-- verifying the first Phoenix Linux build
+- changing upstream Phoenix source code for Raspberry Pi work
+- adding a new target
 - editing upstream Phoenix source code
 
 ## Expected Repositories
@@ -32,38 +33,38 @@ Out of scope:
 
 ## Expected Files Or Subsystems
 
-- `sources/`
-- `manifests/`
-- repository-preparation docs
+- baseline build artifacts in the disposable buildroot
+- Linux VM build workflow
+- tracking and status docs
 - tracking files
 
 ## Acceptance Criteria
 
-- all currently required Phoenix project submodule repositories needed for local builds exist as sibling clones under `sources/`
-- their exact SHAs are recorded in a manifest or manifest update
-- the coordination docs no longer describe an incomplete local repo set
+- one clean upstream Phoenix build command completes successfully inside `phoenix-dev`
+- the build uses the documented buildroot workflow instead of nested submodule clones
+- the resulting artifact paths are recorded for the next implementation step
 
 ## Validation Plan
 
 - Build:
-  not applicable
+  run a clean baseline build in the VM and verify expected output paths exist afterward
 - Emulator:
   not applicable
 - Hardware:
   not applicable
 - Environment:
-  verify the required sibling repositories exist locally and resolve cleanly
+  verify the build runs in `phoenix-dev` against the prepared buildroot
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-19-baseline-clones.md`
+  `manifests/2026-03-19-full-project-repo-set.md`
 
 ## Notes
 
 - Risks:
-  the initial repo list may be incomplete because `phoenix-rtos-project` expects more submodule repositories than the first baseline clone step captured
+  the first upstream build may reveal additional package requirements or target-selection issues not captured by the current bootstrap docs
 - Dependencies:
-  completed VM/bootstrap steps and network access for any missing clones
+  completed repo inventory step, completed buildroot step, and a running `phoenix-dev` VM
 - User-visible control point before next step:
-  present the completed sibling repo inventory before creating the local buildroot wiring
+  present the exact successful baseline build command and the artifact locations before any Raspberry Pi-specific code changes begin

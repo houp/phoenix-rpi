@@ -2,73 +2,69 @@
 
 ## Metadata
 
-- Step ID: `STEP-0009`
-- Title: Generalize top-level AArch64 platform Makefile selection
-- Status: `in_progress`
+- Step ID: `STEP-0010`
+- Title: Define the first narrow generic AArch64 QEMU lane step
+- Status: `planned`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- replace the hardwired `zynqmp` substring matching in the top-level AArch64 Makefiles with generic per-subfamily Makefile selection, while keeping the existing `aarch64a53-zynqmp` build behavior intact
+- define and bound the next smallest implementation step needed to start a non-Xilinx generic AArch64 QEMU path without widening prematurely into full runtime bring-up
 
 ## Scope
 
 In scope:
 
-- update `phoenix-rtos-kernel` AArch64 build glue to include the platform Makefile by `TARGET_SUBFAMILY` rather than matching the literal string `zynqmp`
-- update `plo` AArch64 build glue the same way
-- keep the existing `zynqmp` object selection local to the `zynqmp` platform Makefiles
-- validate the unchanged `aarch64a53-zynqmp-qemu` build path in `phoenix-dev` using the copied buildroot lane
+- inspect the current `aarch64a53-zynqmp-qemu` project and script flow
+- identify the minimum target, build, project, and HAL pieces required for a first generic `virt`-style AArch64 lane
+- select a narrow first code step that can be validated without Raspberry Pi hardware
 
 Out of scope:
 
-- adding a new AArch64 target
-- changing DTB parsing, timer logic, interrupt logic, or any runtime behavior
-- adding Raspberry Pi-specific code
+- implementing Raspberry Pi-specific code
+- broad AArch64 HAL rewrites
+- DTB parser rework
+- real-hardware validation
 
 ## Expected Repositories
 
-- `phoenix-rtos-kernel`
-- `plo`
 - coordination repo
+- likely `phoenix-rtos-build`
+- likely `phoenix-rtos-project`
+- possibly `phoenix-rtos-kernel`
+- possibly `plo`
 
 ## Expected Files Or Subsystems
 
-- `sources/phoenix-rtos-kernel/hal/aarch64/Makefile`
-- `sources/phoenix-rtos-kernel/hal/aarch64/zynqmp/Makefile`
-- `sources/plo/hal/aarch64/Makefile`
-- `sources/plo/hal/aarch64/zynqmp/Makefile`
-- copied-buildroot AArch64 validation workflow
-- tracking files and manifest updates after validation
+- QEMU target and project definitions
+- AArch64 build and run scripts
+- tracking files and planning manifests for the next executable step
 
 ## Acceptance Criteria
 
-- the top-level AArch64 Makefiles no longer rely on a literal `findstring zynqmp` check to select the platform Makefile
-- the existing `aarch64a53-zynqmp` object set remains complete and builds without functional regressions in the build glue
-- `TARGET=aarch64a53-zynqmp-qemu ./phoenix-rtos-build/build.sh clean host core project` succeeds inside `phoenix-dev` using a refreshed copied buildroot
-- the resulting upstream patches stay small, readable, and limited to build-glue generalization
+- the next generic AArch64 QEMU step is explicitly scoped with concrete touched files, build command, and success criteria
+- the proposed step is small enough to implement and validate in one narrow follow-up session
 
 ## Validation Plan
 
 - Build:
-  refresh the copied buildroot, then run the existing `aarch64a53-zynqmp-qemu` build path in `phoenix-dev`
+  not applicable for this planning step
 - Emulator:
-  not required for this step beyond proving the build artifacts are produced for the existing QEMU target
+  not applicable for this planning step
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-toolchain-bootstrap.md`
+  `manifests/2026-03-20-aarch64-platform-makefile-selection.md`
 
 ## Notes
 
 - Risks:
-  the existing `aarch64a53-zynqmp-qemu` build may rely on implicit `zynqmp`-specific object placement in ways that make the smallest generalization slightly broader than the top-level Makefile diff suggests
-  the copied buildroot must be refreshed before validation so the VM sees the edited upstream sources
+  the generic AArch64 QEMU lane may require more runtime HAL work than the build metadata alone suggests, so the next code step must be chosen conservatively
 - Dependencies:
-  completed toolchain bootstrap step and a running `phoenix-dev` VM
+  completed Makefile generalization step and a working AArch64 validation toolchain in `phoenix-dev`
 - User-visible control point before next step:
-  present the exact build command, result, and upstream commits before moving on to any DTB or Raspberry Pi-specific work
+  present the exact proposed next change set before moving into new upstream code

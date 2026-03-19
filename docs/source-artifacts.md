@@ -110,6 +110,8 @@ This file indexes the most important websites, repositories, documents, and sour
 - `phoenix-rtos-project/_targets/aarch64a53/zynqmp/build.project`
 - `phoenix-rtos-project/_targets/aarch64a53/zynqmp/preinit.plo.yaml`
 - `phoenix-rtos-project/_targets/aarch64a53/zynqmp/user.plo.yaml`
+- `phoenix-rtos-project/_projects/aarch64a53-zynqmp-qemu/build.project`
+- `phoenix-rtos-project/scripts/aarch64a53-zynqmp-qemu.sh`
 
 ### Tests
 

@@ -3,7 +3,7 @@
 ## Repository State
 
 - Repository purpose: documentation and agent scaffolding for a future Phoenix RTOS Raspberry Pi port
-- Implementation state: Phase 0 bootstrap in progress
+- Implementation state: Phase 0 bootstrap complete; AArch64 validation bootstrap in progress
 - Documentation baseline prepared: 2026-03-19
 
 ## Implementation Readiness
@@ -18,11 +18,11 @@ Tracking readiness:
 
 Execution readiness on the current workstation:
 
-- not yet complete
+- ready for implementation bootstrap and validated host-side Phoenix builds
 
 Known remaining start-gate tasks before the first implementation step:
 
-1. verify one clean Phoenix Linux build in the VM using the documented sibling-clone buildroot workflow
+- none
 
 Completed start-gate tasks:
 
@@ -33,8 +33,11 @@ Completed start-gate tasks:
 - the documented Linux package baseline installed and verified inside `phoenix-dev`
 - the full current `phoenix-rtos-project/.gitmodules` repo set cloned as sibling repos under `sources/`
 - the local sibling-clone buildroot workflow has been defined and automated with `scripts/prepare-buildroot.sh`
+- one clean upstream `host-generic-pc` build completed successfully inside `phoenix-dev`
 
-Once the remaining task is complete, code implementation can start immediately with Milestone A.
+Start-gate status:
+
+- cleared for the first implementation steps
 
 ## Strategic Decisions Already Made
 
@@ -58,8 +61,10 @@ Once the remaining task is complete, code implementation can start immediately w
 - Phoenix's existing test runner is already structured for UART-driven DUT automation and can be extended for Raspberry Pi targets.
 - Phoenix officially documents Linux build flows and Linux package prerequisites; native macOS builds should not be treated as the primary path.
 - On the current host, Homebrew, Xcode, QEMU, `dtc`, `uv`, `expect`, `jq`, `limactl`, `yq`, `socat`, `picocom`, `mtools`, and `socket_vmnet` are present, and the `phoenix-dev` Ubuntu 24.04 VM now has the documented package baseline installed.
-- `phoenix-rtos-project` expects a populated multi-repo tree via its submodule paths. The full current `.gitmodules` repo set is now cloned under `sources/`, but the sibling-clone workflow still needs an explicit local buildroot strategy instead of nested submodule clones.
+- `phoenix-rtos-project` expects a populated multi-repo tree via its submodule paths. The full current `.gitmodules` repo set is now cloned under `sources/`, and the sibling-clone workflow is now handled through the disposable buildroot prepared by `scripts/prepare-buildroot.sh`.
 - In the current Lima setup, the shared workspace path is effectively read-only from inside the Linux guest, so disposable buildroots should fall back to VM-local storage such as `~/phoenix-buildroots/phoenix-rtos-project`.
+- The first clean upstream baseline build is now verified with `TARGET=host-generic-pc ./phoenix-rtos-build/build.sh clean host core fs test project image` inside the disposable buildroot, producing artifacts under `_build/host-generic-pc`, `_fs/host-generic-pc/root`, and `_boot/host-generic-pc`.
+- The VM still does not have `aarch64-phoenix-gcc`, so real validation of the first AArch64 refactors depends on provisioning the Phoenix AArch64 toolchain from `phoenix-rtos-build/toolchain/build-toolchain.sh`.
 - Phoenix upstream style is conservative and review-oriented: file headers, tabs in C, localized `clang-format off/on`, direct control flow, `static const` hardware tables, and warning-clean builds enforced by `-Werror` in `phoenix-rtos-build/Makefile.common`.
 - Pi 4 uses BCM2711 with GIC-400, PL011, BCM2711 PCIe, VL805 xHCI over PCIe, GENET Ethernet, and Broadcom SDHCI.
 - Pi 5 uses BCM2712 plus RP1, with most I/O behind a PCIe-connected southbridge-like peripheral controller.
@@ -71,7 +76,7 @@ Once the remaining task is complete, code implementation can start immediately w
 3. Implement a generic AArch64 FDT parser suitable for Raspberry Pi DTBs.
 4. Add a Raspberry Pi 4 `plo` platform with PL011 UART, MMU, GICv2, and a real boot path from Raspberry Pi firmware.
 5. Boot the Phoenix kernel on Pi 4 with a minimal RAM-backed rootfs.
-6. Complete the Linux build environment bootstrap and verify the first clean Phoenix Linux build.
+6. Provision the Phoenix AArch64 toolchain, then start the first small AArch64 build-glue refactor.
 
 ## Pi 4 Success Criteria for "Phase 1"
 

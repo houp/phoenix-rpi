@@ -7,16 +7,20 @@ set -euo pipefail
 
 usage() {
 	cat <<EOF
-Usage: $(basename "$0") [buildroot-dir]
+Usage: $(basename "$0") [--link-components|--copy-components] [buildroot-dir]
 
 Prepare a disposable local Phoenix buildroot that:
 - copies the phoenix-rtos-project source tree
 - keeps build artifacts out of the upstream working copy
-- links the project component paths to sibling repos under sources/
+- either links or copies the project component paths from sibling repos under sources/
 
 Default buildroot:
-  writable repo checkout: <repo>/buildroots/phoenix-rtos-project
-  read-only shared checkout: ~/phoenix-buildroots/phoenix-rtos-project
+  --link-components:
+    writable repo checkout: <repo>/buildroots/phoenix-rtos-project
+    read-only shared checkout: ~/phoenix-buildroots/phoenix-rtos-project
+  --copy-components:
+    writable repo checkout: <repo>/buildroots/phoenix-rtos-project-copy
+    read-only shared checkout: ~/phoenix-buildroots/phoenix-rtos-project-copy
 EOF
 }
 
@@ -25,29 +29,60 @@ die() {
 	exit 1
 }
 
-if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
-	usage
-	exit 0
-fi
+components_mode="link"
+buildroot=
+using_default_buildroot=0
+
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+		-h|--help)
+			usage
+			exit 0
+			;;
+		--link-components)
+			components_mode="link"
+			;;
+		--copy-components)
+			components_mode="copy"
+			;;
+		-*)
+			die "unknown option: $1"
+			;;
+		*)
+			[ -z "${buildroot}" ] || die "too many positional arguments"
+			buildroot="$1"
+			;;
+	esac
+	shift
+done
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
 sources_dir="${repo_root}/sources"
 project_src="${sources_dir}/phoenix-rtos-project"
 
-if [ "$#" -ge 1 ]; then
-	buildroot="$1"
+if [ -n "${buildroot}" ]; then
+	:
 elif [ -w "${repo_root}" ]; then
 	buildroot="${repo_root}/buildroots/phoenix-rtos-project"
+	using_default_buildroot=1
 else
 	buildroot="${HOME}/phoenix-buildroots/phoenix-rtos-project"
+	using_default_buildroot=1
+fi
+
+if [ "${components_mode}" = "copy" ] && [ "${using_default_buildroot}" -eq 1 ]; then
+	buildroot="${buildroot%/}-copy"
 fi
 
 [ -d "${sources_dir}" ] || die "missing sources directory: ${sources_dir}"
 [ -d "${project_src}" ] || die "missing phoenix-rtos-project clone: ${project_src}"
 [ -f "${project_src}/.gitmodules" ] || die "missing .gitmodules in ${project_src}"
 
-mapfile -t submodule_paths < <(
+submodule_paths=()
+while IFS= read -r path; do
+	submodule_paths+=("${path}")
+done < <(
 	git -C "${project_src}" config -f .gitmodules --get-regexp '^submodule\..*\.path$' | awk '{print $2}' | sort
 )
 
@@ -79,14 +114,28 @@ rsync "${rsync_args[@]}" "${project_src}/" "${buildroot}/"
 for path in "${submodule_paths[@]}"; do
 	dst="${buildroot}/${path}"
 	rm -rf "${dst}"
-	ln -sfn "${sources_dir}/${path}" "${dst}"
+	mkdir -p "$(dirname "${dst}")"
+	if [ "${components_mode}" = "copy" ]; then
+		rsync -a --delete --exclude .git --exclude _build --exclude _boot \
+			"${sources_dir}/${path}/" "${dst}/"
+	else
+		ln -sfn "${sources_dir}/${path}" "${dst}"
+	fi
 done
 
 mkdir -p "${buildroot}/_build" "${buildroot}/_boot"
 
 printf "Prepared buildroot: %s\n" "${buildroot}"
 printf "Project source: %s\n" "${project_src}"
-printf "Linked component paths:\n"
+if [ "${components_mode}" = "copy" ]; then
+	printf "Copied component paths:\n"
+else
+	printf "Linked component paths:\n"
+fi
 for path in "${submodule_paths[@]}"; do
-	printf "  %s -> %s\n" "${path}" "$(readlink "${buildroot}/${path}")"
+	if [ "${components_mode}" = "copy" ]; then
+		printf "  %s <= %s\n" "${path}" "${sources_dir}/${path}"
+	else
+		printf "  %s -> %s\n" "${path}" "$(readlink "${buildroot}/${path}")"
+	fi
 done

@@ -3,7 +3,7 @@
 ## Repository State
 
 - Repository purpose: documentation and agent scaffolding for a future Phoenix RTOS Raspberry Pi port
-- Implementation state: Phase 0 bootstrap complete; AArch64 validation bootstrap in progress
+- Implementation state: Phase 0 bootstrap complete; first AArch64 source step ready
 - Documentation baseline prepared: 2026-03-19
 
 ## Implementation Readiness
@@ -64,20 +64,20 @@ Start-gate status:
 - `phoenix-rtos-project` expects a populated multi-repo tree via its submodule paths. The full current `.gitmodules` repo set is now cloned under `sources/`, and the sibling-clone workflow is now handled through the disposable buildroot prepared by `scripts/prepare-buildroot.sh`.
 - In the current Lima setup, the shared workspace path is effectively read-only from inside the Linux guest, so disposable buildroots should fall back to VM-local storage such as `~/phoenix-buildroots/phoenix-rtos-project`.
 - The first clean upstream baseline build is now verified with `TARGET=host-generic-pc ./phoenix-rtos-build/build.sh clean host core fs test project image` inside the disposable buildroot, producing artifacts under `_build/host-generic-pc`, `_fs/host-generic-pc/root`, and `_boot/host-generic-pc`.
-- The VM still does not have `aarch64-phoenix-gcc`, so real validation of the first AArch64 refactors depends on provisioning the Phoenix AArch64 toolchain from `phoenix-rtos-build/toolchain/build-toolchain.sh`.
+- The `aarch64-phoenix` toolchain is now installed and verified in `phoenix-dev` at `/home/witoldbolt.guest/phoenix-toolchains/aarch64-phoenix`, with sysroot `/home/witoldbolt.guest/phoenix-toolchains/aarch64-phoenix/aarch64-phoenix`.
 - The AArch64 toolchain build requires more than the baseline Phoenix package set; the currently confirmed extra VM packages are `bison`, `flex`, `libgmp-dev`, `libmpfr-dev`, `libmpc-dev`, `libisl-dev`, and `zlib1g-dev`.
+- The current AArch64/libphoenix flow still generates files inside component source trees, so the linked buildroot is not sufficient for current toolchain or AArch64-target validation in the read-only Lima mount; use `scripts/prepare-buildroot.sh --copy-components` and the VM-local copied buildroot at `/home/witoldbolt.guest/phoenix-buildroots/phoenix-rtos-project-copy` for those lanes.
 - Phoenix upstream style is conservative and review-oriented: file headers, tabs in C, localized `clang-format off/on`, direct control flow, `static const` hardware tables, and warning-clean builds enforced by `-Werror` in `phoenix-rtos-build/Makefile.common`.
 - Pi 4 uses BCM2711 with GIC-400, PL011, BCM2711 PCIe, VL805 xHCI over PCIe, GENET Ethernet, and Broadcom SDHCI.
 - Pi 5 uses BCM2712 plus RP1, with most I/O behind a PCIe-connected southbridge-like peripheral controller.
 
 ## Immediate Next Implementation Milestones
 
-1. Create a generic non-Xilinx AArch64 QEMU target for fast bring-up work.
-2. Refactor Phoenix AArch64 support so platform hooks are not `zynqmp`-hardwired.
+1. Refactor Phoenix AArch64 support so platform hooks are not `zynqmp`-hardwired, starting with top-level Makefile selection.
+2. Create a generic non-Xilinx AArch64 QEMU target for fast bring-up work.
 3. Implement a generic AArch64 FDT parser suitable for Raspberry Pi DTBs.
 4. Add a Raspberry Pi 4 `plo` platform with PL011 UART, MMU, GICv2, and a real boot path from Raspberry Pi firmware.
 5. Boot the Phoenix kernel on Pi 4 with a minimal RAM-backed rootfs.
-6. Provision the Phoenix AArch64 toolchain, then start the first small AArch64 build-glue refactor.
 
 ## Pi 4 Success Criteria for "Phase 1"
 

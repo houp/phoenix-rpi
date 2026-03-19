@@ -2,68 +2,73 @@
 
 ## Metadata
 
-- Step ID: `STEP-0008`
-- Title: Provision the Phoenix AArch64 toolchain in `phoenix-dev`
+- Step ID: `STEP-0009`
+- Title: Generalize top-level AArch64 platform Makefile selection
 - Status: `in_progress`
-- Date: `2026-03-19`
-- Milestone / phase: `Phase 0`
+- Date: `2026-03-20`
+- Milestone / phase: `Phase 1`
 
 ## Objective
 
-- Provision the `aarch64-phoenix` toolchain in `phoenix-dev` so the first real AArch64 kernel and `plo` refactors can be compiled and validated locally
+- replace the hardwired `zynqmp` substring matching in the top-level AArch64 Makefiles with generic per-subfamily Makefile selection, while keeping the existing `aarch64a53-zynqmp` build behavior intact
 
 ## Scope
 
 In scope:
 
-- identify and install any still-missing packages needed for Phoenix toolchain builds
-- build and install the upstream `aarch64-phoenix` toolchain in VM-local storage
-- make the resulting toolchain available for later AArch64 validation steps
-- record the exact install path and invocation used
+- update `phoenix-rtos-kernel` AArch64 build glue to include the platform Makefile by `TARGET_SUBFAMILY` rather than matching the literal string `zynqmp`
+- update `plo` AArch64 build glue the same way
+- keep the existing `zynqmp` object selection local to the `zynqmp` platform Makefiles
+- validate the unchanged `aarch64a53-zynqmp-qemu` build path in `phoenix-dev` using the copied buildroot lane
 
 Out of scope:
 
-- changing upstream Phoenix kernel, `plo`, or build logic yet
-- validating a new Raspberry Pi or generic AArch64 code patch
+- adding a new AArch64 target
+- changing DTB parsing, timer logic, interrupt logic, or any runtime behavior
+- adding Raspberry Pi-specific code
 
 ## Expected Repositories
 
+- `phoenix-rtos-kernel`
+- `plo`
 - coordination repo
 
 ## Expected Files Or Subsystems
 
-- Phoenix toolchain build workspace and install path inside `phoenix-dev`
-- Linux VM package state
-- tracking, status, and manual setup docs
-- tracking files
+- `sources/phoenix-rtos-kernel/hal/aarch64/Makefile`
+- `sources/phoenix-rtos-kernel/hal/aarch64/zynqmp/Makefile`
+- `sources/plo/hal/aarch64/Makefile`
+- `sources/plo/hal/aarch64/zynqmp/Makefile`
+- copied-buildroot AArch64 validation workflow
+- tracking files and manifest updates after validation
 
 ## Acceptance Criteria
 
-- `aarch64-phoenix-gcc` and the companion binutils resolve inside `phoenix-dev`
-- the toolchain install path is documented for future sessions
-- the step does not modify upstream Phoenix source repositories yet
+- the top-level AArch64 Makefiles no longer rely on a literal `findstring zynqmp` check to select the platform Makefile
+- the existing `aarch64a53-zynqmp` object set remains complete and builds without functional regressions in the build glue
+- `TARGET=aarch64a53-zynqmp-qemu ./phoenix-rtos-build/build.sh clean host core project` succeeds inside `phoenix-dev` using a refreshed copied buildroot
+- the resulting upstream patches stay small, readable, and limited to build-glue generalization
 
 ## Validation Plan
 
 - Build:
-  build the upstream AArch64 Phoenix toolchain and verify the resulting commands resolve in the VM
+  refresh the copied buildroot, then run the existing `aarch64a53-zynqmp-qemu` build path in `phoenix-dev`
 - Emulator:
-  not applicable
+  not required for this step beyond proving the build artifacts are produced for the existing QEMU target
 - Hardware:
   not applicable
-- Environment:
-  verify the toolchain can be resolved from the VM shell afterward
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-19-host-generic-pc-baseline-build.md`
+  `manifests/2026-03-20-aarch64-toolchain-bootstrap.md`
 
 ## Notes
 
 - Risks:
-  the toolchain build may reveal additional host packages or a longer-running download/compile path than the initial VM bootstrap captured
+  the existing `aarch64a53-zynqmp-qemu` build may rely on implicit `zynqmp`-specific object placement in ways that make the smallest generalization slightly broader than the top-level Makefile diff suggests
+  the copied buildroot must be refreshed before validation so the VM sees the edited upstream sources
 - Dependencies:
-  completed baseline build step and a running `phoenix-dev` VM
+  completed toolchain bootstrap step and a running `phoenix-dev` VM
 - User-visible control point before next step:
-  present the exact toolchain install path and command availability before the first AArch64 source patch begins
+  present the exact build command, result, and upstream commits before moving on to any DTB or Raspberry Pi-specific work

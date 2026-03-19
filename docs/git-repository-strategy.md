@@ -66,11 +66,25 @@ Reason:
 Use the generated disposable buildroot instead:
 
 - prepare it with `scripts/prepare-buildroot.sh`
-- default output path:
-  writable repo checkout: `buildroots/phoenix-rtos-project`
-  read-only shared checkout in the Linux VM: `~/phoenix-buildroots/phoenix-rtos-project`
+- choose the component mode deliberately:
+  - `scripts/prepare-buildroot.sh --link-components`
+    use this for the normal sibling-clone workflow when linked component directories are sufficient
+  - `scripts/prepare-buildroot.sh --copy-components`
+    use this when the build must have a fully writable project tree, including copied component sources
+- default output paths:
+  - `--link-components`
+    - writable repo checkout: `buildroots/phoenix-rtos-project`
+    - read-only shared checkout in the Linux VM: `~/phoenix-buildroots/phoenix-rtos-project`
+  - `--copy-components`
+    - writable repo checkout: `buildroots/phoenix-rtos-project-copy`
+    - read-only shared checkout in the Linux VM: `~/phoenix-buildroots/phoenix-rtos-project-copy`
 - treat the buildroot as disposable and reproducible
 - re-run the script after changing `phoenix-rtos-project` itself or after the repo inventory changes
+
+Current practical rule:
+
+- the linked buildroot is sufficient for the verified `host-generic-pc` baseline build
+- the copied buildroot is required for the Phoenix toolchain build and should be treated as the safe default for current AArch64 validation work because the present `libphoenix` AArch64 flow still generates files inside its source tree
 
 ## 3. Why Not Start With Submodules
 

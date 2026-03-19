@@ -30,6 +30,7 @@ Then determine:
 - whether the work should run on the macOS host or in the Linux VM
 - whether the work fits the currently active step without widening scope
 - whether the disposable local buildroot needs to be refreshed with `scripts/prepare-buildroot.sh` before any `phoenix-rtos-project` build
+- whether the task needs the linked or copied buildroot mode
 
 ## 2. Session Scoping Rule
 

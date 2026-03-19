@@ -203,27 +203,46 @@ Before implementation starts, the operator or agent must:
 
 Before running the main Phoenix project build locally, the operator or agent must:
 
-1. prepare the disposable buildroot with:
-   - `scripts/prepare-buildroot.sh`
+1. prepare the disposable buildroot with the correct mode:
+   - linked mode for the normal sibling-clone workflow:
+     `scripts/prepare-buildroot.sh --link-components`
+   - copied mode when the build must write into component source trees:
+     `scripts/prepare-buildroot.sh --copy-components`
 2. use the default generated buildroot or an explicitly chosen replacement path
-   - on the current Lima setup, if the shared workspace is read-only inside the VM, the script should use `~/phoenix-buildroots/phoenix-rtos-project`
+   - on the current Lima setup, if the shared workspace is read-only inside the VM:
+     - linked mode should use `~/phoenix-buildroots/phoenix-rtos-project`
+     - copied mode should use `~/phoenix-buildroots/phoenix-rtos-project-copy`
 3. re-run the script after:
    - changing files in `sources/phoenix-rtos-project`
    - changing the sibling repo inventory
+   - changing any upstream source repo before re-validating in copied mode
 4. treat the generated buildroot as disposable:
    - do not use nested submodule clones as the primary editable workspace
    - do not rely on the upstream `sources/phoenix-rtos-project` working copy as the main artifact directory
+
+Current practical rule:
+
+- use linked mode for the already verified `host-generic-pc` baseline build
+- use copied mode for the Phoenix toolchain build and for current AArch64 validation work until upstream stops generating files inside component source trees
 
 ### Required AArch64 toolchain preparation
 
 Before validating AArch64-target changes locally, the operator or agent must:
 
 1. ensure the extra toolchain-build packages above are installed in `phoenix-dev`
-2. prepare the disposable buildroot with `scripts/prepare-buildroot.sh`
+2. prepare the copied disposable buildroot with:
+   - `scripts/prepare-buildroot.sh --copy-components`
 3. run the upstream Phoenix toolchain builder from that buildroot:
    - `./phoenix-rtos-build/toolchain/build-toolchain.sh aarch64-phoenix "$HOME/phoenix-toolchains"`
 4. keep the toolchain itself on VM-local storage rather than the shared workspace
 5. verify that `aarch64-phoenix-gcc` resolves before claiming an AArch64 validation lane exists
+6. re-run the copied-buildroot preparation before later AArch64 validations if any upstream source repo changed
+
+Current validated VM paths:
+
+- copied buildroot: `/home/witoldbolt.guest/phoenix-buildroots/phoenix-rtos-project-copy`
+- toolchain root: `/home/witoldbolt.guest/phoenix-toolchains/aarch64-phoenix`
+- toolchain sysroot: `/home/witoldbolt.guest/phoenix-toolchains/aarch64-phoenix/aarch64-phoenix`
 
 If forks are used, also configure:
 

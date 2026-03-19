@@ -148,6 +148,16 @@ Additional project utilities:
 - `yq`
 - `rsync`
 
+Additional packages required for Phoenix cross-toolchain builds:
+
+- `bison`
+- `flex`
+- `libgmp-dev`
+- `libmpfr-dev`
+- `libmpc-dev`
+- `libisl-dev`
+- `zlib1g-dev`
+
 Later for network-boot lab work:
 
 - `dnsmasq`
@@ -203,6 +213,17 @@ Before running the main Phoenix project build locally, the operator or agent mus
 4. treat the generated buildroot as disposable:
    - do not use nested submodule clones as the primary editable workspace
    - do not rely on the upstream `sources/phoenix-rtos-project` working copy as the main artifact directory
+
+### Required AArch64 toolchain preparation
+
+Before validating AArch64-target changes locally, the operator or agent must:
+
+1. ensure the extra toolchain-build packages above are installed in `phoenix-dev`
+2. prepare the disposable buildroot with `scripts/prepare-buildroot.sh`
+3. run the upstream Phoenix toolchain builder from that buildroot:
+   - `./phoenix-rtos-build/toolchain/build-toolchain.sh aarch64-phoenix "$HOME/phoenix-toolchains"`
+4. keep the toolchain itself on VM-local storage rather than the shared workspace
+5. verify that `aarch64-phoenix-gcc` resolves before claiming an AArch64 validation lane exists
 
 If forks are used, also configure:
 

@@ -106,6 +106,10 @@ This file indexes the most important websites, repositories, documents, and sour
 - Raspberry Pi configuration landing page:
   <https://www.raspberrypi.com/documentation/computers/configuration.html>
 
+- Raspberry Pi remote-access documentation:
+  <https://www.raspberrypi.com/documentation/computers/remote-access.html>
+  Important section: "Network boot your Raspberry Pi"
+
 - Raspberry Pi 4 boot security whitepaper:
   <https://pip.raspberrypi.com/categories/685-whitepapers-app-notes-compliance-guides/documents/RP-004651-WP/Raspberry-Pi-4-Boot-Security.pdf>
 
@@ -213,6 +217,7 @@ Do not treat it as an architectural authority for Phoenix.
 Before implementing features that depend on them, re-check:
 
 - Raspberry Pi EEPROM and bootloader behavior
+- Raspberry Pi 4 network boot, TFTP, and `boot.img` behavior
 - current Pi 4 / Pi 5 firmware options
 - QEMU Raspberry Pi emulation status
 - Pi 5 RP1 Linux driver state

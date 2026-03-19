@@ -16,10 +16,11 @@ Before making code changes in future sessions, read these files in order:
 1. `docs/status.md`
 2. `docs/implementation-dossier.md`
 3. `docs/repository-work-breakdown.md`
-4. `docs/platforms/raspberry-pi-4.md`
-5. `docs/testing-automation.md`
-6. `docs/session-playbook.md`
-7. `docs/source-artifacts.md`
+4. `docs/git-repository-strategy.md`
+5. `docs/platforms/raspberry-pi-4.md`
+6. `docs/testing-automation.md`
+7. `docs/session-playbook.md`
+8. `docs/source-artifacts.md`
 
 Read `docs/platforms/raspberry-pi-5.md` when the task touches Pi 5 or RP1.
 Read `skills/README.md` when choosing a local project skill.
@@ -50,6 +51,9 @@ Use them as follows:
 - Treat Raspberry Pi firmware behavior, EEPROM settings, QEMU support status, and Linux/BSD support matrices as temporally unstable. Re-check online before depending on them.
 - Keep the Phoenix boot model intact where possible:
   `Raspberry Pi firmware -> plo -> syspage -> kernel -> user-space servers/drivers`
+- Work in narrow, phase-gated steps. Do not advance to the next major step until the current step has explicit success criteria, validation evidence, and documentation updates.
+- After every successful implementation step, commit the relevant changes in every touched upstream repository and then commit the coordination-repo documentation or manifest update that records the tested integration state.
+- Manage Phoenix as multiple sibling git repositories, not as a rewritten monorepo. Keep repository coordination in this repo through documentation and manifest files.
 - Do not bury important findings in chat history. Update the docs when new constraints, addresses, boot flows, test commands, or risks are discovered.
 - If context becomes tight after a long session, re-read at least `docs/status.md`, `docs/repository-work-breakdown.md`, `docs/testing-automation.md`, and the relevant platform note before proceeding.
 

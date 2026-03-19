@@ -13,7 +13,10 @@
 - Final target architecture should preserve Phoenix's normal boot chain:
   `Raspberry Pi firmware -> plo -> syspage -> kernel -> user-space servers/drivers`
 - Pi 4 bring-up should begin with a minimal single-core UART-booting system.
+- The implementation must advance in narrow, explicitly validated steps rather than broad multi-subsystem pushes.
+- Every successful implementation step must end with git commits in each touched upstream repository plus a coordination-repo state update.
 - QEMU is a fast gate, not a replacement for real hardware.
+- Pi 4 network boot is a preferred later-stage real-hardware deployment path for fast iteration once bootloader setup and DHCP/TFTP infrastructure are ready; SD or USB media remains the fallback and recovery path.
 
 ## Most Important Technical Findings
 
@@ -31,6 +34,7 @@
 3. Implement a generic AArch64 FDT parser suitable for Raspberry Pi DTBs.
 4. Add a Raspberry Pi 4 `plo` platform with PL011 UART, MMU, GICv2, and a real boot path from Raspberry Pi firmware.
 5. Boot the Phoenix kernel on Pi 4 with a minimal RAM-backed rootfs.
+6. Add the first multi-repo integration manifest once the upstream repos are cloned locally.
 
 ## Pi 4 Success Criteria for "Phase 1"
 
@@ -66,5 +70,6 @@ Do not start full Pi 5 enablement until Pi 4 has:
 
 - Raspberry Pi EEPROM/config behavior
 - QEMU `raspi4b` peripheral completeness
+- exact network boot and `boot.img` behavior on the current Raspberry Pi bootloader release
 - Pi 5 debug/bootloader options such as `enable_rp1_uart`, `pciex4_reset`, `os_check`
 - Linux and BSD support state for Pi 5 Ethernet and RP1 peripherals

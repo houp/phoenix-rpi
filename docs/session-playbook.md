@@ -9,17 +9,19 @@ Before touching code, re-read:
 1. `AGENTS.md`
 2. `docs/status.md`
 3. `docs/repository-work-breakdown.md`
-4. the relevant platform note:
+4. `docs/git-repository-strategy.md`
+5. the relevant platform note:
    - `docs/platforms/raspberry-pi-4.md`
    - `docs/platforms/raspberry-pi-5.md`
-5. `docs/testing-automation.md`
-6. `docs/source-artifacts.md`
+6. `docs/testing-automation.md`
+7. `docs/source-artifacts.md`
 
 Then determine:
 
 - which upstream Phoenix repository the task belongs to
 - whether the task is common AArch64 work, Pi 4 work, Pi 5 work, or test/lab work
 - whether the change should first be validated in QEMU, on hardware, or both
+- what the commit boundary for this step will be
 
 ## 2. Session Scoping Rule
 
@@ -48,7 +50,8 @@ For each substantial task:
 4. make the smallest coherent change
 5. run the fastest validation lane available
 6. capture artifacts and classify failures
-7. update the docs if any new fact or constraint was discovered
+7. commit each touched upstream repository once the step succeeds
+8. update the docs or integration manifest if any new fact or constraint was discovered
 
 ## 4. Context-Compaction Recovery
 
@@ -58,9 +61,10 @@ Re-read at least:
 
 1. `docs/status.md`
 2. `docs/repository-work-breakdown.md`
-3. `docs/testing-automation.md`
-4. the relevant platform note
-5. any document you updated earlier in the same session
+3. `docs/git-repository-strategy.md`
+4. `docs/testing-automation.md`
+5. the relevant platform note
+6. any document you updated earlier in the same session
 
 Also re-open the specific upstream source files currently being mirrored or ported.
 
@@ -139,8 +143,10 @@ Before ending a session:
 1. update `docs/status.md`
 2. update any more specific document that changed in meaning
 3. add any new upstream links or code paths to `docs/source-artifacts.md`
-4. note what was validated and what was not validated
-5. note the next smallest sensible task
+4. update or create an integration manifest if code changed
+5. commit the coordination-repo updates
+6. note what was validated and what was not validated
+7. note the next smallest sensible task
 
 ## 10. Long-Run Project Rule
 

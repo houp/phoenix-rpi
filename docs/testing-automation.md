@@ -152,15 +152,65 @@ If full media switching is unavailable:
 
 This is still good enough for early bring-up.
 
+## 5.5 Preferred deployment transports for Pi 4
+
+Verified official Raspberry Pi documentation makes Pi 4 network boot a real option, not a speculative one:
+
+- Raspberry Pi documents Pi 4 network boot enablement through `raspi-config`
+- the documented boot order after programming is `0xf21`
+- Raspberry Pi documents DHCP plus TFTP-based boot stages for network boot
+- Raspberry Pi documents `boot_ramdisk=1` with `boot.img`, and explicitly notes that `boot.img` can be useful for Network Boot and `RPIBOOT`
+
+Recommended transport order:
+
+1. earliest bring-up:
+   SD or USB media with a relay and optional SD mux
+2. primary Pi 4 automation path once the lab is stable:
+   EEPROM-configured network boot with a controller-host DHCP/TFTP service
+3. advanced path for the fastest Phoenix iteration:
+   network boot into `plo`, then fetch remaining Phoenix artifacts over a network protocol such as PHFS or a simple loader-side fetch path
+
+Implications:
+
+- do not assume SD card rewriting should remain the steady-state workflow
+- do keep SD or USB bootable media available as a recovery path
+- network boot should become the default high-frequency hardware loop for Pi 4 if lab networking is reliable
+
+## 5.6 Recommended Pi 4 network-boot lab design
+
+Controller host should provide:
+
+- DHCP
+- TFTP
+- build artifact staging
+- UART capture
+- power control
+
+Recommended setup:
+
+- one dedicated Ethernet segment or VLAN for DUT booting
+- per-board boot directories keyed by MAC address or serial number
+- a known-good fallback boot tree
+- a way to switch a board back to local-media boot for recovery
+
+Recommended staged use:
+
+1. use local media while the first `plo` boot path is fragile
+2. once `plo` reliably starts from firmware, switch the board to network boot for rapid iteration
+3. later reduce moving parts further by letting `plo` load the kernel or userspace artifacts over the network when that is simpler than repackaging media images
+
 ## 6. Image Build and Deployment Workflow
 
 Recommended automation pipeline:
 
 1. build Phoenix target
-2. assemble boot media tree
-3. generate firmware FAT image or mountable boot directory
-4. place runtime/rootfs image
-5. deploy to DUT media
+2. assemble boot assets
+3. choose deployment mode:
+   - local media image
+   - network-boot directory tree
+   - network-boot `boot.img`
+4. place runtime/rootfs image or network-served artifacts
+5. deploy to DUT media or TFTP root
 6. reboot DUT
 7. capture boot log
 8. run smoke suite
@@ -172,6 +222,7 @@ Artifact classes to retain:
 - built kernel image
 - DTB used
 - rootfs image
+- served boot tree or `boot.img`
 - full UART log
 - parsed test report
 

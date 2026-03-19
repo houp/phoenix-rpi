@@ -25,8 +25,9 @@ Read the relevant platform file if the failing test is platform-specific.
    - Raspberry Pi emulator
    - real hardware smoke
    - real hardware extended tests
-4. Preserve raw UART logs.
-5. Summarize failures with a clear class:
+4. Prefer Pi 4 network boot as the steady-state hardware loop once the lab is stable enough; keep SD or USB media as the fallback recovery path.
+5. Preserve raw UART logs.
+6. Summarize failures with a clear class:
    - build
    - image assembly
    - firmware load

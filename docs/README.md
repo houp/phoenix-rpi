@@ -13,6 +13,9 @@ This directory is the long-lived knowledge base for the Phoenix RTOS Raspberry P
 - `repository-work-breakdown.md`
   Repo-by-repo implementation map, likely change locations, and recommended execution order.
 
+- `git-repository-strategy.md`
+  Local multi-repo workflow, branch and commit policy, and integration manifest discipline.
+
 - `platforms/raspberry-pi-4.md`
   Pi 4-specific boot, hardware, driver, and testing notes.
 

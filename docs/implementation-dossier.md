@@ -12,6 +12,19 @@ It is based on:
 - Raspberry Pi Linux upstream/source references
 - FreeBSD and NetBSD Raspberry Pi support references
 
+## Working Rules
+
+The implementation must stay phase-gated and commit-oriented.
+
+Rules:
+
+1. Only advance one narrow step at a time.
+2. Every step must define explicit success criteria before code is written.
+3. A step is only considered complete after validation on the strongest relevant test lane.
+4. After each successful step, commit the changes in every touched upstream repository.
+5. After cross-repository steps, update the coordination repository to record the exact integration state and test outcome.
+6. Prefer multi-repo coordination through manifests and documentation in this repository, not by collapsing Phoenix into a synthetic monorepo.
+
 ## 1. Core Architecture Decision
 
 The target design should preserve the native Phoenix execution model rather than replacing it with a foreign boot stack.
@@ -190,13 +203,16 @@ Tasks:
 1. Keep this documentation current.
 2. Standardize on Linux build hosts first.
 3. Define an image format for Raspberry Pi firmware partitioning.
-4. Choose the first real-device flashing/update workflow.
-5. Prepare CI jobs that can at least build and assemble images without hardware.
+4. Define the local multi-repo clone and manifest strategy.
+5. Choose the first real-device flashing/update workflow.
+6. Define the preferred long-run Pi 4 network-boot test loop and the fallback SD or USB recovery path.
+7. Prepare CI jobs that can at least build and assemble images without hardware.
 
 Success criteria:
 
 - reproducible host setup
 - repeatable image generation
+- explicit per-step commit and manifest discipline
 - clear artifact naming and locations
 
 ## Phase 1: Generic AArch64 cleanup

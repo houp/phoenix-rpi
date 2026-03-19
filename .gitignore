@@ -1,0 +1,5 @@
+# Local upstream working copies
+sources/
+
+# macOS filesystem noise
+.DS_Store

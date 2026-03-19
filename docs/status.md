@@ -3,7 +3,7 @@
 ## Repository State
 
 - Repository purpose: documentation and agent scaffolding for a future Phoenix RTOS Raspberry Pi port
-- Implementation state: not started
+- Implementation state: Phase 0 bootstrap in progress
 - Documentation baseline prepared: 2026-03-19
 
 ## Implementation Readiness
@@ -22,13 +22,19 @@ Execution readiness on the current workstation:
 
 Known remaining start-gate tasks before the first implementation step:
 
-1. install the missing host tools listed in `docs/manual-operator-instructions.md`
-2. create and verify the `phoenix-dev` Linux VM described in `docs/host-macos-apple-silicon.md`
-3. clone the Phoenix upstream repositories into `sources/`
-4. create the first baseline integration manifest under `manifests/`
-5. verify one clean Phoenix Linux build in the VM
+1. complete the sibling Phoenix repo set required by `phoenix-rtos-project`
+2. define the local buildroot wiring between `phoenix-rtos-project` and the sibling repos
+3. verify one clean Phoenix Linux build in the VM
 
-Once those five tasks are complete, implementation can start immediately with Milestone A.
+Completed start-gate tasks:
+
+- missing host prerequisite tools installed on the current workstation
+- Phoenix upstream repositories cloned into `sources/`
+- first baseline integration manifest created under `manifests/`
+- `phoenix-dev` Linux VM created and verified
+- the documented Linux package baseline installed and verified inside `phoenix-dev`
+
+Once the remaining three tasks are complete, code implementation can start immediately with Milestone A.
 
 ## Strategic Decisions Already Made
 
@@ -51,7 +57,8 @@ Once those five tasks are complete, implementation can start immediately with Mi
 - Phoenix's AArch64 HAL currently includes generic GICv2 support, but timer/platform selection is too platform-specific.
 - Phoenix's existing test runner is already structured for UART-driven DUT automation and can be extended for Raspberry Pi targets.
 - Phoenix officially documents Linux build flows and Linux package prerequisites; native macOS builds should not be treated as the primary path.
-- On the current host, Homebrew, Xcode, QEMU, `dtc`, `uv`, `expect`, and `jq` are already present; Lima, Docker, Colima, Tart, and common UART helper tools are not yet installed.
+- On the current host, Homebrew, Xcode, QEMU, `dtc`, `uv`, `expect`, `jq`, `limactl`, `yq`, `socat`, `picocom`, `mtools`, and `socket_vmnet` are present, and the `phoenix-dev` Ubuntu 24.04 VM now has the documented package baseline installed.
+- `phoenix-rtos-project` expects a populated multi-repo tree via its submodule paths, so the sibling-clone workflow needs an explicit local buildroot strategy instead of treating the initial seven-repo set as sufficient for builds.
 - Phoenix upstream style is conservative and review-oriented: file headers, tabs in C, localized `clang-format off/on`, direct control flow, `static const` hardware tables, and warning-clean builds enforced by `-Werror` in `phoenix-rtos-build/Makefile.common`.
 - Pi 4 uses BCM2711 with GIC-400, PL011, BCM2711 PCIe, VL805 xHCI over PCIe, GENET Ethernet, and Broadcom SDHCI.
 - Pi 5 uses BCM2712 plus RP1, with most I/O behind a PCIe-connected southbridge-like peripheral controller.
@@ -63,7 +70,7 @@ Once those five tasks are complete, implementation can start immediately with Mi
 3. Implement a generic AArch64 FDT parser suitable for Raspberry Pi DTBs.
 4. Add a Raspberry Pi 4 `plo` platform with PL011 UART, MMU, GICv2, and a real boot path from Raspberry Pi firmware.
 5. Boot the Phoenix kernel on Pi 4 with a minimal RAM-backed rootfs.
-6. Add the first multi-repo integration manifest once the upstream repos are cloned locally.
+6. Complete the Linux build environment bootstrap and verify the first clean Phoenix Linux build.
 
 ## Pi 4 Success Criteria for "Phase 1"
 

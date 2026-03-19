@@ -32,27 +32,29 @@ Currently available host tools:
 - `expect`
 - `jq`
 - `screen`
+- `limactl`
+- `yq`
+- `socat`
+- `picocom`
+- `mtools`
+- `socket_vmnet`
 
 Currently not present on the host:
 
 - `docker`
 - `colima`
-- `limactl` / Lima
 - `tart`
 - `podman`
 - `nerdctl`
-- `socat`
-- `yq`
-- `picocom`
 - `tio`
 - `minicom`
-- `mtools`
 - `dosfstools`-style FAT helpers
 
 Implication:
 
-- the host is good enough for coordination work and some ad hoc tooling
-- it is not yet configured as the main Linux-compatible build environment
+- the host now has the documented prerequisite tools for the Linux VM workflow
+- the `phoenix-dev` VM has also been created and bootstrapped with the documented package baseline
+- the remaining gates are local Phoenix build-tree wiring and the first clean baseline build
 
 ## 2. Recommendation Summary
 

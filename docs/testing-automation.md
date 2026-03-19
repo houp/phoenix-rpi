@@ -1,0 +1,284 @@
+# Testing and Automation
+
+## 1. Goals
+
+The port should be developed in a way that supports long, semi-autonomous or autonomous AI-driven sessions. The build/test loop must therefore optimize for:
+
+- low-latency feedback
+- deterministic image creation
+- deterministic UART capture
+- automated board power control
+- reproducible artifacts
+- clear separation between emulator confidence and hardware confidence
+
+## 2. Existing Phoenix Test Infrastructure
+
+Phoenix already provides useful infrastructure:
+
+- `phoenix-rtos-tests/runner.py`
+- `phoenix-rtos-tests/trunner/dut.py`
+- `phoenix-rtos-tests/trunner/target/*`
+- `phoenix-rtos-tests/trunner/harness/plo.py`
+- `phoenix-rtos-tests/trunner/host.py`
+
+Key capabilities already present:
+
+- `pexpect`-driven DUT control
+- serial DUT abstraction
+- QEMU DUT abstraction
+- harness composition
+- host abstraction including Raspberry Pi GPIO-backed control
+- XML/CSV style report generation support in the runner
+
+Implication:
+
+- do not invent a brand-new test framework first
+- extend the Phoenix test runner for Raspberry Pi targets
+
+## 3. Recommended Test Pyramid
+
+## Tier 1: static and host-only checks
+
+Fastest checks, run on every meaningful change:
+
+- markdown/doc lint if added later
+- image assembly checks
+- build-script/unit tests
+- DTB parser unit tests
+- target config validation
+
+## Tier 2: generic AArch64 emulator checks
+
+Run on every low-level bring-up change:
+
+- boot `plo`
+- boot kernel
+- basic shell smoke
+- timer/interrupt sanity
+
+Recommended target:
+
+- generic AArch64 `virt` machine in QEMU
+
+## Tier 3: Raspberry Pi-specific emulator checks
+
+Use for narrow validation only:
+
+- verify image shape and handoff assumptions
+- check that Pi-specific code does not instantly fail under `raspi4b`
+
+Warning:
+
+- do not treat this as authoritative for peripherals
+
+## Tier 4: real hardware checks
+
+Required for all meaningful milestones:
+
+- cold boot
+- warm reboot
+- shell smoke
+- storage
+- GPIO/I2C/SPI
+- Ethernet
+- USB
+- soak tests
+
+## 4. QEMU Strategy
+
+## 4.1 Why generic `virt` should exist
+
+Phoenix's current AArch64 emulation lane is tied to a ZynqMP target and Xilinx-flavored QEMU. A generic `virt` target would:
+
+- validate common AArch64 work faster
+- reduce platform noise during refactors
+- shorten CI time
+- make DTB parser and timer work easier to debug
+
+## 4.2 Why `raspi4b` is still useful
+
+Even with incomplete peripherals, `raspi4b` can still help validate:
+
+- image loading assumptions
+- early UART path
+- board-specific low-level control flow
+
+## 4.3 What QEMU should never be the sole authority for
+
+- xHCI correctness
+- GENET correctness
+- GPIO/I2C/SPI interrupt reliability
+- final storage timing behavior
+
+## 5. Real Hardware Lab Design
+
+## 5.1 Controller host
+
+Recommended:
+
+- a dedicated Linux machine
+- x86_64 or arm64 is fine
+- stable USB subsystem
+- enough ports for UART adapters and relay control
+
+## 5.2 Required lab hardware
+
+- Raspberry Pi 4 DUT
+- USB-UART adapter for console
+- reliable power relay or controllable USB-PD power switch
+- optional HDMI capture only if display testing becomes necessary
+- removable boot media or SD mux
+
+Later for Pi 5:
+
+- separate DUT
+- optional RP1 debug UART access
+
+## 5.3 Highly recommended automation hardware
+
+- SD mux or programmable SD switch
+- smart PDU or USB-controlled relay
+- dedicated serial adapters with stable `/dev/serial/by-id` names
+
+## 5.4 Minimum viable semi-automatic setup
+
+If full media switching is unavailable:
+
+1. host builds image
+2. host writes image to removable SD/USB media
+3. host power-cycles DUT
+4. host captures UART
+5. test runner drives shell and checks output
+
+This is still good enough for early bring-up.
+
+## 6. Image Build and Deployment Workflow
+
+Recommended automation pipeline:
+
+1. build Phoenix target
+2. assemble boot media tree
+3. generate firmware FAT image or mountable boot directory
+4. place runtime/rootfs image
+5. deploy to DUT media
+6. reboot DUT
+7. capture boot log
+8. run smoke suite
+9. archive logs and artifacts
+
+Artifact classes to retain:
+
+- built loader image
+- built kernel image
+- DTB used
+- rootfs image
+- full UART log
+- parsed test report
+
+## 7. Suggested Raspberry Pi Target Additions to Phoenix Tests
+
+New future test targets should include:
+
+- `aarch64-generic-virt-qemu`
+- `aarch64a72-rpi4b`
+- later `aarch64a76-rpi5b` or equivalent naming aligned with Phoenix conventions
+
+Each target should specify:
+
+- shell prompt
+- boot method
+- serial defaults
+- flashing/update method
+- reboot method
+- expected boot timeout
+
+## 8. Smoke Test Definition
+
+Every boot test should at minimum verify:
+
+1. loader prompt or loader handoff banner
+2. kernel banner
+3. shell prompt
+4. `ps`
+5. `ls /`
+6. `date`
+7. `reboot`
+
+As drivers come online, extend smoke tests:
+
+- storage mount/read/write
+- GPIO set/read/interrupt
+- I2C probe
+- SPI loopback
+- `ifconfig` and `ping`
+- USB enumeration
+
+## 9. Soak and Stress Tests
+
+Nightly or scheduled jobs should include:
+
+- 100-iteration boot loop
+- 100-iteration reboot loop
+- long shell idle stability
+- network transfer soak
+- storage write/read verification
+- USB hotplug repetitions
+
+Later:
+
+- SMP stress
+- interrupt flood
+- watchdog handoff and reset recovery
+
+## 10. Failure Classification
+
+Future agents should classify failures into:
+
+- build failure
+- image assembly failure
+- firmware load failure
+- `plo` boot failure
+- kernel boot failure
+- shell startup failure
+- runtime regression
+- hardware-lab failure
+
+This classification should appear in logs and issue summaries. It prevents wasting time debugging relay or media issues as kernel bugs.
+
+## 11. Recommended Logging Discipline
+
+Always keep:
+
+- raw UART transcript
+- concise boot summary
+- exact image hash or build identifier
+- exact firmware/config used
+- exact DUT board revision if known
+
+For transient or unstable components, log:
+
+- EEPROM version
+- firmware files used
+- QEMU version
+- relevant `config.txt` settings
+
+## 12. AI-Agent Workflow Recommendations
+
+For autonomous sessions:
+
+1. run fast host-only checks first
+2. run generic emulator checks second
+3. run a very small hardware smoke
+4. only then run heavier tests
+
+This preserves iteration speed and reduces pointless hardware churn.
+
+## 13. Future Enhancements
+
+Good later additions:
+
+- automatic UART log parsing into structured failure summaries
+- boot timing trend tracking
+- image deployment manifest files
+- flaky-test quarantine with explicit documentation
+- board farm management if more than one DUT is used

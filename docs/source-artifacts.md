@@ -158,6 +158,9 @@ This file indexes the most important websites, repositories, documents, and sour
 - `libphoenix/unistd/file.c`
   Important because `create_dev()` currently gates `/dev/tty0` and `/dev/console` registration.
 
+- `libphoenix/unistd/sys.c`
+  Important because the bounded `pl011-tty` retry path currently reaches `usleep(100000)` here and then blocks inside the kernel `nsleep()` path.
+
 - `phoenix-rtos-devices/tty/pl011-tty/pl011-tty.c`
   Important because the current fast lane uses raw UART-side diagnostics here to bound the first console-registration blocker.
 
@@ -169,6 +172,9 @@ This file indexes the most important websites, repositories, documents, and sour
 
 - `phoenix-rtos-kernel/proc/msg.c`
   Important because `proc_send()` blocks until the destination server receives and responds, which is the current reason a non-responsive `devfs` lookup can stall the caller.
+
+- `phoenix-rtos-kernel/proc/threads.c`
+  Important because `proc_threadNanoSleep()` and `_threads_programWakeup()` now define the next bounded diagnostic target after both fast lanes proved that the first retry path sleeps and never wakes.
 
 ## 4. Raspberry Pi Official Documentation
 

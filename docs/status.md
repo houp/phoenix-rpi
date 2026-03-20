@@ -182,6 +182,8 @@ Start-gate status:
 - the filtered `proc/name.c` trace is now in place on the generic lane and proves that the first `lookup("devfs")` takes the `name: devfs no root` fast-failure path, then `devfs` registers later as `name: register devfs`.
 - after that first retry marker, there is still no second `create_dev: lookup devfs` entry and no second `name: devfs ...` branch marker at all, which means the retry loop is not re-entering the kernel lookup path during the observed boot window.
 - the next bounded blocker is therefore no longer kernel name resolution; it is whether the `pl011-tty` retry loop ever wakes up from its `usleep(100000)` call.
+- the raw post-`usleep()` marker is now in place on both QEMU lanes and never appears before timeout, which means the first bounded retry path sleeps and never wakes on both generic `virt` and Pi 4 DTB-backed `raspi4b`.
+- the next bounded blocker is therefore inside the common sleep / timer wakeup path rather than inside `pl011-tty` retry control flow or a second `devfs` lookup.
 - the next concrete Pi 4 boot blocker is now loader MMIO addressing: `sources/plo/hal/aarch64/generic/config.h` still hardcodes QEMU `virt` UART and GIC base addresses, so the current Pi 4 `kernel8.img` would still talk to the wrong MMIO blocks on real hardware until those addresses are made board-overridable.
 - generic `plo` now accepts project-local MMIO base overrides for UART0 and GICv2 while preserving the current QEMU `virt` defaults, and the generic `virt` smoke lane still boots after that change.
 - the current Pi 4 firmware handoff no longer appears to have a raw loader placement mismatch: `kernel_address=0x40080000` in the Pi 4 `config.txt` matches `ADDR_PLO 0x40080000` in `plo/ld/aarch64a53-generic.ldt`.
@@ -194,8 +196,8 @@ Start-gate status:
 
 ## Immediate Next Implementation Milestones
 
-1. Instrument the `pl011-tty` retry helper so the fast lane can distinguish sleep-stall from second-lookup blocking.
-2. Use that wake-return marker to trim the remaining `tty0` registration blocker one small step at a time on the generic fast lane, then confirm the same boundary on the Pi 4 DTB-backed lane.
+1. Instrument the common kernel sleep / wakeup path so the fast lane can distinguish sleep enqueue, wakeup programming, and missing timer-interrupt delivery.
+2. Use that kernel-side visibility to fix the smallest common AArch64 timer or wakeup blocker on the generic fast lane, then confirm the same boundary moves on the Pi 4 DTB-backed lane.
 3. Reach successful `/dev/tty0` and `/dev/console` registration on the generic fast lane, then confirm the same boundary moves on the Pi 4 DTB-backed lane.
 4. Bring the Pi 4 QEMU lane from `pl011-tty: started` to a usable shell or equivalent stable console-ready state.
 5. Once the fast lanes reach stable console readiness, switch the next bounded steps back to firmware-bundle completeness and first real-device smoke preparation.

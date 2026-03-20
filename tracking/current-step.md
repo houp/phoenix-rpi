@@ -2,23 +2,23 @@
 
 ## Metadata
 
-- Step ID: `STEP-0089`
-- Title: Add `psh` to the generic `user.plo`
+- Step ID: `STEP-0090`
+- Title: Define the first generic userspace-start diagnostic step
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- add plain `psh` to the generic runtime image without introducing an `rc.psh` overlay yet
+- identify the smallest diagnostic step that can prove whether generic userspace startup is reaching the packaged console path
 
 ## Scope
 
 In scope:
 
-- update `_targets/aarch64a53/generic/user.plo.yaml`
-- rebuild the required generic utils/project artifacts
-- rerun the generic QEMU smoke lane
+- inspect the updated smoke result after packaging `dummyfs`, `pl011-tty`, and `psh`
+- choose the smallest runtime diagnostic that can distinguish “userspace not reached” from “userspace reached but silent”
+- stop before implementing that diagnostic
 
 Out of scope:
 
@@ -44,16 +44,16 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- the generic `user.plo` now includes plain `psh`
-- the needed generic artifacts are rebuilt and repackaged
-- the generic QEMU smoke lane is rerun from the refreshed image
+- the next diagnostic step is selected from the updated smoke evidence
+- the follow-up stays as one small implementation commit where possible
+- the selected step advances the generic QEMU fast lane directly
 
 ## Validation Plan
 
 - Review:
-  inspect the `user.plo` edit against comparable minimal console-plus-shell scripts
+  inspect the updated runtime state and keep the selected diagnostic minimal
 - Build:
-  rebuild the required generic utils/project artifacts in `phoenix-dev`
+  use existing runtime evidence and nearby code patterns to choose the smallest useful diagnostic
 - Emulator:
   not applicable
 - Hardware:
@@ -62,13 +62,13 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-generic-psh-scope.md`
+  `manifests/2026-03-20-aarch64-generic-psh.md`
 
 ## Notes
 
 - Risks:
-  the result must stay as one `user.plo` runtime step and must not silently turn into `rc.psh` overlay work
+  the result must stay as a diagnostic-planning step and must not silently turn into multi-change bring-up
 - Dependencies:
-  completed implementation step `STEP-0088`
+  completed implementation step `STEP-0089`
 - User-visible control point before next step:
-  after this step lands, the next step should be chosen from the new smoke output
+  after the diagnostic step is selected, the follow-up implementation should stay narrow and validation-driven

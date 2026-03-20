@@ -2,26 +2,26 @@
 
 ## Metadata
 
-- Step ID: `STEP-0227`
-- Title: Scope one bounded later-boot Pi 4 parity check
+- Step ID: `STEP-0228`
+- Title: Scope the smallest shared later-boot visibility step
 - Status: `planned`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- choose the smallest next comparison that identifies the first Pi 4 blocker
-  after the now-working early GIC / timer / console path
+- choose the smallest next visibility step that identifies the first shared
+  later-boot blocker after `dummyfs: initialized`
 
 ## Scope
 
 In scope:
 
-- review the new generic-versus-Pi4 runtime parity through
+- review the current generic and Pi 4 runtime parity after
   `dummyfs: initialized`
-- choose one bounded later-boot comparison or visibility step
-- keep the next move outside the already-fixed early GIC / timer path
-- prefer a read-only or minimally invasive step if possible
+- choose one bounded shared later-boot visibility step
+- focus on syspage app launch progress and `psh` readiness
+- keep the next move outside the solved early GIC / timer path
 
 Out of scope:
 
@@ -42,36 +42,34 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- the next later-boot step is narrowed to one concrete question
+- the next later-boot step is narrowed to one concrete visibility question
 - the selected question is explicitly outside the solved early GIC path
-- the step remains aligned with getting the first Pi 4 boot as quickly as
-  possible
+- the step remains aligned with getting to a clearly interactive Pi 4 boot
 
 ## Validation Plan
 
 - Review:
-  inspect the current generic and Pi 4 runtime evidence after the DTB fix
+  inspect the latest generic and Pi 4 QEMU traces after the DTB fix
 - Evidence:
   - use `manifests/2026-03-20-aarch64-pi4-gic-dtb-fix.md`
-  - compare the latest generic and Pi 4 QEMU traces after `dummyfs: initialized`
+  - use `manifests/2026-03-20-aarch64-pi4-later-boot-parity-scope.md`
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-pi4-gic-dtb-fix.md`
+  `manifests/2026-03-20-aarch64-pi4-later-boot-parity-scope.md`
 
 ## Notes
 
 - Risks:
   do not re-open the solved early GIC path unless new evidence forces it
 - Dependencies:
-  completed `STEP-0226` Pi 4 GIC DTB discovery fix
+  completed `STEP-0227` later-boot Pi 4 parity scope
 - Source reminder:
-  Pi 4 now reaches `pl011-tty: console ready` and `dummyfs: initialized` under
-  `raspi4b` QEMU
+  generic and Pi 4 now both reach the same visible later-boot band through
+  `dummyfs: initialized` within the current 15-second QEMU window
 - User-visible control point before next step:
-  after this step lands, the next implementation move should be chosen by the
-  first observed later-boot mismatch between generic and Pi 4, not by old timer
-  hypotheses
+  after this step lands, the next implementation move should target the first
+  shared later-boot silence point rather than a Pi 4-specific early-boot guess

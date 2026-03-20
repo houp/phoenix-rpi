@@ -2,30 +2,30 @@
 
 ## Metadata
 
-- Step ID: `STEP-0058`
-- Title: Define first emulated generic AArch64 smoke-lane step
+- Step ID: `STEP-0059`
+- Title: Run first end-to-end `aarch64a53-generic-qemu` smoke command
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- identify the smallest runtime verification step for the new `aarch64a53-generic-qemu` entry point on QEMU `virt`
+- execute the first bounded end-to-end runtime smoke command for the new `aarch64a53-generic-qemu` entry point on QEMU `virt`
 
 ## Scope
 
 In scope:
 
-- inspect the new generic QEMU boot artifacts and launch script
-- choose the first bounded runtime command and the first success signal to look for
-- keep the step planning-only and stop before runtime or code changes
+- run the selected smoke command in `phoenix-dev`
+- capture the first serial behavior from the current launcher unchanged
+- stop after recording whether the current generic QEMU lane reaches the loader banner or which earliest runtime failure occurs
 
 Out of scope:
 
 - implementation code in upstream Phoenix repositories
 - `phoenix-rtos-tests` target additions
 - Raspberry Pi-specific code
-- runtime bug fixing in this planning step
+- fixing the runtime failure in this step unless the smoke unexpectedly passes and only documentation closure is needed
 
 ## Expected Repositories
 
@@ -38,36 +38,35 @@ Out of scope:
 - `phoenix-rtos-project/scripts/aarch64a53-generic-qemu.sh`
 - `docs/status.md`
 - tracking files and manifest updates for this step
-- `docs/status.md`
-- tracking files and manifest updates for this step
+- smoke output captured from the copied buildroot in `phoenix-dev`
 
 ## Acceptance Criteria
 
-- the selected smoke step names the exact runtime command to execute first
-- the selected smoke step defines the first accepted boot evidence for success or failure
-- the result explains why that smoke step comes before the emulated test-target integration
+- the selected smoke command is executed in `phoenix-dev`
+- the result records whether the loader banner appears on serial output
+- if the loader banner does not appear, the result records the earliest observed failure mode without widening into a fix step
 
 ## Validation Plan
 
 - Review:
-  inspect the current launch script, artifact names, and generic `plo`/kernel constraints
+  inspect the current launch script, artifact names, and generic `plo`/kernel constraints as needed during result analysis
 - Build:
-  not applicable
+  reuse the currently prepared generic QEMU artifacts if needed
 - Emulator:
-  not applicable
+  run `timeout 10s ./scripts/aarch64a53-generic-qemu.sh` inside the copied buildroot in `phoenix-dev`
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-generic-qemu-project-entry.md`
+  `manifests/2026-03-20-aarch64-generic-qemu-smoke-step-scope.md`
 
 ## Notes
 
 - Risks:
-  the result must stay as one smoke-step selection and must not silently turn into runtime debugging or cross-repo build unblock work
+  the result must stay as one smoke execution and must not silently turn into runtime debugging or cross-repo build unblock work
 - Dependencies:
-  completed implementation step `STEP-0057`
+  completed implementation step `STEP-0058`
 - User-visible control point before next step:
-  after this planning step lands, the next slice should be the selected first emulated smoke run
+  after this smoke run lands, the next slice should be the smallest runtime-fix or stabilization step implied by the earliest observed result

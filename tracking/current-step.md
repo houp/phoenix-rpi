@@ -2,29 +2,35 @@
 
 ## Metadata
 
-- Step ID: `STEP-0169`
-- Title: Scope first Pi 4 `hal_cpuJump()` / EL-exit visibility step
+- Step ID: `STEP-0170`
+- Title: Implement filtered Pi 4 `hal_cpuJump()` visibility
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- define the smallest next visibility step that distinguishes whether the Pi 4 official-DTB lane blocks before entering `hal_cpuJump()`, inside `hal_cpuJump()`, or only after `hal_exitToEL1()` begins the exception-level handoff
+- add narrowly filtered generic AArch64 jump-path visibility so the Pi 4 official-DTB lane shows whether it blocks before entering `hal_exitToEL1()` or only once the assembly EL handoff begins
 
 ## Scope
 
 In scope:
 
-- review the narrow jump path:
-  - `plo/hal/aarch64/generic/hal.c`
-  - `plo/hal/aarch64/generic/_init.S`
-- select one bounded visibility step that exposes the first silent boundary after `go: jump`
-- update manifests and docs with the scoped next step
+- change only `plo/hal/aarch64/generic/hal.c`
+- add raw jump markers for:
+  - missing-entry failure
+  - entry to `hal_cpuJump()`
+  - after `hal_interruptsDisableAll()`
+  - immediately before `hal_exitToEL1()`
+  - unexpected return from `hal_exitToEL1()`
+- rebuild and rerun:
+  - generic `virt`
+  - Pi 4 DTB-backed `raspi4b` with the official firmware DTB
+- update manifests and docs with the exact new boundary
 
 Out of scope:
 
-- code changes
+- assembly changes in `_init.S`
 - changing Pi 4 image layout
 - changing DTB content or selection
 - kernel-side changes
@@ -34,28 +40,33 @@ Out of scope:
 
 ## Expected Repositories
 
+- `plo`
 - coordination repo
 
 ## Expected Files Or Subsystems
 
-- `plo` jump / EL-exit handoff notes
-- Pi 4 QEMU handoff boundary notes
-- manifests and tracking updates for this planning step
+- `plo/hal/aarch64/generic/hal.c`
+- Pi 4 QEMU jump-path boundary notes
+- manifests and tracking updates for this implementation step
 
 ## Acceptance Criteria
 
-- the reviewed jump path is explicitly recorded
-- the next implementation step is narrowed to one `hal_cpuJump()` or EL-exit visibility change
-- the scoped next step is specific enough to divide `hal_cpuJump()` C code from the assembly handoff path
+- the only upstream source change is in `plo/hal/aarch64/generic/hal.c`
+- the generic `virt` lane still reaches the kernel banner after the new `hal:` jump markers
+- the Pi 4 lane now exposes a narrower jump-path boundary
 
 ## Validation Plan
 
 - Review:
-  inspect `hal_cpuJump()` and `hal_exitToEL1()`
+  confirm the markers are tightly filtered and limited to `hal_cpuJump()`
 - Build:
-  not applicable
+  rebuild:
+  - `TARGET=aarch64a53-generic-qemu`
+  - `RPI4B_DTB_PATH=$HOME/external/raspberrypi-firmware/boot/bcm2711-rpi-4-b.dtb TARGET=aarch64a53-generic-rpi4b`
 - Emulator:
-  not applicable
+  rerun:
+  - generic `virt`
+  - Pi 4 DTB-backed `raspi4b`
 - Hardware:
   not applicable
 
@@ -67,8 +78,8 @@ Out of scope:
 ## Notes
 
 - Risks:
-  avoid widening into kernel instrumentation or board-specific hacks before the generic jump path is explicitly split
+  avoid jumping into assembly or board-specific changes before the C-side jump path is exhausted
 - Dependencies:
-  completed `STEP-0168` filtered post-`go!` visibility
+  completed `STEP-0169` jump-visibility scope decision
 - User-visible control point before next step:
-  after this step lands, the next bounded move should be a single jump-path visibility patch rather than a broader Pi 4 kernel change
+  after this step lands, the next bounded move should come from the exact `hal:` jump marker boundary, not from speculation about the assembly handoff

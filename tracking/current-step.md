@@ -2,33 +2,33 @@
 
 ## Metadata
 
-- Step ID: `STEP-0158`
-- Title: Implement timer-IRQ Group 1 experiment
+- Step ID: `STEP-0160`
+- Title: Implement generic `plo` EL3 GIC group-initialization experiment
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- determine whether moving only the selected timer IRQ to Group 1 restores a readable enabled state and begins to unblock timer delivery on the current fast lanes
+- determine whether generic `plo` EL3 GIC Group 1 initialization is enough to make the later kernel-side timer IRQ state move away from `grp 0 en 0`
 
 ## Scope
 
 In scope:
 
-- `sources/phoenix-rtos-kernel/hal/aarch64/interrupts_gicv2.c`
-- add a minimal interrupt-group helper
-- set only the selected timer IRQ to Group 1 before enabling it
-- preserve the timer IRQ state trace after handler registration
-- keep timer-source policy, GIC configuration, and retry logic unchanged
+- `sources/plo/hal/aarch64/generic/interrupts.c`
+- detect EL3 in generic `plo` GIC initialization
+- when running in EL3, initialize secure GIC state so interrupts are placed in Group 1 for the later non-secure handoff
+- preserve the current non-EL3 generic path
+- keep kernel-side timer, scheduler, and DTB logic unchanged
 - validate on the generic `virt` lane first, then on the Pi 4 DTB-backed `raspi4b` lane
 
 Out of scope:
 
-- broader timer redesign
-- broader GIC policy changes
-- interrupt-group policy changes
-- secure-physical timer support
+- broader `plo` interrupt refactoring
+- kernel-side timer changes
+- Pi 4-specific `plo` hacks
+- secure-physical timer policy in the kernel
 - changing `pl011-tty` retry semantics
 - changing scheduler policy
 - real-hardware-only validation
@@ -37,26 +37,26 @@ Out of scope:
 
 ## Expected Repositories
 
-- `sources/phoenix-rtos-kernel`
+- `sources/plo`
 - coordination repo
 
 ## Expected Files Or Subsystems
 
-- `sources/phoenix-rtos-kernel/hal/aarch64/interrupts_gicv2.c`
+- `sources/plo/hal/aarch64/generic/interrupts.c`
 - relevant generic and Pi 4 QEMU smoke notes
 - manifests and tracking updates for this implementation step
 
 ## Acceptance Criteria
 
-- the generic lane still reaches timer-handler registration and timer arming
-- the generic lane exposes whether the selected timer IRQ moves to an enabled Group 1 state
-- the experiment remains local to `hal/aarch64/interrupts_gicv2.c`
+- the generic lane still reaches later kernel-side timer registration and arming
+- the generic lane exposes whether the later kernel trace moves away from `grp 0 en 0`
+- the experiment remains local to generic `plo` GIC initialization
 - neither QEMU lane regresses from current known-good boot output
 
 ## Validation Plan
 
 - Review:
-  confirm the patch stays localized to `hal/aarch64/interrupts_gicv2.c` and only changes group policy for the selected timer IRQ
+  confirm the patch stays localized to generic `plo` GIC initialization and only changes EL3 group setup
 - Build:
   rebuild the affected generic and Pi 4 project lanes in `phoenix-dev`
 - Emulator:
@@ -69,13 +69,13 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-gic-timer-state-experiment.md`
+  `manifests/2026-03-20-aarch64-timer-group1-experiment.md`
 
 ## Notes
 
 - Risks:
-  avoid widening a bounded timer-only group experiment into a full interrupt-group rewrite before the timer path is proven
+  avoid widening a bounded `plo` EL3 group-init experiment into a broad loader interrupt rewrite
 - Dependencies:
-  completed `STEP-0157` scope decision
+  completed `STEP-0159` scope decision
 - User-visible control point before next step:
-  after this step lands, the next bounded move should come from whether the selected timer IRQ becomes Group 1 and enabled, and whether dispatch starts appearing
+  after this step lands, the next bounded move should come from whether the later kernel-side timer trace changes from `grp 0 en 0`, and whether dispatch finally starts appearing

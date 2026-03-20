@@ -2,23 +2,26 @@
 
 ## Metadata
 
-- Step ID: `STEP-0123`
-- Title: Implement bounded `create_dev()` retry handling in `pl011-tty`
+- Step ID: `STEP-0125`
+- Title: Implement raw UART-side registration diagnostics in `pl011-tty`
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- add the smallest shared console-readiness patch that can move both the generic and Pi 4 DTB-backed QEMU lanes beyond `pl011-tty: started`
+- add the smallest high-signal diagnostics that can show exactly where `pl011-tty` stops between startup and console registration
 
 ## Scope
 
 In scope:
 
 - `sources/phoenix-rtos-devices/tty/pl011-tty/pl011-tty.c`
-- add a small bounded retry helper around `create_dev()`
-- use it for `/dev/tty0` and `_PATH_CONSOLE`
+- add raw UART-side progress markers around:
+  - `/dev/tty0` registration attempt
+  - `/dev/tty0` registration result
+  - `/dev/console` registration attempt
+  - `/dev/console` registration result
 - keep the patch in shared userspace/device code
 - validate on both the generic and Pi 4 DTB-backed QEMU lanes
 
@@ -30,7 +33,7 @@ Out of scope:
 - real-hardware-only validation
 - Pi 5 or RP1 work
 - `phoenix-rtos-tests` integration
-- unrelated kernel early-console work
+- speculative retry or init-order work beyond the diagnostic markers themselves
 
 ## Expected Repositories
 
@@ -45,14 +48,14 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- `pl011-tty` no longer fails on the first transient registration miss
-- at least one lane advances beyond the current `pl011-tty: started` boundary
-- the other lane does not regress from the current known-good output
+- the next QEMU run produces at least one new raw registration marker after `pl011-tty: started`
+- the markers distinguish whether the current boundary is before, during, or after `/dev/tty0` registration
+- neither lane regresses from current known-good startup output
 
 ## Validation Plan
 
 - Review:
-  confirm that the patch stays local to `pl011-tty` and uses bounded retry behavior
+  confirm that the patch stays local to `pl011-tty` and only adds raw diagnostics
 - Build:
   rebuild the affected device and project lanes in `phoenix-dev`
 - Emulator:
@@ -65,13 +68,13 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-pl011-console-retry-scope.md`
+  `manifests/2026-03-20-aarch64-pl011-registration-diagnostic-scope.md`
 
 ## Notes
 
 - Risks:
-  keep retry timing bounded and driver-local
+  avoid turning diagnostics into a permanent large debug scaffold
 - Dependencies:
-  completed `STEP-0122`
+  completed `STEP-0124`
 - User-visible control point before next step:
   after this step lands, the next bounded move should come from concrete new console output on the two QEMU lanes

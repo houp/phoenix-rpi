@@ -2,32 +2,30 @@
 
 ## Metadata
 
-- Step ID: `STEP-0162`
-- Title: Implement generic `plo` entry-EL visibility
+- Step ID: `STEP-0164`
+- Title: Validate Pi 4 QEMU lane with an official firmware DTB
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- determine which exception level the generic loader actually runs at on the Pi 4 `raspi4b` QEMU lane, relative to the now-working generic `virt` lane
+- determine whether replacing the current stub Pi 4 DTB with an official Raspberry Pi firmware DTB moves the `raspi4b` QEMU lane beyond the current `tty0 lookup retry` boundary
 
 ## Scope
 
 In scope:
 
-- `sources/plo/hal/aarch64/generic/hal.c`
-- add a small console-visible current-EL trace after generic loader console initialization
-- preserve the existing generic loader boot flow and interrupt initialization
-- use the same trace on both the generic `virt` and Pi 4 `raspi4b` lanes
-- validate on the generic `virt` lane first, then on the Pi 4 DTB-backed `raspi4b` lane
+- acquire an official `bcm2711-rpi-4-b.dtb` from the Raspberry Pi firmware repository
+- record the exact firmware repo revision used for the validation
+- rebuild the Pi 4 project with `RPI4B_DTB_PATH` pointing to that DTB
+- rerun the Pi 4 `raspi4b` QEMU lane
+- update manifests and docs with the exact DTB source used
 
 Out of scope:
 
-- broader `plo` refactoring
+- kernel or loader code changes
 - any new interrupt-controller policy changes
-- kernel-side timer changes
-- Pi 4-specific `plo` hacks
 - changing `pl011-tty` retry semantics
 - changing scheduler policy
 - real-hardware-only validation
@@ -36,31 +34,28 @@ Out of scope:
 
 ## Expected Repositories
 
-- `sources/plo`
 - coordination repo
 
 ## Expected Files Or Subsystems
 
-- `sources/plo/hal/aarch64/generic/hal.c`
+- external Raspberry Pi firmware DTB source
 - relevant generic and Pi 4 QEMU smoke notes
 - manifests and tracking updates for this implementation step
 
 ## Acceptance Criteria
 
-- the generic lane still reaches the current working timer and tty boundary
-- both QEMU lanes expose the generic loader entry EL
-- the experiment remains local to generic `plo` startup visibility
-- neither QEMU lane regresses from current known-good boot output
+- the exact firmware DTB source and revision are recorded
+- the Pi 4 validation uses a real firmware DTB rather than the current stub
+- the Pi 4 result shows whether a real DTB moves the lane beyond `tty0 lookup retry`
 
 ## Validation Plan
 
 - Review:
-  confirm the patch stays localized to generic `plo` startup visibility and only adds current-EL reporting
+  confirm the DTB comes from the official Raspberry Pi firmware repository and record the exact revision used
 - Build:
-  rebuild the affected generic and Pi 4 project lanes in `phoenix-dev`
+  rebuild the Pi 4 project in `phoenix-dev` with `RPI4B_DTB_PATH` pointing to that DTB
 - Emulator:
   rerun:
-  - generic `virt`
   - Pi 4 DTB-backed `raspi4b`
 - Hardware:
   not applicable
@@ -68,13 +63,13 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-plo-gic-group-init-experiment.md`
+  `manifests/2026-03-20-aarch64-plo-entry-el-experiment.md`
 
 ## Notes
 
 - Risks:
-  avoid widening a bounded loader visibility step into another behavioral change before the Pi 4 entry mode is known
+  avoid mixing input-quality validation with new code changes
 - Dependencies:
-  completed `STEP-0161` scope decision
+  completed `STEP-0163` scope decision
 - User-visible control point before next step:
-  after this step lands, the next bounded move should come from whether the Pi 4 lane reaches generic `plo` in EL3, EL2, or EL1
+  after this step lands, the next bounded move should come from whether the real Pi 4 DTB shifts the `raspi4b` lane or whether a different Pi 4-specific blocker remains

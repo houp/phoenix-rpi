@@ -207,6 +207,8 @@ Start-gate status:
 - the next bounded boundary is therefore above the kernel in generic `plo` EL3 setup; the smallest next experiment is to initialize generic loader GIC state for Group 1 before the non-secure EL1 handoff.
 - the generic `plo` EL3 GIC initialization experiment is the first major boundary break on the fast lane: the generic `virt` path now reaches `gic: timer dispatch`, `threads: timer irq`, `pl011-tty: tty0 wake`, `pl011-tty: tty0 ready`, `pl011-tty: console ready`, and visible later kernel startup logs.
 - the Pi 4 DTB-backed `raspi4b` lane remains unchanged after that same loader-side fix, so the next bounded clue is the loader entry EL on the Pi 4 path rather than another generic timer or GIC change.
+- the generic loader entry-EL visibility step is now complete: both the working generic `virt` lane and the stuck Pi 4 `raspi4b` lane enter `plo` at `EL3`.
+- the next strongest Pi 4 clue is now the DTB itself: the current `RPI4B_DTB_PATH` input is only a 274-byte stub containing `compatible` plus one memory bank, which is not a real Pi 4 board tree.
 - the next concrete Pi 4 boot blocker is now loader MMIO addressing: `sources/plo/hal/aarch64/generic/config.h` still hardcodes QEMU `virt` UART and GIC base addresses, so the current Pi 4 `kernel8.img` would still talk to the wrong MMIO blocks on real hardware until those addresses are made board-overridable.
 - generic `plo` now accepts project-local MMIO base overrides for UART0 and GICv2 while preserving the current QEMU `virt` defaults, and the generic `virt` smoke lane still boots after that change.
 - the current Pi 4 firmware handoff no longer appears to have a raw loader placement mismatch: `kernel_address=0x40080000` in the Pi 4 `config.txt` matches `ADDR_PLO 0x40080000` in `plo/ld/aarch64a53-generic.ldt`.
@@ -219,7 +221,7 @@ Start-gate status:
 
 ## Immediate Next Implementation Milestones
 
-1. Run the smallest generic `plo` entry-EL visibility experiment so the Pi 4 lane can be compared directly with the working generic EL3 path.
+1. Run the smallest Pi 4 validation with an official firmware DTB so the `raspi4b` lane is no longer tested against the current stub board tree.
 2. Use that result to choose the next smallest Pi 4-specific bring-up step, then confirm the same boundary moves on the `raspi4b` lane.
 3. Reach successful `/dev/tty0` and `/dev/console` registration on the generic fast lane, then confirm the same boundary moves on the Pi 4 DTB-backed lane.
 4. Bring the Pi 4 QEMU lane from `pl011-tty: started` to a usable shell or equivalent stable console-ready state.

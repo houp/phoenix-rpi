@@ -2,27 +2,29 @@
 
 ## Metadata
 
-- Step ID: `STEP-0098`
-- Title: Define the first Pi 4-specific no-hardware scaffold step after the generic QEMU runtime boundary
+- Step ID: `STEP-0099`
+- Title: Add the first Pi 4 project-local scaffold on top of `aarch64a53-generic`
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- identify the smallest Pi 4-oriented implementation step that can start real board scaffolding without depending on real hardware and without losing the generic QEMU lane
+- add the smallest Pi 4-oriented scaffold that introduces board-local files without widening the existing target/subfamily matrix
 
 ## Scope
 
 In scope:
 
-- inspect the current generic-QEMU boundary together with the Pi 4 platform notes
-- choose the smallest Pi 4-specific scaffold change that can be validated without real hardware
-- stop before implementing that scaffold change
+- add a new project directory under `phoenix-rtos-project/_projects/`
+- keep the existing `aarch64a53-generic` target and reuse its build flow
+- add Pi 4-specific `board_config.h` and minimal `build.project`
+- validate the new project through a no-hardware `host project image` build
 
 Out of scope:
 
-- broad multi-repo Pi 4 bring-up
+- new target families or subfamilies
+- Pi 4 hardware drivers
 - real-hardware-only validation
 - Pi 5 or RP1 work
 - `phoenix-rtos-tests` target additions
@@ -44,16 +46,16 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- the next Pi 4-oriented step is selected from current evidence rather than from broad wishlisting
-- the follow-up stays as one small implementation commit where possible
-- the selected step directly improves the path to a first Pi 4 UART/kernel boot
+- `phoenix-rtos-project` exposes a new `aarch64a53-generic-rpi4b` project
+- the new project keeps all target reuse within the existing generic subfamily
+- the no-hardware `host project image` lane succeeds for the new project in `phoenix-dev`
 
 ## Validation Plan
 
 - Review:
-  inspect the generic runtime boundary and Pi 4 bring-up notes together
+  inspect the project-local scaffold for minimality and target reuse
 - Build:
-  use local source and project documentation to choose the smallest useful Pi 4 scaffold step
+  run `LIBPHOENIX_DEVEL_MODE=n TARGET=aarch64a53-generic-rpi4b ./phoenix-rtos-build/build.sh host project image` in `phoenix-dev`
 - Emulator:
   not applicable
 - Hardware:
@@ -62,13 +64,13 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-generic-wait-test.md`
+  `manifests/2026-03-20-aarch64-rpi4b-project-scope.md`
 
 ## Notes
 
 - Risks:
-  the result must stay as a localized planning step and must not silently widen into a broad Pi 4 porting batch
+  the result must stay as one localized project-scaffold step and must not silently widen into kernel or loader board support
 - Dependencies:
-  abandoned implementation experiment `STEP-0097`
+  completed planning step `STEP-0098`
 - User-visible control point before next step:
-  after the next Pi 4-oriented step is selected, implementation should stay narrowly scoped and build-validated
+  after the scaffold lands, the next Pi 4 follow-up should stay project-local or build-local unless a stronger reason emerges

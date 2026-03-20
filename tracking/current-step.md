@@ -2,33 +2,29 @@
 
 ## Metadata
 
-- Step ID: `STEP-0020`
-- Title: Add AArch64 generic timer source selection helpers
+- Step ID: `STEP-0021`
+- Title: Define the first directly selectable common AArch64 timer backend step
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- codify the first AArch64 generic timer source-selection policy in the DTB API so a future common timer backend can consume an explicit source decision instead of re-implementing selection logic
+- define and bound the first directly selectable common AArch64 timer backend step now that timer-source selection is exposed explicitly by the DTB API
 
 ## Scope
 
 In scope:
 
-- update `phoenix-rtos-kernel/hal/aarch64/dtb.h`
-- update `phoenix-rtos-kernel/hal/aarch64/dtb.c`
-- add a small AArch64 generic timer source-selection API
-- encode the current common EL1 policy:
-  - prefer non-secure physical timer
-  - fall back to virtual timer
-  - do not select secure or hypervisor timer in this path
-- validate that the existing `aarch64a53-zynqmp-qemu` build still succeeds
+- inspect the current AArch64 timer preparation work after `STEP-0020`
+- choose the first directly selectable common timer backend shape
+- select the smallest exact touched-file set for that backend step
+- keep this as a planning and scoping step only
 
 Out of scope:
 
 - adding a new QEMU target
-- implementing the generic timer backend itself
+- implementing the selected backend itself
 - adding PL011 console code
 - Raspberry Pi-specific code
 
@@ -41,34 +37,34 @@ Out of scope:
 
 - `hal/aarch64/dtb.c`
 - `hal/aarch64/dtb.h`
-- copied-buildroot AArch64 validation workflow
-- tracking files and manifest updates after validation
+- `hal/aarch64/aarch64.h`
+- likely a new common AArch64 timer source file or Makefile hook
+- tracking files and manifest updates for the chosen next step
 
 ## Acceptance Criteria
 
-- the DTB API exposes an explicit selected generic timer source and IRQ for common AArch64 use
-- the source-selection policy is documented in code and remains small
-- `TARGET=aarch64a53-zynqmp-qemu ./phoenix-rtos-build/build.sh clean host core project` still succeeds inside `phoenix-dev` using the copied buildroot
+- the first directly selectable common AArch64 timer backend step is explicitly scoped with exact touched files, rationale, validation command, and success criteria
+- the selected next step is narrow enough to implement and validate in one controlled follow-up session
 
 ## Validation Plan
 
 - Build:
-  refresh the copied buildroot, then run the existing `aarch64a53-zynqmp-qemu` build path in `phoenix-dev`
+  not applicable
 - Emulator:
-  local `virt` timer DT node already inspected; confirm the chosen selection order matches the currently parsed timer metadata layout
+  not applicable
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-generic-timer-step-scope.md`
+  `manifests/2026-03-20-aarch64-dtb-timer-source-selection.md`
 
 ## Notes
 
 - Risks:
-  this is still a preparatory step and does not yet prove the generic timer backend itself
+  the next timer backend step is the first one that will add substantial new runtime logic outside the current ZynqMP path
 - Dependencies:
-  completed timer planning step from `STEP-0019`
+  completed DTB timer-source selection step from `STEP-0020`
 - User-visible control point before next step:
-  present the exact DTB API change, validation command, and resulting commit before moving into the common timer backend implementation
+  present the exact selected backend step before introducing the first directly selectable common timer implementation

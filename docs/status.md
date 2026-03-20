@@ -137,12 +137,13 @@ Start-gate status:
 - that next Pi 4 staging decision is now fixed: emit a firmware-facing boot directory with a project-local `config.txt` and renamed raw `plo` image before widening into DTB import or firmware-handoff code.
 - that firmware-facing staging step is now implemented and build-validated; `_boot/aarch64a53-generic-rpi4b/rpi4b/` now contains `config.txt` and `kernel8.img`, while DTB staging and EL3-only loader entry remain the next two concrete blockers.
 - the Pi 4 project now has an optional project-local DTB staging hook: when `RPI4B_DTB_PATH` is set or `_projects/aarch64a53-generic-rpi4b/bcm2711-rpi-4-b.dtb` exists, the build stages `bcm2711-rpi-4-b.dtb` into `_boot/aarch64a53-generic-rpi4b/rpi4b/`; otherwise the default build remains self-contained and stages only `config.txt` and `kernel8.img`.
-- the next concrete Pi 4 boot blocker is now fully loader-side: generic `plo` still rejects non-EL3 entry in `hal/aarch64/generic/_init.S` and still exits to the kernel through an EL3-only `hal_exitToEL1` path.
 - local QEMU reset logging now gives a useful generic loader-entry matrix for the same image:
   - `virt,secure=on` starts in EL3 and is the current known-good baseline
   - `virt,secure=off` starts in EL1h
   - `virt,secure=off,virtualization=on` starts in EL2h
-- the selected next loader step is therefore to make generic `plo` handle EL1, EL2, and EL3 entry in one localized assembly patch, with the two non-EL3 QEMU modes serving as the first no-hardware validation lanes for Pi 4-oriented firmware handoff work.
+- generic `plo` now handles EL1, EL2, and EL3 entry in one localized AArch64 assembly path, and the same generic QEMU image now reaches visible loader, kernel, and early userspace output in all three entry modes.
+- the remaining caveat on that path is diagnostic rather than boot-blocking: generic non-EL3 loader exception-context save is not yet independently hardened, so the currently validated result is the normal no-fault fast path.
+- the next concrete Pi 4 blocker is no longer raw exception level entry; it is payload staging after firmware boots `kernel8.img`, because the current Pi 4 boot tree still does not provide the generic `ram0`-backed `loader.disk` medium that the existing AArch64 generic preinit path expects.
 - Phoenix upstream style is conservative and review-oriented: file headers, tabs in C, localized `clang-format off/on`, direct control flow, `static const` hardware tables, and warning-clean builds enforced by `-Werror` in `phoenix-rtos-build/Makefile.common`.
 - Pi 4 uses BCM2711 with GIC-400, PL011, BCM2711 PCIe, VL805 xHCI over PCIe, GENET Ethernet, and Broadcom SDHCI.
 - Pi 5 uses BCM2712 plus RP1, with most I/O behind a PCIe-connected southbridge-like peripheral controller.

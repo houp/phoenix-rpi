@@ -2,30 +2,30 @@
 
 ## Metadata
 
-- Step ID: `STEP-0105`
-- Title: Implement generic `plo` multi-EL entry and kernel handoff support
+- Step ID: `STEP-0106`
+- Title: Define the first Pi 4 firmware payload-staging step after multi-EL loader bring-up
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- implement the smallest loader-local change that lets generic `plo` start and hand off to the kernel from EL1, EL2, or EL3
+- bound the smallest useful Pi 4 boot-tree change that supplies the existing generic AArch64 `plo` path with its payload after Raspberry Pi firmware boots `kernel8.img`
 
 ## Scope
 
 In scope:
 
-- update `plo/hal/aarch64/generic/_init.S`
-- add EL-aware startup handling for EL1, EL2, and EL3
-- add the matching EL-aware `hal_exitToEL1` handling
-- preserve the existing EL3 path while unblocking the generic non-EL3 QEMU lanes
+- inspect the current Pi 4 project-local boot tree and the generic AArch64 preinit assumptions
+- confirm how the current generic `ram0` / `loader.disk` path works
+- determine the smallest Pi 4-compatible way to preload that payload without adding an SD or FAT driver
+- define the next implementation step and validation method
 
 Out of scope:
 
-- MMU refactoring for the generic loader
-- board-specific Raspberry Pi drivers or DT parsing
-- kernel Pi 4 enablement beyond reaching the existing generic handoff path
+- broad Pi 4 storage-driver work
+- generic loader entry refactors beyond the now-validated multi-EL patch
+- kernel Pi 4 driver enablement
 - DTB staging policy changes
 - real-hardware-only validation
 - Pi 5 or RP1 work
@@ -34,42 +34,43 @@ Out of scope:
 ## Expected Repositories
 
 - coordination repo
-- `plo`
 
 ## Expected Files Or Subsystems
 
-- `plo/hal/aarch64/generic/_init.S`
-- generic QEMU `virt` validation notes for EL1, EL2, and EL3 entry modes
-- manifests and tracking updates for this implementation step
+- `phoenix-rtos-project/_projects/aarch64a53-generic-rpi4b/build.project`
+- `phoenix-rtos-project/_projects/aarch64a53-generic-rpi4b/config.txt`
+- `phoenix-rtos-project/_projects/aarch64a53-generic-rpi4b/user.plo.yaml`
+- `phoenix-rtos-project/_targets/aarch64a53/generic/build.project`
+- `phoenix-rtos-project/_targets/aarch64a53/generic/preinit.plo.yaml`
+- documentation and manifest updates for this planning step
 
 ## Acceptance Criteria
 
-- the generic loader builds cleanly after the `_init.S` change
-- `virt,secure=on` still shows visible loader and kernel output
-- `virt,secure=off` now shows visible loader and kernel output instead of hanging before the first banner
-- `virt,secure=off,virtualization=on` now shows visible loader and kernel output instead of hanging before the first banner
+- the current Pi 4 project-local payload gap is explicitly documented from source inspection
+- the next implementation step is fixed as one bounded boot-tree or project-local staging change
+- the selected next step reuses the existing generic `plo` payload path rather than inventing a new board-specific loader mechanism unless evidence forces it
 
 ## Validation Plan
 
 - Review:
-  inspect the EL dispatch and handoff logic for minimality and nearby-style consistency
+  inspect the current generic payload-loading path and the Pi 4 boot tree
 - Build:
-  rebuild the generic QEMU project and the Pi 4 scaffold project
+  not applicable
 - Emulator:
-  run the generic QEMU image in EL3, EL1, and EL2 entry modes
+  define whether an existing no-hardware lane can validate the selected payload-staging change
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-generic-plo-entry-scope.md`
+  `manifests/2026-03-20-aarch64-generic-plo-entry.md`
 
 ## Notes
 
 - Risks:
-  the patch must stay localized to the generic loader entry assembly and must not widen into broader generic-loader or kernel architecture work
+  the next step must not silently widen into SD, FAT, or network drivers unless a smaller payload-staging reuse path is ruled out first
 - Dependencies:
-  completed planning step `STEP-0104`
+  completed implementation step `STEP-0105`
 - User-visible control point before next step:
-  after this patch lands, the next bounded decision should be taken from the new three-mode QEMU runtime state rather than from more speculative Pi 4 work
+  once the payload-staging approach is defined, the next implementation step should be a single project-local change that moves the Pi 4 boot tree closer to a real firmware boot without needing real hardware yet

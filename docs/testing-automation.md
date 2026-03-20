@@ -128,6 +128,19 @@ Reason:
 - Phoenix build assumptions are Linux-shaped
 - macOS host access to directly attached lab devices is simpler than passing them into Apple-Virtualization VMs
 
+## 4.4.1 Current generic AArch64 loader entry matrix
+
+The current generic AArch64 QEMU lane is now useful for validating loader entry and kernel handoff behavior across three exception-level entry modes using the same built image:
+
+- `virt,secure=on,gic-version=2`
+  - current known-good EL3 baseline
+- `virt,secure=off,gic-version=2`
+  - current EL1-entry lane
+- `virt,secure=off,virtualization=on,gic-version=2`
+  - current EL2-entry lane
+
+Use this matrix when changing generic `plo` entry code before depending on Raspberry Pi hardware. It is faster and more controlled than jumping directly to the Pi 4 board for exception-level regressions.
+
 ## 4.5 Loader script timing caveat
 
 Avoid using the PLO `wait` command as a passive timing delay in unattended lanes.

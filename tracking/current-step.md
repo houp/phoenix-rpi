@@ -2,23 +2,23 @@
 
 ## Metadata
 
-- Step ID: `STEP-0086`
-- Title: Define the first generic `user.plo` integration step for `dummyfs` and `pl011-tty`
+- Step ID: `STEP-0087`
+- Title: Add `dummyfs` and `pl011-tty` to the generic `user.plo`
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- identify the smallest `user.plo` change that lets the generic QEMU image bring up `dummyfs` before `pl011-tty`
+- add the first minimal userspace console sequence to the generic image so `pl011-tty` can create `/dev/console`
 
 ## Scope
 
 In scope:
 
-- inspect current generic and comparable QEMU `user.plo` sequences
-- choose the smallest ordering and component set that can make `/dev/console` creation viable
-- stop before editing `user.plo`
+- update `_targets/aarch64a53/generic/user.plo.yaml`
+- load `dummyfs` before `pl011-tty`
+- rerun the generic QEMU smoke lane
 
 Out of scope:
 
@@ -39,20 +39,20 @@ Out of scope:
 - `phoenix-rtos-devices/tty/pl011-tty/*`
 - `docs/status.md`
 - tracking files and manifest updates for this step
-- direct script references and, if needed, runtime evidence
+- generic QEMU smoke output
 
 ## Acceptance Criteria
 
-- the smallest `user.plo` integration step is selected from actual script patterns
-- the follow-up stays as one small implementation commit where possible
-- the selected step advances the generic QEMU fast lane directly
+- the generic `user.plo` now loads `dummyfs` before `pl011-tty`
+- the generic QEMU smoke lane is rerun from refreshed artifacts
+- the change stays smaller than adding `psh`
 
 ## Validation Plan
 
 - Review:
-  inspect current generic and comparable QEMU `user.plo` scripts and keep the selected sequence minimal
+  inspect the `user.plo` edit against comparable QEMU script patterns and keep it minimal
 - Build:
-  use direct build or runtime evidence only as needed to choose the smallest useful `user.plo` step
+  rebuild the generic project/image artifacts needed for the smoke lane in `phoenix-dev`
 - Emulator:
   not applicable
 - Hardware:
@@ -61,13 +61,13 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-pl011-board-config.md`
+  `manifests/2026-03-20-aarch64-pl011-user-plo-scope.md`
 
 ## Notes
 
 - Risks:
-  the result must stay as a `user.plo` planning step and must not silently turn into generic shell bring-up in one jump
+  the result must stay as one `user.plo` integration step and must not silently turn into full shell bring-up
 - Dependencies:
-  completed implementation step `STEP-0085`
+  completed implementation step `STEP-0086`
 - User-visible control point before next step:
-  after the `user.plo` step is selected, the follow-up implementation should stay narrow and validation-driven
+  after this runtime-image step lands, the next step should be chosen from the new smoke output

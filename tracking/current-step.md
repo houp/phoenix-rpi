@@ -2,30 +2,27 @@
 
 ## Metadata
 
-- Step ID: `STEP-0143`
-- Title: Scope common AArch64 timer source / IRQ visibility
+- Step ID: `STEP-0144`
+- Title: Instrument common AArch64 timer source / IRQ visibility
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- define the smallest next diagnostic step that can prove which common AArch64 timer source and IRQ are being selected and armed before the missing timer interrupt should arrive
+- determine which common AArch64 timer source and IRQ are selected and whether the first wakeup arming reaches the timer frontend before the missing interrupt
 
 ## Scope
 
 In scope:
 
-- inspect the common AArch64 timer path around:
-  - `sources/phoenix-rtos-kernel/hal/aarch64/gtimer_backend.c`
-  - `sources/phoenix-rtos-kernel/hal/aarch64/gtimer_timer.c`
-  - `sources/phoenix-rtos-kernel/hal/aarch64/dtb.c`
-- pick the minimum visibility point that can expose:
+- `sources/phoenix-rtos-kernel/hal/aarch64/gtimer_timer.c`
+- add tightly filtered, one-time markers for:
   - selected timer source
   - selected IRQ number
-  - timer registration and first wakeup arming context
-- keep the next implementation step localized to the common AArch64 timer code
-- preserve the current generic and Pi 4 DTB-backed QEMU lanes
+  - first wakeup arming
+- keep timer policy and IRQ routing unchanged
+- validate on the generic `virt` lane first, then on the Pi 4 DTB-backed `raspi4b` lane
 
 Out of scope:
 
@@ -44,24 +41,27 @@ Out of scope:
 
 ## Expected Files Or Subsystems
 
-- `sources/phoenix-rtos-kernel/hal/aarch64/gtimer_backend.c`
 - `sources/phoenix-rtos-kernel/hal/aarch64/gtimer_timer.c`
-- manifests and tracking updates for the scope decision
+- relevant generic and Pi 4 QEMU smoke notes
+- manifests and tracking updates for this implementation step
 
 ## Acceptance Criteria
 
-- the next implementation step is narrowed to one specific timer-visibility point in the common AArch64 timer path
-- the scope is justified against the current `STEP-0142` result
-- the resulting step avoids mixing timer visibility with policy changes or fixes
+- the generic lane exposes the selected common AArch64 timer source
+- the generic lane exposes the selected common AArch64 timer IRQ
+- the generic lane exposes that the first wakeup arming reaches `gtimer_timer.c`
+- neither QEMU lane regresses from current known-good boot output
 
 ## Validation Plan
 
 - Review:
-  inspect the common AArch64 timer path and record the smallest justified visibility point
+  confirm the patch stays localized to `hal/aarch64/gtimer_timer.c` and only adds filtered timer markers
 - Build:
-  not applicable
+  rebuild the affected generic and Pi 4 project lanes in `phoenix-dev`
 - Emulator:
-  not applicable
+  rerun:
+  - generic `virt`
+  - Pi 4 DTB-backed `raspi4b`
 - Hardware:
   not applicable
 
@@ -73,8 +73,8 @@ Out of scope:
 ## Notes
 
 - Risks:
-  avoid turning a proven missing-timer-interrupt symptom into an unbounded timer-policy rewrite
+  avoid mixing timer-source visibility with timer-policy changes or speculative fixes
 - Dependencies:
-  completed `STEP-0142` kernel sleep / wakeup visibility result
+  completed `STEP-0143` scope decision
 - User-visible control point before next step:
-  after this scope step lands, the next implementation patch should expose the selected common AArch64 timer source and IRQ before any fix is attempted
+  after this step lands, the next bounded move should come from concrete source / IRQ visibility rather than from timer-source guesses

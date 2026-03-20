@@ -2,41 +2,40 @@
 
 ## Metadata
 
-- Step ID: `STEP-0235`
-- Title: Implement bounded `psh` first-user-schedule visibility
+- Step ID: `STEP-0236`
+- Title: Scope the smallest kernel-side `psh` root-lookup success trace
 - Status: `planned`
 - Date: `2026-03-21`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- prove whether the spawned `psh` process ever reaches first user execution
-  using one bounded kernel-side marker
+- choose the smallest next hook after first user execution that can prove
+  whether `psh` gets past its `lookup("/")` wait loop
 
 ## Scope
 
 In scope:
 
 - review the current `psh` startup path in `psh.c` and `pshapp.c`
-- add the selected one-time `psh` user-schedule marker
-- rebuild the generic and Pi 4 QEMU lanes
-- record whether either lane reaches the first-user-execution boundary
+- inspect the earliest `psh`-specific syscall-side hook after first execution
+- prefer a one-time root-lookup success trace over a broader open-path trace
+- document the exact next implementation step
 
 Out of scope:
 
 - changing behavior
-- broad scheduler tracing
+- broad syscall tracing
 - real hardware work
 - Pi 5 or RP1 work
 
 ## Expected Repositories
 
-- `phoenix-rtos-kernel`
 - coordination repo
 
 ## Expected Files Or Subsystems
 
-- `sources/phoenix-rtos-kernel/proc/threads.c`
+- likely `sources/phoenix-rtos-kernel/syscalls.c`
 - `docs/status.md`
 - `manifests/`
 - `tracking/current-step.md`
@@ -44,34 +43,33 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- generic QEMU proves whether `psh` reaches first user execution
-- Pi 4 QEMU is rerun too if the result stays on the shared path
-- the result narrows the next move to one concrete follow-up
+- the selected next patch traces one exact `psh` root-lookup success condition
+- the scope names the source file and the exact trigger condition
+- the result narrows the next move to one concrete implementation step
 
 ## Validation Plan
 
-- Emulator:
-  - rebuild generic `virt`
-  - rerun generic QEMU
-  - rerun Pi 4 QEMU if the generic result remains in the shared path
+- Analysis only:
+  - inspect `syscalls_lookup()` and related path-resolution helpers
+  - choose the smallest `psh`-filtered `lookup("/")` success marker
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-21-aarch64-psh-first-user-schedule-scope.md`
+  `manifests/2026-03-21-aarch64-psh-first-user-schedule.md`
 
 ## Notes
 
 - Risks:
-  keep the trace one-time and `psh`-specific so the scheduler output stays
-  readable
+  avoid widening into generic pathname tracing when the next question is only
+  whether `psh` sees `/`
 - Dependencies:
-  completed `STEP-0234` below-stdio `psh` process-entry visibility scope
+  completed `STEP-0235` `psh` first-user-schedule visibility
 - Source reminder:
-  neither lane shows any `psh:` marker at all, so the next split has to happen
-  below shell-visible stdio
+  both lanes now prove `psh` reaches user mode, so the next split should move
+  to the earliest `psh`-specific syscall result
 - User-visible control point before next step:
-  after this step lands, the next follow-up should depend on whether `psh`
-  reaches first user execution at all
+  after this scope step lands, the next patch should add one `psh`-filtered
+  root-lookup marker only

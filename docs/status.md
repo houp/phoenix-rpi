@@ -428,9 +428,12 @@ Start-gate status:
   both generic and Pi 4:
   - neither lane prints even `psh: root ready` or `psh: run enter`
   - both lanes still stop visibly after `dummyfs: initialized`
-- the next bounded visibility step therefore has to sit below shell-visible
-  stdio, most likely at a kernel-side first-user-execution hook for the spawned
-  `psh` process
+- the first below-stdio hook is now complete and positive on both lanes:
+  - generic prints `threads: psh user scheduled`
+  - Pi 4 prints `threads: psh user scheduled`
+- `psh` therefore does reach first user-mode execution on both lanes
+- the next bounded visibility step should now move to the earliest `psh`-local
+  syscall result, starting with `lookup("/")`
 - local QEMU `10.2.2` `hw/intc/arm_gic.c` does not expose an explicit
   CPU-interface read case for offset `0x28`, so older `AHPPIR` experiments
   should not be treated as authoritative outside the exact runtime context in

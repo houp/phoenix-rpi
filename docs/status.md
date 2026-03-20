@@ -164,6 +164,9 @@ Start-gate status:
 - the next smallest high-signal step is now raw UART-side registration diagnostics in `pl011-tty`, because current stderr-only failure paths are not visible on the captured QEMU serial output.
 - raw UART-side `pl011-tty` diagnostics now prove that both the generic and Pi 4 DTB-backed QEMU lanes reach `pl011-tty: register tty0` and then stop before either success or failure is reported.
 - the current shared blocker is therefore inside the common `create_dev("/dev/tty0")` path, not in the driver-local code before or after that call.
+- a bounded `libphoenix`-side `debug()` probe inside `create_dev()` produced no visible new markers on either QEMU lane and was reverted; that `debug()` path is not a useful early-boot visibility mechanism here.
+- kernel-side syscall diagnostics now prove that the generic QEMU lane returns from `lookup("devfs", ...)` before hanging, and never reaches the final `msgSend()` marker for `tty0`; the live boundary is therefore between lookup return and final `msgSend()` entry inside `create_dev()`.
+- the Pi 4 DTB-backed lane still does not show kernel-side markers, so the generic lane remains the authoritative fast diagnostic lane for this early `create_dev()` blocker.
 - the next concrete Pi 4 boot blocker is now loader MMIO addressing: `sources/plo/hal/aarch64/generic/config.h` still hardcodes QEMU `virt` UART and GIC base addresses, so the current Pi 4 `kernel8.img` would still talk to the wrong MMIO blocks on real hardware until those addresses are made board-overridable.
 - generic `plo` now accepts project-local MMIO base overrides for UART0 and GICv2 while preserving the current QEMU `virt` defaults, and the generic `virt` smoke lane still boots after that change.
 - the current Pi 4 firmware handoff no longer appears to have a raw loader placement mismatch: `kernel_address=0x40080000` in the Pi 4 `config.txt` matches `ADDR_PLO 0x40080000` in `plo/ld/aarch64a53-generic.ldt`.

@@ -2,27 +2,28 @@
 
 ## Metadata
 
-- Step ID: `STEP-0127`
-- Title: Implement bounded `create_dev()` diagnostics in the shared registration path
+- Step ID: `STEP-0129`
+- Title: Implement bounded post-lookup `create_dev()` diagnostics visible on stdout
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- add the smallest shared diagnostics that can show exactly where `create_dev("/dev/tty0")` blocks on both QEMU lanes
+- add the smallest user-space diagnostics that can show whether `create_dev("/dev/tty0")` blocks between the successful `lookup("devfs", ...)` return and the final `msgSend()` call
 
 ## Scope
 
 In scope:
 
 - `sources/libphoenix/unistd/file.c`
-- add minimal diagnostics in `create_dev()`
+- add minimal diagnostics after the successful `lookup("devfs", ...)` return
+- prefer a visibility path that does not depend on the user-space `debug()` syscall path
 - distinguish:
-  - `devfs` lookup retry progress
-  - directory/create message progress
-  - final device-node create progress
-- keep the patch reviewable and bounded
+  - post-lookup return
+  - post-path-splitting progress
+  - final `msgSend()` entry / return
+- keep the patch reviewable, bounded, and temporary-diagnostic in nature
 - validate on both the generic and Pi 4 DTB-backed QEMU lanes
 
 Out of scope:
@@ -34,6 +35,7 @@ Out of scope:
 - Pi 5 or RP1 work
 - `phoenix-rtos-tests` integration
 - speculative functional fixes beyond the diagnostics themselves
+- broad refactoring of `create_dev()` semantics
 
 ## Expected Repositories
 
@@ -48,14 +50,14 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- the next QEMU run produces at least one new `create_dev()`-side marker after `pl011-tty: register tty0`
-- the markers distinguish whether the current boundary is in lookup retry or in the create-message path
+- the next QEMU run produces at least one new post-lookup marker after the already-known `create_dev: lookup done` generic marker
+- the markers distinguish whether the current boundary is in user-space path preparation or at final `msgSend()` entry / return
 - neither lane regresses from current known-good startup output
 
 ## Validation Plan
 
 - Review:
-  confirm that the patch stays local to `create_dev()` and only adds diagnostics
+  confirm that the patch stays local to `create_dev()` and only adds narrow diagnostics
 - Build:
   rebuild the affected device and project lanes in `phoenix-dev`
 - Emulator:
@@ -68,13 +70,13 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-create-dev-diagnostic-scope.md`
+  `manifests/2026-03-20-aarch64-create-dev-syscall-diagnostics.md`
 
 ## Notes
 
 - Risks:
   avoid turning shared libc code into a large permanent debug scaffold
 - Dependencies:
-  completed `STEP-0126`
+  completed `STEP-0128`
 - User-visible control point before next step:
-  after this step lands, the next bounded move should come from concrete new console output on the two QEMU lanes
+  after this step lands, the next bounded move should come from concrete post-lookup progress on the two QEMU lanes

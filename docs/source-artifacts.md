@@ -218,6 +218,112 @@ This file indexes the most important websites, repositories, documents, and sour
 
 - Raspberry Pi boot/configuration reference:
   <https://www.raspberrypi.com/documentation/configuration/bootconfig.md>
+
+## 5. External Bare-Metal Reference Repositories
+
+- `sypstraw/rpi4-osdev`:
+  <https://github.com/sypstraw/rpi4-osdev>
+  Local clone: `/Users/witoldbolt/phoenix-rpi/external/rpi4-osdev`
+  Important because it provides a staged Pi 4 bare-metal tutorial with compact
+  examples for `_start`, low-peripheral-mode MMIO, mailbox framebuffer access,
+  mini-UART wiring, and simple multicore wakeups.
+
+- `rsta2/circle`:
+  <https://github.com/rsta2/circle>
+  Local clone: `/Users/witoldbolt/phoenix-rpi/external/circle`
+  Important because it is a mature Raspberry Pi bare-metal environment with
+  Pi 4 AArch64 startup, physical-timer, GIC-400, DTB, mailbox, PCIe, USB, and
+  later Pi 5 RP1 support. This is the strongest external bare-metal reference
+  for current Pi 4 boot-first work.
+
+- `markCwatson/rpi-os`:
+  <https://github.com/markCwatson/rpi-os>
+  Local clone: `/Users/witoldbolt/phoenix-rpi/external/rpi-os`
+  Important because it is a short Pi 4 hobby kernel with a compact EL3-to-EL1
+  handoff, vector table, mini-UART, and scheduler skeleton. It is useful as a
+  quick sanity reference, but its timer and interrupt path is still based on
+  the legacy system timer and legacy IRQ controller.
+
+- OSDev `Raspberry Pi Bare Bones`:
+  <https://wiki.osdev.org/Raspberry_Pi_Bare_Bones>
+  Important because it is a compact tertiary reference for AArch64 Pi 3 or 4
+  boot entry, DTB handoff in `x0`, current-firmware secondary-core release
+  slots, Pi 4 MMIO base selection, and PL011 setup.
+
+## 6. External Reference Source Paths
+
+- `external/rpi4-osdev/part1-bootstrapping/boot.S`
+  Important because it shows the simplest Pi 4 `_start` sequence: `mpidr_el1`,
+  single-core gating, BSS clear, and C entry.
+
+- `external/rpi4-osdev/part10-multicore/boot.S`
+  Important because it explicitly sets `cntfrq_el0 = 54000000` and clears
+  `cntvoff_el2`, which is relevant when reasoning about Pi 4 EL handoff and
+  generic timer access.
+
+- `external/rpi4-osdev/part4-miniuart/io.c`
+  Important because it documents low-peripheral-mode MMIO, GPIO14 or GPIO15
+  ALT5 mini-UART setup, and `AUX_UART_CLOCK = 500000000`.
+
+- `external/rpi4-osdev/part13-interrupts/kernel/irq.c`
+  Important because it demonstrates the legacy BCM2711 system timer plus legacy
+  IRQ controller path and should therefore not be confused with Phoenix’s
+  current architectural timer plus GIC debugging lane.
+
+- `external/circle/lib/startup64.S`
+  Important because it shows Pi 4 AArch64 entry from an arm stub in EL2,
+  explicit `CNTHCTL_EL2` setup, `CNTVOFF_EL2 = 0`, and return to EL1.
+
+- `external/circle/include/circle/bcm2711int.h`
+  Important because it defines `ARM_IRQLOCAL0_CNTPNS = GIC_PPI(14)`, confirming
+  that the Pi 4 non-secure physical timer IRQ is `30`.
+
+- `external/circle/lib/timer.cpp`
+  Important because Circle requires the physical counter on Pi 4 and programs
+  `CNTP_CVAL_EL0` plus `CNTP_CTL_EL0` there.
+
+- `external/circle/lib/interruptgic.cpp`
+  Important because it is a compact external reference for GIC-400
+  initialization in non-secure Pi 4 AArch64 mode.
+
+- `external/circle/lib/bcmmailbox.cpp`
+- `external/circle/lib/bcmpropertytags.cpp`
+- `external/circle/lib/bcmframebuffer.cpp`
+  Important because they are later-stage references for mailbox property calls
+  and framebuffer bring-up.
+
+- `external/circle/lib/bcmpciehostbridge.cpp`
+- `external/circle/lib/macb.cpp`
+  Important because they are later-stage references for Pi 4 PCIe and network
+  subsystems.
+
+- `external/rpi-os/src/boot.S`
+  Important because it is a compact Pi 4 EL3-to-EL1 handoff example with
+  explicit `SCR_EL3`, `HCR_EL2`, and `SPSR_EL3` programming.
+
+- `external/rpi-os/src/irq.S`
+  Important because it provides a short vector-table and save-restore example
+  for EL1 exception handling.
+
+- `external/rpi-os/src/mini_uart.c`
+  Important because it reinforces the same low-peripheral-mode mini-UART setup
+  choices seen in other Pi 4 bare-metal examples.
+
+- `external/rpi-os/src/timer.c`
+  Important because it is another example of the legacy BCM2711 system timer
+  path, which should not be treated as evidence about Phoenix’s current GIC PPI
+  issue.
+
+- OSDev `Raspberry Pi Bare Bones` section `Pi 3, 4`
+  Important because it explicitly states:
+  - Pi 3 and Pi 4 AArch64 boot at `0x80000`
+  - `x0` contains the DTB pointer on the primary core
+  - recent firmware keeps only core 0 running while secondary cores wait behind
+    release slots at `0xE0`, `0xE8`, and `0xF0`
+
+- OSDev `Raspberry Pi Bare Bones` PL011 example
+  Important because it demonstrates mailbox-assisted PL011 clock programming on
+  Pi 3 or 4 before setting integer and fractional baud divisors.
   Important because it documents `config.txt`, overlays, and runtime `/chosen`
   properties relevant to the firmware-merged DTB.
 

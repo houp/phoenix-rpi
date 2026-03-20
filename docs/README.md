@@ -50,6 +50,11 @@ This directory is the long-lived knowledge base for the Phoenix RTOS Raspberry P
   Raspberry Pi-specific DTS, firmware-DTB, alias, overlay, and UART notes that
   directly affect Pi 4 bring-up and DTB debugging.
 
+- `raspberry-pi-bare-metal-reference-notes.md`
+  External bare-metal Pi 4 reference findings from `rpi4-osdev` and Circle,
+  with notes on what is immediately useful and what should not be cargo-culted
+  into the Phoenix port.
+
 ## Skill Playbooks
 
 The `skills/` directory contains local project playbooks for future agents. Read [`../skills/README.md`](../skills/README.md) first, then open the specific `SKILL.md` that matches the task.

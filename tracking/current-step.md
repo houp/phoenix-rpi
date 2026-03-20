@@ -2,29 +2,32 @@
 
 ## Metadata
 
-- Step ID: `STEP-0115`
-- Title: Define the first bounded emulated Pi 4 boot blocker after the no-output `raspi4b` smoke
+- Step ID: `STEP-0116`
+- Title: Validate `plo.elf` as the first `raspi4b` QEMU kernel handoff
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- choose the smallest next diagnostic or code step that can turn the current no-output `raspi4b` smoke into observable early Pi 4 boot progress
+- test the smallest QEMU-side handoff change that can bypass the current raw-image load mismatch and produce observable early Pi 4 boot progress
 
 ## Scope
 
 In scope:
 
-- inspect the current Pi 4 QEMU smoke command, artifact set, and QEMU board expectations
-- bound the most likely earliest blocker into one small next step
-- prefer the smallest explanation or diagnostic that can be validated quickly in QEMU `raspi4b`
-- update manifests and tracking with the selected next blocker
+- keep the real-device Pi 4 artifact shape unchanged
+- for QEMU `raspi4b` only, replace `kernel8.img` with the already-built `plo.elf` in the smoke command
+- keep `loader.disk` preloaded at `0x48000000`
+- document whether this produces:
+  - visible loader output
+  - visible kernel output
+  - or a more specific failure than the current silent timeout
 
 Out of scope:
 
 - broad Pi 4 peripheral-debug work
-- broad refactors across `plo`, kernel, and project targets in one step
+- source changes to `plo`, kernel, or project files unless the validation proves a tiny follow-up patch is strictly required
 - real-hardware-only validation
 - Pi 5 or RP1 work
 - `phoenix-rtos-tests` integration
@@ -36,39 +39,39 @@ Out of scope:
 
 ## Expected Files Or Subsystems
 
-- `tracking/current-step.md`
-- `tracking/step-history.md`
-- `docs/status.md`
-- relevant Pi 4 build artifacts and QEMU invocation notes
-- manifests and tracking updates for this environment step
+- current Pi 4 staged artifacts under `_boot/aarch64a53-generic-rpi4b/`
+- relevant QEMU invocation notes
+- manifests and tracking updates for this validation step
 
 ## Acceptance Criteria
 
-- the most likely next emulated Pi 4 boot blocker is stated explicitly
-- the blocker is small enough to become one bounded implementation or diagnostic step
-- the blocker choice is backed by current QEMU smoke evidence rather than vague speculation
+- the `raspi4b` QEMU lane is rerun with `plo.elf` as `-kernel`
+- the result is more informative than the previous silent raw-image timeout
+- the next step can be selected from concrete runtime evidence rather than the current load-address inference alone
 
 ## Validation Plan
 
 - Review:
-  inspect the current Pi 4 smoke evidence, QEMU board constraints, and artifact layout
+  confirm that the chosen QEMU-only handoff change does not alter the real-device artifact layout
 - Build:
-  not required
+  not required if the existing Pi 4 build artifacts are still present
 - Emulator:
-  use the already recorded `raspi4b` smoke result from `STEP-0114`
+  run `raspi4b` QEMU with:
+  - `-kernel .../plo.elf`
+  - `-device loader,file=.../loader.disk,addr=0x48000000,force-raw=on`
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-rpi4b-qemu-refresh.md`
+  `manifests/2026-03-20-aarch64-rpi4b-qemu-raw-image-load-mismatch-scope.md`
 
 ## Notes
 
 - Risks:
-  do not let this planning step widen into a broad debugging session without first selecting one tight blocker
+  keep this as a QEMU-only handoff validation; do not let it widen into a broad mixed boot-media redesign
 - Dependencies:
-  completed `STEP-0114`
+  completed `STEP-0115`
 - User-visible control point before next step:
-  after this step lands, the next bounded move should be one explicit small implementation or diagnostic step aimed at the chosen first emulated Pi 4 boot blocker
+  after this step lands, the next bounded move should come from the `plo.elf` smoke result: either keep tightening the QEMU handoff or move on to the next earliest visible boot blocker

@@ -2,27 +2,29 @@
 
 ## Metadata
 
-- Step ID: `STEP-0023`
-- Title: Make AArch64 GICv2 handler registration PPI-safe
+- Step ID: `STEP-0024`
+- Title: Add targeted AArch64 SGI helper for future timer updates
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- remove the SPI-shaped CPU-targeting assumption from common AArch64 GICv2 handler registration for non-SPI interrupts so a future PPI-backed architectural timer fits the interrupt layer cleanly
+- expose a targeted AArch64 SGI helper so later timer-path work can notify CPU 0 directly when a non-CPU0 context needs the wakeup timer reprogrammed
 
 ## Scope
 
 In scope:
 
-- update common AArch64 GICv2 handler registration so it applies CPU targeting only to SPI interrupts
-- preserve existing SPI behavior and the current ZynqMP build lane
+- add a targeted AArch64 SGI helper alongside the existing broadcast helper
+- update the common CPU interface declaration used by the kernel to include that helper
+- preserve existing behavior and validate the current ZynqMP build lane
 - validate the existing `aarch64a53-zynqmp-qemu` build in `phoenix-dev`
 
 Out of scope:
 
 - adding a new QEMU target
+- using the new helper from the timer or scheduler code
 - implementing the common generic timer runtime backend itself
 - changing timer wakeup semantics
 - adding PL011 console code
@@ -35,13 +37,14 @@ Out of scope:
 
 ## Expected Files Or Subsystems
 
+- `hal/cpu.h`
 - `hal/aarch64/interrupts_gicv2.c`
 - tracking files and manifest updates for this step
 
 ## Acceptance Criteria
 
-- common AArch64 GICv2 handler registration applies CPU targeting only to SPI interrupts
-- the change is limited to interrupt-registration semantics and does not widen into a broader GIC rewrite
+- AArch64 exposes a targeted SGI helper in addition to the existing broadcast helper
+- the helper is limited to generic SGI send plumbing and does not yet change timer or scheduler behavior
 - the existing `aarch64a53-zynqmp-qemu` build still succeeds in `phoenix-dev`
 
 ## Validation Plan
@@ -56,13 +59,13 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-timer-backend-selection-hook.md`
+  `manifests/2026-03-20-aarch64-gicv2-ppi-safe-handler-registration.md`
 
 ## Notes
 
 - Risks:
-  the step must not accidentally widen into per-CPU interrupt enablement or timer runtime behavior changes
+  the step must not widen into new SGI users or timer behavior changes
 - Dependencies:
-  completed timer-backend selection step from `STEP-0022`
+  completed PPI-safe handler-registration step from `STEP-0023`
 - User-visible control point before next step:
-  after this fix lands, re-scope the next generic-timer runtime step against the remaining CPU-affine wakeup constraint instead of widening into a full architectural timer backend immediately
+  after this helper lands, re-scope the first timer runtime step around explicit CPU0-directed wakeup-update notification instead of trying to drop in the full architectural timer backend at once

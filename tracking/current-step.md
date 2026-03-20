@@ -2,26 +2,25 @@
 
 ## Metadata
 
-- Step ID: `STEP-0228`
-- Title: Scope the smallest shared later-boot visibility step
+- Step ID: `STEP-0231`
+- Title: Implement the bounded interactive console probe
 - Status: `planned`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- choose the smallest next visibility step that identifies the first shared
-  later-boot blocker after `dummyfs: initialized`
+- determine whether `psh` is already live and responsive on the console after
+  the successful syspage spawns
 
 ## Scope
 
 In scope:
 
-- review the current generic and Pi 4 runtime parity after
-  `dummyfs: initialized`
-- choose one bounded shared later-boot visibility step
-- focus on syspage app launch progress and `psh` readiness
-- keep the next move outside the solved early GIC / timer path
+- run the generic QEMU lane in an interactive PTY session
+- send bounded console input after boot output quiets
+- if generic responds, repeat the same probe on Pi 4
+- document the result and the next bounded follow-up
 
 Out of scope:
 
@@ -37,39 +36,37 @@ Out of scope:
 ## Expected Files Or Subsystems
 
 - `docs/status.md`
-- `docs/testing-automation.md`
-- manifests and tracking updates for this scope step
+- manifests and tracking updates for this implementation step
 
 ## Acceptance Criteria
 
-- the next later-boot step is narrowed to one concrete visibility question
-- the selected question is explicitly outside the solved early GIC path
-- the step remains aligned with getting to a clearly interactive Pi 4 boot
+- generic clearly shows whether console input reaches a live shell
+- Pi 4 is probed too if the generic lane proves interactive
+- the result narrows the next later-boot move to one concrete follow-up
 
 ## Validation Plan
 
-- Review:
-  inspect the latest generic and Pi 4 QEMU traces after the DTB fix
-- Evidence:
-  - use `manifests/2026-03-20-aarch64-pi4-gic-dtb-fix.md`
-  - use `manifests/2026-03-20-aarch64-pi4-later-boot-parity-scope.md`
+- Emulator:
+  - run generic `virt` in an interactive PTY-backed session
+  - send a minimal command such as newline or `help`
+  - repeat on Pi 4 if generic responds
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-pi4-later-boot-parity-scope.md`
+  `manifests/2026-03-21-aarch64-later-boot-interactive-probe-scope.md`
 
 ## Notes
 
 - Risks:
   do not re-open the solved early GIC path unless new evidence forces it
 - Dependencies:
-  completed `STEP-0227` later-boot Pi 4 parity scope
+  completed `STEP-0230` later-boot interactive-probe scope
 - Source reminder:
-  generic and Pi 4 now both reach the same visible later-boot band through
-  `dummyfs: initialized` within the current 15-second QEMU window
+  generic and Pi 4 both already spawn `psh`, so the next question is whether it
+  is alive on the console
 - User-visible control point before next step:
-  after this step lands, the next implementation move should target the first
-  shared later-boot silence point rather than a Pi 4-specific early-boot guess
+  after this step lands, the next implementation move should depend on whether
+  the console is already interactive or still needs later-boot visibility

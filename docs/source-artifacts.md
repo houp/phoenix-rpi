@@ -185,6 +185,9 @@ This file indexes the most important websites, repositories, documents, and sour
 - `phoenix-rtos-kernel/hal/aarch64/interrupts_gicv2.c`
   Important because the next bounded diagnostic needs to prove whether the selected timer IRQ is actually registered in GICv2 and whether it is ever dispatched before control would reach `threads_timeintr()`.
 
+- `phoenix-rtos-kernel/hal/aarch64/aarch64.h`
+  Important because the next bounded experiment is explicit synchronization after architectural timer sysreg writes for both the physical and virtual timer paths.
+
 ## 4. Raspberry Pi Official Documentation
 
 - Raspberry Pi configuration and boot documentation:

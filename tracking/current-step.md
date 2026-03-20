@@ -2,72 +2,76 @@
 
 ## Metadata
 
-- Step ID: `STEP-0122`
-- Title: Scope the smallest `pl011-tty` console-readiness implementation step
+- Step ID: `STEP-0123`
+- Title: Implement bounded `create_dev()` retry handling in `pl011-tty`
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- choose the smallest shared implementation step that can move both the generic QEMU lane and the Pi 4 DTB-backed QEMU lane beyond `pl011-tty: started`
+- add the smallest shared console-readiness patch that can move both the generic and Pi 4 DTB-backed QEMU lanes beyond `pl011-tty: started`
 
 ## Scope
 
 In scope:
 
-- inspect the current `pl011-tty` registration path and the already documented generic boundary around `create_dev()`
-- compare the generic and Pi 4 DTB-backed runtime evidence
-- select one small follow-up patch in shared userspace/device code if possible
-- keep the next step bounded to console readiness rather than broad shell or devfs redesign
+- `sources/phoenix-rtos-devices/tty/pl011-tty/pl011-tty.c`
+- add a small bounded retry helper around `create_dev()`
+- use it for `/dev/tty0` and `_PATH_CONSOLE`
+- keep the patch in shared userspace/device code
+- validate on both the generic and Pi 4 DTB-backed QEMU lanes
 
 Out of scope:
 
 - broad Pi 4 peripheral-debug work
-- new board-specific DTB work unless the console-readiness review proves it is still implicated
+- new board-specific DTB work
 - broad init-sequencing redesign across loader scripts and services
 - real-hardware-only validation
 - Pi 5 or RP1 work
 - `phoenix-rtos-tests` integration
-- unrelated kernel early-console work unless it is shown to be smaller than the shared `pl011-tty` fix
+- unrelated kernel early-console work
 
 ## Expected Repositories
 
+- `sources/phoenix-rtos-devices`
 - coordination repo
 
 ## Expected Files Or Subsystems
 
 - `sources/phoenix-rtos-devices/tty/pl011-tty/pl011-tty.c`
 - relevant generic and Pi 4 QEMU smoke notes
-- manifests and tracking updates for this planning step
+- manifests and tracking updates for this implementation step
 
 ## Acceptance Criteria
 
-- the next patch target is explicit
-- the patch is small enough for one reviewable implementation step
-- the choice is backed by the current shared runtime boundary rather than by speculation
+- `pl011-tty` no longer fails on the first transient registration miss
+- at least one lane advances beyond the current `pl011-tty: started` boundary
+- the other lane does not regress from the current known-good output
 
 ## Validation Plan
 
 - Review:
-  inspect the current `pl011-tty` registration path and compare it with the existing runtime diagnostics
+  confirm that the patch stays local to `pl011-tty` and uses bounded retry behavior
 - Build:
-  not required
+  rebuild the affected device and project lanes in `phoenix-dev`
 - Emulator:
-  use the completed generic and Pi 4 QEMU results as the runtime basis for step selection
+  rerun:
+  - generic `virt`
+  - Pi 4 DTB-backed `raspi4b`
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-console-readiness-scope.md`
+  `manifests/2026-03-20-aarch64-pl011-console-retry-scope.md`
 
 ## Notes
 
 - Risks:
-  do not widen this into a large init-order investigation before the smallest shared `pl011-tty` step is identified
+  keep retry timing bounded and driver-local
 - Dependencies:
-  completed `STEP-0121`
+  completed `STEP-0122`
 - User-visible control point before next step:
-  after this step lands, the next bounded move should be one small implementation patch in the shared console path
+  after this step lands, the next bounded move should come from concrete new console output on the two QEMU lanes

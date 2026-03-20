@@ -93,6 +93,7 @@ Start-gate status:
 - The backend-state layer now exposes raw-count, count-to-microseconds, and current-time helpers, so the next backend work can focus on forward conversion and wakeup programming instead of reopening current-time reads.
 - The backend-state layer now also exposes a reusable microseconds-to-relative-ticks helper, so the next backend work can focus on state-keyed timer-register wrappers instead of open-coded frequency math.
 - The backend-state layer now also exposes state-keyed control and relative-timer register wrappers, so the next backend work can focus on arming policy and IRQ ownership instead of low-level source dispatch.
+- The backend-state layer now also exposes a backend-local wakeup helper that arms the selected architectural timer for bounded positive waits, so IRQ ownership is now the main missing piece before public AArch64 timer-HAL wiring.
 - Phoenix upstream style is conservative and review-oriented: file headers, tabs in C, localized `clang-format off/on`, direct control flow, `static const` hardware tables, and warning-clean builds enforced by `-Werror` in `phoenix-rtos-build/Makefile.common`.
 - Pi 4 uses BCM2711 with GIC-400, PL011, BCM2711 PCIe, VL805 xHCI over PCIe, GENET Ethernet, and Broadcom SDHCI.
 - Pi 5 uses BCM2712 plus RP1, with most I/O behind a PCIe-connected southbridge-like peripheral controller.

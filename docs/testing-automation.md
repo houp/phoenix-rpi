@@ -132,14 +132,19 @@ Current local `raspi4b` smoke result:
 - direct raw-image boot timed out with no serial output
 - `plo.elf` as `-kernel` now reaches visible loader output
 - with an explicit Pi 4 DTB passed through `RPI4B_DTB_PATH`, the current lane reaches:
-  - `pl011-tty: started`
+  - `console: pl011 init done`
+  - `hal: console init done`
+  - `main: hal init done`
+  - `Phoenix-RTOS microkernel v. 3.3.1 ...`
+  - then `Exception #37: Data Abort (EL1)`
 - current local QEMU `10.2.2` `raspi4b` does not support `dumpdtb`, so this lane currently needs an explicit external DTB input
+- Raspberry Pi firmware normally customizes the DTB before kernel handoff, so direct `raspi4b` QEMU validation may also need QEMU-only fixes to the supplied DTB instead of assuming the raw firmware-repo DTB is already runtime-ready
 
 Inference:
 
 - the environment blocker is gone
-- the Pi 4 path is now well past raw image placement and early multi-core startup
-- the next blocker is inside the shared post-`pl011-tty: started` console-readiness path rather than basic board bring-up
+- the Pi 4 path is now well past raw image placement, early multi-core startup, and early kernel console initialization
+- the next bounded blocker is after the kernel banner, and the next fast QEMU-specific suspicion is missing firmware-time DTB customization rather than raw serial MMIO
 
 Official QEMU `raspi4b` expectations to preserve:
 

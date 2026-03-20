@@ -201,6 +201,10 @@ This file indexes the most important websites, repositories, documents, and sour
 - Raspberry Pi configuration landing page:
   <https://www.raspberrypi.com/documentation/computers/configuration.html>
 
+- Raspberry Pi device-tree documentation:
+  <https://www.raspberrypi.com/documentation/configuration/device-tree>
+  Important because it states that the Raspberry Pi firmware loader customizes the DTB before launching the kernel.
+
 - Raspberry Pi remote-access documentation:
   <https://www.raspberrypi.com/documentation/computers/remote-access.html>
   Important section: "Network boot your Raspberry Pi"
@@ -226,6 +230,10 @@ This file indexes the most important websites, repositories, documents, and sour
   - repo commit: `63ad7e7980b030cb4649ecedf2255c9226e5a1e8`
   - path: `boot/bcm2711-rpi-4-b.dtb`
   - observed size: `56373` bytes
+  - current important decompiled finding:
+    - `memory@0 { reg = <0x00 0x00 0x00>; }`
+  Important because:
+  - Raspberry Pi firmware normally customizes this DTB at boot, but direct `qemu-system-aarch64 -M raspi4b` validation currently uses the file without firmware-time customization
   Re-verify:
   - before using this exact commit as a long-lived baseline, because the firmware repository is a moving target
 
@@ -253,6 +261,7 @@ This file indexes the most important websites, repositories, documents, and sour
 
 - `arch/arm/boot/dts/broadcom/bcm2711.dtsi`
 - `arch/arm/boot/dts/broadcom/bcm2711-rpi-ds.dtsi`
+- `arch/arm/boot/dts/broadcom/bcm2711-rpi.dtsi`
 - `arch/arm64/boot/dts/broadcom/bcm2711-rpi-4-b.dts`
 - `drivers/mmc/host/sdhci-brcmstb.c`
 - `drivers/net/ethernet/broadcom/genet/bcmgenet.c`
@@ -336,6 +345,26 @@ Current local finding to preserve:
 - the first Phoenix Pi 4 `raspi4b` smoke under QEMU `10.2.2` required `-smp 4` and then timed out with no serial output, so the current blocker moved into emulated boot progress rather than QEMU board availability
 - current local QEMU `10.2.2` `raspi4b` does not support `dumpdtb`; direct `-machine raspi4b,dumpdtb=...` fails with `This machine doesn't have an FDT`
 - current Pi 4 QEMU validation therefore needs an explicit external DTB source
+- current Pi 4 QEMU validation also does not include Raspberry Pi firmware DTB customization, so the payload DTB may need explicit QEMU-only fixes such as a non-zero `memory@0/reg` value
+
+Important Raspberry Pi kernel-source findings to preserve:
+
+- prefer the Raspberry Pi kernel DTS/DTSI files over decompiled DTBs when the question is board intent or which properties are expected to be firmware-filled
+- `raspberrypi/linux` `rpi-6.12.y` and `rpi-6.19.y` both contain:
+  - `arch/arm/boot/dts/broadcom/bcm2711-rpi.dtsi`
+    - `memory@0` comment: `Will be filled by the bootloader`
+  - `arch/arm/boot/dts/broadcom/bcm2711-rpi-4-b.dts`
+    - `chosen { stdout-path = "serial1:115200n8"; }`
+    - comment: `8250 auxiliary UART instead of pl011`
+- consequence for Phoenix:
+  - bootloader-time DTB customization is a real dependency for faithful Pi 4 DT behavior
+  - naive `stdout-path` alias resolution would currently steer Phoenix toward the auxiliary UART, not the existing PL011 console path
+
+Raspberry Pi kernel branch pattern checked from the remote on `2026-03-20`:
+
+- the repository exposes rolling `rpi-X.Y.y` heads such as `rpi-6.12.y`, `rpi-6.19.y`, and `rpi-7.0.y`
+  Re-verify:
+  - before pinning one branch as the long-lived reference baseline, because Raspberry Pi keeps advancing this branch family
 
 ## 9. Host and VM Tooling References
 

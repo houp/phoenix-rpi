@@ -244,7 +244,16 @@ Start-gate status:
 - the first C-entry visibility split is now complete: the generic lane reaches both `hal: console init done` and `main: hal init done`, while Pi 4 reaches neither.
 - the generic console-init split is now complete too: the generic lane reaches `console: pl011 init done`, while Pi 4 still reaches none of the console-init markers.
 - the strongest concrete blocker is now DTB address handling: the official Pi 4 firmware DTB uses bus-address serial nodes such as `serial@7e201000` plus `/soc/ranges` mapping to CPU-visible `0xfe...` space, and Phoenix still parses serial `reg` values without applying that translation.
-- the next bounded implementation step is now a minimal DTB address-translation change for Pi 4 serial MMIO.
+- the Pi 4 serial DTB fix is now in place: the kernel DTB parser decodes `/soc` serial `reg` cells with the parent cell width and translates serial MMIO through `/soc/ranges`, while the generic `virt` lane still reaches the established tty / console-ready boot band.
+- that same fix moves the Pi 4 A72 `raspi4b` lane much later: it now reaches `console: pl011 init done`, `hal: console init done`, `main: hal init done`, and the kernel banner before faulting with `Exception #37: Data Abort (EL1)`.
+- the current Pi 4 fault symbolizes to `_map_init` in `vm/map.c` (`pc=...b198` -> line `1638`, `lr=...b0cc` -> line `1624`), so the active blocker is now well past early serial and into later kernel initialization.
+- the official firmware DTB from `raspberrypi/firmware` also decompiles to `memory@0 { reg = <0x00 0x00 0x00>; }`, and Raspberry Pi documentation states that the firmware customizes the DTB before kernel handoff.
+- the official Raspberry Pi kernel sources are now a preferred source for board intent over decompiling the already-built DTB:
+  - `raspberrypi/linux` `rpi-6.12.y` and `rpi-6.19.y` both keep `bcm2711-rpi.dtsi` `memory@0` marked `Will be filled by the bootloader`
+  - `bcm2711-rpi-4-b.dts` on those branches keeps `chosen { stdout-path = "serial1:115200n8"; }` with the comment `8250 auxiliary UART instead of pl011`
+- that source-level confirmation means future DT analysis should not assume `stdout-path` alias resolution is immediately useful for the current Phoenix PL011 console path, and it also reinforces that direct `raspi4b` QEMU is missing firmware-time DTB customization
+- the next bounded Pi 4 clue is therefore QEMU-specific: direct `raspi4b` validation is using an uncustomized firmware DTB without the Raspberry Pi firmware in the loop, so the next smallest step should validate a QEMU-only payload-DTB memory fix before widening into general VM or memory-management debugging.
+- that one-off QEMU-only `memory@0/reg = <0x00 0x00 0x80000000>` experiment is now also complete and negative, so the next smallest step is to instrument the live `_vm_init` / `_map_init` boundary instead of adding speculative DTB automation first.
 - the next concrete Pi 4 boot blocker is now loader MMIO addressing: `sources/plo/hal/aarch64/generic/config.h` still hardcodes QEMU `virt` UART and GIC base addresses, so the current Pi 4 `kernel8.img` would still talk to the wrong MMIO blocks on real hardware until those addresses are made board-overridable.
 - generic `plo` now accepts project-local MMIO base overrides for UART0 and GICv2 while preserving the current QEMU `virt` defaults, and the generic `virt` smoke lane still boots after that change.
 - the current Pi 4 firmware handoff no longer appears to have a raw loader placement mismatch: `kernel_address=0x40080000` in the Pi 4 `config.txt` matches `ADDR_PLO 0x40080000` in `plo/ld/aarch64a53-generic.ldt`.
@@ -257,7 +266,7 @@ Start-gate status:
 
 ## Immediate Next Implementation Milestones
 
-1. Translate Pi 4 serial MMIO through DTB `/soc/ranges` so the generic console path uses CPU-visible addresses.
+1. Validate and, if confirmed, automate a QEMU-only Pi 4 DTB memory-node fix so direct `raspi4b` emulation stops depending on firmware-time DTB customization.
 2. Bring the Pi 4 QEMU lane back into the same kernel / user-space startup band already reached with the generic fast lane.
 3. Replace the remaining generic-QEMU MMIO assumptions in the Pi 4 loader/kernel handoff path as the runtime evidence dictates.
 4. Once the Pi 4 fast lane reaches stable console readiness, switch the next bounded steps back to firmware-bundle completeness and first real-device smoke preparation.

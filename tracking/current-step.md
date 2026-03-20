@@ -2,63 +2,70 @@
 
 ## Metadata
 
-- Step ID: `STEP-0165`
-- Title: Scope Pi 4 loader user-script execution visibility
+- Step ID: `STEP-0166`
+- Title: Implement filtered Pi 4 loader call visibility
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- define the smallest next diagnostic step that distinguishes whether the Pi 4 `raspi4b` lane now stalls before opening `user.plo`, while reading it, or while executing its first commands after the official firmware DTB replaced the old stub
+- add narrowly filtered `plo` call-path visibility so the Pi 4 `raspi4b` lane shows whether it blocks before opening `user.plo`, while reading it, or while executing its first command after the official firmware DTB replaced the old stub
 
 ## Scope
 
 In scope:
 
-- review the generated Pi 4 pre-init and `user.plo` scripts from the validated official-DTB build
-- review the narrow loader paths that own that boundary:
-  - `plo/cmds/call.c`
-  - `plo/cmds/kernel.c`
-  - `plo/phfs/phfs.c`
-  - `phoenix-rtos-project/_targets/aarch64a53/generic/preinit.plo.yaml`
-- select one bounded visibility step that will expose which phase of `call ram0 user.plo` blocks on the Pi 4 lane
-- update manifests and docs with the scoped next step
+- change only `plo/cmds/call.c`
+- add tightly filtered markers for:
+  - successful `phfs_open()`
+  - successful magic check
+  - each script line immediately before `cmd_parse()`
+- rebuild and rerun:
+  - generic `virt`
+  - Pi 4 DTB-backed `raspi4b` with the official firmware DTB
+- update manifests and docs with the exact new boundary
 
 Out of scope:
 
-- loader or kernel code changes
+- PHFS internals
+- `plo/cmds/kernel.c`
 - changing Pi 4 image layout
 - changing DTB content or selection
-- rerunning the generic `virt` lane unless the scope review proves it is needed
+- kernel-side changes
 - real-hardware-only validation
 - Pi 5 or RP1 work
 - `phoenix-rtos-tests` integration
 
 ## Expected Repositories
 
+- `plo`
 - coordination repo
 
 ## Expected Files Or Subsystems
 
-- `plo` loader call / script / PHFS path notes
+- `plo/cmds/call.c`
 - Pi 4 QEMU loader-script boundary notes
-- manifests and tracking updates for this planning step
+- manifests and tracking updates for this implementation step
 
 ## Acceptance Criteria
 
-- the reviewed loader paths are explicitly recorded
-- the next implementation step is narrowed to one loader visibility change
-- the scoped next step is specific enough to expose which phase of `call ram0 user.plo` blocks on Pi 4
+- the only upstream source change is in `plo/cmds/call.c`
+- the generic `virt` lane still reaches the current working console-ready band
+- the Pi 4 lane now exposes a narrower boundary inside `call ram0 user.plo`
 
 ## Validation Plan
 
 - Review:
-  inspect the generated Pi 4 scripts and the narrow loader call / file-read code paths
+  confirm the markers are tightly filtered and limited to `cmd_call()`
 - Build:
-  not applicable
+  rebuild:
+  - `TARGET=aarch64a53-generic-qemu`
+  - `RPI4B_DTB_PATH=$HOME/external/raspberrypi-firmware/boot/bcm2711-rpi-4-b.dtb TARGET=aarch64a53-generic-rpi4b`
 - Emulator:
-  not applicable
+  rerun:
+  - generic `virt`
+  - Pi 4 DTB-backed `raspi4b`
 - Hardware:
   not applicable
 
@@ -70,8 +77,8 @@ Out of scope:
 ## Notes
 
 - Risks:
-  avoid widening into generic loader refactors before the Pi 4 `call` boundary is explicitly split
+  avoid turning this into broad loader tracing or changing call semantics
 - Dependencies:
-  completed `STEP-0164` official firmware DTB validation
+  completed `STEP-0165` call-visibility scope decision
 - User-visible control point before next step:
-  after this step lands, the next bounded move should be a single `plo` visibility patch in the `call` path rather than another broad Pi 4 experiment
+  after this step lands, the next bounded move should come from the exact new Pi 4 marker boundary, not from speculation about later kernel state

@@ -230,6 +230,8 @@ Start-gate status:
 - secondary-core release was therefore not the root cause of the Pi 4 failure after the EL3 transfer; it was only adding noisy repeated handoff markers.
 - the next bounded split is now the earliest visible generic AArch64 kernel entry point after that single `A3` marker.
 - the earliest-kernel-entry visibility step is now scoped: add a raw PL011 marker at generic kernel `_start`, using project `board_config.h` for the early UART base on both generic QEMU and Pi 4, and keep the change limited to `hal/aarch64/_init.S` plus generic config glue.
+- the earliest-kernel-entry visibility step is now complete: both generic QEMU and Pi 4 print `K` immediately after the loader-side `A3`, so Pi 4 definitely reaches generic kernel `_start`.
+- the next bounded early-init clue is now the `__TARGET_AARCH64A53` system-register block in `hal/aarch64/_init.S`, because the active Pi 4 lane still builds as `aarch64a53` while QEMU `raspi4b` is running `-cpu cortex-a72`.
 - the next concrete Pi 4 boot blocker is now loader MMIO addressing: `sources/plo/hal/aarch64/generic/config.h` still hardcodes QEMU `virt` UART and GIC base addresses, so the current Pi 4 `kernel8.img` would still talk to the wrong MMIO blocks on real hardware until those addresses are made board-overridable.
 - generic `plo` now accepts project-local MMIO base overrides for UART0 and GICv2 while preserving the current QEMU `virt` defaults, and the generic `virt` smoke lane still boots after that change.
 - the current Pi 4 firmware handoff no longer appears to have a raw loader placement mismatch: `kernel_address=0x40080000` in the Pi 4 `config.txt` matches `ADDR_PLO 0x40080000` in `plo/ld/aarch64a53-generic.ldt`.
@@ -242,10 +244,8 @@ Start-gate status:
 
 ## Immediate Next Implementation Milestones
 
-1. Add the smallest earliest-kernel-entry marker on the generic AArch64 kernel path and rerun both `virt` and Pi 4 `raspi4b`.
-2. Use that result to divide the Pi 4 failure into:
-   - failure before kernel `_start`
-   - or failure inside the first generic kernel instructions after `_start`
+1. Split generic kernel early init around the A53-specific system-register block and rerun both `virt` and Pi 4 `raspi4b`.
+2. Use that result to determine whether the active Pi 4 blocker is the A53-specific block itself or a later generic early-init phase.
 3. Bring the Pi 4 QEMU lane back past the loader handoff and into the same kernel / user-space startup band already reached with the generic fast lane.
 4. Bring the Pi 4 QEMU lane from loader success to a usable shell or equivalent stable console-ready state.
 5. Once the fast lanes reach stable console readiness, switch the next bounded steps back to firmware-bundle completeness and first real-device smoke preparation.

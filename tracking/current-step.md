@@ -2,32 +2,31 @@
 
 ## Metadata
 
-- Step ID: `STEP-0172`
-- Title: Implement assembly-side Pi 4 EL-exit visibility
+- Step ID: `STEP-0173`
+- Title: Validate generic multi-core loader handoff behavior
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- add narrowly filtered loader assembly visibility so the Pi 4 official-DTB lane shows whether it reaches the EL-specific transfer point inside `hal_exitToEL1()` before going silent
+- determine whether the repeated Pi 4 assembly handoff markers are a Pi 4-specific effect or the generic result of releasing multiple loader CPUs into the same kernel entry path
 
 ## Scope
 
 In scope:
 
-- change only `plo/hal/aarch64/generic/_init.S`
-- add tiny raw UART markers:
-  - at `hal_exitToEL1()` entry
-  - immediately before the EL-specific transfer instruction
-- rebuild and rerun:
-  - generic `virt`
-  - Pi 4 DTB-backed `raspi4b` with the official firmware DTB
-- update manifests and docs with the exact new boundary
+- reuse the current validated generic build artifacts with the new assembly markers
+- rerun generic `virt` with `-smp 4`
+- compare the generic `virt` `-smp 4` output against:
+  - generic `virt` `-smp 1`
+  - Pi 4 `raspi4b` `-smp 4`
+- record whether repeated assembly handoff markers or a missing kernel banner also appear on generic multi-core `virt`
+- update manifests and docs with the result
 
 Out of scope:
 
-- kernel-side changes
+- code changes
 - changing Pi 4 image layout
 - changing DTB content or selection
 - semantic EL-handoff changes
@@ -37,46 +36,41 @@ Out of scope:
 
 ## Expected Repositories
 
-- `plo`
 - coordination repo
 
 ## Expected Files Or Subsystems
 
-- `plo/hal/aarch64/generic/_init.S`
-- Pi 4 QEMU EL-exit boundary notes
-- manifests and tracking updates for this implementation step
+- generic and Pi 4 multi-core QEMU handoff notes
+- manifests and tracking updates for this validation step
 
 ## Acceptance Criteria
 
-- the only upstream source change is in `plo/hal/aarch64/generic/_init.S`
-- the generic `virt` lane still reaches the kernel banner after the new assembly marker
-- the Pi 4 lane now exposes a narrower assembly-side EL-exit boundary
+- the generic `virt` `-smp 4` run is recorded
+- the result clearly says whether multi-core loader handoff failure is generic or Pi 4-specific
+- the next step is chosen from that result rather than from speculation alone
 
 ## Validation Plan
 
 - Review:
-  confirm the markers are tightly filtered and limited to the assembly EL-exit path
+  compare the exact marker sequences across the three emulator runs
 - Build:
-  rebuild:
-  - `TARGET=aarch64a53-generic-qemu`
-  - `RPI4B_DTB_PATH=$HOME/external/raspberrypi-firmware/boot/bcm2711-rpi-4-b.dtb TARGET=aarch64a53-generic-rpi4b`
+  not applicable if existing validated build artifacts remain available
 - Emulator:
   rerun:
-  - generic `virt`
-  - Pi 4 DTB-backed `raspi4b`
+  - generic `virt` with `-smp 4`
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-rpi4b-jump-visibility.md`
+  `manifests/2026-03-20-aarch64-rpi4b-el-exit-visibility.md`
 
 ## Notes
 
 - Risks:
-  avoid widening into kernel instrumentation before the loader assembly boundary is explicit
+  avoid changing loader semantics before proving whether the multi-core symptom is generic
 - Dependencies:
-  completed `STEP-0171` assembly-side EL-exit scope decision
+  completed `STEP-0172` assembly-side Pi 4 EL-exit visibility
 - User-visible control point before next step:
-  after this step lands, the next bounded move should come from the exact assembly marker boundary, not from speculation about later kernel behavior
+  after this step lands, the next bounded move should either be a controlled secondary-core containment experiment or an earliest-kernel-entry probe, depending on whether generic `virt -smp 4` reproduces the same failure

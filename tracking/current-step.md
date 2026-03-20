@@ -2,55 +2,56 @@
 
 ## Metadata
 
-- Step ID: `STEP-0029`
-- Title: Define the first generic AArch64 timer backend skeleton step
+- Step ID: `STEP-0030`
+- Title: Implement generic AArch64 timer backend state skeleton
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- define the first narrow generic AArch64 timer backend skeleton step now that the common `gtimer` helper layer exists
+- add a compiled generic AArch64 timer backend state layer that owns the selected timer source, IRQ, and frequency while preserving the active ZynqMP backend
 
 ## Scope
 
 In scope:
 
-- inspect the current `gtimer` helper layer, timer hook, and DTB source-selection API after `STEP-0028`
-- choose the smallest backend-skeleton responsibility to introduce next
-- select the exact touched files for that backend-skeleton step
-- keep this as a planning and scoping step only
+- add `hal/aarch64/gtimer_backend.h`
+- add `hal/aarch64/gtimer_backend.c`
+- compile the backend-state layer in the current common AArch64 build
+- preserve the existing ZynqMP timer backend and validate the existing `aarch64a53-zynqmp-qemu` build in `phoenix-dev`
 
 Out of scope:
 
 - adding a new QEMU target
-- implementing the selected skeleton step itself
 - changing the active timer backend for any target
+- implementing the public generic `hal_timer*` entry points
 - implementing the full common generic timer runtime backend itself
 - adding PL011 console code
 - Raspberry Pi-specific code
 
 ## Expected Repositories
 
+- `phoenix-rtos-kernel`
 - coordination repo
-- likely `phoenix-rtos-kernel`
 
 ## Expected Files Or Subsystems
 
 - `hal/aarch64/Makefile`
-- likely a new common AArch64 timer-backend source file
-- possibly a backend-local header
-- tracking files and manifest updates for the chosen next step
+- `hal/aarch64/gtimer_backend.h`
+- `hal/aarch64/gtimer_backend.c`
+- tracking files and manifest updates for this step
 
 ## Acceptance Criteria
 
-- the first generic AArch64 timer backend skeleton step is explicitly scoped with exact touched files, rationale, validation command, and success criteria
-- the selected skeleton step is narrow enough to implement and validate in one controlled follow-up session
+- the common AArch64 build now compiles a backend-state layer for the future generic timer backend
+- the backend-state layer owns the selected source, IRQ, and frequency initialization
+- the existing `aarch64a53-zynqmp-qemu` build still succeeds in `phoenix-dev`
 
 ## Validation Plan
 
 - Build:
-  not applicable
+  refresh the copied buildroot and rebuild `TARGET=aarch64a53-zynqmp-qemu` with `./phoenix-rtos-build/build.sh clean host core project`
 - Emulator:
   not applicable
 - Hardware:
@@ -59,13 +60,13 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-common-gtimer-helpers.md`
+  `manifests/2026-03-20-aarch64-gtimer-backend-skeleton-scope.md`
 
 ## Notes
 
 - Risks:
-  the next step must not jump directly to a full backend or skip over backend-state definition
+  the step must stay state-only and must not quietly take over the active timer API
 - Dependencies:
-  completed common `gtimer` helper step from `STEP-0028`
+  completed scoping step from `STEP-0029`
 - User-visible control point before next step:
-  the next code change should introduce only the smallest backend skeleton on top of the helper layer
+  after this skeleton lands, the next step should add one small behavior slice on top of it rather than activating the whole backend at once

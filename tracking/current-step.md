@@ -2,26 +2,26 @@
 
 ## Metadata
 
-- Step ID: `STEP-0238`
-- Title: Scope the smallest first-attempt `psh` root-lookup trace
+- Step ID: `STEP-0239`
+- Title: Implement bounded first-result visibility for `psh` `lookup("/")`
 - Status: `planned`
 - Date: `2026-03-21`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- choose the smallest next hook that can distinguish “`psh` failed `lookup("/")`
-  and is looping” from “`psh` never reached that syscall at all”
+- distinguish “`psh` failed `lookup("/")` and is looping” from “`psh` never
+  reached that syscall at all” using one bounded first-result trace
 
 ## Scope
 
 In scope:
 
 - review the current `psh` startup path in `psh.c` and `pshapp.c`
-- inspect the current `syscalls_lookup()` trace point
-- choose the minimum change needed to expose the first `psh` lookup attempt and
-  its result for `/`
-- document the exact next implementation step
+- update the current `psh` root-lookup trace to print on the first result,
+  including failure
+- rebuild the generic and Pi 4 QEMU lanes
+- record the first observed result code
 
 Out of scope:
 
@@ -32,11 +32,12 @@ Out of scope:
 
 ## Expected Repositories
 
+- `phoenix-rtos-kernel`
 - coordination repo
 
 ## Expected Files Or Subsystems
 
-- likely `sources/phoenix-rtos-kernel/syscalls.c`
+- `sources/phoenix-rtos-kernel/syscalls.c`
 - `docs/status.md`
 - `manifests/`
 - `tracking/current-step.md`
@@ -44,33 +45,33 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- the selected next patch exposes one first-attempt `psh` root lookup result
-- the scope names the source file and exact trigger condition
-- the result narrows the next move to one concrete implementation step
+- generic QEMU exposes the first `psh` root-lookup result
+- Pi 4 QEMU is rerun too if the result remains on the shared path
+- the result narrows the next move to one concrete follow-up
 
 ## Validation Plan
 
-- Analysis only:
-  - inspect the current `psh`-filtered `syscalls_lookup()` trace
-  - choose the smallest first-attempt trace that captures success or failure
+- Emulator:
+  - rebuild generic `virt`
+  - rerun generic QEMU
+  - rerun Pi 4 QEMU if the result remains shared
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-21-aarch64-psh-root-lookup.md`
+  `manifests/2026-03-21-aarch64-psh-root-lookup-result-scope.md`
 
 ## Notes
 
 - Risks:
-  keep the next trace one-time and `/`-specific so it does not reopen general
-  pathname logging
+  keep the next trace one-time and `/`-specific so the syscall path stays quiet
 - Dependencies:
-  completed `STEP-0237` `psh` root-lookup success visibility
+  completed `STEP-0238` first-attempt `psh` root-lookup trace scope
 - Source reminder:
-  both lanes prove `psh` reaches user mode but still do not prove a successful
-  root lookup
+  both lanes prove `psh` reaches user mode but still do not prove any observed
+  root-lookup result
 - User-visible control point before next step:
-  after this scope step lands, the next patch should expose the first `psh`
-  root-lookup result only
+  after this step lands, the next follow-up should depend on the first observed
+  `psh` root-lookup result code

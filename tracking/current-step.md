@@ -2,30 +2,30 @@
 
 ## Metadata
 
-- Step ID: `STEP-0059`
-- Title: Run first end-to-end `aarch64a53-generic-qemu` smoke command
+- Step ID: `STEP-0060`
+- Title: Define smallest generic QEMU launcher-fix step
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- execute the first bounded end-to-end runtime smoke command for the new `aarch64a53-generic-qemu` entry point on QEMU `virt`
+- define the smallest code change needed to let the generic QEMU smoke lane start QEMU after the first smoke run failed at launcher invocation
 
 ## Scope
 
 In scope:
 
-- run the selected smoke command in `phoenix-dev`
-- capture the first serial behavior from the current launcher unchanged
-- stop after recording whether the current generic QEMU lane reaches the loader banner or which earliest runtime failure occurs
+- inspect the launcher-level failure from `STEP-0059`
+- choose the narrowest fix that allows the smoke lane to start QEMU
+- keep the step planning-only and stop before changing code or rerunning QEMU
 
 Out of scope:
 
 - implementation code in upstream Phoenix repositories
 - `phoenix-rtos-tests` target additions
 - Raspberry Pi-specific code
-- fixing the runtime failure in this step unless the smoke unexpectedly passes and only documentation closure is needed
+- QEMU reruns or boot-path debugging
 
 ## Expected Repositories
 
@@ -42,31 +42,31 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- the selected smoke command is executed in `phoenix-dev`
-- the result records whether the loader banner appears on serial output
-- if the loader banner does not appear, the result records the earliest observed failure mode without widening into a fix step
+- the result names the smallest concrete launcher fix to apply next
+- the result explains why that fix is preferred over broader QEMU or boot-path changes
+- the step remains planning-only
 
 ## Validation Plan
 
 - Review:
-  inspect the current launch script, artifact names, and generic `plo`/kernel constraints as needed during result analysis
+  inspect the launcher mode and comparable existing QEMU launch scripts
 - Build:
-  reuse the currently prepared generic QEMU artifacts if needed
+  not applicable
 - Emulator:
-  run `timeout 10s ./scripts/aarch64a53-generic-qemu.sh` inside the copied buildroot in `phoenix-dev`
+  not applicable
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-generic-qemu-smoke-step-scope.md`
+  `manifests/2026-03-20-aarch64-generic-qemu-first-smoke.md`
 
 ## Notes
 
 - Risks:
-  the result must stay as one smoke execution and must not silently turn into runtime debugging or cross-repo build unblock work
+  the result must stay as one launcher-fix planning step and must not silently turn into runtime debugging or broader build unblock work
 - Dependencies:
-  completed implementation step `STEP-0058`
+  completed implementation step `STEP-0059`
 - User-visible control point before next step:
-  after this smoke run lands, the next slice should be the smallest runtime-fix or stabilization step implied by the earliest observed result
+  after this planning step lands, the next slice should be the selected one-file launcher fix

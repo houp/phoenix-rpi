@@ -192,6 +192,8 @@ Start-gate status:
 - even with that explicit timer-source and arm visibility, the generic lane still never reaches `threads_timeintr()`, so the next bounded blocker is now the GIC-side timer-handler registration / dispatch path.
 - the selected timer IRQ is now also visible on the GIC side: the generic lane reaches `gic: timer handler set`, which proves IRQ 30 handler registration succeeds.
 - that same generic lane never reaches `gic: timer dispatch`, so the remaining bounded blocker is the timer-source / interrupt-generation side before GIC dispatch, not handler registration.
+- the virtual-first timer-source experiment is now complete and negative: the generic lane changes from `physical-nonsecure irq 30` to `virtual irq 27`, but dispatch is still absent.
+- the next bounded code clue is therefore not timer-source preference between those two architectural timers; it is explicit GIC configuration for timer PPIs, because the current generic AArch64 GIC path configures SPIs but does not explicitly configure PPIs.
 - the next concrete Pi 4 boot blocker is now loader MMIO addressing: `sources/plo/hal/aarch64/generic/config.h` still hardcodes QEMU `virt` UART and GIC base addresses, so the current Pi 4 `kernel8.img` would still talk to the wrong MMIO blocks on real hardware until those addresses are made board-overridable.
 - generic `plo` now accepts project-local MMIO base overrides for UART0 and GICv2 while preserving the current QEMU `virt` defaults, and the generic `virt` smoke lane still boots after that change.
 - the current Pi 4 firmware handoff no longer appears to have a raw loader placement mismatch: `kernel_address=0x40080000` in the Pi 4 `config.txt` matches `ADDR_PLO 0x40080000` in `plo/ld/aarch64a53-generic.ldt`.
@@ -204,8 +206,8 @@ Start-gate status:
 
 ## Immediate Next Implementation Milestones
 
-1. Run the smallest timer-source policy experiment by preferring the virtual architectural timer over the physical non-secure timer on the current fast lanes.
-2. Use that experiment result to choose the smallest common AArch64 timer fix, then confirm the same boundary moves on the Pi 4 DTB-backed lane.
+1. Run the smallest GIC PPI-configuration experiment so timer PPIs are explicitly configured during handler registration.
+2. Use that experiment result to choose the next smallest common AArch64 timer or GIC fix, then confirm the same boundary moves on the Pi 4 DTB-backed lane.
 3. Reach successful `/dev/tty0` and `/dev/console` registration on the generic fast lane, then confirm the same boundary moves on the Pi 4 DTB-backed lane.
 4. Bring the Pi 4 QEMU lane from `pl011-tty: started` to a usable shell or equivalent stable console-ready state.
 5. Once the fast lanes reach stable console readiness, switch the next bounded steps back to firmware-bundle completeness and first real-device smoke preparation.

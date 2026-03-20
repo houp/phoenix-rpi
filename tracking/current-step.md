@@ -2,55 +2,55 @@
 
 ## Metadata
 
-- Step ID: `STEP-0028`
-- Title: Implement common AArch64 `gtimer` helper layer
+- Step ID: `STEP-0029`
+- Title: Define the first generic AArch64 timer backend skeleton step
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- add a compiled common AArch64 `gtimer` helper layer that hides the physical-versus-virtual timer sysreg split from future backend code while preserving current runtime behavior
+- define the first narrow generic AArch64 timer backend skeleton step now that the common `gtimer` helper layer exists
 
 ## Scope
 
 In scope:
 
-- add `hal/aarch64/gtimer.h`
-- add `hal/aarch64/gtimer.c`
-- compile the helper in the current common AArch64 build
-- preserve the existing ZynqMP runtime path and validate the existing `aarch64a53-zynqmp-qemu` build in `phoenix-dev`
+- inspect the current `gtimer` helper layer, timer hook, and DTB source-selection API after `STEP-0028`
+- choose the smallest backend-skeleton responsibility to introduce next
+- select the exact touched files for that backend-skeleton step
+- keep this as a planning and scoping step only
 
 Out of scope:
 
 - adding a new QEMU target
-- changing the timer backend implementation itself
-- implementing the common generic timer runtime backend itself
+- implementing the selected skeleton step itself
+- changing the active timer backend for any target
+- implementing the full common generic timer runtime backend itself
 - adding PL011 console code
 - Raspberry Pi-specific code
 
 ## Expected Repositories
 
-- `phoenix-rtos-kernel`
 - coordination repo
+- likely `phoenix-rtos-kernel`
 
 ## Expected Files Or Subsystems
 
 - `hal/aarch64/Makefile`
-- `hal/aarch64/gtimer.h`
-- `hal/aarch64/gtimer.c`
-- tracking files and manifest updates for this step
+- likely a new common AArch64 timer-backend source file
+- possibly a backend-local header
+- tracking files and manifest updates for the chosen next step
 
 ## Acceptance Criteria
 
-- the common AArch64 build now compiles a `gtimer` helper layer
-- the helper layer exposes source-keyed access for counter reads, control reads and writes, timer programming, and source naming
-- the existing `aarch64a53-zynqmp-qemu` build still succeeds in `phoenix-dev`
+- the first generic AArch64 timer backend skeleton step is explicitly scoped with exact touched files, rationale, validation command, and success criteria
+- the selected skeleton step is narrow enough to implement and validate in one controlled follow-up session
 
 ## Validation Plan
 
 - Build:
-  refresh the copied buildroot and rebuild `TARGET=aarch64a53-zynqmp-qemu` with `./phoenix-rtos-build/build.sh clean host core project`
+  not applicable
 - Emulator:
   not applicable
 - Hardware:
@@ -59,13 +59,13 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-gtimer-helper-step-scope.md`
+  `manifests/2026-03-20-aarch64-common-gtimer-helpers.md`
 
 ## Notes
 
 - Risks:
-  the step must remain helper-only and must not introduce duplicate public timer-backend policy
+  the next step must not jump directly to a full backend or skip over backend-state definition
 - Dependencies:
-  completed scoping step from `STEP-0027`
+  completed common `gtimer` helper step from `STEP-0028`
 - User-visible control point before next step:
-  after this helper layer lands, the next step should either start a generic backend skeleton on top of it or stop for re-scoping
+  the next code change should introduce only the smallest backend skeleton on top of the helper layer

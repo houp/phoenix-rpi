@@ -2,29 +2,29 @@
 
 ## Metadata
 
-- Step ID: `STEP-0070`
-- Title: Define first generic userspace build-unblock step after kernel banner milestone
+- Step ID: `STEP-0071`
+- Title: Add generic AArch64 filesystem target makefile
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- define the smallest repo-local change that starts removing the temporary generic-QEMU build-lane workarounds after the first visible kernel-banner milestone
+- apply the smallest repo-local change that starts removing the temporary generic-QEMU build-lane workarounds after the first visible kernel-banner milestone
 
 ## Scope
 
 In scope:
 
-- inspect the remaining generic-target build blockers in `libphoenix`, `phoenix-rtos-filesystems`, `phoenix-rtos-devices`, and `phoenix-rtos-utils`
-- choose the smallest first repo to unblock without dragging in board-specific device assumptions
-- keep the step planning-only and stop before code changes
+- add `_targets/Makefile.aarch64a53-generic` in `phoenix-rtos-filesystems`
+- keep the default component set board-agnostic and aligned with the existing `aarch64a53-zynqmp` file
+- validate the `phoenix-rtos-filesystems` repo directly for the generic target in `phoenix-dev`
+- record the result and stop before unblocking the next repo
 
 Out of scope:
 
-- broad generic userspace enablement across multiple repos
+- changes in `phoenix-rtos-utils`, `phoenix-rtos-devices`, or `libphoenix`
 - Pi 4 board-specific code
-- implementation code in this planning step
 - Raspberry Pi-specific code
 - `phoenix-rtos-tests` target additions
 
@@ -38,24 +38,22 @@ Out of scope:
 
 - `libphoenix/arch/aarch64/reboot.c`
 - `phoenix-rtos-filesystems/_targets/`
-- `phoenix-rtos-devices/_targets/`
-- `phoenix-rtos-utils/_targets/`
 - `docs/status.md`
 - tracking files and manifest updates for this step
-- build-target inventory findings captured from the working tree
+- direct generic-target build output from `phoenix-rtos-filesystems`
 
 ## Acceptance Criteria
 
-- the result names the smallest first repo-local generic build-unblock step to apply next
-- the result explains why that repo is preferred over the other current blockers
-- the step remains planning-only
+- `phoenix-rtos-filesystems` exposes a generic AArch64 target file
+- the generic target file keeps only board-agnostic components
+- the repo validates directly on `TARGET=aarch64a53-generic-qemu`
 
 ## Validation Plan
 
 - Review:
-  inspect the remaining generic-target blockers and the contents of the existing `aarch64a53-zynqmp` target makefiles
+  inspect the existing `aarch64a53-zynqmp` target file and keep the generic variant aligned
 - Build:
-  not applicable
+  validate `phoenix-rtos-filesystems` directly for the generic target in `phoenix-dev`
 - Emulator:
   not applicable
 - Hardware:
@@ -64,13 +62,13 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-generic-qemu-stdout-path-fix.md`
+  `manifests/2026-03-20-aarch64-generic-userspace-unblock-scope.md`
 
 ## Notes
 
 - Risks:
-  the result must stay as one build-unblock planning step and must not silently turn into multi-repo implementation work
+  the result must stay as one repo-local unblock step and must not silently turn into multi-repo implementation work
 - Dependencies:
-  completed implementation step `STEP-0069`
+  completed implementation step `STEP-0070`
 - User-visible control point before next step:
-  after this planning step lands, the next slice should be the selected first repo-local generic userspace build-unblock change
+  after this repo-local unblock lands, the next slice should be the next smallest generic userspace blocker

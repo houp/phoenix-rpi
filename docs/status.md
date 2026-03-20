@@ -328,6 +328,9 @@ Start-gate status:
   - Circle is the strongest external reference for the current Phoenix seam
     because it explicitly uses the Pi 4 non-secure physical timer path, requires
     the physical counter on Pi 4, and maps that timer to GIC PPI 14 -> IRQ 30
+- the next bounded diagnostic target is now explicit again:
+  compare the current `ISPENDR`-based timer pending readback with a private
+  pending-state readback for the same Pi 4 timer PPI
 - the next concrete Pi 4 boot blocker is now loader MMIO addressing: `sources/plo/hal/aarch64/generic/config.h` still hardcodes QEMU `virt` UART and GIC base addresses, so the current Pi 4 `kernel8.img` would still talk to the wrong MMIO blocks on real hardware until those addresses are made board-overridable.
 - generic `plo` now accepts project-local MMIO base overrides for UART0 and GICv2 while preserving the current QEMU `virt` defaults, and the generic `virt` smoke lane still boots after that change.
 - the current Pi 4 firmware handoff no longer appears to have a raw loader placement mismatch: `kernel_address=0x40080000` in the Pi 4 `config.txt` matches `ADDR_PLO 0x40080000` in `plo/ld/aarch64a53-generic.ldt`.
@@ -340,7 +343,7 @@ Start-gate status:
 
 ## Immediate Next Implementation Milestones
 
-1. Scope one bounded GIC PPI-state experiment on the Pi 4 patched lane.
+1. Run the bounded private-pending-state readback experiment on the Pi 4 patched lane.
 2. Bring the Pi 4 QEMU lane back into the same kernel / user-space startup band already reached with the generic fast lane.
 3. Replace the remaining generic-QEMU MMIO assumptions in the Pi 4 loader/kernel handoff path as the runtime evidence dictates.
 4. Once the Pi 4 fast lane reaches stable console readiness, switch the next bounded steps back to firmware-bundle completeness and first real-device smoke preparation.

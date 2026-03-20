@@ -392,3 +392,18 @@ These are useful style anchors when writing new code:
 - `plo/hal/aarch64/zynqmp/hal.c`
 - `phoenix-rtos-devices/tty/zynq-uart/zynq-uart.c`
 - `phoenix-rtos-build/Makefile.common`
+
+## 13. Current Fast-Lane Diagnostic Paths
+
+These are the current high-signal common AArch64 paths for the early generic and Pi 4 QEMU lanes:
+
+- `phoenix-rtos-kernel/hal/aarch64/aarch64.h`
+- `phoenix-rtos-kernel/hal/aarch64/gtimer.h`
+- `phoenix-rtos-kernel/hal/aarch64/gtimer_backend.c`
+- `phoenix-rtos-kernel/hal/aarch64/gtimer_timer.c`
+- `phoenix-rtos-kernel/hal/aarch64/interrupts_gicv2.c`
+- `phoenix-rtos-kernel/proc/threads.c`
+
+Current preserved clue:
+
+- as of `STEP-0152`, the selected architectural timer is registered and armed, but no timer IRQ is dispatched on the generic fast lane even after explicit post-write instruction barriers

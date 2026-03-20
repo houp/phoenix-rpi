@@ -2,39 +2,38 @@
 
 ## Metadata
 
-- Step ID: `STEP-0056`
-- Title: Define first `aarch64a53-generic-qemu` project entry-point step
+- Step ID: `STEP-0057`
+- Title: Implement first `aarch64a53-generic-qemu` project entry point
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- identify the smallest `phoenix-rtos-project` step needed to turn the new generic AArch64 kernel and `plo` targets into a first runnable `aarch64a53-generic-qemu` entry point
+- add the first `phoenix-rtos-project` target and project files needed to boot the generic AArch64 loader on QEMU `virt`
 
 ## Scope
 
 In scope:
 
-- inspect the existing `phoenix-rtos-project` target layout, scripts, and boot artifacts around QEMU targets
-- choose the first concrete generic project file set and runtime command
-- keep the step planning-only and stop before implementation code
+- add the generic AArch64 target-level build, NVM, preinit, and user-script files
+- add the first generic AArch64 QEMU project directory with the minimum board-config stub
+- add the first runtime script for `qemu-system-aarch64` on `virt`
+- keep the first project step boot-first and avoid rootfs, test-target, or user-space console-driver expansion
 
 Out of scope:
 
-- implementation code in upstream Phoenix repositories
 - `phoenix-rtos-tests` target additions
 - Raspberry Pi-specific code
-- solving runtime boot bugs in this planning step
+- solving runtime boot bugs beyond the first project entry-point build and launch path
 
 ## Expected Repositories
 
+- `phoenix-rtos-project`
 - coordination repo
 
 ## Expected Files Or Subsystems
 
-- `docs/status.md`
-- tracking files and manifest updates for this step
 - `phoenix-rtos-project/_targets/aarch64a53/generic-qemu/`
 - `phoenix-rtos-project/_projects/aarch64a53-generic-qemu/`
 - `phoenix-rtos-project/scripts/aarch64a53-generic-qemu.sh`
@@ -43,16 +42,16 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- the selected project step identifies the exact generic QEMU project files needed first
-- the selected project step has a realistic first runtime command for QEMU `virt`
-- the result explains why the project entry-point step should move before the emulated test target
+- `TARGET=aarch64a53-generic-qemu ./build.sh clean core project image` completes in the copied buildroot
+- the build produces the first generic QEMU boot artifacts under `_boot/aarch64a53-generic-qemu/`
+- the runtime script provides the first launchable QEMU `virt` command for the new generic target
 
 ## Validation Plan
 
 - Review:
-  inspect the existing project-side QEMU target layout and the new generic AArch64 boot components
+  follow the existing generic-QEMU and AArch64 project patterns while keeping the first user script kernel-only
 - Build:
-  not applicable
+  refresh the copied buildroot and build the new `aarch64a53-generic-qemu` project image lane in `phoenix-dev`
 - Emulator:
   not applicable
 - Hardware:
@@ -61,13 +60,13 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-plo-generic-scaffold.md`
+  `manifests/2026-03-20-aarch64-generic-qemu-project-step-scope.md`
 
 ## Notes
 
 - Risks:
-  the result must stay as one project-entry planning step and must not silently turn into a multi-repo implementation patch
+  the first project entry point must use the new `ram-storage`-backed loader path and must not widen into test-target or user-space driver work in the same patch
 - Dependencies:
-  completed implementation step `STEP-0055`
+  completed planning step `STEP-0056`
 - User-visible control point before next step:
-  after this planning step lands, the next slice should be the selected first project implementation step for the generic QEMU lane
+  after this implementation step lands, the next slice should be the first emulated smoke-lane step

@@ -2,31 +2,32 @@
 
 ## Metadata
 
-- Step ID: `STEP-0107`
-- Title: Stage `loader.disk` for Pi 4 firmware preload at the generic `ram0` address
+- Step ID: `STEP-0108`
+- Title: Define the first Pi 4 DTB propagation step into the kernel-visible payload
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- implement the smallest project-local Pi 4 boot-tree change that preloads the existing generic `loader.disk` payload for a firmware-booted `kernel8.img`
+- bound the smallest project-local step that gets a real Pi 4 DTB into the kernel-visible payload path as `system.dtb`
 
 ## Scope
 
 In scope:
 
-- update `phoenix-rtos-project/_projects/aarch64a53-generic-rpi4b/build.project`
-- stage `loader.disk` into the Pi 4 firmware-facing boot tree
-- update the project-local Pi 4 `config.txt` so firmware loads that payload to `0x48000000`
-- keep the generic `ram0` / `loader.disk` contract intact
+- inspect the current Pi 4 `user.plo.yaml` and the generic kernel DTB requirement
+- confirm that the current Pi 4 payload does not provide `system.dtb`
+- define the smallest project-local way to propagate a supplied Pi 4 DTB into the kernel-visible payload
+- keep the next step bounded to project-local build and script glue if possible
 
 Out of scope:
 
 - broad Pi 4 storage-driver work
 - generic loader entry refactors beyond the now-validated multi-EL patch
 - kernel Pi 4 driver enablement
-- DTB staging policy changes beyond compatibility with the new boot-tree payload staging
+- new kernel DTB parser work
+- firmware policy changes unrelated to getting `system.dtb` into the existing payload path
 - real-hardware-only validation
 - Pi 5 or RP1 work
 - `phoenix-rtos-tests` integration
@@ -34,43 +35,42 @@ Out of scope:
 ## Expected Repositories
 
 - coordination repo
-- `phoenix-rtos-project`
 
 ## Expected Files Or Subsystems
 
+- `phoenix-rtos-project/_projects/aarch64a53-generic-rpi4b/user.plo.yaml`
 - `phoenix-rtos-project/_projects/aarch64a53-generic-rpi4b/build.project`
 - `phoenix-rtos-project/_projects/aarch64a53-generic-rpi4b/config.txt`
-- `_boot/aarch64a53-generic-rpi4b/rpi4b/`
-- manifests and tracking updates for this implementation step
+- `phoenix-rtos-kernel/hal/aarch64/hal.c`
+- documentation and manifest updates for this planning step
 
 ## Acceptance Criteria
 
-- the Pi 4 project stages `loader.disk` into the firmware-facing boot tree
-- the Pi 4 `config.txt` explicitly loads that payload to `0x48000000`
-- the staged `loader.disk` size fits within generic `RAM_BANK_SIZE`
-- the default Pi 4 build still succeeds after the staging change
+- the current Pi 4 DTB gap is explicitly documented from source inspection and existing build artifacts
+- the next implementation step is fixed as one bounded project-local DTB propagation change
+- the selected approach keeps the generic kernel contract of loading `system.dtb` rather than inventing a Pi 4-only kernel handoff
 
 ## Validation Plan
 
 - Review:
-  inspect the staging logic for consistency with the existing Pi 4 project-local boot-tree code
+  inspect the current DTB flow from firmware tree to payload to kernel entry
 - Build:
-  run the Pi 4 project build
+  not applicable
 - Emulator:
-  not required
+  define whether the selected DTB propagation change has any no-hardware validation lane beyond build artifact inspection
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-rpi4b-payload-staging-scope.md`
+  `manifests/2026-03-20-aarch64-rpi4b-payload-staging.md`
 
 ## Notes
 
 - Risks:
-  the step must stay project-local and must not silently widen into firmware protocol changes or new loader devices
+  the next step must not silently widen into storage drivers or firmware-to-loader DTB parsing unless a smaller payload-side reuse path is ruled out first
 - Dependencies:
-  completed planning step `STEP-0106`
+  completed implementation step `STEP-0107`
 - User-visible control point before next step:
-  after this step lands, the next bounded follow-up should come from the resulting Pi 4 boot-tree state, likely either DTB/config compatibility cleanup or the first hardware boot attempt
+  once the DTB propagation step is defined, the next implementation patch should be a single project-local change that moves the Pi 4 image closer to a first real board boot

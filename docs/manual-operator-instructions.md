@@ -278,6 +278,21 @@ Current practical rule:
 - ordinary no-hardware validation may omit the DTB
 - before the first realistic Pi 4 firmware-boot test, the operator or agent must provide a real `bcm2711-rpi-4-b.dtb` through one of the two inputs above unless the boot flow is later changed and this document is updated
 
+### Current staged Pi 4 firmware boot-tree contents
+
+The current early Pi 4 firmware-facing boot tree now stages:
+
+- `config.txt`
+- `kernel8.img`
+- `loader.disk`
+- optional `bcm2711-rpi-4-b.dtb`
+
+Current payload rule:
+
+- `config.txt` uses `initramfs loader.disk 0x48000000`
+- this matches generic `plo` `RAM_ADDR`
+- when preparing real Pi 4 boot media from the staged tree, keep `loader.disk` beside `kernel8.img`; it is no longer only a QEMU-side artifact
+
 ## 5. What Must Be Provided For Real-Device Testing
 
 The following physical items are currently required to run tests on an actual Raspberry Pi board.

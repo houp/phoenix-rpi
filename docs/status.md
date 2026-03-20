@@ -198,6 +198,11 @@ Start-gate status:
 - the remaining narrow common path is now the architectural timer sysreg write sequence itself, so the next bounded experiment is explicit synchronization after timer control and timer-value writes.
 - the architectural-timer write-barrier experiment is also negative: even after explicit post-write barriers on both physical and virtual timer sysreg writes, the generic lane still never reaches `gic: timer dispatch`, `threads: timer irq`, or `pl011-tty: tty0 wake`.
 - the next bounded timer clue is now register state rather than write ordering: the next common AArch64 experiment should read back the selected timer control state and timer value immediately after wakeup programming so the fast lane can distinguish failed arming from later interrupt-delivery loss.
+- the architectural-timer register-readback experiment is now complete and high-signal: the generic fast lane reports `gtimer: arm 1000 us ctl 0x1 tval 58836`, which means the selected timer is genuinely armed with a live non-zero countdown.
+- the next bounded clue is therefore GIC-side state for that IRQ rather than timer programming; the next common AArch64 experiment should expose the selected timer IRQ's interrupt-group and enable readback after handler registration.
+- the GIC timer-state visibility step is now also high-signal: the generic fast lane reports `gic: timer handler set grp 0 en 0`, which means the selected timer IRQ still reads back as Group 0 and disabled immediately after registration.
+- `sources/plo/hal/aarch64/generic/_init.S` exits EL3 to EL1 non-secure, and `sources/plo/hal/aarch64/zynqmp/_init.S` already documents and implements moving interrupts to Group 1 so non-secure code can manage them.
+- the next bounded fix is therefore a timer-only Group 1 experiment in the kernel GIC path rather than another timer-programming change.
 - the next concrete Pi 4 boot blocker is now loader MMIO addressing: `sources/plo/hal/aarch64/generic/config.h` still hardcodes QEMU `virt` UART and GIC base addresses, so the current Pi 4 `kernel8.img` would still talk to the wrong MMIO blocks on real hardware until those addresses are made board-overridable.
 - generic `plo` now accepts project-local MMIO base overrides for UART0 and GICv2 while preserving the current QEMU `virt` defaults, and the generic `virt` smoke lane still boots after that change.
 - the current Pi 4 firmware handoff no longer appears to have a raw loader placement mismatch: `kernel_address=0x40080000` in the Pi 4 `config.txt` matches `ADDR_PLO 0x40080000` in `plo/ld/aarch64a53-generic.ldt`.
@@ -210,8 +215,8 @@ Start-gate status:
 
 ## Immediate Next Implementation Milestones
 
-1. Run the smallest architectural-timer register-readback experiment so the fast lane exposes the selected timer control state and timer value after wakeup programming.
-2. Use that readback result to choose the next smallest common AArch64 timer or interrupt fix, then confirm the same boundary moves on the Pi 4 DTB-backed lane.
+1. Run the smallest timer-only Group 1 experiment so the fast lane exposes whether the selected timer IRQ can become enabled and start dispatching once it is moved out of Group 0.
+2. Use that result to choose the next smallest common AArch64 interrupt fix, then confirm the same boundary moves on the Pi 4 DTB-backed lane.
 3. Reach successful `/dev/tty0` and `/dev/console` registration on the generic fast lane, then confirm the same boundary moves on the Pi 4 DTB-backed lane.
 4. Bring the Pi 4 QEMU lane from `pl011-tty: started` to a usable shell or equivalent stable console-ready state.
 5. Once the fast lanes reach stable console readiness, switch the next bounded steps back to firmware-bundle completeness and first real-device smoke preparation.

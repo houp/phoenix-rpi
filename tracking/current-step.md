@@ -2,33 +2,36 @@
 
 ## Metadata
 
-- Step ID: `STEP-0142`
-- Title: Instrument kernel sleep / wakeup visibility
+- Step ID: `STEP-0143`
+- Title: Scope common AArch64 timer source / IRQ visibility
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- determine whether the stalled retry path reaches sleep enqueue, wakeup programming, and timer-interrupt delivery inside the common thread manager
+- define the smallest next diagnostic step that can prove which common AArch64 timer source and IRQ are being selected and armed before the missing timer interrupt should arrive
 
 ## Scope
 
 In scope:
 
-- `sources/phoenix-rtos-kernel/proc/threads.c`
-- add tightly filtered, one-time kernel markers for:
-  - the first relevant `proc_threadNanoSleep()` request
-  - the corresponding `_threads_programWakeup()` programming path
-  - the first `threads_timeintr()` delivery point
-- keep the current retry timing and scheduler behavior unchanged
-- validate on the generic `virt` lane first, then on the Pi 4 DTB-backed `raspi4b` lane
+- inspect the common AArch64 timer path around:
+  - `sources/phoenix-rtos-kernel/hal/aarch64/gtimer_backend.c`
+  - `sources/phoenix-rtos-kernel/hal/aarch64/gtimer_timer.c`
+  - `sources/phoenix-rtos-kernel/hal/aarch64/dtb.c`
+- pick the minimum visibility point that can expose:
+  - selected timer source
+  - selected IRQ number
+  - timer registration and first wakeup arming context
+- keep the next implementation step localized to the common AArch64 timer code
+- preserve the current generic and Pi 4 DTB-backed QEMU lanes
 
 Out of scope:
 
-- broad timer backend refactoring
+- timer-source policy changes
+- broad GICv2 refactoring
 - changing `pl011-tty` retry semantics
-- changing device-start order
 - changing scheduler policy
 - real-hardware-only validation
 - Pi 5 or RP1 work
@@ -41,40 +44,37 @@ Out of scope:
 
 ## Expected Files Or Subsystems
 
-- `sources/phoenix-rtos-kernel/proc/threads.c`
-- relevant generic and Pi 4 QEMU smoke notes
-- manifests and tracking updates for this implementation step
+- `sources/phoenix-rtos-kernel/hal/aarch64/gtimer_backend.c`
+- `sources/phoenix-rtos-kernel/hal/aarch64/gtimer_timer.c`
+- manifests and tracking updates for the scope decision
 
 ## Acceptance Criteria
 
-- the generic lane exposes whether the blocked retry path reaches sleep enqueue
-- the generic lane exposes whether `_threads_programWakeup()` runs for that sleep
-- the generic lane exposes whether a corresponding timer interrupt reaches `threads_timeintr()`
-- neither QEMU lane regresses from current known-good boot output
+- the next implementation step is narrowed to one specific timer-visibility point in the common AArch64 timer path
+- the scope is justified against the current `STEP-0142` result
+- the resulting step avoids mixing timer visibility with policy changes or fixes
 
 ## Validation Plan
 
 - Review:
-  confirm the patch stays localized to `proc/threads.c` and only adds filtered visibility markers
+  inspect the common AArch64 timer path and record the smallest justified visibility point
 - Build:
-  rebuild the affected generic and Pi 4 project lanes in `phoenix-dev`
+  not applicable
 - Emulator:
-  rerun:
-  - generic `virt`
-  - Pi 4 DTB-backed `raspi4b`
+  not applicable
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-pl011-retry-wake-visibility.md`
+  `manifests/2026-03-20-aarch64-kernel-sleep-visibility.md`
 
 ## Notes
 
 - Risks:
-  avoid turning early-boot sleep instrumentation into broad scheduler logging churn
+  avoid turning a proven missing-timer-interrupt symptom into an unbounded timer-policy rewrite
 - Dependencies:
-  completed `STEP-0141` scope decision
+  completed `STEP-0142` kernel sleep / wakeup visibility result
 - User-visible control point before next step:
-  after this step lands, the next bounded move should come from direct evidence about whether the common sleep path fails before wakeup programming or after timer arming
+  after this scope step lands, the next implementation patch should expose the selected common AArch64 timer source and IRQ before any fix is attempted

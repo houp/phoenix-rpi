@@ -176,6 +176,12 @@ This file indexes the most important websites, repositories, documents, and sour
 - `phoenix-rtos-kernel/proc/threads.c`
   Important because `proc_threadNanoSleep()` and `_threads_programWakeup()` now define the next bounded diagnostic target after both fast lanes proved that the first retry path sleeps and never wakes.
 
+- `phoenix-rtos-kernel/hal/aarch64/gtimer_backend.c`
+  Important because the next bounded timer diagnostic needs to expose which common AArch64 timer source and IRQ are selected from the DTB before the missing wakeup interrupt should arrive.
+
+- `phoenix-rtos-kernel/hal/aarch64/gtimer_timer.c`
+  Important because `hal_timerRegister()` and `hal_timerSetWakeup()` are now the narrowest common AArch64 timer arming path after `proc/threads.c` proved that sleep enqueue and wakeup programming are reached on the generic lane.
+
 ## 4. Raspberry Pi Official Documentation
 
 - Raspberry Pi configuration and boot documentation:

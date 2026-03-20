@@ -184,6 +184,9 @@ Start-gate status:
 - the next bounded blocker is therefore no longer kernel name resolution; it is whether the `pl011-tty` retry loop ever wakes up from its `usleep(100000)` call.
 - the raw post-`usleep()` marker is now in place on both QEMU lanes and never appears before timeout, which means the first bounded retry path sleeps and never wakes on both generic `virt` and Pi 4 DTB-backed `raspi4b`.
 - the next bounded blocker is therefore inside the common sleep / timer wakeup path rather than inside `pl011-tty` retry control flow or a second `devfs` lookup.
+- the new `proc/threads.c` markers now prove on the generic lane that the blocked retry path reaches `proc_threadNanoSleep()` and that `_threads_programWakeup()` does program a wakeup deadline.
+- that same generic lane still never reaches `threads_timeintr()` before timeout, so the next bounded blocker is the common AArch64 timer source / IRQ-delivery path after wakeup programming rather than sleep enqueue itself.
+- the Pi 4 DTB-backed lane still does not expose the new kernel-side `threads:` markers in this boot slice, so the generic lane remains the authoritative fast diagnostic lane for the missing timer interrupt.
 - the next concrete Pi 4 boot blocker is now loader MMIO addressing: `sources/plo/hal/aarch64/generic/config.h` still hardcodes QEMU `virt` UART and GIC base addresses, so the current Pi 4 `kernel8.img` would still talk to the wrong MMIO blocks on real hardware until those addresses are made board-overridable.
 - generic `plo` now accepts project-local MMIO base overrides for UART0 and GICv2 while preserving the current QEMU `virt` defaults, and the generic `virt` smoke lane still boots after that change.
 - the current Pi 4 firmware handoff no longer appears to have a raw loader placement mismatch: `kernel_address=0x40080000` in the Pi 4 `config.txt` matches `ADDR_PLO 0x40080000` in `plo/ld/aarch64a53-generic.ldt`.
@@ -196,8 +199,8 @@ Start-gate status:
 
 ## Immediate Next Implementation Milestones
 
-1. Instrument the common kernel sleep / wakeup path so the fast lane can distinguish sleep enqueue, wakeup programming, and missing timer-interrupt delivery.
-2. Use that kernel-side visibility to fix the smallest common AArch64 timer or wakeup blocker on the generic fast lane, then confirm the same boundary moves on the Pi 4 DTB-backed lane.
+1. Instrument the common AArch64 timer selection / registration path so the fast lane exposes which timer source and IRQ are being armed before the missing wakeup interrupt should arrive.
+2. Use that timer-side visibility to fix the smallest common AArch64 timer or IRQ-delivery blocker on the generic fast lane, then confirm the same boundary moves on the Pi 4 DTB-backed lane.
 3. Reach successful `/dev/tty0` and `/dev/console` registration on the generic fast lane, then confirm the same boundary moves on the Pi 4 DTB-backed lane.
 4. Bring the Pi 4 QEMU lane from `pl011-tty: started` to a usable shell or equivalent stable console-ready state.
 5. Once the fast lanes reach stable console readiness, switch the next bounded steps back to firmware-bundle completeness and first real-device smoke preparation.

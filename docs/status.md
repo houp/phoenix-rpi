@@ -216,6 +216,8 @@ Start-gate status:
 - that filtered `plo/cmds/call.c` visibility is now complete and high-signal: with the official firmware DTB, Pi 4 executes the entire `user.plo` script through `kernel ram0`, `blob ram0 system.dtb ddr`, both `app` commands, and `go!`, but still never prints the kernel banner.
 - the current Pi 4 boundary is therefore no longer in pre-init or script execution; it is now strictly post-`go!`, inside `cmd_go()`, `hal_done()`, `hal_cpuJump()`, or the immediate handoff after `hal_cpuJump()`.
 - the next bounded post-`go!` split is now fixed: add raw `go:` markers in `plo/cmds/go.c` around `devs_done()`, `hal_done()`, and the `hal_cpuJump()` call so the Pi 4 handoff can be divided without widening into HAL instrumentation yet.
+- that filtered `plo/cmds/go.c` visibility is now complete and high-signal: both lanes reach `go: enter`, `go: devs done`, `go: hal done`, and `go: jump`, but only the generic lane reaches the kernel banner afterward.
+- the current Pi 4 boundary is therefore no longer in `cmd_go()` cleanup; it is now strictly inside `hal_cpuJump()` or the immediate EL-exit handoff path in generic AArch64 `plo`.
 - the next concrete Pi 4 boot blocker is now loader MMIO addressing: `sources/plo/hal/aarch64/generic/config.h` still hardcodes QEMU `virt` UART and GIC base addresses, so the current Pi 4 `kernel8.img` would still talk to the wrong MMIO blocks on real hardware until those addresses are made board-overridable.
 - generic `plo` now accepts project-local MMIO base overrides for UART0 and GICv2 while preserving the current QEMU `virt` defaults, and the generic `virt` smoke lane still boots after that change.
 - the current Pi 4 firmware handoff no longer appears to have a raw loader placement mismatch: `kernel_address=0x40080000` in the Pi 4 `config.txt` matches `ADDR_PLO 0x40080000` in `plo/ld/aarch64a53-generic.ldt`.
@@ -228,7 +230,7 @@ Start-gate status:
 
 ## Immediate Next Implementation Milestones
 
-1. Split the post-`go!` Pi 4 handoff boundary so the `raspi4b` lane clearly shows whether it stops inside `cmd_go()`, inside `hal_done()`, inside `hal_cpuJump()`, or only after the jump attempt.
+1. Split the Pi 4 jump / EL-exit handoff boundary so the `raspi4b` lane clearly shows whether it stops in `hal_cpuJump()` C code or only once the EL handoff assembly begins.
 2. Use that result to choose the next smallest Pi 4-specific loader or kernel bring-up step, then confirm the same boundary moves on the `raspi4b` lane.
 3. Bring the Pi 4 QEMU lane back past the loader handoff and into the same kernel / user-space startup band already reached with the generic fast lane.
 4. Bring the Pi 4 QEMU lane from loader success to a usable shell or equivalent stable console-ready state.

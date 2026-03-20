@@ -2,34 +2,29 @@
 
 ## Metadata
 
-- Step ID: `STEP-0166`
-- Title: Implement filtered Pi 4 loader call visibility
+- Step ID: `STEP-0167`
+- Title: Scope first post-`go!` Pi 4 handoff visibility step
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- add narrowly filtered `plo` call-path visibility so the Pi 4 `raspi4b` lane shows whether it blocks before opening `user.plo`, while reading it, or while executing its first command after the official firmware DTB replaced the old stub
+- define the smallest next visibility step that distinguishes whether the Pi 4 official-DTB lane blocks inside `cmd_go()`, inside `hal_done()`, inside `hal_cpuJump()`, or immediately after the jump attempt
 
 ## Scope
 
 In scope:
 
-- change only `plo/cmds/call.c`
-- add tightly filtered markers for:
-  - successful `phfs_open()`
-  - successful magic check
-  - each script line immediately before `cmd_parse()`
-- rebuild and rerun:
-  - generic `virt`
-  - Pi 4 DTB-backed `raspi4b` with the official firmware DTB
-- update manifests and docs with the exact new boundary
+- review the narrow post-`go!` handoff path:
+  - `plo/cmds/go.c`
+  - `plo/hal/aarch64/generic/hal.c`
+- select one bounded visibility step that exposes the first silent boundary after `call: exec go!`
+- update manifests and docs with the scoped next step
 
 Out of scope:
 
-- PHFS internals
-- `plo/cmds/kernel.c`
+- loader code changes
 - changing Pi 4 image layout
 - changing DTB content or selection
 - kernel-side changes
@@ -39,46 +34,41 @@ Out of scope:
 
 ## Expected Repositories
 
-- `plo`
 - coordination repo
 
 ## Expected Files Or Subsystems
 
-- `plo/cmds/call.c`
-- Pi 4 QEMU loader-script boundary notes
-- manifests and tracking updates for this implementation step
+- `plo` post-`go!` handoff notes
+- Pi 4 QEMU handoff boundary notes
+- manifests and tracking updates for this planning step
 
 ## Acceptance Criteria
 
-- the only upstream source change is in `plo/cmds/call.c`
-- the generic `virt` lane still reaches the current working console-ready band
-- the Pi 4 lane now exposes a narrower boundary inside `call ram0 user.plo`
+- the reviewed handoff path is explicitly recorded
+- the next implementation step is narrowed to one post-`go!` visibility change
+- the scoped next step is specific enough to divide `cmd_go()` from `hal_cpuJump()` / post-jump behavior
 
 ## Validation Plan
 
 - Review:
-  confirm the markers are tightly filtered and limited to `cmd_call()`
+  inspect `cmd_go()` and the generic AArch64 jump path
 - Build:
-  rebuild:
-  - `TARGET=aarch64a53-generic-qemu`
-  - `RPI4B_DTB_PATH=$HOME/external/raspberrypi-firmware/boot/bcm2711-rpi-4-b.dtb TARGET=aarch64a53-generic-rpi4b`
+  not applicable
 - Emulator:
-  rerun:
-  - generic `virt`
-  - Pi 4 DTB-backed `raspi4b`
+  not applicable
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-rpi4b-official-dtb-validation.md`
+  `manifests/2026-03-20-aarch64-rpi4b-call-visibility.md`
 
 ## Notes
 
 - Risks:
-  avoid turning this into broad loader tracing or changing call semantics
+  avoid widening into kernel instrumentation before the post-`go!` loader handoff is explicitly split
 - Dependencies:
-  completed `STEP-0165` call-visibility scope decision
+  completed `STEP-0166` filtered loader call visibility
 - User-visible control point before next step:
-  after this step lands, the next bounded move should come from the exact new Pi 4 marker boundary, not from speculation about later kernel state
+  after this step lands, the next bounded move should be a single post-`go!` visibility patch rather than a broader loader or kernel change

@@ -213,6 +213,8 @@ Start-gate status:
 - that official DTB materially changes the Pi 4 QEMU boundary: instead of reaching the old `pl011-tty: tty0 lookup retry` stall, the lane now stops earlier after `cmd: Executing pre-init script` and `alias: Setting relative base address to 0x0000000000200000`, with no later kernel or user-space logs.
 - the old 274-byte stub DTB was therefore masking an earlier Pi 4-specific loader-side blocker, and the next bounded diagnostic target is now the `plo` `call ram0 user.plo` path rather than later kernel or user-space startup.
 - the next bounded Pi 4 loader split is now fixed: add tightly filtered `plo/cmds/call.c` markers for open success, magic success, and each parsed line before `cmd_parse()` so the lane can be divided into pre-open, pre-read, pre-first-command, or first-command execution failure.
+- that filtered `plo/cmds/call.c` visibility is now complete and high-signal: with the official firmware DTB, Pi 4 executes the entire `user.plo` script through `kernel ram0`, `blob ram0 system.dtb ddr`, both `app` commands, and `go!`, but still never prints the kernel banner.
+- the current Pi 4 boundary is therefore no longer in pre-init or script execution; it is now strictly post-`go!`, inside `cmd_go()`, `hal_done()`, `hal_cpuJump()`, or the immediate handoff after `hal_cpuJump()`.
 - the next concrete Pi 4 boot blocker is now loader MMIO addressing: `sources/plo/hal/aarch64/generic/config.h` still hardcodes QEMU `virt` UART and GIC base addresses, so the current Pi 4 `kernel8.img` would still talk to the wrong MMIO blocks on real hardware until those addresses are made board-overridable.
 - generic `plo` now accepts project-local MMIO base overrides for UART0 and GICv2 while preserving the current QEMU `virt` defaults, and the generic `virt` smoke lane still boots after that change.
 - the current Pi 4 firmware handoff no longer appears to have a raw loader placement mismatch: `kernel_address=0x40080000` in the Pi 4 `config.txt` matches `ADDR_PLO 0x40080000` in `plo/ld/aarch64a53-generic.ldt`.
@@ -225,9 +227,9 @@ Start-gate status:
 
 ## Immediate Next Implementation Milestones
 
-1. Split the Pi 4 `call ram0 user.plo` boundary so the `raspi4b` lane clearly shows whether it blocks before opening the user script, while reading it, or while executing its first commands.
+1. Split the post-`go!` Pi 4 handoff boundary so the `raspi4b` lane clearly shows whether it stops inside `cmd_go()`, inside `hal_done()`, inside `hal_cpuJump()`, or only after the jump attempt.
 2. Use that result to choose the next smallest Pi 4-specific loader or kernel bring-up step, then confirm the same boundary moves on the `raspi4b` lane.
-3. Bring the Pi 4 QEMU lane back past loader pre-init and into the same kernel / user-space startup band already reached with the old stub DTB.
+3. Bring the Pi 4 QEMU lane back past the loader handoff and into the same kernel / user-space startup band already reached with the generic fast lane.
 4. Bring the Pi 4 QEMU lane from loader success to a usable shell or equivalent stable console-ready state.
 5. Once the fast lanes reach stable console readiness, switch the next bounded steps back to firmware-bundle completeness and first real-device smoke preparation.
 

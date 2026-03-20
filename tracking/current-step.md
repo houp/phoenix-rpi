@@ -2,23 +2,23 @@
 
 ## Metadata
 
-- Step ID: `STEP-0088`
-- Title: Define the first generic `psh` integration step after the console-prep smoke rerun
+- Step ID: `STEP-0089`
+- Title: Add `psh` to the generic `user.plo`
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- identify whether the next smallest runtime step is to add `psh` to the generic image or to add a narrower userspace-console diagnostic first
+- add plain `psh` to the generic runtime image without introducing an `rc.psh` overlay yet
 
 ## Scope
 
 In scope:
 
-- inspect the updated generic smoke result
-- inspect comparable minimal console-plus-shell user scripts
-- choose the smallest useful follow-up step
+- update `_targets/aarch64a53/generic/user.plo.yaml`
+- rebuild the required generic utils/project artifacts
+- rerun the generic QEMU smoke lane
 
 Out of scope:
 
@@ -44,16 +44,16 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- the next runtime step is selected from the updated smoke evidence
-- the follow-up stays as one small implementation commit where possible
-- the selected step advances the generic QEMU fast lane directly
+- the generic `user.plo` now includes plain `psh`
+- the needed generic artifacts are rebuilt and repackaged
+- the generic QEMU smoke lane is rerun from the refreshed image
 
 ## Validation Plan
 
 - Review:
-  inspect the updated smoke result against comparable minimal console and shell scripts
+  inspect the `user.plo` edit against comparable minimal console-plus-shell scripts
 - Build:
-  use direct build or runtime evidence only as needed to choose the smallest useful follow-up
+  rebuild the required generic utils/project artifacts in `phoenix-dev`
 - Emulator:
   not applicable
 - Hardware:
@@ -62,13 +62,13 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-pl011-user-plo.md`
+  `manifests/2026-03-20-aarch64-generic-psh-scope.md`
 
 ## Notes
 
 - Risks:
-  the result must stay as a runtime-planning step and must not silently turn into multi-change generic bring-up
+  the result must stay as one `user.plo` runtime step and must not silently turn into `rc.psh` overlay work
 - Dependencies:
-  completed implementation step `STEP-0087`
+  completed implementation step `STEP-0088`
 - User-visible control point before next step:
-  after the next runtime step is selected, the follow-up implementation should stay narrow and validation-driven
+  after this step lands, the next step should be chosen from the new smoke output

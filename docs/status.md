@@ -122,6 +122,7 @@ Start-gate status:
 - the generic QEMU project now supplies those values in `board_config.h`; the next smallest fast-lane step is to load `dummyfs` and `pl011-tty` in the right order from `user.plo`.
 - that `user.plo` ordering is now fixed as the next minimal image step: `dummyfs;-N;devfs;-D` first, then `pl011-tty`, with `psh` intentionally deferred.
 - the generic image now packages `dummyfs` and `pl011-tty`, but the visible smoke result still stops at the first kernel banner line; the next fast-lane step should be chosen from that updated runtime state rather than from more packaging-only work.
+- that next fast-lane step is now fixed as plain `psh` integration, following the proven minimal `dummyfs + tty + psh` shape used by another generic target and still avoiding `rc.psh` overlay work for now.
 - Phoenix upstream style is conservative and review-oriented: file headers, tabs in C, localized `clang-format off/on`, direct control flow, `static const` hardware tables, and warning-clean builds enforced by `-Werror` in `phoenix-rtos-build/Makefile.common`.
 - Pi 4 uses BCM2711 with GIC-400, PL011, BCM2711 PCIe, VL805 xHCI over PCIe, GENET Ethernet, and Broadcom SDHCI.
 - Pi 5 uses BCM2712 plus RP1, with most I/O behind a PCIe-connected southbridge-like peripheral controller.

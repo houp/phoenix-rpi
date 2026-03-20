@@ -205,6 +205,8 @@ Start-gate status:
 - the next bounded fix is therefore a timer-only Group 1 experiment in the kernel GIC path rather than another timer-programming change.
 - the timer-only kernel Group 1 experiment is also negative: even after explicitly moving only the selected timer IRQ to Group 1 in the kernel GIC path, the generic fast lane still reads back `gic: timer handler set grp 0 en 0`.
 - the next bounded boundary is therefore above the kernel in generic `plo` EL3 setup; the smallest next experiment is to initialize generic loader GIC state for Group 1 before the non-secure EL1 handoff.
+- the generic `plo` EL3 GIC initialization experiment is the first major boundary break on the fast lane: the generic `virt` path now reaches `gic: timer dispatch`, `threads: timer irq`, `pl011-tty: tty0 wake`, `pl011-tty: tty0 ready`, `pl011-tty: console ready`, and visible later kernel startup logs.
+- the Pi 4 DTB-backed `raspi4b` lane remains unchanged after that same loader-side fix, so the next bounded clue is the loader entry EL on the Pi 4 path rather than another generic timer or GIC change.
 - the next concrete Pi 4 boot blocker is now loader MMIO addressing: `sources/plo/hal/aarch64/generic/config.h` still hardcodes QEMU `virt` UART and GIC base addresses, so the current Pi 4 `kernel8.img` would still talk to the wrong MMIO blocks on real hardware until those addresses are made board-overridable.
 - generic `plo` now accepts project-local MMIO base overrides for UART0 and GICv2 while preserving the current QEMU `virt` defaults, and the generic `virt` smoke lane still boots after that change.
 - the current Pi 4 firmware handoff no longer appears to have a raw loader placement mismatch: `kernel_address=0x40080000` in the Pi 4 `config.txt` matches `ADDR_PLO 0x40080000` in `plo/ld/aarch64a53-generic.ldt`.
@@ -217,8 +219,8 @@ Start-gate status:
 
 ## Immediate Next Implementation Milestones
 
-1. Run the smallest generic `plo` EL3 GIC group-initialization experiment so the fast lane exposes whether the later kernel-side timer IRQ state can move away from `grp 0 en 0`.
-2. Use that result to choose the next smallest common AArch64 interrupt fix, then confirm the same boundary moves on the Pi 4 DTB-backed lane.
+1. Run the smallest generic `plo` entry-EL visibility experiment so the Pi 4 lane can be compared directly with the working generic EL3 path.
+2. Use that result to choose the next smallest Pi 4-specific bring-up step, then confirm the same boundary moves on the `raspi4b` lane.
 3. Reach successful `/dev/tty0` and `/dev/console` registration on the generic fast lane, then confirm the same boundary moves on the Pi 4 DTB-backed lane.
 4. Bring the Pi 4 QEMU lane from `pl011-tty: started` to a usable shell or equivalent stable console-ready state.
 5. Once the fast lanes reach stable console readiness, switch the next bounded steps back to firmware-bundle completeness and first real-device smoke preparation.

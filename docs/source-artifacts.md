@@ -404,6 +404,7 @@ These are the current high-signal common AArch64 paths for the early generic and
 - `phoenix-rtos-kernel/hal/aarch64/interrupts_gicv2.c`
 - `plo/hal/aarch64/generic/_init.S`
 - `plo/hal/aarch64/generic/interrupts.c`
+- `plo/hal/aarch64/generic/hal.c`
 - `plo/hal/aarch64/zynqmp/_init.S`
 - `phoenix-rtos-kernel/proc/threads.c`
 
@@ -413,3 +414,4 @@ Current preserved clue:
 - as of `STEP-0154`, the generic fast lane reads back the selected timer as armed with `ctl 0x1` and a live non-zero `tval`, so the next bounded clue is GIC-side IRQ state rather than timer programming
 - as of `STEP-0156`, the generic fast lane reads the selected timer IRQ back as `grp 0 en 0`, and the existing `plo` generic handoff path exits EL3 to EL1 non-secure, so Group 1 configuration is now the next bounded GIC experiment
 - as of `STEP-0158`, the kernel-side attempt to move the selected timer IRQ to Group 1 still leaves the generic fast lane at `grp 0 en 0`, which points the next bounded experiment to generic `plo` EL3 GIC initialization
+- as of `STEP-0160`, generic `plo` EL3 GIC initialization is enough to restore timer dispatch and tty registration on the generic fast lane, so the next bounded Pi 4 clue is the loader entry EL on `raspi4b`

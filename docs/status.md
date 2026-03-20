@@ -146,6 +146,7 @@ Start-gate status:
 - the Pi 4 boot tree now reuses that existing generic `ram0` path: it stages `loader.disk` next to `kernel8.img` and uses `initramfs loader.disk 0x48000000` so Raspberry Pi firmware preloads the payload to generic `plo` `RAM_ADDR`.
 - the next concrete Pi 4 blocker is now kernel DTB propagation, not raw payload transport: the generic AArch64 kernel requires a syspage program named `system.dtb`, but the current Pi 4 `user.plo.yaml` still loads only the kernel and user-space programs.
 - the next selected Pi 4 step is therefore project-local DTB propagation: reuse the existing optional Pi 4 DTB input, copy it into `${PREFIX_ROOTFS}/etc/system.dtb`, and restore the `blob {{ env.BOOT_DEVICE }} /etc/system.dtb ddr` payload entry so the generic kernel contract stays intact.
+- the Pi 4 project now propagates an optional board DTB into both the firmware boot tree and the kernel-visible payload as `system.dtb`; default no-DTB builds stay green, and supplied-DTB builds now emit the expected `blob` load entry in the generated loader script.
 - Phoenix upstream style is conservative and review-oriented: file headers, tabs in C, localized `clang-format off/on`, direct control flow, `static const` hardware tables, and warning-clean builds enforced by `-Werror` in `phoenix-rtos-build/Makefile.common`.
 - Pi 4 uses BCM2711 with GIC-400, PL011, BCM2711 PCIe, VL805 xHCI over PCIe, GENET Ethernet, and Broadcom SDHCI.
 - Pi 5 uses BCM2712 plus RP1, with most I/O behind a PCIe-connected southbridge-like peripheral controller.

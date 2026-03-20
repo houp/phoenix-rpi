@@ -96,6 +96,7 @@ Start-gate status:
 - The backend-state layer now also exposes a backend-local wakeup helper that arms the selected architectural timer for bounded positive waits, so IRQ ownership is now the main missing piece before public AArch64 timer-HAL wiring.
 - The backend-state layer now also exposes IRQ query and handler-registration helpers, so the next common-AArch64 timer step can finally move from backend-local helpers to the first public timer-HAL wrapper boundary.
 - The AArch64 build now exposes an explicit public timer-implementation hook while keeping ZynqMP selected, so the next common timer step can focus on the first public `hal_timer*` wrapper file instead of reopening build glue.
+- The AArch64 build now also exposes an explicit timer-implementation override hook, so the first common public timer file can be validated without replacing the default ZynqMP timer selection.
 - Phoenix upstream style is conservative and review-oriented: file headers, tabs in C, localized `clang-format off/on`, direct control flow, `static const` hardware tables, and warning-clean builds enforced by `-Werror` in `phoenix-rtos-build/Makefile.common`.
 - Pi 4 uses BCM2711 with GIC-400, PL011, BCM2711 PCIe, VL805 xHCI over PCIe, GENET Ethernet, and Broadcom SDHCI.
 - Pi 5 uses BCM2712 plus RP1, with most I/O behind a PCIe-connected southbridge-like peripheral controller.

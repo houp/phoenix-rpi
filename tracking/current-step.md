@@ -2,26 +2,24 @@
 
 ## Metadata
 
-- Step ID: `STEP-0138`
-- Title: Instrument kernel name-service visibility for `devfs`
+- Step ID: `STEP-0140`
+- Title: Instrument `pl011-tty` retry wake-return visibility
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- determine whether the blocked later `lookup("devfs", ...)` call switches from a no-root fast failure into a different kernel name-service path, such as a late `/` registration or a root-mediated lookup
+- determine whether the bounded retry path stalls inside `usleep(100000)` rather than on a second `lookup("devfs", ...)` call
 
 ## Scope
 
 In scope:
 
-- `sources/phoenix-rtos-kernel/proc/name.c`
-- add narrow markers only for:
-  - `/` registration state changes
-  - `devfs` registration state changes
-  - `lookup("devfs", ...)` branch selection / return path
-- keep the markers tightly filtered so they do not turn into a broad kernel trace flood
+- `sources/phoenix-rtos-devices/tty/pl011-tty/pl011-tty.c`
+- keep the current bounded retry window
+- add only the minimum raw UART marker needed immediately after `usleep(100000)` returns
+- preserve the existing lookup / retry markers so the new output can be compared directly with `STEP-0138`
 - validate on both the generic and Pi 4 DTB-backed QEMU lanes
 
 Out of scope:
@@ -32,7 +30,7 @@ Out of scope:
 - real-hardware-only validation
 - Pi 5 or RP1 work
 - `phoenix-rtos-tests` integration
-- broad tracing in unrelated kernel paths
+- changes to the actual retry timing window
 - broad refactoring of `create_dev()` semantics
 
 ## Expected Repositories
@@ -42,22 +40,22 @@ Out of scope:
 
 ## Expected Files Or Subsystems
 
-- `sources/phoenix-rtos-kernel/proc/name.c`
+- `sources/phoenix-rtos-devices/tty/pl011-tty/pl011-tty.c`
 - relevant generic and Pi 4 QEMU smoke notes
 - manifests and tracking updates for this implementation step
 
 ## Acceptance Criteria
 
-- the generic lane exposes whether `/` registration changes between the first and later `lookup("devfs", ...)` calls
-- the generic lane exposes whether the later `lookup("devfs", ...)` call is still a no-root fast failure, a cached-`devfs` hit, or a root-mediated lookup
+- the generic lane exposes whether the retry loop wakes up after the first `usleep(100000)`
+- the output distinguishes “sleep never returned” from “sleep returned and the second lookup blocked”
 - neither lane regresses from current known-good startup output
 
 ## Validation Plan
 
 - Review:
-  confirm that the patch stays local to `proc/name.c` and only traces `/` and `devfs` state transitions
+  confirm that the patch stays local to the current `pl011-tty` helper and only adds a post-sleep marker
 - Build:
-  rebuild the affected kernel and project lanes in `phoenix-dev`
+  rebuild the affected device and project lanes in `phoenix-dev`
 - Emulator:
   rerun:
   - generic `virt`
@@ -68,13 +66,13 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-dummyfs-root-lookup-visibility.md`
+  `manifests/2026-03-20-aarch64-proc-name-lookup-visibility.md`
 
 ## Notes
 
 - Risks:
   avoid turning bounded visibility markers into long-lived logging churn
 - Dependencies:
-  completed `STEP-0136` root-versus-devfs visibility result
+  completed `STEP-0138` kernel name-service visibility result
 - User-visible control point before next step:
-  after this step lands, the next bounded move should come from concrete kernel name-service state rather than more dummyfs-side inference
+  after this step lands, the next bounded move should come from concrete wake-versus-second-lookup evidence rather than more indirect inference

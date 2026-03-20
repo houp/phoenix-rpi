@@ -179,6 +179,9 @@ Start-gate status:
 - the relabeled follow-up markers now show that the later startup markers are definitively coming from the `devfs` instance itself: `dummyfs: devfs registered` and `dummyfs: devfs initialized`.
 - no `dummyfs: root ...` marker appears on the generic lane, and the current generic / Pi 4 `user.plo` images do not start a root dummyfs instance at all; the previous root-dummyfs hypothesis is therefore invalid for the current fast-lane image shape.
 - the next bounded diagnostic target is now the kernel name-service layer in `proc/name.c`, because that is where `/` registration state and `lookup("devfs", ...)` branch selection actually live.
+- the filtered `proc/name.c` trace is now in place on the generic lane and proves that the first `lookup("devfs")` takes the `name: devfs no root` fast-failure path, then `devfs` registers later as `name: register devfs`.
+- after that first retry marker, there is still no second `create_dev: lookup devfs` entry and no second `name: devfs ...` branch marker at all, which means the retry loop is not re-entering the kernel lookup path during the observed boot window.
+- the next bounded blocker is therefore no longer kernel name resolution; it is whether the `pl011-tty` retry loop ever wakes up from its `usleep(100000)` call.
 - the next concrete Pi 4 boot blocker is now loader MMIO addressing: `sources/plo/hal/aarch64/generic/config.h` still hardcodes QEMU `virt` UART and GIC base addresses, so the current Pi 4 `kernel8.img` would still talk to the wrong MMIO blocks on real hardware until those addresses are made board-overridable.
 - generic `plo` now accepts project-local MMIO base overrides for UART0 and GICv2 while preserving the current QEMU `virt` defaults, and the generic `virt` smoke lane still boots after that change.
 - the current Pi 4 firmware handoff no longer appears to have a raw loader placement mismatch: `kernel_address=0x40080000` in the Pi 4 `config.txt` matches `ADDR_PLO 0x40080000` in `plo/ld/aarch64a53-generic.ldt`.
@@ -191,8 +194,8 @@ Start-gate status:
 
 ## Immediate Next Implementation Milestones
 
-1. Instrument `proc/name.c` so the generic lane can distinguish no-root `devfs` lookup failure, cached `devfs` success, and root-mediated lookup blocking.
-2. Use those kernel name-service markers to trim the remaining `tty0` registration blocker one small step at a time on the generic fast lane, then confirm the same boundary on the Pi 4 DTB-backed lane.
+1. Instrument the `pl011-tty` retry helper so the fast lane can distinguish sleep-stall from second-lookup blocking.
+2. Use that wake-return marker to trim the remaining `tty0` registration blocker one small step at a time on the generic fast lane, then confirm the same boundary on the Pi 4 DTB-backed lane.
 3. Reach successful `/dev/tty0` and `/dev/console` registration on the generic fast lane, then confirm the same boundary moves on the Pi 4 DTB-backed lane.
 4. Bring the Pi 4 QEMU lane from `pl011-tty: started` to a usable shell or equivalent stable console-ready state.
 5. Once the fast lanes reach stable console readiness, switch the next bounded steps back to firmware-bundle completeness and first real-device smoke preparation.

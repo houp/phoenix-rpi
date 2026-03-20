@@ -346,6 +346,14 @@ Start-gate status:
 - the timer-group difference is therefore ruled out as the last missing
   variable, and the next move should restore the Pi 4 board-config baseline
   before testing a new timer-routing hypothesis
+- that baseline restore is now complete too:
+  - Pi 4 A72 lane is back to `gic: timer handler set grp 1 en 1`
+  - Pi 4 still reports `gtimer: pending 0` and `gtimer: ppi pending 0`
+  - Pi 4 still never reaches `gic: timer dispatch`
+- the next bounded hypothesis is now the BCM2711 local interrupt controller:
+  Circle enables `ARM_LOCAL_TIMER_INT_CONTROL0` bit 1 for the non-secure
+  physical timer and checks `ARM_LOCAL_IRQ_PENDING0`, while Phoenix currently
+  has no code touching that local interrupt block
 - the next concrete Pi 4 boot blocker is now loader MMIO addressing: `sources/plo/hal/aarch64/generic/config.h` still hardcodes QEMU `virt` UART and GIC base addresses, so the current Pi 4 `kernel8.img` would still talk to the wrong MMIO blocks on real hardware until those addresses are made board-overridable.
 - generic `plo` now accepts project-local MMIO base overrides for UART0 and GICv2 while preserving the current QEMU `virt` defaults, and the generic `virt` smoke lane still boots after that change.
 - the current Pi 4 firmware handoff no longer appears to have a raw loader placement mismatch: `kernel_address=0x40080000` in the Pi 4 `config.txt` matches `ADDR_PLO 0x40080000` in `plo/ld/aarch64a53-generic.ldt`.
@@ -358,10 +366,10 @@ Start-gate status:
 
 ## Immediate Next Implementation Milestones
 
-1. Restore the Pi 4 baseline after the failed Group 0 timer experiment.
-2. Run one new bounded timer-routing experiment on the Pi 4 patched lane.
-3. Bring the Pi 4 QEMU lane back into the same kernel / user-space startup band already reached with the generic fast lane.
-4. Replace the remaining generic-QEMU MMIO assumptions in the Pi 4 loader/kernel handoff path as the runtime evidence dictates.
+1. Scope and run one bounded BCM2711 local-interrupt-routing experiment on the Pi 4 patched lane.
+2. Bring the Pi 4 QEMU lane back into the same kernel / user-space startup band already reached with the generic fast lane.
+3. Replace the remaining generic-QEMU MMIO assumptions in the Pi 4 loader/kernel handoff path as the runtime evidence dictates.
+4. Once the Pi 4 fast lane reaches stable console readiness, switch the next bounded steps back to firmware-bundle completeness and first real-device smoke preparation.
 
 ## Pi 4 Success Criteria for "Phase 1"
 

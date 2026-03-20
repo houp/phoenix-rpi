@@ -278,6 +278,12 @@ This file indexes the most important websites, repositories, documents, and sour
   Important because it defines `ARM_IRQLOCAL0_CNTPNS = GIC_PPI(14)`, confirming
   that the Pi 4 non-secure physical timer IRQ is `30`.
 
+- `external/circle/include/circle/bcm2836.h`
+  Important because it defines the Pi 4 local interrupt controller base
+  `ARM_LOCAL_BASE = 0xFF800000` and the specific registers
+  `ARM_LOCAL_TIMER_INT_CONTROL0` and `ARM_LOCAL_IRQ_PENDING0` used by Circle's
+  physical-timer path.
+
 - `external/circle/lib/timer.cpp`
   Important because Circle requires the physical counter on Pi 4 and programs
   `CNTP_CVAL_EL0` plus `CNTP_CTL_EL0` there.
@@ -285,6 +291,11 @@ This file indexes the most important websites, repositories, documents, and sour
 - `external/circle/lib/interruptgic.cpp`
   Important because it is a compact external reference for GIC-400
   initialization in non-secure Pi 4 AArch64 mode.
+
+- `external/circle/lib/interrupt.cpp`
+  Important because Circle explicitly enables `ARM_LOCAL_TIMER_INT_CONTROL0`
+  bit `1` for `ARM_IRQLOCAL0_CNTPNS` and checks `ARM_LOCAL_IRQ_PENDING0`
+  before dispatching the local physical timer path.
 
 - `external/circle/lib/bcmmailbox.cpp`
 - `external/circle/lib/bcmpropertytags.cpp`

@@ -205,6 +205,27 @@ This file indexes the most important websites, repositories, documents, and sour
   <https://www.raspberrypi.com/documentation/configuration/device-tree>
   Important because it states that the Raspberry Pi firmware loader customizes the DTB before launching the kernel.
 
+- Raspberry Pi device-tree documentation source:
+  <https://github.com/raspberrypi/documentation/blob/master/documentation/asciidoc/computers/configuration/device-tree.adoc>
+  Important because it is the source document to consult when DT alias,
+  overlay, `dtparam`, or firmware-merged DTB behavior becomes relevant during
+  bring-up.
+
+- Raspberry Pi documentation computers folder:
+  <https://github.com/raspberrypi/documentation/tree/master/documentation/asciidoc/computers>
+  Important because future Pi 4 boot, DT, UART, and configuration debugging
+  should consult the original documentation set, not only Linux DTS files.
+
+- Raspberry Pi boot/configuration reference:
+  <https://www.raspberrypi.com/documentation/configuration/bootconfig.md>
+  Important because it documents `config.txt`, overlays, and runtime `/chosen`
+  properties relevant to the firmware-merged DTB.
+
+- Raspberry Pi serial/UART reference:
+  <https://www.raspberrypi.com/documentation/configuration/serial.md>
+  Important because it documents Pi 4 UART roles and the earlycon MMIO
+  addresses for the auxiliary UART and PL011.
+
 - Raspberry Pi remote-access documentation:
   <https://www.raspberrypi.com/documentation/computers/remote-access.html>
   Important section: "Network boot your Raspberry Pi"
@@ -256,13 +277,16 @@ This file indexes the most important websites, repositories, documents, and sour
 
 - Raspberry Pi Linux:
   <https://github.com/raspberrypi/linux>
+  Re-verify:
+  - downstream branch tips change over time; as of `2026-03-20`, the active
+    branch family includes `rpi-6.12.y`, `rpi-6.19.y`, and `rpi-7.0.y`
 
 ### Crucial Pi 4 Linux source paths
 
 - `arch/arm/boot/dts/broadcom/bcm2711.dtsi`
 - `arch/arm/boot/dts/broadcom/bcm2711-rpi-ds.dtsi`
 - `arch/arm/boot/dts/broadcom/bcm2711-rpi.dtsi`
-- `arch/arm64/boot/dts/broadcom/bcm2711-rpi-4-b.dts`
+- `arch/arm/boot/dts/broadcom/bcm2711-rpi-4-b.dts`
 - `drivers/mmc/host/sdhci-brcmstb.c`
 - `drivers/net/ethernet/broadcom/genet/bcmgenet.c`
 - `drivers/pinctrl/bcm/pinctrl-bcm2835.c`
@@ -359,6 +383,12 @@ Important Raspberry Pi kernel-source findings to preserve:
 - consequence for Phoenix:
   - bootloader-time DTB customization is a real dependency for faithful Pi 4 DT behavior
   - naive `stdout-path` alias resolution would currently steer Phoenix toward the auxiliary UART, not the existing PL011 console path
+- checked on `2026-03-20`:
+  - `rpi-6.19.y` and `rpi-7.0.y` are currently identical for:
+    - `arch/arm/boot/dts/broadcom/bcm2711-rpi-4-b.dts`
+    - `arch/arm/boot/dts/broadcom/bcm2711-rpi.dtsi`
+  - use `rpi-6.19.y` or newer as the primary source-DTS reference, and
+    re-verify before depending on exact branch contents in later sessions
 
 Raspberry Pi kernel branch pattern checked from the remote on `2026-03-20`:
 

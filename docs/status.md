@@ -254,6 +254,27 @@ Start-gate status:
 - that source-level confirmation means future DT analysis should not assume `stdout-path` alias resolution is immediately useful for the current Phoenix PL011 console path, and it also reinforces that direct `raspi4b` QEMU is missing firmware-time DTB customization
 - the next bounded Pi 4 clue is therefore QEMU-specific: direct `raspi4b` validation is using an uncustomized firmware DTB without the Raspberry Pi firmware in the loop, so the next smallest step should validate a QEMU-only payload-DTB memory fix before widening into general VM or memory-management debugging.
 - that one-off QEMU-only `memory@0/reg = <0x00 0x00 0x80000000>` experiment is now also complete and negative, so the next smallest step is to instrument the live `_vm_init` / `_map_init` boundary instead of adding speculative DTB automation first.
+- the `_vm_init` / `_map_init` visibility step is now complete and high-signal: Pi 4 reaches `vm: enter`, `vm: page init done`, `vm: map init`, `map: enter`, `map: pool link`, and then explicitly `map: zero free` before aborting inside `_map_init`.
+- the current Pi 4 exception now symbolizes to `_map_init` lines `1644-1645`, immediately after the new zero-free marker, which confirms the live failure is the `map_common.nfree - 1U` underflow path rather than a later VM issue.
+- the strongest current root cause is now earlier DTB-backed memory-bank parsing:
+  - `hal/aarch64/dtb.c:dtb_parseMemory()` still hardcodes a 16-byte `<addr,size>` assumption
+  - the Pi 4 root memory node uses root cell widths instead (`#address-cells = 2`, `#size-cells = 1`)
+  - that explains why the earlier one-off Pi 4 QEMU memory-size patch was negative: Phoenix never parsed that 3-cell memory node at all
+- the root-memory parser fix is now in place: `hal/aarch64/dtb.c` decodes root
+  memory banks with the DTB root cell widths, and the generic `virt` lane still
+  reaches the established later boot band.
+- that fix also cleanly separates the remaining Pi 4 issues:
+  - direct `raspi4b` QEMU with the unmodified official firmware DTB still hits
+    `map: zero free`, because QEMU is not performing the Raspberry Pi
+    firmware-time `memory@0/reg` population
+  - the same Pi 4 lane with a one-off `memory@0/reg = <0x00 0x00 0x80000000>`
+    DTB patch now moves past `_map_init`, reaches `vm: map init done`, and
+    stalls later after `dummyfs: devfs initialized`
+- the Raspberry Pi source-reference rule is now stronger too:
+  - `rpi-6.19.y` and `rpi-7.0.y` currently carry identical Pi 4
+    `bcm2711-rpi-4-b.dts` and `bcm2711-rpi.dtsi`
+  - future DT debugging should consult both Raspberry Pi Linux DTS sources and
+    the Raspberry Pi device-tree documentation, not only decompiled DTBs
 - the next concrete Pi 4 boot blocker is now loader MMIO addressing: `sources/plo/hal/aarch64/generic/config.h` still hardcodes QEMU `virt` UART and GIC base addresses, so the current Pi 4 `kernel8.img` would still talk to the wrong MMIO blocks on real hardware until those addresses are made board-overridable.
 - generic `plo` now accepts project-local MMIO base overrides for UART0 and GICv2 while preserving the current QEMU `virt` defaults, and the generic `virt` smoke lane still boots after that change.
 - the current Pi 4 firmware handoff no longer appears to have a raw loader placement mismatch: `kernel_address=0x40080000` in the Pi 4 `config.txt` matches `ADDR_PLO 0x40080000` in `plo/ld/aarch64a53-generic.ldt`.
@@ -266,11 +287,11 @@ Start-gate status:
 
 ## Immediate Next Implementation Milestones
 
-1. Validate and, if confirmed, automate a QEMU-only Pi 4 DTB memory-node fix so direct `raspi4b` emulation stops depending on firmware-time DTB customization.
-2. Bring the Pi 4 QEMU lane back into the same kernel / user-space startup band already reached with the generic fast lane.
-3. Replace the remaining generic-QEMU MMIO assumptions in the Pi 4 loader/kernel handoff path as the runtime evidence dictates.
-4. Once the Pi 4 fast lane reaches stable console readiness, switch the next bounded steps back to firmware-bundle completeness and first real-device smoke preparation.
-5. Preserve the A53 generic lanes only as regressions and diagnostics while Pi 4 work moves to the A72 identity.
+1. Automate the QEMU-only Pi 4 DTB memory fix so the A72 `raspi4b` lane no longer depends on manual `fdtput` surgery.
+2. Use that automated Pi 4 lane to bound the later post-`dummyfs` stall, starting with the missing timer-interrupt / wakeup evidence now visible after the manual DTB patch.
+3. Bring the Pi 4 QEMU lane back into the same kernel / user-space startup band already reached with the generic fast lane.
+4. Replace the remaining generic-QEMU MMIO assumptions in the Pi 4 loader/kernel handoff path as the runtime evidence dictates.
+5. Once the Pi 4 fast lane reaches stable console readiness, switch the next bounded steps back to firmware-bundle completeness and first real-device smoke preparation.
 
 ## Pi 4 Success Criteria for "Phase 1"
 

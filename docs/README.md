@@ -46,6 +46,10 @@ This directory is the long-lived knowledge base for the Phoenix RTOS Raspberry P
 - `source-artifacts.md`
   Important links and exact upstream source paths.
 
+- `raspberry-pi-device-tree-reference.md`
+  Raspberry Pi-specific DTS, firmware-DTB, alias, overlay, and UART notes that
+  directly affect Pi 4 bring-up and DTB debugging.
+
 ## Skill Playbooks
 
 The `skills/` directory contains local project playbooks for future agents. Read [`../skills/README.md`](../skills/README.md) first, then open the specific `SKILL.md` that matches the task.

@@ -2,29 +2,27 @@
 
 ## Metadata
 
-- Step ID: `STEP-0188`
-- Title: Implement the first post-`KLM` early-kernel visibility split
+- Step ID: `STEP-0191`
+- Title: Translate Pi 4 serial MMIO through DTB `/soc/ranges`
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- split the remaining common AArch64 early-kernel path after the current `A3KLM` boundary without widening into C-side instrumentation yet
+- fix the most likely immediate Pi 4 console blocker by translating serial MMIO addresses from DTB bus addresses to CPU-visible physical addresses
 
 ## Scope
 
 In scope:
 
-- add one raw UART marker at `_core_0_virtual`
-- add one raw UART marker immediately before the branch to `main()`
+- add the smallest generic DTB address-translation support needed for Pi 4 serial nodes under `/soc`
 - rerun the generic fast lane and the Pi 4 A72 lane
-- capture whether Pi 4 stops before `_core_0_virtual`, before `main()`, or inside `main()`
+- capture whether Pi 4 now reaches successful PL011 mapping and the existing post-console markers
 - update manifests and docs with the result
 
 Out of scope:
 
-- C-side instrumentation
 - non-visibility runtime changes
 - new target scaffolding
 - changing Pi 4 image layout
@@ -40,21 +38,24 @@ Out of scope:
 
 ## Expected Files Or Subsystems
 
-- `hal/aarch64/_init.S`
-- Pi 4 A72 early-kernel markers after `KLM`
+- `hal/aarch64/hal.c`
+- `hal/aarch64/dtb.c`
+- generic DTB address translation for serial nodes
+- Pi 4 A72 console-init markers after `KLM`
 - generic fast-lane regression evidence
 - manifests and tracking updates for this implementation step
 
 ## Acceptance Criteria
 
 - the generic fast lane still boots with the new markers
-- the Pi 4 A72 lane produces enough marker output to place the failure relative to `_core_0_virtual` and `main()`
+- the generic fast lane still boots after the translation change
+- the Pi 4 A72 lane moves past `console: pl011 init done` or yields a more precise later boundary
 - the result narrows the next step to one concrete follow-up rather than a broad early-kernel rewrite
 
 ## Validation Plan
 
 - Review:
-  inspect the `_init.S` marker placement for minimality
+  inspect the address-translation change for minimality and keep it limited to the current serial-console need
 - Build:
   - `LIBPHOENIX_DEVEL_MODE=n TARGET=aarch64a53-generic-qemu ./phoenix-rtos-build/build.sh clean host core project image`
   - `LIBPHOENIX_DEVEL_MODE=n RPI4B_DTB_PATH=$HOME/external/raspberrypi-firmware/boot/bcm2711-rpi-4-b.dtb TARGET=aarch64a72-generic-rpi4b ./phoenix-rtos-build/build.sh clean host core project image`
@@ -67,15 +68,15 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-post-klm-visibility-scope.md`
+  `manifests/2026-03-20-aarch64-generic-console-init-visibility.md`
 
 ## Notes
 
 - Risks:
-  keep the patch visibility-only; do not roll visibility forward into C code in the same step
+  keep the translation narrowly scoped; do not widen into full generic `ranges` recursion or unrelated DTB cleanup in the same step
 - Dependencies:
-  completed `STEP-0186` post-`KLM` visibility scoping
+  completed `STEP-0190` generic console-init visibility split
 - Architecture reminder:
   Raspberry Pi 4 Model B is based on BCM2711 with a quad-core Cortex-A72 CPU; treat `aarch64a53-generic-rpi4b` only as a temporary diagnostic lane and keep new target work centered on `aarch64a72-generic-rpi4b`
 - User-visible control point before next step:
-  after this step lands, the next bounded move should be either a first C-entry visibility patch or one specific early-init fix, not a broad Pi 4 refactor
+  after this step lands, the next bounded move should be either a follow-up DTB console fix or the next single early-kernel split, not a broad Pi 4 refactor

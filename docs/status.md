@@ -240,7 +240,11 @@ Start-gate status:
 - the first local `aarch64a72-generic-rpi4b` scaffold is now in place across build, project, filesystems, devices, and utils, and the new A72 Pi 4 build plus the preserved A53 generic QEMU and Pi 4 builds all complete successfully in `phoenix-dev`.
 - the first `aarch64a72-generic-rpi4b` runtime validation is now complete: the A72 Pi 4 lane selects `phoenix-aarch64a72-generic.elf` but still reaches the same `A3KLM` boundary as the A53 diagnostic lane.
 - the generic AArch64 identification strings are now corrected: the A72 Pi 4 loader lane reports `Cortex-A72 Generic`, the A53 lane still reports `Cortex-A53 Generic`, and the kernel-side generic platform names are now target-aware too.
-- the next bounded implementation step is now a post-`KLM` early-kernel visibility split in common `_init.S` so the remaining failure can be placed relative to `_core_0_virtual` and `main()`.
+- a negative experiment is now recorded too: raw UART probes placed after the `ttbr1_el1` switch are not valid on this path, because neither lane prints them and the generic fast lane regresses until the patch is reverted.
+- the first C-entry visibility split is now complete: the generic lane reaches both `hal: console init done` and `main: hal init done`, while Pi 4 reaches neither.
+- the generic console-init split is now complete too: the generic lane reaches `console: pl011 init done`, while Pi 4 still reaches none of the console-init markers.
+- the strongest concrete blocker is now DTB address handling: the official Pi 4 firmware DTB uses bus-address serial nodes such as `serial@7e201000` plus `/soc/ranges` mapping to CPU-visible `0xfe...` space, and Phoenix still parses serial `reg` values without applying that translation.
+- the next bounded implementation step is now a minimal DTB address-translation change for Pi 4 serial MMIO.
 - the next concrete Pi 4 boot blocker is now loader MMIO addressing: `sources/plo/hal/aarch64/generic/config.h` still hardcodes QEMU `virt` UART and GIC base addresses, so the current Pi 4 `kernel8.img` would still talk to the wrong MMIO blocks on real hardware until those addresses are made board-overridable.
 - generic `plo` now accepts project-local MMIO base overrides for UART0 and GICv2 while preserving the current QEMU `virt` defaults, and the generic `virt` smoke lane still boots after that change.
 - the current Pi 4 firmware handoff no longer appears to have a raw loader placement mismatch: `kernel_address=0x40080000` in the Pi 4 `config.txt` matches `ADDR_PLO 0x40080000` in `plo/ld/aarch64a53-generic.ldt`.
@@ -253,7 +257,7 @@ Start-gate status:
 
 ## Immediate Next Implementation Milestones
 
-1. Split the remaining Pi 4 early-kernel path after `A3KLM` so the failure is placed relative to `_core_0_virtual` and `main()`.
+1. Translate Pi 4 serial MMIO through DTB `/soc/ranges` so the generic console path uses CPU-visible addresses.
 2. Bring the Pi 4 QEMU lane back into the same kernel / user-space startup band already reached with the generic fast lane.
 3. Replace the remaining generic-QEMU MMIO assumptions in the Pi 4 loader/kernel handoff path as the runtime evidence dictates.
 4. Once the Pi 4 fast lane reaches stable console readiness, switch the next bounded steps back to firmware-bundle completeness and first real-device smoke preparation.

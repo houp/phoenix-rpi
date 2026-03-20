@@ -2,23 +2,23 @@
 
 ## Metadata
 
-- Step ID: `STEP-0087`
-- Title: Add `dummyfs` and `pl011-tty` to the generic `user.plo`
+- Step ID: `STEP-0088`
+- Title: Define the first generic `psh` integration step after the console-prep smoke rerun
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- add the first minimal userspace console sequence to the generic image so `pl011-tty` can create `/dev/console`
+- identify whether the next smallest runtime step is to add `psh` to the generic image or to add a narrower userspace-console diagnostic first
 
 ## Scope
 
 In scope:
 
-- update `_targets/aarch64a53/generic/user.plo.yaml`
-- load `dummyfs` before `pl011-tty`
-- rerun the generic QEMU smoke lane
+- inspect the updated generic smoke result
+- inspect comparable minimal console-plus-shell user scripts
+- choose the smallest useful follow-up step
 
 Out of scope:
 
@@ -40,19 +40,20 @@ Out of scope:
 - `docs/status.md`
 - tracking files and manifest updates for this step
 - generic QEMU smoke output
+- generic utils packaging expectations
 
 ## Acceptance Criteria
 
-- the generic `user.plo` now loads `dummyfs` before `pl011-tty`
-- the generic QEMU smoke lane is rerun from refreshed artifacts
-- the change stays smaller than adding `psh`
+- the next runtime step is selected from the updated smoke evidence
+- the follow-up stays as one small implementation commit where possible
+- the selected step advances the generic QEMU fast lane directly
 
 ## Validation Plan
 
 - Review:
-  inspect the `user.plo` edit against comparable QEMU script patterns and keep it minimal
+  inspect the updated smoke result against comparable minimal console and shell scripts
 - Build:
-  rebuild the generic project/image artifacts needed for the smoke lane in `phoenix-dev`
+  use direct build or runtime evidence only as needed to choose the smallest useful follow-up
 - Emulator:
   not applicable
 - Hardware:
@@ -61,13 +62,13 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-pl011-user-plo-scope.md`
+  `manifests/2026-03-20-aarch64-pl011-user-plo.md`
 
 ## Notes
 
 - Risks:
-  the result must stay as one `user.plo` integration step and must not silently turn into full shell bring-up
+  the result must stay as a runtime-planning step and must not silently turn into multi-change generic bring-up
 - Dependencies:
-  completed implementation step `STEP-0086`
+  completed implementation step `STEP-0087`
 - User-visible control point before next step:
-  after this runtime-image step lands, the next step should be chosen from the new smoke output
+  after the next runtime step is selected, the follow-up implementation should stay narrow and validation-driven

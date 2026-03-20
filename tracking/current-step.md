@@ -79,5 +79,7 @@ Out of scope:
   keep the scaffold step purely structural and avoid slipping runtime fixes into it
 - Dependencies:
   completed `STEP-0182` first buildable A72 scaffold scoping
+- Architecture reminder:
+  Raspberry Pi 4 Model B is based on BCM2711 with a quad-core Cortex-A72 CPU; treat `aarch64a53-generic-rpi4b` only as a temporary diagnostic lane and keep new target work centered on `aarch64a72-generic-rpi4b`
 - User-visible control point before next step:
   after this step lands, the next bounded move should be the first A72 runtime validation step

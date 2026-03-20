@@ -234,6 +234,7 @@ Start-gate status:
 - the next bounded early-init clue is now the `__TARGET_AARCH64A53` system-register block in `hal/aarch64/_init.S`, because the active Pi 4 lane still builds as `aarch64a53` while QEMU `raspi4b` is running `-cpu cortex-a72`.
 - the post-entry A53-block split is now complete too: Pi 4 prints `KLM`, so it gets past that block and still dies later in early kernel init.
 - the strategic pivot is now explicit: Raspberry Pi 4 is BCM2711 with a quad-core Cortex-A72 CPU, so `aarch64a53-generic-rpi4b` should be treated only as a temporary diagnostic lane.
+- the official Raspberry Pi 4 specifications page remains the authority for this CPU identity: BCM2711, quad-core Cortex-A72 (ARM v8) 64-bit SoC, so future Pi 4 target naming, CPU assumptions, and runtime validation should stay centered on the A72 lane.
 - the next bounded implementation step should therefore enable a real Cortex-A72-capable generic target path, starting with removal of the first hard `aarch64a53` generic naming assumptions in `plo`.
 - that first A72-enabling groundwork is now complete in `plo`: generic loader config can select `phoenix-aarch64a72-generic.elf` plus `ld/aarch64a72-generic.ldt`, while the existing A53 generic lanes still build cleanly.
 - the next bounded implementation step is now the first actual `aarch64a72-generic-rpi4b` scaffold.

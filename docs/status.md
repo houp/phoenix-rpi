@@ -275,6 +275,19 @@ Start-gate status:
     `bcm2711-rpi-4-b.dts` and `bcm2711-rpi.dtsi`
   - future DT debugging should consult both Raspberry Pi Linux DTS sources and
     the Raspberry Pi device-tree documentation, not only decompiled DTBs
+- the Pi 4 A72 project build now has a narrow QEMU-only DTB memory hook:
+  `RPI4B_QEMU_MEMORY_SIZE=80000000` patches `memory@0/reg` in both staged DTB
+  copies without changing the default real-device DTB path.
+- that automated hook is validated:
+  - `fdtget` on the staged boot DTB now returns `0 0 -2147483648`
+  - the `raspi4b` lane reaches the same later boundary as the manual patched
+    DTB run:
+    - `vm: map init done`
+    - `gtimer: source virtual irq 27`
+    - `gic: timer handler set grp 1 en 1`
+    - `dummyfs: devfs initialized`
+  - then stalls before any visible `gic: timer dispatch`, `threads: timer irq`,
+    or `pl011-tty: tty0 wake`
 - the next concrete Pi 4 boot blocker is now loader MMIO addressing: `sources/plo/hal/aarch64/generic/config.h` still hardcodes QEMU `virt` UART and GIC base addresses, so the current Pi 4 `kernel8.img` would still talk to the wrong MMIO blocks on real hardware until those addresses are made board-overridable.
 - generic `plo` now accepts project-local MMIO base overrides for UART0 and GICv2 while preserving the current QEMU `virt` defaults, and the generic `virt` smoke lane still boots after that change.
 - the current Pi 4 firmware handoff no longer appears to have a raw loader placement mismatch: `kernel_address=0x40080000` in the Pi 4 `config.txt` matches `ADDR_PLO 0x40080000` in `plo/ld/aarch64a53-generic.ldt`.
@@ -287,11 +300,10 @@ Start-gate status:
 
 ## Immediate Next Implementation Milestones
 
-1. Automate the QEMU-only Pi 4 DTB memory fix so the A72 `raspi4b` lane no longer depends on manual `fdtput` surgery.
-2. Use that automated Pi 4 lane to bound the later post-`dummyfs` stall, starting with the missing timer-interrupt / wakeup evidence now visible after the manual DTB patch.
-3. Bring the Pi 4 QEMU lane back into the same kernel / user-space startup band already reached with the generic fast lane.
-4. Replace the remaining generic-QEMU MMIO assumptions in the Pi 4 loader/kernel handoff path as the runtime evidence dictates.
-5. Once the Pi 4 fast lane reaches stable console readiness, switch the next bounded steps back to firmware-bundle completeness and first real-device smoke preparation.
+1. Select the single highest-signal runtime follow-up for the Pi 4 patched lane, starting with the missing timer-dispatch or wakeup evidence after `dummyfs`.
+2. Bring the Pi 4 QEMU lane back into the same kernel / user-space startup band already reached with the generic fast lane.
+3. Replace the remaining generic-QEMU MMIO assumptions in the Pi 4 loader/kernel handoff path as the runtime evidence dictates.
+4. Once the Pi 4 fast lane reaches stable console readiness, switch the next bounded steps back to firmware-bundle completeness and first real-device smoke preparation.
 
 ## Pi 4 Success Criteria for "Phase 1"
 

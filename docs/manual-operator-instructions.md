@@ -271,22 +271,33 @@ If forks are used, also configure:
 
 ### Current optional Pi 4 DTB input for staged boot trees
 
-For the current `aarch64a53-generic-rpi4b` boot-tree staging flow, a Pi 4 DTB is optional during ordinary no-hardware builds but will be needed for realistic firmware boot-media preparation.
+For the current `aarch64a72-generic-rpi4b` boot-tree staging flow, a Pi 4 DTB
+is optional during ordinary no-hardware builds but will be needed for realistic
+firmware boot-media preparation.
 
 Current accepted inputs are:
 
 - environment variable `RPI4B_DTB_PATH` pointing to a board DTB file
 - project-local file:
-  `sources/phoenix-rtos-project/_projects/aarch64a53-generic-rpi4b/bcm2711-rpi-4-b.dtb`
+  `sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/bcm2711-rpi-4-b.dtb`
 
 Current staged output path:
 
-- `_boot/aarch64a53-generic-rpi4b/rpi4b/bcm2711-rpi-4-b.dtb`
+- `_boot/aarch64a72-generic-rpi4b/rpi4b/bcm2711-rpi-4-b.dtb`
 
 Current practical rule:
 
 - ordinary no-hardware validation may omit the DTB
 - before the first realistic Pi 4 firmware-boot test, the operator or agent must provide a real `bcm2711-rpi-4-b.dtb` through one of the two inputs above unless the boot flow is later changed and this document is updated
+
+Current QEMU-only helper for the emulated Pi 4 lane:
+
+- environment variable `RPI4B_QEMU_MEMORY_SIZE=80000000`
+- use it only with direct `qemu-system-aarch64 -M raspi4b` validation, not as a
+  real-device firmware setting
+- purpose:
+  patch `/memory@0/reg` in the staged DTB copies because direct QEMU does not
+  perform Raspberry Pi firmware DTB memory customization
 
 ### Required Raspberry Pi firmware-file input for real Pi 4 boot attempts
 

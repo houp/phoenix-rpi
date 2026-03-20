@@ -138,13 +138,20 @@ Current local `raspi4b` smoke result:
   - `Phoenix-RTOS microkernel v. 3.3.1 ...`
   - then `Exception #37: Data Abort (EL1)`
 - current local QEMU `10.2.2` `raspi4b` does not support `dumpdtb`, so this lane currently needs an explicit external DTB input
-- Raspberry Pi firmware normally customizes the DTB before kernel handoff, so direct `raspi4b` QEMU validation may also need QEMU-only fixes to the supplied DTB instead of assuming the raw firmware-repo DTB is already runtime-ready
+- Raspberry Pi firmware normally customizes the DTB before kernel handoff, so direct `raspi4b` QEMU validation needs a synthetic memory-node fix when the raw firmware-repo DTB is used without firmware in the loop
+- current automated Pi 4 QEMU build hook:
+  - set `RPI4B_QEMU_MEMORY_SIZE=80000000` together with `RPI4B_DTB_PATH=.../bcm2711-rpi-4-b.dtb`
+  - this patches `/memory@0/reg` in the staged DTB copies during the build
+  - the current automated lane then reaches `vm: map init done` and later
+    stalls after `dummyfs: devfs initialized`
 
 Inference:
 
 - the environment blocker is gone
 - the Pi 4 path is now well past raw image placement, early multi-core startup, and early kernel console initialization
-- the next bounded blocker is after the kernel banner, and the next fast QEMU-specific suspicion is missing firmware-time DTB customization rather than raw serial MMIO
+- the remaining fast-lane blocker is now after `dummyfs: devfs initialized`
+- the next bounded blocker to investigate is timer or wakeup delivery on the
+  patched Pi 4 lane rather than raw DTB staging
 
 Official QEMU `raspi4b` expectations to preserve:
 

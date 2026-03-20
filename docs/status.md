@@ -424,6 +424,13 @@ Start-gate status:
   is echoed back but still produces no visible shell prompt or command output
 - the active later-boot boundary is therefore now inside the shared `psh`
   startup path rather than in the kernel syspage spawn loop
+- the bounded `psh` startup-marker experiment is now complete and negative on
+  both generic and Pi 4:
+  - neither lane prints even `psh: root ready` or `psh: run enter`
+  - both lanes still stop visibly after `dummyfs: initialized`
+- the next bounded visibility step therefore has to sit below shell-visible
+  stdio, most likely at a kernel-side first-user-execution hook for the spawned
+  `psh` process
 - local QEMU `10.2.2` `hw/intc/arm_gic.c` does not expose an explicit
   CPU-interface read case for offset `0x28`, so older `AHPPIR` experiments
   should not be treated as authoritative outside the exact runtime context in

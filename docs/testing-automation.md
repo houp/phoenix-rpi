@@ -105,18 +105,47 @@ Phoenix's current AArch64 emulation lane is tied to a ZynqMP target and Xilinx-f
 
 Re-verify this section against the exact QEMU version in use.
 
-On the current workstation baseline:
+Current `phoenix-dev` baseline on `2026-03-20`:
 
-- `qemu-system-aarch64 -machine help` inside `phoenix-dev` does not list `raspi4b`
-- current pre-hardware Pi 4 validation is therefore limited to:
-  - generic `virt` runtime validation
-  - Pi 4 image and artifact inspection
+- packaged `/usr/bin/qemu-system-aarch64`:
+  - version: `8.2.2`
+  - `raspi4b`: absent
+- VM-local `/home/witoldbolt.guest/tools/qemu-10.2.2/bin/qemu-system-aarch64`:
+  - version: `10.2.2`
+  - `raspi4b`: present
 
-If a future QEMU build does expose `raspi4b`, it can still help validate:
+Current `raspi4b` use:
+
+- use the VM-local `10.2.2` binary for Pi 4-specific smoke runs
+- keep generic `virt` as the authoritative fast lane for common AArch64 work
+
+What `raspi4b` currently helps validate:
 
 - image loading assumptions
 - early UART path
 - board-specific low-level control flow
+- whether Pi 4-oriented images fail immediately under a board-shaped machine
+
+Current local `raspi4b` smoke result:
+
+- `raspi4b` requires at least `-smp 4`
+- the current Phoenix Pi 4 image starts under QEMU `10.2.2` but produces no serial output before timeout with either:
+  - `-serial mon:stdio`
+  - `-nographic -monitor none`
+
+Inference:
+
+- the environment blocker is gone
+- the next blocker is inside the emulated Pi 4 boot path itself
+- likely causes now include direct-kernel load semantics, early entry assumptions, or UART visibility rather than missing QEMU board support
+
+Official QEMU `raspi4b` expectations to preserve:
+
+- the official board docs list implemented PL011/AUX serial, GPIO, SD/MMC, mailbox, USB host, and VideoCore property firmware support
+- the same docs list these `raspi4b` gaps:
+  - `PWM`
+  - `PCIE Root Port`
+  - `GENET Ethernet Controller`
 
 ## 4.3 What QEMU should never be the sole authority for
 
@@ -131,6 +160,7 @@ On this machine, the recommended default is:
 
 - build and authoritative QEMU runs in a Linux arm64 VM
 - USB serial and power control on the macOS host
+- use VM-local source-built QEMU for Pi 4 board emulation rather than relying on the Ubuntu package version
 
 Reason:
 

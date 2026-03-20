@@ -54,6 +54,8 @@ Implication:
 
 - the host now has the documented prerequisite tools for the Linux VM workflow
 - the `phoenix-dev` VM has also been created and bootstrapped with the documented package baseline
+- inside `phoenix-dev`, the Ubuntu-packaged `qemu-system-aarch64` is only a fallback for generic `virt` work because Ubuntu 24.04 currently ships `8.2.2`, which does not expose `raspi4b`
+- the current Pi 4 emulation lane in `phoenix-dev` is the VM-local source-built QEMU at `/home/witoldbolt.guest/tools/qemu-10.2.2/bin/qemu-system-aarch64`
 - the remaining gates are local Phoenix build-tree wiring and the first clean baseline build
 - in the current Lima setup, the shared workspace is readable from the guest but should be treated as read-only for build artifacts; use VM-local disposable buildroots when building inside Linux
 
@@ -324,12 +326,34 @@ Do not start by stacking Docker Desktop on macOS unless there is a specific need
 Although `qemu-system-aarch64` is already installed on macOS, the recommended default is:
 
 - run authoritative QEMU validation in the Linux VM
+- use the Ubuntu-packaged VM QEMU as fallback only
+- use the VM-local source-built QEMU for Pi 4 board emulation
 
 Why:
 
 - Phoenix build and run scripts are Linux-shaped
 - keeping build and emulation in the same Linux environment reduces drift
 - host QEMU can still be used for ad hoc experiments when helpful
+
+Current `phoenix-dev` QEMU split:
+
+- packaged fallback:
+  - `/usr/bin/qemu-system-aarch64`
+  - version: `8.2.2`
+  - useful for:
+    - generic `virt` validation
+    - historical baseline comparisons
+- Pi 4 emulation lane:
+  - `/home/witoldbolt.guest/tools/qemu-10.2.2/bin/qemu-system-aarch64`
+  - version: `10.2.2`
+  - useful for:
+    - `raspi4b` smoke runs
+    - Pi 4 image-shape and early-board validation
+
+Re-verify:
+
+- the latest stable QEMU release before rebuilding or refreshing this lane
+- the exact implemented and missing `raspi4b` devices on the QEMU version in use
 
 ## 8. Real Hardware Strategy On This Host
 

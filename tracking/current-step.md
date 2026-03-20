@@ -2,35 +2,33 @@
 
 ## Metadata
 
-- Step ID: `STEP-0114`
-- Title: Refresh the Linux VM QEMU lane to a `raspi4b`-capable stable release
+- Step ID: `STEP-0115`
+- Title: Define the first bounded emulated Pi 4 boot blocker after the no-output `raspi4b` smoke
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- replace the current Ubuntu-packaged QEMU-only Pi 4 emulation limitation with a documented VM-local QEMU lane that can emulate `raspi4b`
+- choose the smallest next diagnostic or code step that can turn the current no-output `raspi4b` smoke into observable early Pi 4 boot progress
 
 ## Scope
 
 In scope:
 
-- verify the current Ubuntu 24.04 packaged QEMU limitation in `phoenix-dev`
-- build and install a newer QEMU side-by-side in VM-local storage
-- prefer the latest stable QEMU release that is practical on `2026-03-20`
-- validate that the newer QEMU exposes a `raspi4b` machine
-- attempt one first Pi 4-oriented no-hardware smoke invocation with the new QEMU binary
-- update the host/testing/manual docs with the exact QEMU strategy and binary path
+- inspect the current Pi 4 QEMU smoke command, artifact set, and QEMU board expectations
+- bound the most likely earliest blocker into one small next step
+- prefer the smallest explanation or diagnostic that can be validated quickly in QEMU `raspi4b`
+- update manifests and tracking with the selected next blocker
 
 Out of scope:
 
-- replacing the Ubuntu package with mixed third-party apt repositories
-- broad Pi 4 peripheral-debug work beyond a first smoke attempt
+- broad Pi 4 peripheral-debug work
+- broad refactors across `plo`, kernel, and project targets in one step
 - real-hardware-only validation
 - Pi 5 or RP1 work
 - `phoenix-rtos-tests` integration
-- changing the existing packaged QEMU-based generic `virt` lane
+- changing the existing generic `virt` lane
 
 ## Expected Repositories
 
@@ -38,42 +36,39 @@ Out of scope:
 
 ## Expected Files Or Subsystems
 
-- `docs/host-macos-apple-silicon.md`
-- `docs/testing-automation.md`
-- `docs/manual-operator-instructions.md`
-- `docs/source-artifacts.md`
+- `tracking/current-step.md`
+- `tracking/step-history.md`
+- `docs/status.md`
+- relevant Pi 4 build artifacts and QEMU invocation notes
 - manifests and tracking updates for this environment step
 
 ## Acceptance Criteria
 
-- the documented `phoenix-dev` packaged QEMU limitation is confirmed with concrete version and machine-list evidence
-- a newer VM-local QEMU stable build exists at a documented path
-- the newer binary exposes `raspi4b` in `-machine help`
-- at least one first Pi 4-oriented no-hardware smoke invocation is run with the new binary and its result is documented, even if the boot is incomplete
+- the most likely next emulated Pi 4 boot blocker is stated explicitly
+- the blocker is small enough to become one bounded implementation or diagnostic step
+- the blocker choice is backed by current QEMU smoke evidence rather than vague speculation
 
 ## Validation Plan
 
 - Review:
-  inspect the selected QEMU strategy for minimal blast radius and confirm the packaged Ubuntu QEMU path remains available as fallback
+  inspect the current Pi 4 smoke evidence, QEMU board constraints, and artifact layout
 - Build:
-  build and install the newer QEMU in VM-local storage
+  not required
 - Emulator:
-  run `qemu-system-aarch64 --version`
-  run `qemu-system-aarch64 -machine help`
-  attempt one Pi 4 boot or smoke invocation with the staged Phoenix Pi 4 artifacts
+  use the already recorded `raspi4b` smoke result from `STEP-0114`
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-rpi4b-firmware-file-staging.md`
+  `manifests/2026-03-20-aarch64-rpi4b-qemu-refresh.md`
 
 ## Notes
 
 - Risks:
-  keep the new QEMU side-by-side and VM-local; do not destabilize the existing packaged QEMU lane or widen this step into unrelated Pi 4 bootloader design changes
+  do not let this planning step widen into a broad debugging session without first selecting one tight blocker
 - Dependencies:
-  completed `STEP-0113`
+  completed `STEP-0114`
 - User-visible control point before next step:
-  after this step lands, the next bounded decision should come from the first `raspi4b` smoke result: either trim the first emulated boot blocker or, if the smoke is already useful, turn it into a repeatable documented QEMU lane
+  after this step lands, the next bounded move should be one explicit small implementation or diagnostic step aimed at the chosen first emulated Pi 4 boot blocker

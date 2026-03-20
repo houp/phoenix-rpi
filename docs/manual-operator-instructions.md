@@ -158,6 +158,12 @@ Additional project utilities:
 - `yq`
 - `rsync`
 
+Current practical rule for Pi 4 emulation in `phoenix-dev`:
+
+- keep the Ubuntu-packaged `qemu-system-aarch64` installed as a fallback
+- do not assume the packaged Ubuntu 24.04 QEMU is sufficient for Pi 4 board emulation
+- use the VM-local source-built QEMU at `/home/witoldbolt.guest/tools/qemu-10.2.2/bin/qemu-system-aarch64` for `raspi4b` runs until this document is updated
+
 Additional packages required for Phoenix cross-toolchain builds:
 
 - `bison`
@@ -183,6 +189,10 @@ Before implementation begins, verify:
 - re-verify whether the shared workspace is writable; on the current Lima setup it should be treated as effectively read-only for build artifacts
 - a simple package install succeeds
 - a simple QEMU command runs
+- for Pi 4 emulation work specifically:
+  - verify `/usr/bin/qemu-system-aarch64 --version`
+  - verify `/home/witoldbolt.guest/tools/qemu-10.2.2/bin/qemu-system-aarch64 --version`
+  - verify `/home/witoldbolt.guest/tools/qemu-10.2.2/bin/qemu-system-aarch64 -machine help | grep raspi4b`
 
 ## 4. Phoenix Repository Preparation
 

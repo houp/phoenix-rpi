@@ -246,6 +246,12 @@ Important NetBSD findings to remember:
   <https://gbmc.googlesource.com/linux/%2B/refs/heads/linux-6.1.y/drivers/clocksource/arm_arch_timer.c>
   Useful for timer-source selection policy and generic timer register usage patterns.
 
+- QEMU project homepage and latest releases:
+  <https://www.qemu.org/>
+
+- QEMU Raspberry Pi board documentation:
+  <https://www.qemu.org/docs/master/system/arm/raspi.html>
+
 - QEMU issue tracker example for `raspi4b` limitations:
   <https://gitlab.com/qemu-project/qemu/-/issues/3013>
 
@@ -259,8 +265,9 @@ Re-verify:
 
 Current local finding to preserve:
 
-- `qemu-system-aarch64 -machine help` inside `phoenix-dev` currently lists `raspi0`, `raspi1ap`, `raspi2b`, `raspi3ap`, and `raspi3b`, but not `raspi4b`
-- on this workstation, pre-hardware Pi 4 validation must therefore stay on generic `virt` plus Pi 4 artifact inspection until either real hardware is used or a newer QEMU build provides `raspi4b`
+- packaged `/usr/bin/qemu-system-aarch64` inside `phoenix-dev` is `8.2.2` and does not list `raspi4b`
+- VM-local `/home/witoldbolt.guest/tools/qemu-10.2.2/bin/qemu-system-aarch64` is `10.2.2` and does list `raspi4b`
+- the first Phoenix Pi 4 `raspi4b` smoke under QEMU `10.2.2` required `-smp 4` and then timed out with no serial output, so the current blocker is now emulated boot progress rather than QEMU board availability
 
 ## 9. Host and VM Tooling References
 

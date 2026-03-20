@@ -2,34 +2,30 @@
 
 ## Metadata
 
-- Step ID: `STEP-0067`
-- Title: Generate generic QEMU `system.dtb`, load it in `user.plo`, and rerun smoke command
+- Step ID: `STEP-0068`
+- Title: Define stdout-path-aware serial-selection fix for generic AArch64 kernel
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- apply the smallest generic QEMU DTB handoff change needed to satisfy the AArch64 kernel early-init contract and rerun the smoke command
+- define the smallest clean fix that makes the generic AArch64 kernel choose the correct early console UART on QEMU `virt,secure=on`
 
 ## Scope
 
 In scope:
 
-- generate `virt,secure=on,gic-version=2` DTB output into `${PREFIX_ROOTFS}/etc/system.dtb` during the generic QEMU project build
-- add `blob {{ env.BOOT_DEVICE }} /etc/system.dtb ddr` to the generic AArch64 user script
-- refresh the copied buildroot as needed
-- rebuild the generic project/image artifacts in `phoenix-dev`
-- rerun `timeout 10s ./scripts/aarch64a53-generic-qemu.sh` in `phoenix-dev`
-- record the earliest post-fix result
+- inspect the generic AArch64 DTB serial API and generic kernel console selection
+- compare that selection logic with the local `virt,secure=on` DTB ordering and `chosen.stdout-path`
+- choose the narrowest clean fix for early kernel console selection
 
 Out of scope:
 
-- broader DTB-passing redesign between `plo` and the kernel
-- `plo` or kernel source changes
-- `phoenix-rtos-tests` target additions
+- broad generic kernel bring-up changes
 - Raspberry Pi-specific code
-- fixing any later runtime issue beyond documenting it
+- implementing the fix in this planning step
+- `phoenix-rtos-tests` target additions
 
 ## Expected Repositories
 
@@ -39,40 +35,40 @@ Out of scope:
 
 ## Expected Files Or Subsystems
 
-- `phoenix-rtos-project/_targets/aarch64a53/generic/preinit.plo.yaml`
-- `phoenix-rtos-project/_targets/aarch64a53/generic/user.plo.yaml`
-- `phoenix-rtos-project/_projects/aarch64a53-generic-qemu/build.project`
+- `phoenix-rtos-kernel/hal/aarch64/dtb.c`
+- `phoenix-rtos-kernel/hal/aarch64/dtb.h`
+- `phoenix-rtos-kernel/hal/aarch64/generic/console.c`
 - `docs/status.md`
 - tracking files and manifest updates for this step
 - smoke output captured from the copied buildroot in `phoenix-dev`
 
 ## Acceptance Criteria
 
-- the generic QEMU project produces `${PREFIX_ROOTFS}/etc/system.dtb` during the current project/image lane
-- the generic user script loads `system.dtb` before `go!`
-- the rerun records whether the kernel now reaches visible early output or what the next earliest runtime failure is
+- the result names the smallest concrete DTB or console-selection fix to apply next
+- the result explains why that fix is preferred over broader kernel-entry instrumentation
+- the step remains planning-only
 
 ## Validation Plan
 
 - Review:
-  inspect the generic QEMU build path, AArch64 kernel DTB requirement, and current user-script handoff as needed during result analysis
+  inspect the DTB serial enumeration path, generic console init, and the local QEMU `stdout-path` evidence
 - Build:
-  rebuild the generic project/image artifacts in `phoenix-dev`
+  not applicable
 - Emulator:
-  run `timeout 10s ./scripts/aarch64a53-generic-qemu.sh` inside the copied buildroot in `phoenix-dev`
+  not applicable
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-generic-qemu-dtb-fix-scope.md`
+  `manifests/2026-03-20-aarch64-generic-qemu-dtb-fix.md`
 
 ## Notes
 
 - Risks:
-  the result must stay as one generic project-local DTB handoff fix plus one rerun and must not silently turn into broader kernel or loader redesign
+  the result must stay as one serial-selection planning step and must not silently turn into broader kernel instrumentation or AArch64 bring-up
 - Dependencies:
-  completed implementation step `STEP-0066`
+  completed implementation step `STEP-0067`
 - User-visible control point before next step:
-  after this rerun lands, the next slice should be the smallest runtime-fix step implied by the earliest observed post-DTB result
+  after this planning step lands, the next slice should be the selected first stdout-path-aware console-selection fix

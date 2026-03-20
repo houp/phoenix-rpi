@@ -2,76 +2,77 @@
 
 ## Metadata
 
-- Step ID: `STEP-0116`
-- Title: Validate `plo.elf` as the first `raspi4b` QEMU kernel handoff
+- Step ID: `STEP-0118`
+- Title: Implement generic AArch64 `plo` secondary-core containment
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- test the smallest QEMU-side handoff change that can bypass the current raw-image load mismatch and produce observable early Pi 4 boot progress
+- add the smallest generic AArch64 `plo` startup guard that traps non-primary cores until CPU 0 transfers control to the kernel
 
 ## Scope
 
 In scope:
 
-- keep the real-device Pi 4 artifact shape unchanged
-- for QEMU `raspi4b` only, replace `kernel8.img` with the already-built `plo.elf` in the smoke command
-- keep `loader.disk` preloaded at `0x48000000`
-- document whether this produces:
-  - visible loader output
-  - visible kernel output
-  - or a more specific failure than the current silent timeout
+- `sources/plo/hal/aarch64/generic/_init.S`
+- `sources/plo/hal/aarch64/generic/hal.c`
+- add a generic `hal_coreJumpFlag`
+- trap non-primary cores by MPIDR in generic startup
+- release them only at `hal_cpuJump()` handoff
+- validate both generic build viability and the Pi 4 `plo.elf` QEMU lane
 
 Out of scope:
 
 - broad Pi 4 peripheral-debug work
-- source changes to `plo`, kernel, or project files unless the validation proves a tiny follow-up patch is strictly required
+- broad SMP bring-up or kernel SMP work
+- kernel or project changes
 - real-hardware-only validation
 - Pi 5 or RP1 work
 - `phoenix-rtos-tests` integration
-- changing the existing generic `virt` lane
+- changing the existing QEMU boot-media model beyond the already approved `plo.elf` smoke
 
 ## Expected Repositories
 
+- `sources/plo`
 - coordination repo
 
 ## Expected Files Or Subsystems
 
-- current Pi 4 staged artifacts under `_boot/aarch64a53-generic-rpi4b/`
-- relevant QEMU invocation notes
-- manifests and tracking updates for this validation step
+- `sources/plo/hal/aarch64/generic/_init.S`
+- `sources/plo/hal/aarch64/generic/hal.c`
+- relevant Pi 4 QEMU smoke notes
+- manifests and tracking updates for this implementation step
 
 ## Acceptance Criteria
 
-- the `raspi4b` QEMU lane is rerun with `plo.elf` as `-kernel`
-- the result is more informative than the previous silent raw-image timeout
-- the next step can be selected from concrete runtime evidence rather than the current load-address inference alone
+- generic AArch64 `plo` now traps non-primary cores before `_startc`
+- `hal_cpuJump()` releases trapped secondary cores through the new flag
+- the existing generic build remains green
+- the Pi 4 `plo.elf` QEMU lane no longer fails immediately with the same multi-core startup storm and yields a more stable early-boot signal
 
 ## Validation Plan
 
 - Review:
-  confirm that the chosen QEMU-only handoff change does not alter the real-device artifact layout
+  confirm that the patch stays localized and reuses the existing ZynqMP containment pattern
 - Build:
-  not required if the existing Pi 4 build artifacts are still present
+  rebuild affected generic AArch64 targets in `phoenix-dev`
 - Emulator:
-  run `raspi4b` QEMU with:
-  - `-kernel .../plo.elf`
-  - `-device loader,file=.../loader.disk,addr=0x48000000,force-raw=on`
+  rerun the Pi 4 `raspi4b` `plo.elf` QEMU smoke and compare the result against `STEP-0116`
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-rpi4b-qemu-raw-image-load-mismatch-scope.md`
+  `manifests/2026-03-20-aarch64-generic-plo-secondary-containment-scope.md`
 
 ## Notes
 
 - Risks:
-  keep this as a QEMU-only handoff validation; do not let it widen into a broad mixed boot-media redesign
+  keep the secondary containment contract minimal and loader-local
 - Dependencies:
-  completed `STEP-0115`
+  completed `STEP-0117`
 - User-visible control point before next step:
-  after this step lands, the next bounded move should come from the `plo.elf` smoke result: either keep tightening the QEMU handoff or move on to the next earliest visible boot blocker
+  after this step lands, the next bounded move should come from the new Pi 4 QEMU behavior rather than from abstract SMP theory

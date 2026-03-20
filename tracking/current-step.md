@@ -2,27 +2,28 @@
 
 ## Metadata
 
-- Step ID: `STEP-0092`
-- Title: Define the first console-ready diagnostic step after `pl011-tty: started`
+- Step ID: `STEP-0093`
+- Title: Add a direct PL011 console-ready banner after `/dev/console` registration
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- identify the smallest next diagnostic that can prove whether `pl011-tty` reaches `/dev/console` readiness after startup
+- add the smallest direct diagnostic that can prove whether `pl011-tty` reaches `/dev/console` registration and full console-device readiness
 
 ## Scope
 
 In scope:
 
-- inspect the new smoke result that includes `pl011-tty: started`
-- choose the smallest follow-up diagnostic that distinguishes “driver started” from “console fully ready”
-- stop before implementing that diagnostic
+- update `phoenix-rtos-devices/tty/pl011-tty/pl011-tty.c`
+- emit a raw PL011 banner immediately after successful `_PATH_CONSOLE` registration
+- rebuild the needed generic artifacts and rerun the generic QEMU smoke lane
 
 Out of scope:
 
-- all upstream source changes
+- broader `pl011-tty` refactoring
+- `psh` or script-behavior changes
 - Pi 4 board-specific code
 - Raspberry Pi-specific code
 - `phoenix-rtos-tests` target additions
@@ -44,31 +45,31 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- the next diagnostic step is selected from the new smoke evidence
-- the follow-up stays as one small implementation commit where possible
-- the selected step advances the generic QEMU fast lane directly
+- `pl011-tty` emits a second raw banner only after `/dev/console` registration succeeds
+- the needed artifacts are rebuilt and repackaged
+- the generic QEMU smoke lane is rerun from the refreshed image
 
 ## Validation Plan
 
 - Review:
-  inspect the new smoke boundary and keep the selected follow-up diagnostic minimal
+  inspect the `pl011-tty` diagnostic change and keep it minimal and localized
 - Build:
-  use the current runtime evidence and nearby driver code to choose the smallest useful follow-up
+  rebuild `phoenix-rtos-devices all` and the generic `host project image` lane in `phoenix-dev`
 - Emulator:
-  not applicable
+  rerun `timeout 12s ./scripts/aarch64a53-generic-qemu.sh`
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-generic-userspace-diagnostic.md`
+  `manifests/2026-03-20-aarch64-generic-console-ready-diagnostic-scope.md`
 
 ## Notes
 
 - Risks:
-  the result must stay as a localized diagnostic-planning step and must not silently turn into broader console-driver refactoring
+  the result must stay as one localized diagnostic step and must not silently turn into broader console-driver or shell refactoring
 - Dependencies:
-  completed implementation step `STEP-0091`
+  completed implementation step `STEP-0092`
 - User-visible control point before next step:
-  after the next diagnostic step is selected, the follow-up implementation should stay narrow and validation-driven
+  after the diagnostic lands, the next follow-up should be chosen from the new smoke output

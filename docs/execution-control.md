@@ -155,6 +155,8 @@ The agent must not:
 - close a step without explicit validation evidence
 - commit code without updating tracking artifacts
 
+The agent may, when explicitly authorized by the user, bias the next-step selection toward the fastest path to the first Pi 4 boot. That is a prioritization rule, not a permission to widen steps.
+
 ## 9. Step Size Policy
 
 A step is the right size if it can be explained in a short paragraph and reviewed without cross-referencing half the project.

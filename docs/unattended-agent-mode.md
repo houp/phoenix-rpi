@@ -97,6 +97,7 @@ For this project, unattended overnight work is best suited to:
 - build-glue cleanup
 - small kernel-only refactors
 - QEMU-free build-validation steps
+- boot-first planning and generic `virt` bring-up steps that still have a clear non-hardware validation lane
 
 Overnight unattended work is not yet suited to:
 

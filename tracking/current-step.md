@@ -2,53 +2,51 @@
 
 ## Metadata
 
-- Step ID: `STEP-0046`
-- Title: Implement first common public AArch64 timer file
+- Step ID: `STEP-0048`
+- Title: Define first non-Xilinx generic AArch64 QEMU `virt` milestone
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- add the first common public AArch64 timer implementation file on top of the existing `gtimer_backend` helper layer
+- define the first concrete milestone and first code step for a generic AArch64 QEMU `virt` path that can later be reused for Raspberry Pi 4 bring-up
 
 ## Scope
 
 In scope:
 
-- add `hal/aarch64/gtimer_timer.c`
-- provide the required public timer entry points from that file
-- use the existing backend-state, conversion, wakeup, and IRQ helpers
-- validate compilation through `AARCH64_TIMER_IMPL_OVERRIDE` in `phoenix-dev`
+- inspect the current build, project, and test scaffolding around AArch64 QEMU targets
+- decide which repository should move first for the generic `virt` path
+- select the first concrete code step under the boot-first policy
 
 Out of scope:
 
-- adding a new QEMU target
-- changing the default runtime timer implementation for any target
-- changing target definitions in `phoenix-rtos-build` or `phoenix-rtos-project`
-- adding PL011 console code
-- Raspberry Pi-specific code
+- implementation code in upstream Phoenix repositories
+- introducing the new target in this planning step
+- adding Raspberry Pi-specific code in this planning step
 
 ## Expected Repositories
 
-- `phoenix-rtos-kernel`
 - coordination repo
 
 ## Expected Files Or Subsystems
 
-- `hal/aarch64/gtimer_timer.c`
+- `docs/status.md`
 - tracking files and manifest updates for this step
 
 ## Acceptance Criteria
 
-- the new common file provides the required public timer entry points
-- the file builds successfully when selected through `AARCH64_TIMER_IMPL_OVERRIDE`
-- the default `aarch64a53-zynqmp-qemu` selection remains unchanged outside the override validation lane
+- the chosen milestone explicitly identifies the first non-Xilinx AArch64 QEMU target shape
+- the chosen first code step is small, repo-scoped, and has a realistic validation lane
+- the result explains why that first code step was selected over nearby alternatives
 
 ## Validation Plan
 
+- Review:
+  inspect the current build/project/test files and record the selected milestone and first code step
 - Build:
-  refresh the copied buildroot and rebuild `TARGET=aarch64a53-zynqmp-qemu` with `AARCH64_TIMER_IMPL_OVERRIDE='$(addprefix $(PREFIX_O)hal/aarch64/, gtimer_timer.o)'`
+  not applicable
 - Emulator:
   not applicable
 - Hardware:
@@ -57,13 +55,13 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-public-timer-file-scope.md`
+  `manifests/2026-03-20-boot-first-fast-lane-policy.md`
 
 ## Notes
 
 - Risks:
-  the step must stay within one new common file and must not also switch default targets or widen into project/build target work
+  the result must stay as one milestone-selection step and must not silently turn into a multi-repo implementation patch
 - Dependencies:
-  completed scoping step `STEP-0045`
+  completed planning step `STEP-0047`
 - User-visible control point before next step:
-  after this step lands, the next slice can decide whether to validate runtime behavior on a new common timer lane or keep staying compile-only
+  after this planning step lands, the next slice should be the selected first code step for the generic `virt` path

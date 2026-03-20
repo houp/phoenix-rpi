@@ -25,6 +25,27 @@ Rules:
 5. After cross-repository steps, update the coordination repository to record the exact integration state and test outcome.
 6. Prefer multi-repo coordination through manifests and documentation in this repository, not by collapsing Phoenix into a synthetic monorepo.
 7. Keep every code step small, readable, warning-clean, and stylistically aligned with neighboring Phoenix sources.
+8. When the user explicitly prioritizes the first Pi 4 boot, prefer steps that directly reduce the distance to `firmware -> plo -> kernel` boot even if some broader cleanup could also be justified.
+
+## Boot-First Fast Lane
+
+The current user priority is the earliest realistic Raspberry Pi 4 boot.
+
+That changes the implementation bias, but not the control model.
+
+It means:
+
+1. Keep the one-step-at-a-time discipline.
+2. Prefer steps that unblock runtime validation of the common AArch64 timer.
+3. Prefer steps that enable a generic AArch64 `virt` lane over more speculative cleanup.
+4. Prefer reusable PL011 work that serves both `virt` and Pi 4.
+5. Move into `plo` and Pi 4 platform scaffolding as soon as the kernel/common work is sufficient for a believable boot path.
+
+It does not mean:
+
+- skipping manifests or step history
+- bundling unrelated kernel, `plo`, and build work into one patch
+- declaring Pi 4 progress complete based only on QEMU
 
 ## 1. Core Architecture Decision
 

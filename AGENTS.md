@@ -65,6 +65,8 @@ Use them as follows:
 - If the user explicitly authorizes unattended work, the agent may continue across normal step boundaries only under the rules in `docs/unattended-agent-mode.md`; those rules do not relax step sizing, validation, or commit discipline.
 - On this workstation, treat Linux as the authoritative build and emulation environment. Use macOS natively for coordination, editing, and hardware control; use a Linux VM for Phoenix builds and most QEMU runs unless a task is explicitly documented as safe on the host.
 - Optimize all future code for readability and upstreamability: keep changes small, consistent with nearby Phoenix code, warning-clean, and free of gratuitous formatting churn.
+- When the user explicitly prioritizes the first Raspberry Pi 4 boot, use a boot-first fast lane:
+  prefer the smallest steps that unlock common timer runtime validation, generic QEMU `virt`, PL011 console reuse, `plo` boot, and Pi 4 kernel handoff; defer generic cleanup that is not on that path.
 - Do not bury important findings in chat history. Update the docs when new constraints, addresses, boot flows, test commands, or risks are discovered.
 - If context becomes tight after a long session, re-read at least `docs/status.md`, `docs/repository-work-breakdown.md`, `docs/testing-automation.md`, and the relevant platform note before proceeding.
 

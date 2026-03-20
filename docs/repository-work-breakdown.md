@@ -189,6 +189,22 @@ Reasoning:
 - tests should come online as early as possible to prevent blind bring-up
 - runtime device drivers matter after the boot path is real
 
+## Boot-First Fast-Lane Override
+
+When the active user priority is the first Raspberry Pi 4 boot, use this narrower short-term order:
+
+1. `phoenix-rtos-kernel`
+2. `phoenix-rtos-build`
+3. `plo`
+4. `phoenix-rtos-project`
+5. `phoenix-rtos-tests`
+
+Reasoning:
+
+- the kernel must reach a generic timer and console path that can plausibly boot outside ZynqMP
+- build glue must expose a non-Xilinx validation lane early, otherwise runtime work remains blind
+- `plo` can then reuse the same console and low-level assumptions for Pi 4 bring-up
+
 ## 3. First Concrete Milestone By Repository
 
 ### Milestone A: generic AArch64 cleanup

@@ -2,23 +2,23 @@
 
 ## Metadata
 
-- Step ID: `STEP-0077`
-- Title: Define the first post-build generic QEMU runtime-unblock step
+- Step ID: `STEP-0078`
+- Title: Define the first generic AArch64 devices-target step for the PL011 console path
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- identify the next smallest runtime blocker in the generic QEMU lane after the broader generic project/image build succeeded
+- identify the smallest repo-local `phoenix-rtos-devices` step that prepares the first reusable PL011 console path for generic QEMU and Raspberry Pi 4
 
 ## Scope
 
 In scope:
 
-- rerun the generic QEMU smoke lane from the refreshed generic build artifacts
-- inspect the runtime output after the loader and kernel milestones already achieved
-- select the smallest next runtime-oriented step
+- inspect the current `phoenix-rtos-devices` target layout and nearby tty-driver patterns
+- identify the smallest generic AArch64 devices-target change needed before a PL011 driver can be integrated
+- stop before changing driver source code
 
 Out of scope:
 
@@ -30,40 +30,42 @@ Out of scope:
 ## Expected Repositories
 
 - coordination repo
+- `phoenix-rtos-devices`
 
 ## Expected Files Or Subsystems
 
 - `docs/status.md`
 - tracking files and manifest updates for this step
-- generic QEMU smoke output
+- `phoenix-rtos-devices/_targets/*`
+- direct generic devices-target build output if needed for scoping
 
 ## Acceptance Criteria
 
-- the generic QEMU smoke lane is rerun from the refreshed current artifacts
-- the first remaining runtime blocker is identified from real output
-- the next code step is selected with one-repo-local scope where possible
+- the smallest generic devices-target step is selected from actual repo structure
+- the step keeps scope inside `phoenix-rtos-devices` where possible
+- the follow-up implementation step is narrow enough to land as one repo-local commit
 
 ## Validation Plan
 
 - Review:
-  inspect the current serial/QEMU output and keep the selected follow-up step narrow
+  inspect `phoenix-rtos-devices` target files and nearby tty-driver patterns
 - Build:
-  rerun the generic QEMU smoke lane in `phoenix-dev`
+  use direct `phoenix-rtos-devices` target validation only if it helps confirm the smallest missing target-layer piece
 - Emulator:
-  `timeout 10s ./scripts/aarch64a53-generic-qemu.sh`
+  not applicable
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-generic-full-build-unblock-scope.md`
+  `manifests/2026-03-20-aarch64-generic-runtime-unblock-scope.md`
 
 ## Notes
 
 - Risks:
-  the result must stay as a runtime-discovery-and-scoping step and must not silently turn into multi-repo implementation work
+  the result must stay as a `phoenix-rtos-devices` discovery-and-scoping step and must not silently turn into multi-repo implementation work
 - Dependencies:
-  completed implementation step `STEP-0076`
+  completed implementation step `STEP-0077`
 - User-visible control point before next step:
-  after the next runtime blocker is identified, the follow-up implementation step should stay repo-local and validation-driven
+  after the devices-target step is selected, the follow-up implementation step should stay repo-local and validation-driven

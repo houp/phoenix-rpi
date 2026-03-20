@@ -2,30 +2,31 @@
 
 ## Metadata
 
-- Step ID: `STEP-0062`
-- Title: Define first boot-output debugging step for silent generic QEMU lane
+- Step ID: `STEP-0063`
+- Title: Route generic QEMU non-secure PL011 to stdio and rerun smoke command
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- identify the smallest next change that can turn the silent generic QEMU smoke lane into visible early boot output
+- apply the smallest launcher-side serial fix that can turn the silent generic QEMU smoke lane into visible early boot output and rerun the smoke command
 
 ## Scope
 
 In scope:
 
-- inspect the silent post-launch behavior from `STEP-0061`
-- compare the generic launcher and console assumptions with the current generic `plo` scaffold
-- choose the narrowest first boot-output debugging step
+- adjust the generic QEMU launcher so stdio is routed to the non-secure PL011 used by the generic `plo` console
+- refresh the copied buildroot as needed
+- rerun `timeout 10s ./scripts/aarch64a53-generic-qemu.sh` in `phoenix-dev`
+- record the earliest post-fix result
 
 Out of scope:
 
-- broad generic QEMU bring-up changes
+- broader `plo` console changes
 - `phoenix-rtos-tests` target additions
 - Raspberry Pi-specific code
-- implementing the fix in this planning step
+- fixing any later runtime issue beyond documenting it
 
 ## Expected Repositories
 
@@ -38,39 +39,37 @@ Out of scope:
 - `phoenix-rtos-project/_targets/aarch64a53/generic-qemu/`
 - `phoenix-rtos-project/_projects/aarch64a53-generic-qemu/`
 - `phoenix-rtos-project/scripts/aarch64a53-generic-qemu.sh`
-- `plo/hal/aarch64/generic/console.c`
-- `plo/hal/aarch64/generic/config.h`
 - `docs/status.md`
 - tracking files and manifest updates for this step
 - smoke output captured from the copied buildroot in `phoenix-dev`
 
 ## Acceptance Criteria
 
-- the result names the smallest concrete next fix or experiment to recover first boot output
-- the result explains why that step is preferred over broader entry-path or kernel changes
-- the step remains planning-only
+- the generic launcher routes the non-secure PL011 used by `plo` to stdio
+- the unchanged smoke command is rerun successfully
+- the result records whether early boot output now appears or what the next earliest runtime failure is
 
 ## Validation Plan
 
 - Review:
-  inspect the generic launcher, generic `plo` console assumptions, and comparable QEMU serial-routing patterns
+  inspect the generic launcher and the QEMU `virt` UART layout as needed during result analysis
 - Build:
-  not applicable
+  refresh the copied buildroot if needed
 - Emulator:
-  not applicable
+  run `timeout 10s ./scripts/aarch64a53-generic-qemu.sh` inside the copied buildroot in `phoenix-dev`
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-generic-qemu-launcher-fix.md`
+  `manifests/2026-03-20-aarch64-generic-qemu-serial-fix-scope.md`
 
 ## Notes
 
 - Risks:
-  the result must stay as one planning step for first boot-output recovery and must not silently turn into broader QEMU or kernel bring-up
+  the result must stay as one launcher-side serial-routing change plus one rerun and must not silently turn into broader `plo` or kernel bring-up
 - Dependencies:
-  completed implementation step `STEP-0061`
+  completed implementation step `STEP-0062`
 - User-visible control point before next step:
-  after this planning step lands, the next slice should be the selected first boot-output recovery change
+  after this rerun lands, the next slice should be the smallest runtime-fix step implied by the earliest observed post-routing result

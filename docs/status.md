@@ -238,7 +238,9 @@ Start-gate status:
 - the next bounded implementation step should therefore enable a real Cortex-A72-capable generic target path, starting with removal of the first hard `aarch64a53` generic naming assumptions in `plo`.
 - that first A72-enabling groundwork is now complete in `plo`: generic loader config can select `phoenix-aarch64a72-generic.elf` plus `ld/aarch64a72-generic.ldt`, while the existing A53 generic lanes still build cleanly.
 - the first local `aarch64a72-generic-rpi4b` scaffold is now in place across build, project, filesystems, devices, and utils, and the new A72 Pi 4 build plus the preserved A53 generic QEMU and Pi 4 builds all complete successfully in `phoenix-dev`.
-- the next bounded implementation step is now runtime validation of the A72 Pi 4 lane under `qemu-system-aarch64 -M raspi4b`, using the official firmware DTB and comparing the earliest visible boundary against the A53 diagnostic lane.
+- the first `aarch64a72-generic-rpi4b` runtime validation is now complete: the A72 Pi 4 lane selects `phoenix-aarch64a72-generic.elf` but still reaches the same `A3KLM` boundary as the A53 diagnostic lane.
+- the generic AArch64 identification strings are now corrected: the A72 Pi 4 loader lane reports `Cortex-A72 Generic`, the A53 lane still reports `Cortex-A53 Generic`, and the kernel-side generic platform names are now target-aware too.
+- the next bounded implementation step is now a post-`KLM` early-kernel visibility split in common `_init.S` so the remaining failure can be placed relative to `_core_0_virtual` and `main()`.
 - the next concrete Pi 4 boot blocker is now loader MMIO addressing: `sources/plo/hal/aarch64/generic/config.h` still hardcodes QEMU `virt` UART and GIC base addresses, so the current Pi 4 `kernel8.img` would still talk to the wrong MMIO blocks on real hardware until those addresses are made board-overridable.
 - generic `plo` now accepts project-local MMIO base overrides for UART0 and GICv2 while preserving the current QEMU `virt` defaults, and the generic `virt` smoke lane still boots after that change.
 - the current Pi 4 firmware handoff no longer appears to have a raw loader placement mismatch: `kernel_address=0x40080000` in the Pi 4 `config.txt` matches `ADDR_PLO 0x40080000` in `plo/ld/aarch64a53-generic.ldt`.
@@ -251,7 +253,7 @@ Start-gate status:
 
 ## Immediate Next Implementation Milestones
 
-1. Re-run the Pi 4 QEMU lane under the A72-capable target path and compare the early-kernel boundary against the current diagnostic lane.
+1. Split the remaining Pi 4 early-kernel path after `A3KLM` so the failure is placed relative to `_core_0_virtual` and `main()`.
 2. Bring the Pi 4 QEMU lane back into the same kernel / user-space startup band already reached with the generic fast lane.
 3. Replace the remaining generic-QEMU MMIO assumptions in the Pi 4 loader/kernel handoff path as the runtime evidence dictates.
 4. Once the Pi 4 fast lane reaches stable console readiness, switch the next bounded steps back to firmware-bundle completeness and first real-device smoke preparation.

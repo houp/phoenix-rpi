@@ -2,23 +2,23 @@
 
 ## Metadata
 
-- Step ID: `STEP-0079`
-- Title: Add the generic AArch64 devices target makefile
+- Step ID: `STEP-0080`
+- Title: Define the first reusable PL011 tty driver step
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- add the minimal `phoenix-rtos-devices` target file needed to unblock generic-target validation before PL011 driver work
+- identify the smallest reusable PL011 tty-driver slice that can advance generic QEMU and Raspberry Pi 4 bring-up without widening into a full driver implementation
 
 ## Scope
 
 In scope:
 
-- add `_targets/Makefile.aarch64a53-generic`
-- keep the file intentionally minimal and free of PL011 driver policy
-- validate `phoenix-rtos-devices` directly on the generic target
+- inspect nearby tty driver patterns in `phoenix-rtos-devices`
+- inspect current generic-QEMU and Pi 4 console expectations from the coordination docs and build scripts
+- choose the smallest repo-local PL011 driver slice
 
 Out of scope:
 
@@ -35,22 +35,23 @@ Out of scope:
 ## Expected Files Or Subsystems
 
 - `phoenix-rtos-devices/_targets/*`
+- `phoenix-rtos-devices/tty/*`
 - `docs/status.md`
 - tracking files and manifest updates for this step
-- direct generic devices-target build output
+- direct code references and, if needed, direct generic-target validation output
 
 ## Acceptance Criteria
 
-- `_targets/Makefile.aarch64a53-generic` exists
-- `phoenix-rtos-devices` validates directly for `aarch64a53-generic-qemu`
-- the change stays repo-local and does not include PL011 driver source yet
+- the first PL011 driver slice is selected from actual nearby driver patterns
+- the selected slice stays inside `phoenix-rtos-devices` where possible
+- the follow-up implementation step is narrow enough to land as one repo-local commit
 
 ## Validation Plan
 
 - Review:
-  inspect the new target file against nearby generic target-file patterns
+  inspect nearby tty drivers and keep the selected PL011 slice minimal
 - Build:
-  validate `phoenix-rtos-devices` directly for `aarch64a53-generic-qemu` in `phoenix-dev`
+  use direct repo validation only if it helps confirm the smallest missing PL011-layer piece
 - Emulator:
   not applicable
 - Hardware:
@@ -59,13 +60,13 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-generic-devices-target-scope.md`
+  `manifests/2026-03-20-aarch64-generic-devices-target.md`
 
 ## Notes
 
 - Risks:
-  the result must stay as one repo-local target-file step and must not silently turn into PL011 driver implementation
+  the result must stay as a PL011-driver planning step and must not silently turn into a broad multi-driver or multi-repo implementation
 - Dependencies:
-  completed implementation step `STEP-0078`
+  completed implementation step `STEP-0079`
 - User-visible control point before next step:
-  after the target file lands, the next step should scope the first PL011 driver slice
+  after the first PL011 slice is selected, the follow-up implementation step should stay repo-local and validation-driven

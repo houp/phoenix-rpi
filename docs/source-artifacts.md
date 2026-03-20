@@ -222,6 +222,10 @@ Important NetBSD findings to remember:
 
 ## 8. Emulator References
 
+- Linux ARM architectural timer driver reference:
+  <https://gbmc.googlesource.com/linux/%2B/refs/heads/linux-6.1.y/drivers/clocksource/arm_arch_timer.c>
+  Useful for timer-source selection policy and generic timer register usage patterns.
+
 - QEMU issue tracker example for `raspi4b` limitations:
   <https://gitlab.com/qemu-project/qemu/-/issues/3013>
 

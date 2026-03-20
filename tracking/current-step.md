@@ -2,69 +2,73 @@
 
 ## Metadata
 
-- Step ID: `STEP-0018`
-- Title: Add unattended long-running session workflow
+- Step ID: `STEP-0020`
+- Title: Add AArch64 generic timer source selection helpers
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- add explicit unattended-session workflow rules so future long-running overnight sessions can continue step-by-step without waiting at every normal step boundary
+- codify the first AArch64 generic timer source-selection policy in the DTB API so a future common timer backend can consume an explicit source decision instead of re-implementing selection logic
 
 ## Scope
 
 In scope:
 
-- add a dedicated unattended-mode workflow document
-- wire unattended mode into the main repo reading and control documents
-- document hard stop conditions for overnight sessions
-- update the operator runbook with unattended-session prerequisites
-- keep this as a coordination-repo workflow step only
+- update `phoenix-rtos-kernel/hal/aarch64/dtb.h`
+- update `phoenix-rtos-kernel/hal/aarch64/dtb.c`
+- add a small AArch64 generic timer source-selection API
+- encode the current common EL1 policy:
+  - prefer non-secure physical timer
+  - fall back to virtual timer
+  - do not select secure or hypervisor timer in this path
+- validate that the existing `aarch64a53-zynqmp-qemu` build still succeeds
 
 Out of scope:
 
-- technical Phoenix implementation work
-- new upstream repo code changes
+- adding a new QEMU target
+- implementing the generic timer backend itself
+- adding PL011 console code
+- Raspberry Pi-specific code
 
 ## Expected Repositories
 
 - coordination repo
+- likely `phoenix-rtos-kernel`
 
 ## Expected Files Or Subsystems
 
-- `AGENTS.md`
-- `docs/execution-control.md`
-- `docs/session-playbook.md`
-- `docs/manual-operator-instructions.md`
-- `docs/unattended-agent-mode.md`
-- tracking files and manifest updates
+- `hal/aarch64/dtb.c`
+- `hal/aarch64/dtb.h`
+- copied-buildroot AArch64 validation workflow
+- tracking files and manifest updates after validation
 
 ## Acceptance Criteria
 
-- unattended mode is explicitly documented and opt-in
-- the repo now defines when the agent may auto-continue and when it must stop
-- the operator runbook documents the known prerequisites for unattended runs
+- the DTB API exposes an explicit selected generic timer source and IRQ for common AArch64 use
+- the source-selection policy is documented in code and remains small
+- `TARGET=aarch64a53-zynqmp-qemu ./phoenix-rtos-build/build.sh clean host core project` still succeeds inside `phoenix-dev` using the copied buildroot
 
 ## Validation Plan
 
 - Build:
-  not applicable
+  refresh the copied buildroot, then run the existing `aarch64a53-zynqmp-qemu` build path in `phoenix-dev`
 - Emulator:
-  not applicable
+  local `virt` timer DT node already inspected; confirm the chosen selection order matches the currently parsed timer metadata layout
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-timer-sysreg-helpers.md`
+  `manifests/2026-03-20-aarch64-generic-timer-step-scope.md`
 
 ## Notes
 
 - Risks:
-  the workflow change must not weaken the existing step-by-step control model
+  this is still a preparatory step and does not yet prove the generic timer backend itself
 - Dependencies:
-  existing execution-control and session-playbook docs
+  completed timer planning step from `STEP-0019`
 - User-visible control point before next step:
-  resume the technical AArch64 timer track only after the unattended workflow is committed cleanly
+  present the exact DTB API change, validation command, and resulting commit before moving into the common timer backend implementation

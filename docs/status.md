@@ -80,14 +80,15 @@ Start-gate status:
 - That runtime planning step is now complete: the next selected change is to remove the hard `TIMER_IRQ_ID` dependency from common AArch64 GICv2 code by moving timer IRQ knowledge behind the timer HAL API.
 - The common AArch64 GICv2 code now queries timer IRQ identity through the timer HAL API instead of using the `TIMER_IRQ_ID` macro directly, and the existing `aarch64a53-zynqmp-qemu` build still succeeds with that change.
 - Reusable AArch64 architectural timer sysreg helpers now exist in `hal/aarch64/aarch64.h`, and the existing `aarch64a53-zynqmp-qemu` build still succeeds with that change.
+- The common AArch64 timer track is now explicitly shaped: the future backend should be a directly selectable common AArch64 timer implementation, and the next smallest step is to codify timer-source selection in the DTB API before the backend itself is introduced.
 - Phoenix upstream style is conservative and review-oriented: file headers, tabs in C, localized `clang-format off/on`, direct control flow, `static const` hardware tables, and warning-clean builds enforced by `-Werror` in `phoenix-rtos-build/Makefile.common`.
 - Pi 4 uses BCM2711 with GIC-400, PL011, BCM2711 PCIe, VL805 xHCI over PCIe, GENET Ethernet, and Broadcom SDHCI.
 - Pi 5 uses BCM2712 plus RP1, with most I/O behind a PCIe-connected southbridge-like peripheral controller.
 
 ## Immediate Next Implementation Milestones
 
-1. Define the first common AArch64 generic timer backend step.
-2. Implement that selected generic timer backend step in one narrow patch.
+1. Add AArch64 generic timer source selection helpers to the DTB API.
+2. Reassess the next smallest backend step after that DTB selection helper lands.
 3. Implement a generic AArch64 FDT parser suitable for Raspberry Pi DTBs.
 4. Add a Raspberry Pi 4 `plo` platform with PL011 UART, MMU, GICv2, and a real boot path from Raspberry Pi firmware.
 5. Boot the Phoenix kernel on Pi 4 with a minimal RAM-backed rootfs.

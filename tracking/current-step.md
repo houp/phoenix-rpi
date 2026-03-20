@@ -2,23 +2,23 @@
 
 ## Metadata
 
-- Step ID: `STEP-0082`
-- Title: Define the first generic PL011 target-integration step
+- Step ID: `STEP-0083`
+- Title: Add `pl011-tty` to the generic devices target defaults
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- identify the smallest generic-target integration step for the new `pl011-tty` driver
+- make the generic devices target build `pl011-tty` by default
 
 ## Scope
 
 In scope:
 
-- inspect the current generic devices target and build flow
-- confirm whether the next smallest step is target default-component integration, board-config population, or broader core-lane validation
-- select the narrowest useful follow-up
+- update `_targets/Makefile.aarch64a53-generic`
+- keep the change repo-local to `phoenix-rtos-devices`
+- validate `phoenix-rtos-devices all` on the generic target
 
 Out of scope:
 
@@ -39,20 +39,20 @@ Out of scope:
 - `phoenix-rtos-devices/tty/pl011-tty/*`
 - `docs/status.md`
 - tracking files and manifest updates for this step
-- direct build or target-selection evidence if needed
+- direct generic devices build output
 
 ## Acceptance Criteria
 
-- the next step is selected from actual generic-target integration constraints
-- the follow-up remains one small commit where possible
-- the selected step advances the generic QEMU fast lane rather than unrelated cleanup
+- the generic devices target default components now include `pl011-tty`
+- `phoenix-rtos-devices all` validates for `aarch64a53-generic-qemu`
+- the change stays inside `phoenix-rtos-devices`
 
 ## Validation Plan
 
 - Review:
-  inspect the new driver and generic target file together and keep the selected integration slice minimal
+  inspect the target-file change against nearby target-file style and keep it minimal
 - Build:
-  use direct repo or broader generic build evidence only as needed to choose the next smallest integration step
+  validate `phoenix-rtos-devices all` directly for `aarch64a53-generic-qemu` in `phoenix-dev`
 - Emulator:
   not applicable
 - Hardware:
@@ -61,13 +61,13 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-pl011-tty.md`
+  `manifests/2026-03-20-aarch64-pl011-target-integration-scope.md`
 
 ## Notes
 
 - Risks:
-  the result must stay as an integration-planning step and must not silently turn into multi-repo runtime bring-up
+  the result must stay as one repo-local target integration step and must not silently turn into board-config or `user.plo` wiring
 - Dependencies:
-  completed implementation step `STEP-0081`
+  completed implementation step `STEP-0082`
 - User-visible control point before next step:
-  after the integration step is selected, the follow-up implementation should stay narrow and validation-driven
+  after the target integration lands, the next step should scope the first board-config wiring step

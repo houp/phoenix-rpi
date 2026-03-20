@@ -2,28 +2,27 @@
 
 ## Metadata
 
-- Step ID: `STEP-0072`
-- Title: Define generic AArch64 `phoenix-rtos-utils` target unblock step
+- Step ID: `STEP-0073`
+- Title: Add generic AArch64 utils target makefile
 - Status: `in_progress`
 - Date: `2026-03-20`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- define the next smallest board-agnostic repo-local change that continues removing the temporary generic-QEMU build-lane workarounds after the filesystem target unblock
+- apply the next smallest board-agnostic repo-local change that continues removing the temporary generic-QEMU build-lane workarounds after the filesystem target unblock
 
 ## Scope
 
 In scope:
 
-- inspect the existing `phoenix-rtos-utils` target file for `aarch64a53-zynqmp`
-- confirm whether a generic counterpart can stay board-agnostic
-- choose the smallest repo-local utils unblock step
-- keep the step planning-only
+- add `_targets/Makefile.aarch64a53-generic` in `phoenix-rtos-utils`
+- keep the default component set aligned with the existing board-agnostic `psh` target file
+- validate the `phoenix-rtos-utils` repo directly for the generic target in `phoenix-dev`
+- stop before unblocking the next repo
 
 Out of scope:
 
-- implementation code in this planning step
 - changes in `phoenix-rtos-devices` or `libphoenix`
 - Pi 4 board-specific code
 - Raspberry Pi-specific code
@@ -40,20 +39,20 @@ Out of scope:
 - `phoenix-rtos-utils/_targets/`
 - `docs/status.md`
 - tracking files and manifest updates for this step
-- target-file inventory findings from `phoenix-rtos-utils`
+- direct generic-target build output from `phoenix-rtos-utils`
 
 ## Acceptance Criteria
 
-- the result names the next smallest board-agnostic utils unblock step
-- the result explains why `phoenix-rtos-utils` is preferred over devices or `libphoenix` at this point
-- the step remains planning-only
+- `phoenix-rtos-utils` exposes a generic AArch64 target file
+- the generic target file keeps only board-agnostic components
+- the repo validates directly on `TARGET=aarch64a53-generic-qemu`
 
 ## Validation Plan
 
 - Review:
-  inspect the existing `aarch64a53-zynqmp` utils target file and the current generic-lane blockers
+  inspect the existing `aarch64a53-zynqmp` utils target file and keep the generic variant aligned
 - Build:
-  not applicable
+  validate `phoenix-rtos-utils` directly for the generic target in `phoenix-dev`
 - Emulator:
   not applicable
 - Hardware:
@@ -62,13 +61,13 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-20-aarch64-generic-filesystems-target.md`
+  `manifests/2026-03-20-aarch64-generic-utils-target-scope.md`
 
 ## Notes
 
 - Risks:
-  the result must stay as one repo-local planning step and must not silently turn into multi-repo implementation work
+  the result must stay as one repo-local unblock step and must not silently turn into multi-repo implementation work
 - Dependencies:
-  completed implementation step `STEP-0071`
+  completed implementation step `STEP-0072`
 - User-visible control point before next step:
-  after this planning step lands, the next slice should be the selected utils target unblock change
+  after this repo-local unblock lands, the next slice should be the next smallest generic userspace blocker

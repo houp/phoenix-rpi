@@ -2,25 +2,27 @@
 
 ## Metadata
 
-- Step ID: `STEP-0273`
-- Title: Scope the smallest post-FAT-image real-device artifact step
+- Step ID: `STEP-0274`
+- Title: Scope the smallest operator-facing Pi 4 FAT-image handoff step
 - Status: `planned`
 - Date: `2026-03-21`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- define the smallest next artifact step after the new Pi 4 FAT boot image
+- define the smallest next step that makes the current Pi 4 FAT image easier to
+  hand off to the operator for real-device use
 
 ## Scope
 
 In scope:
 
-- review the current FAT image plus loose boot tree outputs
-- decide whether the next artifact should be:
-  - a full SD-card image
-  - a documented direct-use FAT artifact
-- keep the step artifact- and workflow-focused, not hardware-execution-focused
+- review the current FAT image artifact and operator workflow
+- choose one small improvement such as:
+  - a checksum / metadata manifest
+  - a host-side export helper
+  - a clearer artifact naming / output convention
+- keep the step no-hardware and operator-facing
 
 Out of scope:
 
@@ -50,34 +52,32 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- one concrete next artifact decision is selected
-- the reasons are tied to the current boot chain and operator workflow
+- one concrete operator-facing improvement is selected
+- it is justified by the current FAT-image-first device path
 - the next step remains no-hardware and artifact-focused
 
 ## Validation Plan
 
-- Artifact review:
-  compare the assembled boot tree and the FAT image against the intended first
-  real-device workflow
+- Workflow review:
+  compare the current artifact outputs against the documented operator steps
 - Documentation review:
-  update the operator guidance to reflect the selected next artifact path
+  identify the smallest gap in operator-facing handling of the FAT image
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-21-aarch64-rpi4b-fat-image-helper.md`
+  `manifests/2026-03-21-aarch64-post-fat-image-artifact-scope.md`
 
 ## Notes
 
 - Risks:
   avoid widening into general deployment or storage work
 - Dependencies:
-  completed `STEP-0272` FAT-image helper implementation
+  completed `STEP-0273` post-FAT-image artifact scoping
 - Source reminder:
   the next step should leverage the current shell confidence, not revisit it
 - User-visible control point before next step:
-  after this scope lands, the next step should either build one larger media
-  image or explicitly bless the current FAT image as the first device-facing
-  artifact
+  after this scope lands, the next step should improve only one operator-facing
+  aspect of the FAT image artifact

@@ -2,29 +2,33 @@
 
 ## Metadata
 
-- Step ID: `STEP-0263`
-- Title: Scope the smallest external-applet shell smoke
+- Step ID: `STEP-0264`
+- Title: Implement the first external-applet shell smoke
 - Status: `planned`
 - Date: `2026-03-21`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- define the smallest next shell-level validation that goes beyond the built-in
-  `help` command
+- validate one deterministic external-applet shell command on both fast lanes
 
 ## Scope
 
 In scope:
 
-- review the currently staged applets and namespace state
-- choose one deterministic external-applet shell command for both fast lanes
-- define the success markers for that command
+- run:
+  - `ls /`
+- verify:
+  - command echo after the prompt
+  - `dev`
+  - `syspage`
+  - returned prompt
+- keep the step limited to runtime validation and coordination updates
 
 Out of scope:
 
 - changing Phoenix source code
-- implementing the next shell smoke
+- extending the helper beyond this one new command
 - boot-media work
 - real hardware work
 
@@ -44,32 +48,32 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- one deterministic external-applet command is selected
-- its success markers are defined for both fast lanes
-- the next step remains a small validation step
+- both fast lanes pass the `ls /` smoke
+- the output includes `dev` and `syspage`
+- no Phoenix source changes are introduced
 
 ## Validation Plan
 
-- Source review:
-  inspect the available applets and current root namespace expectations
-- Runtime planning:
-  reuse the current shell-smoke helper pattern and select the next command
+- Emulator:
+  reuse the current `expect`-driven helper pattern for `ls /`
+- Matching:
+  capture the command echo, root entries, and returned prompt on both lanes
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-21-aarch64-qemu-shell-smoke-helper.md`
+  `manifests/2026-03-21-aarch64-external-applet-smoke-scope.md`
 
 ## Notes
 
 - Risks:
   avoid widening into broad shell test design
 - Dependencies:
-  completed `STEP-0262` helper implementation
+  completed `STEP-0263` external-applet smoke scoping
 - Source reminder:
-  the next command should exercise more system surface than a built-in
+  keep the command surface minimal and deterministic
 - User-visible control point before next step:
-  after this scope lands, the next step should run exactly one external-applet
-  smoke on both fast lanes
+  after this validation lands, the next step can decide whether to extend the
+  helper or shift back toward boot-first system work

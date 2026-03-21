@@ -543,6 +543,10 @@ Current local finding to preserve:
     <https://www.qemu.org/docs/master/system/gdb.html>
   - GDB remote docs:
     <https://sourceware.org/gdb/current/onlinedocs/gdb.html/Connecting.html>
+  - current late-userspace proof point:
+    bounded gdbstub inspection on the generic fast lane proved that
+    `psh_ttyopen("/dev/console")` reaches libphoenix `open()`, `stat()` returns
+    `-1`, `resolve_path()` returns `NULL`, and `sys_open()` is never reached
 - local `10.2.2` QEMU source path for the current GIC model:
   - `/home/witoldbolt.guest/src/qemu-10.2.2/hw/intc/arm_gic.c`
   - current important fact:

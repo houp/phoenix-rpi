@@ -174,6 +174,14 @@ Current debugger note to preserve:
 - `phoenix-dev` now has `gdb-multiarch 15.1`
 - a proven current stop point for Pi 4 bring-up is `_hal_interruptsInit + 64`,
   immediately after `dtb_getGIC()` and before `_pmap_halMapDevice()`
+- a second proven use of the QEMU gdbstub is later userspace triage on the
+  generic fast lane:
+  - attach `gdb-multiarch` to the built `psh` ELF while QEMU is paused with
+    `-S -gdb tcp::<port>`
+  - stop directly at `psh_ttyopen()`, `open()`, and selected post-call return
+    addresses inside `open()`
+  - this was enough to prove the current shared `/dev/console` blocker is
+    `resolve_path() -> NULL`, not a missing `sys_open()` reachability issue
 - local `10.2.2` `hw/intc/arm_gic.c` does not expose an explicit CPU-interface
   read case for offset `0x28`, so `AHPPIR`-style probes should be cross-checked
   against source before being treated as architectural truth

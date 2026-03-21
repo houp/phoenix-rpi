@@ -2,27 +2,29 @@
 
 ## Metadata
 
-- Step ID: `STEP-0251`
-- Title: Inspect the built `psh` image and `open` references
+- Step ID: `STEP-0252`
+- Title: Scope the smallest `resolve_path("/dev/console")` failure split
 - Status: `planned`
 - Date: `2026-03-21`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- determine why `psh_ttyopen()` reports `open -2` while both the libphoenix and
-  kernel open traces stay silent
+- determine the smallest next seam inside libphoenix path canonicalization now
+  that GDB has proved `open()` is reached and `resolve_path("/dev/console")`
+  returns `NULL`
 
 ## Scope
 
 In scope:
 
-- inspect the built `psh` binary and its symbol references
-- avoid code changes unless the inspection exposes one tiny, obvious next move
+- inspect `resolve_path()` / `_resolve_abspath()` source and contract
+- allow one tiny runtime split only if source review leaves one ambiguity that
+  cannot be settled from the code
 
 Out of scope:
 
-- source changes outside minimal binary or symbol inspection
+- source changes outside minimal path-resolution inspection
 - shell-policy changes
 - console-device selection changes
 - unrelated kernel or project changes
@@ -35,9 +37,10 @@ Out of scope:
 
 ## Expected Files Or Subsystems
 
-- `sources/phoenix-rtos-utils/psh/psh.c`
-- copied build artifacts under `phoenix-dev`
+- `sources/libphoenix/unistd/dir.c`
+- `sources/libphoenix/unistd/file.c`
 - `docs/status.md`
+- `docs/testing-automation.md`
 - `docs/source-artifacts.md`
 - `manifests/`
 - `tracking/current-step.md`
@@ -45,35 +48,35 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- the inspection identifies one concrete next seam
+- the inspection identifies one concrete next seam inside `resolve_path()` or
+  `_resolve_abspath()`
 - the selected follow-up does not widen the work beyond the shared fast lane
 - the result is captured in one manifest and the next active step
 
 ## Validation Plan
 
-- Analysis only:
-  not applicable
+- Analysis:
+  source review of `libphoenix` path-resolution code
 - Emulator:
-  not required unless symbol inspection leaves ambiguity that needs one
-  minimal runtime split
+  optional only if source review still leaves one unresolved boundary
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-21-aarch64-console-callpath-scope.md`
+  `manifests/2026-03-21-aarch64-gdb-console-open-path.md`
 
 ## Notes
 
 - Risks:
-  avoid adding more runtime traces before checking whether the expected `open()`
-  call path is actually the one used by the built `psh` image
+  avoid widening back into kernel or `psh` tracing now that the failing seam is
+  known to be inside libphoenix canonicalization
 - Dependencies:
-  completed `STEP-0250` call-path scope
+  completed `STEP-0251` GDB-backed call-path inspection
 - Source reminder:
-  both the libphoenix and kernel console-open traces stayed silent on generic
-  and Pi 4
+  current live result is `stat() -> -1`, `resolve_path() -> NULL`, no
+  `sys_open()`
 - User-visible control point before next step:
-  after this step lands, the next follow-up should depend on what the built
-  `psh` image actually references for `open()`
+  after this step lands, the next follow-up should depend on the smallest
+  failing branch inside `resolve_path()` / `_resolve_abspath()`

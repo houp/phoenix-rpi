@@ -486,9 +486,19 @@ Start-gate status:
 - the libphoenix `open()` console trace is likewise negative on both lanes:
   - generic prints no `open: console ...`
   - Pi 4 prints no `open: console ...`
-- the current best hypothesis is now call-path or symbol mismatch rather than
-  another missing `/dev/console` path probe, so the next bounded step should
-  inspect the built `psh` image and its `open` references
+- built-image inspection and a bounded QEMU gdbstub session now prove the real
+  live call path:
+  - `psh_ttyopen("/dev/console")` really does call the linked libphoenix
+    `open()` symbol in the built `psh` image
+  - inside `open()`, `stat("/dev/console")` returns `-1`
+  - `open()` then falls through to `resolve_path("/dev/console", ..., 1, 1)`
+  - `resolve_path()` returns `NULL`
+  - `sys_open()` is therefore never reached
+- the current shared blocker is no longer a call-path mismatch and no longer a
+  kernel-side open syscall issue; it is now specifically the libphoenix path
+  canonicalization path for `/dev/console`
+- the earlier silent libphoenix trace is therefore a visibility limitation of
+  that trace path, not evidence that `open()` was skipped
 - copied-buildroot validation must be run sequentially per target; concurrent
   generic and Pi 4 builds against the same copied buildroot race on shared
   host-artifact paths such as `_build/host-generic-pc`
@@ -502,8 +512,8 @@ Start-gate status:
 
 ## Immediate Next Implementation Milestones
 
-1. Expose the first shared `psh_ttyopen("/dev/console")` failure result on the generic and Pi 4 fast lanes.
-2. Fix the smallest shared console-open blocker that follows from that result.
+1. Inspect why `resolve_path("/dev/console", ..., allow_missing_leaf = 1)` returns `NULL` on both the generic and Pi 4 fast lanes.
+2. Fix the smallest shared `resolve_path()` or `_resolve_abspath()` blocker that follows from that result.
 3. Drive both fast lanes from `psh: tty open` to `psh: tty ready`, then to `psh: readcmd`.
 4. Once the Pi 4 fast lane reaches stable interactive shell readiness, switch the next bounded steps back to firmware-bundle completeness and first real-device smoke preparation.
 

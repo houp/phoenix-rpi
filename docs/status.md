@@ -102,6 +102,10 @@ Start-gate status:
 - the Pi 4 xHCI path now also extracts the remaining pre-interrupt capability
   facts needed before later event-ring work:
   max interrupters, interrupt moderation scale, and maximum ERST size.
+- the Pi 4 xHCI path now also extracts the remaining structural memory-layout
+  capability facts needed before later DCBAA and scratchpad work:
+  64-bit addressing support, scratchpad-restore support, and maximum primary
+  stream array size.
 - that validation also exposed and fixed the first generic AArch64 USB-host
   portability issue in `phoenix-rtos-usb`:
   `usb.c` now passes the message-thread port value through `uintptr_t`.
@@ -121,6 +125,10 @@ Start-gate status:
   narrower again:
   addressability and scratchpad-memory capability should be extracted before
   any future DCBAA or scratchpad-allocation work.
+- after the new scratchpad/addressability capability step, the remaining
+  controller gap is narrower again:
+  the next clean seam is the first operational memory-layout register subset,
+  especially `DCBAAP` and `CRCR`.
 
 ## Most Important Technical Findings
 

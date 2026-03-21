@@ -243,6 +243,9 @@ This file indexes the most important websites, repositories, documents, and sour
   It now also extracts the pre-interrupt controller limits needed before later
   event-ring work:
   max interrupters, interrupt moderation scale, and maximum ERST size.
+  It now also extracts the remaining structural memory-layout capability bits:
+  64-bit addressing support, scratchpad-restore support, and maximum primary
+  stream array size.
   The current code intentionally remains pre-root-hub, pre-ring, and
   pre-enumeration.
 

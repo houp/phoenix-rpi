@@ -106,6 +106,9 @@ Start-gate status:
   capability facts needed before later DCBAA and scratchpad work:
   64-bit addressing support, scratchpad-restore support, and maximum primary
   stream array size.
+- the Pi 4 xHCI path now also extracts the first operational-register memory
+  layout state needed before later controller programming:
+  `CRCR` and `DCBAAP`.
 - that validation also exposed and fixed the first generic AArch64 USB-host
   portability issue in `phoenix-rtos-usb`:
   `usb.c` now passes the message-thread port value through `uintptr_t`.
@@ -129,6 +132,9 @@ Start-gate status:
   controller gap is narrower again:
   the next clean seam is the first operational memory-layout register subset,
   especially `DCBAAP` and `CRCR`.
+- after the new operational-register layout step, the next clean seam is no
+  longer more capability decoding; it is the first controller-owned memory
+  allocation step for `DCBAA` and the command ring.
 
 ## Most Important Technical Findings
 

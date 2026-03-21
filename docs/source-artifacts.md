@@ -246,6 +246,8 @@ This file indexes the most important websites, repositories, documents, and sour
   It now also extracts the remaining structural memory-layout capability bits:
   64-bit addressing support, scratchpad-restore support, and maximum primary
   stream array size.
+  It now also extracts the first operational memory-layout register state:
+  `CRCR` and `DCBAAP`, with minimal reserved-bit and non-`AC64` sanity checks.
   The current code intentionally remains pre-root-hub, pre-ring, and
   pre-enumeration.
 

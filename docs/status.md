@@ -550,6 +550,11 @@ Start-gate status:
 - the first command-level smoke is therefore now common to both fast QEMU
   lanes, and the earlier generic-only failure is confirmed to have been a QEMU
   stdio-launch issue rather than a Phoenix shell bug
+- that smoke is now packaged in:
+  - `scripts/qemu-shell-smoke.sh generic`
+  - `scripts/qemu-shell-smoke.sh rpi4b`
+- both helper runs print the same compact success markers and point to the
+  corresponding VM-side log file under `/tmp`
 - debugger-first is now the recorded policy for QEMU runtime triage:
   future sessions should start with a bounded gdbstub inspection and only add
   source-level probes after documenting why GDB cannot answer the current
@@ -567,9 +572,9 @@ Start-gate status:
 
 ## Immediate Next Implementation Milestones
 
-1. Turn the now-working `help` shell smoke into a reusable QEMU command-validation helper.
-2. Extend the fast lane from prompt reachability to one or two deterministic shell-level checks.
-3. With the first Pi 4 QEMU command path now proven, switch the next bounded steps back toward boot-media completeness and first real-device smoke preparation.
+1. Extend the fast lane from the built-in `help` smoke to one deterministic external-applet shell check.
+2. Keep the new `scripts/qemu-shell-smoke.sh` baseline stable while adding one more shell-level proof point.
+3. With the first Pi 4 QEMU command path now proven and scripted, switch the next bounded steps back toward boot-media completeness and first real-device smoke preparation.
 4. Keep the new prompt-reaching lane stable while avoiding new diagnosis-only probe accumulation.
 
 ## Pi 4 Success Criteria for "Phase 1"

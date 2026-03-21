@@ -1,5 +1,18 @@
 # Testing and Automation
 
+## Current Fast QEMU Shell Smoke
+
+- use [scripts/qemu-shell-smoke.sh](/Users/witoldbolt/phoenix-rpi/scripts/qemu-shell-smoke.sh) for the current command-level fast-lane check
+- supported targets today:
+  - `generic`
+  - `rpi4b`
+- current fixed smoke command:
+  - `help`
+- expected success markers:
+  - `(psh)% help`
+  - `Available commands:`
+  - returned `(psh)%`
+
 ## 1. Goals
 
 The port should be developed in a way that supports long, semi-autonomous or autonomous AI-driven sessions. The build/test loop must therefore optimize for:

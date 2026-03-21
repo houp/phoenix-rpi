@@ -2,32 +2,29 @@
 
 ## Metadata
 
-- Step ID: `STEP-0262`
-- Title: Implement the reusable QEMU shell-smoke helper
+- Step ID: `STEP-0263`
+- Title: Scope the smallest external-applet shell smoke
 - Status: `planned`
 - Date: `2026-03-21`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- implement the smallest reusable helper for the validated QEMU `help` shell
-  smoke
+- define the smallest next shell-level validation that goes beyond the built-in
+  `help` command
 
 ## Scope
 
 In scope:
 
-- add `scripts/qemu-shell-smoke.sh`
-- support only:
-  - `generic`
-  - `rpi4b`
-- keep the smoke command fixed to `help`
-- rerun the helper for both targets
+- review the currently staged applets and namespace state
+- choose one deterministic external-applet shell command for both fast lanes
+- define the success markers for that command
 
 Out of scope:
 
 - changing Phoenix source code
-- broad QEMU test-harness design
+- implementing the next shell smoke
 - boot-media work
 - real hardware work
 
@@ -39,7 +36,7 @@ Out of scope:
 
 - QEMU runtime validation flow in `phoenix-dev`
 - existing generic and Pi 4 smoke logs in `/tmp`
-- `scripts/`
+- `scripts/qemu-shell-smoke.sh`
 - `docs/status.md`
 - `manifests/`
 - `tracking/current-step.md`
@@ -47,33 +44,32 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- the helper runs successfully for both supported targets
-- it proves the same `help` smoke markers already validated by hand
-- no Phoenix upstream repo changes are needed
+- one deterministic external-applet command is selected
+- its success markers are defined for both fast lanes
+- the next step remains a small validation step
 
 ## Validation Plan
 
-- Script validation:
-  run `scripts/qemu-shell-smoke.sh generic`
-  run `scripts/qemu-shell-smoke.sh rpi4b`
-- Matching:
-  confirm each run reaches `Available commands:` and the returned prompt
+- Source review:
+  inspect the available applets and current root namespace expectations
+- Runtime planning:
+  reuse the current shell-smoke helper pattern and select the next command
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-21-aarch64-qemu-shell-smoke-helper-scope.md`
+  `manifests/2026-03-21-aarch64-qemu-shell-smoke-helper.md`
 
 ## Notes
 
 - Risks:
-  avoid turning a small smoke helper into a full lab framework
+  avoid widening into broad shell test design
 - Dependencies:
-  completed `STEP-0261` helper scoping
+  completed `STEP-0262` helper implementation
 - Source reminder:
-  both fast lanes now pass the same `help` smoke
+  the next command should exercise more system surface than a built-in
 - User-visible control point before next step:
-  after this helper lands, the next step can extend smoke depth or shift back
-  toward boot-first system work
+  after this scope lands, the next step should run exactly one external-applet
+  smoke on both fast lanes

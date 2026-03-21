@@ -499,6 +499,10 @@ Start-gate status:
   canonicalization path for `/dev/console`
 - the earlier silent libphoenix trace is therefore a visibility limitation of
   that trace path, not evidence that `open()` was skipped
+- debugger-first is now the recorded policy for QEMU runtime triage:
+  future sessions should start with a bounded gdbstub inspection and only add
+  source-level probes after documenting why GDB cannot answer the current
+  question
 - copied-buildroot validation must be run sequentially per target; concurrent
   generic and Pi 4 builds against the same copied buildroot race on shared
   host-artifact paths such as `_build/host-generic-pc`

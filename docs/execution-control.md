@@ -73,6 +73,12 @@ Before implementation code starts, `tracking/current-step.md` must define:
 
 If those items are missing, the step is not ready.
 
+If the step is about a runtime blocker in a QEMU lane, it should also define:
+
+- whether a bounded gdbstub session can answer the question before code changes
+- why any planned source-level debug instrumentation is necessary if the
+  debugger-first path is being skipped
+
 ## 5. Acceptance Criteria Rules
 
 Acceptance criteria must be concrete and testable.

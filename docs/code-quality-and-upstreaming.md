@@ -147,6 +147,8 @@ Examples:
 
 - firmware-preserved Pi 5 RP1 state
 - early hardcoded addresses before full DT parsing exists
+- ad hoc debug-print scaffolding that should have been replaced by a bounded
+  QEMU gdbstub session
 
 ### 4.3 Keep board code boring
 
@@ -185,6 +187,8 @@ A step should not be treated as complete until the following are true.
 ### Strongly recommended
 
 - a second pass is made to simplify names, control flow, or helper boundaries before committing
+- when debugging in a QEMU lane, the gdbstub is tried before source-level
+  runtime probes are added
 - dead debug prints and temporary scaffolding are removed before the step is closed
 - unrelated edits are removed from the diff
 
@@ -198,6 +202,8 @@ Before committing, check:
 - are register values and bit meanings clear enough?
 - is any abstraction hiding simple hardware behavior unnecessarily?
 - are error and cleanup paths easy to follow?
+- if this change adds runtime probes for a QEMU-only debugging question, was a
+  bounded gdbstub session already tried first?
 - are there any temporary debug paths that should not be committed?
 - would an upstream maintainer understand why this change belongs in this layer?
 

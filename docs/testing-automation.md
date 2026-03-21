@@ -118,8 +118,9 @@ Current `raspi4b` use:
 
 - use the VM-local `10.2.2` binary for Pi 4-specific smoke runs
 - keep generic `virt` as the authoritative fast lane for common AArch64 work
-- for narrow EL / DTB / GIC / timer blockers, prefer a bounded QEMU gdbstub
-  inspection before adding another diagnostic print patch
+- for QEMU runtime blockers in general, use a bounded QEMU gdbstub inspection
+  first and only fall back to source-level probes after the debugger path has
+  been shown insufficient for the current question
 
 What `raspi4b` currently helps validate:
 
@@ -172,6 +173,13 @@ Official QEMU `raspi4b` expectations to preserve:
 Current debugger note to preserve:
 
 - `phoenix-dev` now has `gdb-multiarch 15.1`
+- debugger-first rule for QEMU lanes:
+  - start with a bounded gdbstub session before adding trace prints or ad hoc
+    probes to Phoenix sources
+  - prefer direct stops at function entry, post-call return addresses, and
+    known state variables over broad single-step sessions
+  - only add runtime instrumentation if the needed state is not reachable or
+    not intelligible through the debugger alone
 - a proven current stop point for Pi 4 bring-up is `_hal_interruptsInit + 64`,
   immediately after `dtb_getGIC()` and before `_pmap_halMapDevice()`
 - a second proven use of the QEMU gdbstub is later userspace triage on the

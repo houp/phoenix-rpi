@@ -33,6 +33,8 @@ Then determine:
 - whether the disposable local buildroot needs to be refreshed with `scripts/prepare-buildroot.sh` before any `phoenix-rtos-project` build
 - whether the task needs the linked or copied buildroot mode
 - whether the user has explicitly authorized unattended continuation
+- whether a QEMU-side runtime question should be answered with a bounded gdbstub
+  session before any source-level debug instrumentation is added
 
 ## 2. Session Scoping Rule
 
@@ -58,13 +60,15 @@ For each substantial task:
 1. confirm `tracking/current-step.md` exists and matches the intended scope
 2. read the exact upstream Phoenix files involved
 3. read the exact Linux or BSD reference files involved
-4. update the plan in plain language
-5. make the smallest coherent change
-6. simplify the patch until it matches nearby Phoenix style and remains easy to review
-7. run the fastest validation lane available
-8. capture artifacts and classify failures
-9. commit each touched upstream repository once the step succeeds
-10. update the docs, tracker, or integration manifest if any new fact or constraint was discovered
+4. if the blocker is in a QEMU lane, decide whether a bounded gdbstub session
+   can answer it before any code is changed
+5. update the plan in plain language
+6. make the smallest coherent change
+7. simplify the patch until it matches nearby Phoenix style and remains easy to review
+8. run the fastest validation lane available
+9. capture artifacts and classify failures
+10. commit each touched upstream repository once the step succeeds
+11. update the docs, tracker, or integration manifest if any new fact or constraint was discovered
 
 ## 3A. Unattended Loop
 
@@ -175,6 +179,13 @@ When something breaks, classify it before debugging:
 - hardware-lab infrastructure
 
 This avoids spending kernel time on a relay, serial adapter, or bad image issue.
+
+When the failure is inside a QEMU lane:
+
+- prefer a bounded gdbstub inspection before adding debug prints or one-off
+  trace code
+- only add source-level probes after the debugger path has been shown
+  insufficient for the specific boundary being investigated
 
 ## 9. Session Close Checklist
 

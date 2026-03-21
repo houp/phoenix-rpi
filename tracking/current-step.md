@@ -2,29 +2,29 @@
 
 ## Metadata
 
-- Step ID: `STEP-0279`
-- Title: Implement the smallest host-visible Pi 4 SD-card image export helper
+- Step ID: `STEP-0280`
+- Title: Scope the first macOS flashing-workflow documentation step
 - Status: `planned`
 - Date: `2026-03-21`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- implement the smallest helper that makes the new Pi 4 full disk image
-  directly usable from the macOS host
+- select the smallest next documentation step that lets the operator safely put
+  the current Pi 4 SD-card image onto real media
 
 ## Scope
 
 In scope:
 
-- add one host-side export helper for the VM-local `rpi4b-sd.img`
-- copy the image into a stable host-visible workspace artifact path
-- validate that the exported host image matches the VM-local source
-- keep the step no-hardware and operator-facing
+- decide the smallest operator-facing flashing guidance to add now that the
+  host-visible `rpi4b-sd.img` exists
+- keep the step no-hardware and documentation-focused
+- keep the guidance aligned with macOS plus the current no-UART hardware lab
 
 Out of scope:
 
-- adding SD-card flashing automation
+- implementing the flashing instructions themselves
 - changing Phoenix source code
 - real hardware execution
 
@@ -34,42 +34,42 @@ Out of scope:
 
 ## Expected Files Or Subsystems
 
-- VM-local `rpi4b-sd.img`
-- new host-side export helper
-- host-visible `artifacts/rpi4b/`
-- `docs/manual-operator-instructions.md`
+- host-visible `artifacts/rpi4b/rpi4b-sd.img`
+- current manual operator runbook
+- current no-UART lab note
 - `docs/status.md`
+- `docs/manual-operator-instructions.md`
 - `manifests/`
 - `tracking/current-step.md`
 - `tracking/step-history.md`
 
 ## Acceptance Criteria
 
-- the helper exports the full Pi 4 disk image into a stable host-visible path
-- the host-visible image matches the VM-local source by size or hash
+- the next flashing-guidance step is selected explicitly
+- the selected move stays documentation-only and does not widen into hardware
+  execution or automation
 - no Phoenix upstream repo changes are introduced
 
 ## Validation Plan
 
-- Helper validation:
-  run the new export helper
-- Matching:
-  confirm the host-visible disk image matches the VM-local source size or hash
+- inspect the current host-visible `rpi4b-sd.img`
+- confirm the next missing operator link is explicit flashing guidance rather
+  than another artifact transformation
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-21-aarch64-rpi4b-sdimg-export-scope.md`
+  `manifests/2026-03-21-aarch64-rpi4b-sdimg-export-helper.md`
 
 ## Notes
 
 - Risks:
   avoid widening into SD-writing automation, real-device execution, or
-  persistent-rootfs work
+  framebuffer or network bring-up
 - Dependencies:
-  completed `STEP-0278` SD-card image export scoping
+  completed `STEP-0279` SD-card image export helper
 - User-visible control point before next step:
-  after this helper lands, the next bounded move can document the first manual
-  SD-card flashing workflow for the current no-UART lab
+  after the scope decision, the next bounded step can add one concrete macOS
+  flashing workflow to the runbook

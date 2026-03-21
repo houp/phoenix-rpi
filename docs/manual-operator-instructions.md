@@ -366,6 +366,12 @@ Current payload rule:
   - one bootable FAT32 partition
   - partition start sector `2048`
   - embedded FAT offset `1048576`
+- the current host-side full-disk-image export helper is:
+  - [scripts/export-rpi4b-sdimg.sh](/Users/witoldbolt/phoenix-rpi/scripts/export-rpi4b-sdimg.sh)
+- by default it exports that disk image into the host workspace at:
+  - `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+- current validated exported full-image SHA-256:
+  - `d480e6d35d91a6e9b4d56971fd8973feb45140d570c099ee4c638fa5179cb0bc`
 
 ## 5. What Must Be Provided For Real-Device Testing
 

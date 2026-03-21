@@ -598,6 +598,14 @@ Start-gate status:
   - embedded FAT offset `1048576`
 - the immediate remaining operator gap is now host visibility for that full
   disk image rather than image shape
+- that host-visibility gap is now closed too:
+  - `scripts/export-rpi4b-sdimg.sh`
+- it exports the current Pi 4 full disk image into:
+  - `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+- the current validated exported full-image SHA-256 is:
+  - `d480e6d35d91a6e9b4d56971fd8973feb45140d570c099ee4c638fa5179cb0bc`
+- the project now has a host-visible flashable Pi 4 SD-card image artifact for
+  the first manual hardware trial
 - the currently available real-hardware lab is weaker than the ideal UART lab:
   microSD plus HDMI plus Ethernet plus USB keyboard or mouse are available, but
   no USB-TTL adapter is currently available
@@ -622,8 +630,8 @@ Start-gate status:
 
 ## Immediate Next Implementation Milestones
 
-1. Export the new Pi 4 full disk image into a stable host-visible artifact
-   path so the first manual hardware trial is a normal flash operation.
+1. Document the first macOS flashing workflow for the host-visible Pi 4 SD-card
+   image artifact.
 2. Update the operator-facing runbook for the current no-UART hardware lab.
 3. Keep the current QEMU shell smoke baseline stable:
   `help` plus the validated external-applet follow-up `echo -h`.

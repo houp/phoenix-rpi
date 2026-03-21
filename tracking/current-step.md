@@ -30,7 +30,6 @@ Out of scope:
 - broad framebuffer-console redesign
 - changes to the existing `usbkbd` or `pl011-tty` logic unless the transport
   review proves they are immediately needed
-- SD image export
 
 ## Expected Repositories
 

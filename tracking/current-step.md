@@ -2,27 +2,27 @@
 
 ## Metadata
 
-- Step ID: `STEP-0246`
-- Title: Scope the smallest `posix_open()` or `proc_lookup()` console split
+- Step ID: `STEP-0251`
+- Title: Inspect the built `psh` image and `open` references
 - Status: `planned`
 - Date: `2026-03-21`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- choose the smallest next visibility step on the real failing
-  `/dev/console` open path
+- determine why `psh_ttyopen()` reports `open -2` while both the libphoenix and
+  kernel open traces stay silent
 
 ## Scope
 
 In scope:
 
-- inspect the shared `open("/dev/console")` path in the kernel
-- identify whether `posix_open()` or `proc_lookup()` is the tighter next seam
+- inspect the built `psh` binary and its symbol references
+- avoid code changes unless the inspection exposes one tiny, obvious next move
 
 Out of scope:
 
-- implementation changes outside minimal read-only inspection
+- source changes outside minimal binary or symbol inspection
 - shell-policy changes
 - console-device selection changes
 - unrelated kernel or project changes
@@ -35,8 +35,8 @@ Out of scope:
 
 ## Expected Files Or Subsystems
 
-- `sources/phoenix-rtos-kernel/posix/posix.c`
-- `sources/phoenix-rtos-kernel/proc/name.c`
+- `sources/phoenix-rtos-utils/psh/psh.c`
+- copied build artifacts under `phoenix-dev`
 - `docs/status.md`
 - `docs/source-artifacts.md`
 - `manifests/`
@@ -45,8 +45,7 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- the next shared blocker is bounded to one concrete `open("/dev/console")`
-  follow-up
+- the inspection identifies one concrete next seam
 - the selected follow-up does not widen the work beyond the shared fast lane
 - the result is captured in one manifest and the next active step
 
@@ -55,26 +54,26 @@ Out of scope:
 - Analysis only:
   not applicable
 - Emulator:
-  not required unless source review leaves ambiguity that needs one minimal
-  runtime split
+  not required unless symbol inspection leaves ambiguity that needs one
+  minimal runtime split
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-21-aarch64-console-lookup-via-syscalls.md`
+  `manifests/2026-03-21-aarch64-console-callpath-scope.md`
 
 ## Notes
 
 - Risks:
-  avoid jumping to a broad console fix before the failing open path is traced in
-  the correct layer
+  avoid adding more runtime traces before checking whether the expected `open()`
+  call path is actually the one used by the built `psh` image
 - Dependencies:
-  completed `STEP-0245` negative `syscalls_lookup()` experiment
+  completed `STEP-0250` call-path scope
 - Source reminder:
-  `open()` reaches `posix_open()`, and `posix_open()` uses `proc_lookup()`
-  directly
+  both the libphoenix and kernel console-open traces stayed silent on generic
+  and Pi 4
 - User-visible control point before next step:
-  after this step lands, the next implementation step should target one
-  concrete `posix_open()` or `proc_lookup()` seam
+  after this step lands, the next follow-up should depend on what the built
+  `psh` image actually references for `open()`

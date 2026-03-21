@@ -479,6 +479,16 @@ Start-gate status:
     why: the open path goes through `proc_lookup()` directly
 - the next bounded trace should therefore move to `posix_open()` or
   `proc_lookup()` rather than adding more noise to `syscalls_lookup()`
+- the `posix_open()` console trace is now also complete and negative on both
+  fast lanes:
+  - generic prints no `posix: psh console open ...`
+  - Pi 4 prints no `posix: psh console open ...`
+- the libphoenix `open()` console trace is likewise negative on both lanes:
+  - generic prints no `open: console ...`
+  - Pi 4 prints no `open: console ...`
+- the current best hypothesis is now call-path or symbol mismatch rather than
+  another missing `/dev/console` path probe, so the next bounded step should
+  inspect the built `psh` image and its `open` references
 - copied-buildroot validation must be run sequentially per target; concurrent
   generic and Pi 4 builds against the same copied buildroot race on shared
   host-artifact paths such as `_build/host-generic-pc`

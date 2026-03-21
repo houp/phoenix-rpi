@@ -171,6 +171,10 @@ This file indexes the most important websites, repositories, documents, and sour
 - `libphoenix/unistd/file.c`
   Important because `create_dev()` currently gates `/dev/tty0` and `/dev/console` registration.
 
+- `libphoenix/unistd/dir.c`
+  Important because `resolve_path()` and `safe_lookup()` are now part of the
+  active `/dev/console` investigation path.
+
 - `libphoenix/unistd/sys.c`
   Important because the bounded `pl011-tty` retry path currently reaches `usleep(100000)` here and then blocks inside the kernel `nsleep()` path.
 

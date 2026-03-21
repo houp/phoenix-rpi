@@ -163,6 +163,15 @@ Start-gate status:
   the Pi 4 xHCI path now maps MMIO and validates the capability header, so the
   next useful work item is the first controller-reset and operational-readiness
   slice rather than more discovery or build glue.
+- after the new xHCI reset step, the remaining gap is narrower again:
+  the Pi 4 xHCI path now completes the first bounded controller reset, so the
+  next strongest device-facing gap is the Pi 4 VL805 firmware-reset notify
+  handshake plus later page-size, ring, interrupt, and root-hub work.
+- after the new Pi 4 firmware-notify step, the remaining gap is narrower
+  again:
+  the image path now includes the first VL805 firmware-load hook before device
+  enable, so the next useful xHCI work item is controller-readiness refinement
+  inside `xhci` rather than more Pi 4 firmware plumbing.
 - Pi 4 `raspi4b` QEMU is not expected to validate that PCIe milestone, because
   the emulator still lacks the relevant PCIe root-port support.
 - The strongest currently available no-hardware validation for the new

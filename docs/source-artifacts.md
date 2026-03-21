@@ -916,10 +916,22 @@ Current Pi 4 xHCI fast-path reference note:
   of that model:
   map the fixed MMIO window and validate `CAPLENGTH` / `HCIVERSION` before any
   reset or enumeration logic
+- the next Phoenix xHCI runtime slice now also mirrors Circle's first
+  controller-readiness step:
+  derive the operational-register base from `CAPLENGTH`, wait for `USBSTS.CNR`,
+  assert `USBCMD.HCRST`, and wait for reset completion before still failing
+  cleanly
 - Circle also issues firmware property tag `PROPTAG_NOTIFY_XHCI_RESET`
   `0x00030058` after the PCIe reset path and before enabling the device
 - Phoenix now records the fixed BDF/class/MMIO assumptions in the Pi 4 board
-  config, but no xHCI runtime code uses them yet
+  config, and the Pi 4 `pcie` server now also mirrors Circle's firmware
+  reset-notify placement in a bounded way before enabling the fixed VL805
+  endpoint
+- a new useful implementation constraint is now explicit:
+  user-space Phoenix code can call `va2pa()` via
+  `libphoenix/include/sys/mman.h`, so a firmware-visible mailbox/property
+  buffer is feasible in a later Pi 4 user-space helper if that becomes the
+  cleanest place for `PROPTAG_NOTIFY_XHCI_RESET`
 - `phoenix-rtos-usb/usb/usb.c` also needed one generic AArch64 portability fix
   before the A72 USB host binary could compile cleanly:
   pass the message-thread port value through `uintptr_t`, not `int`

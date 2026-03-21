@@ -2,32 +2,34 @@
 
 ## Metadata
 
-- Step ID: `STEP-0257`
-- Title: Scope the smallest interactive shell-smoke validation step
+- Step ID: `STEP-0258`
+- Title: Implement the first interactive shell-smoke validation
 - Status: `planned`
 - Date: `2026-03-21`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- define the smallest command-level QEMU validation that proves the new
-  `(psh)%` prompt is genuinely interactive on both generic and Pi 4 fast lanes
+- execute one deterministic shell command through the new `(psh)%` prompt on
+  both generic and Pi 4 fast lanes
 
 ## Scope
 
 In scope:
 
-- inspect the available `psh` command options for the smallest deterministic
-  smoke command
-- define how to drive one command through QEMU on:
+- launch interactive QEMU sessions for:
   - `aarch64a53-generic-qemu`
   - `aarch64a72-generic-rpi4b`
-- keep the step limited to validation method selection and acceptance markers
+- wait for the `(psh)%` prompt
+- send `help`
+- verify:
+  - `Available commands:`
+  - returned `(psh)%`
 
 Out of scope:
 
-- changing shell code or image contents
-- broader shell test automation
+- changing source code
+- broader shell test automation or harness design
 - boot-media work
 - real hardware work
 
@@ -37,7 +39,7 @@ Out of scope:
 
 ## Expected Files Or Subsystems
 
-- `sources/phoenix-rtos-utils/psh/`
+- QEMU runtime validation flow in `phoenix-dev`
 - `docs/status.md`
 - `manifests/`
 - `tracking/current-step.md`
@@ -45,34 +47,32 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- one concrete smoke command is selected
-- its expected success markers are defined for both QEMU fast lanes
-- the execution method is bounded enough to implement in the next step without
-  widening into a full test harness
+- generic QEMU accepts `help` and returns to `(psh)%`
+- Pi 4 QEMU accepts `help` and returns to `(psh)%`
+- no source changes are needed for this validation step
 
 ## Validation Plan
 
-- Source review:
-  inspect the relevant `psh` command path and output expectations
-- Runtime planning:
-  reuse the existing prompt-reaching QEMU launch method and define the minimum
-  stdin-driving approach for the next step
+- Emulator:
+  interactive TTY QEMU sessions with command injection via stdin
+- Matching:
+  capture the first `help` output band and the returned prompt in both lanes
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-21-aarch64-console-probe-cleanup.md`
+  `manifests/2026-03-21-aarch64-shell-smoke-scope.md`
 
 ## Notes
 
 - Risks:
-  avoid turning this into a broad shell test or harness-design step
+  avoid widening the step into persistent automation or shell feature work
 - Dependencies:
-  completed `STEP-0256` prompt-preserving probe cleanup
+  completed `STEP-0257` interactive smoke scoping
 - Source reminder:
-  keep the next step focused on one command path, not the whole shell
+  keep the step limited to the built-in `help` command path
 - User-visible control point before next step:
-  after this scope is fixed, the next step should execute exactly that one
-  command on both QEMU lanes
+  after this validation lands, the next step can turn it into a reusable smoke
+  loop or move to the next boot-first target

@@ -77,24 +77,39 @@ def px(x, y):
     i = (y * width + x) * 3
     return tuple(data[i:i + 3])
 
-expected = {
-    (20, 20): (72, 72, 72),
-    (48, 48): (240, 240, 240),
-    (112, 48): (240, 240, 240),
-    (176, 48): (240, 240, 240),
-    (639, 479): (160, 96, 48),
-}
+for pt in ((20, 20), (48, 48), (112, 48), (176, 48)):
+    got = px(*pt)
+    if got != (0, 0, 0):
+        raise SystemExit(f"Expected black background at {pt}, got {got}")
 
-observed = {pt: px(*pt) for pt in expected}
-for pt, want in expected.items():
-    got = observed[pt]
-    if got != want:
-        raise SystemExit(f"Pixel mismatch at {pt}: got {got}, expected {want}")
+white = black = bg = other = 0
+for y in range(96, 128):
+    for x in range(0, 240):
+        p = px(x, y)
+        if p == (255, 255, 255):
+            white += 1
+        elif p == (0, 0, 0):
+            black += 1
+        elif p == (160, 96, 48):
+            bg += 1
+        else:
+            other += 1
+
+if white < 1000:
+    raise SystemExit(f"Too few white text pixels in banner row: {white}")
+
+if black < 5000:
+    raise SystemExit(f"Too few black background pixels in banner row: {black}")
+
+if bg != 0:
+    raise SystemExit(f"Unexpected pre-console background pixels in banner row: {bg}")
+
+if other != 0:
+    raise SystemExit(f"Unexpected non-binary text colors in banner row: {other}")
 
 print("Pi 4 HDMI smoke passed")
 print(f"Framebuffer: {width}x{height}")
-for pt in sorted(observed):
-    print(f"{pt}: {observed[pt]}")
+print(f"text row white={white} black={black}")
 PY
 
 printf "Serial log: %s\n" "$serial_log"

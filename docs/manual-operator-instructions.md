@@ -376,11 +376,12 @@ Current payload rule:
   HDMI staging state:
   - `hdmi_force_hotplug=1`
   - `disable_overscan=1`
-- the current intended first-screen Pi 4 HDMI signature is:
-  - a small dark top-left panel
-  - up to three bright square markers that light from left to right
-  - if fewer markers light before the board stops, treat that as useful
-    no-UART progress information
+- the current validated Pi 4 HDMI text-console signature in QEMU is:
+  - black background
+  - white text glyphs rendered from early runtime output
+  - interactive `psh` prompt later in the boot path
+- the previously validated three-stage top-left panel is now an earlier loader
+  progress aid, not the final runtime HDMI signature
 
 ### Current first macOS flashing workflow
 
@@ -446,10 +447,10 @@ The following physical items are currently required to run tests on an actual Ra
 - the project can still progress to the first Pi 4 SD-card boot attempt without
   UART
 - however, the current Phoenix bring-up path is still primarily validated
-  through PL011 serial, not through a validated HDMI or network-visible runtime
-- the first `plo`-side HDMI visibility path is now implemented and validated in
-  QEMU, but real-hardware HDMI still needs to be treated as an early
-  observability aid rather than a full runtime success signal
+  through PL011 serial plus QEMU, not yet through a fully hardware-validated
+  HDMI or network-visible runtime
+- the Pi 4 QEMU lane now reaches a real HDMI text console, not just the earlier
+  `plo` marker panel
 - the current Pi 4 image now also enables two firmware-stage HDMI settings in
   `config.txt` for the first board trial:
   - `hdmi_force_hotplug=1`
@@ -468,13 +469,15 @@ The following physical items are currently required to run tests on an actual Ra
 - the first manual SD-card boot attempt should currently be treated as a media
   deployment and gross boot-behavior check, not as a strong milestone
   validation step
-- at the current project state, a successful runtime shell on HDMI, keyboard,
-  mouse, or network is not yet a documented expectation
-- the first positive HDMI sign currently worth looking for is earlier and much
-  smaller:
-  - `plo` should paint a full-screen filled background
-  - with a bright rectangle in the upper-left corner
-  - before widening into any runtime display expectations
+- at the current project state, a successful keyboard-driven runtime shell on
+  real hardware is still not a documented expectation, because USB host and
+  keyboard input are not yet part of the validated Pi 4 path
+- the first positive HDMI sign now worth looking for is broader than before:
+  - `plo` may still briefly show its earlier top-left progress panel
+  - the stronger target is a black text-console background with white glyphs
+    from runtime output
+  - a visible `(psh)%` prompt would be the strongest expected no-UART sign
+    if the full QEMU behavior carries over to real hardware
 - the current image tries to make that more likely and more legible by:
   - forcing HDMI output mode even if hotplug detection is flaky
   - disabling firmware overscan so the upper-left marker is less likely to be
@@ -548,16 +551,18 @@ For the current lab shape, the first practical manual trial is:
 
 Current specific HDMI sign to record if present:
 
-- full-screen filled background
-- bright upper-left rectangle
-- whether that image is stable, flashes briefly, or disappears during later
+- early top-left progress panel if it appears
+- later black background with white text glyphs
+- any readable Phoenix boot lines or `(psh)%` prompt
+- whether the picture is stable, flashes briefly, or disappears during later
   boot progress
 
 Do not over-interpret the result:
 
-- the current software path is still primarily observed through UART in QEMU
-- keyboard, display, and network are not yet validated as first-boot success
-  signals on real hardware
+- the current software path is still primarily validated through QEMU plus UART
+  on emulated lanes
+- display output is now a meaningful real-hardware sign, but keyboard and
+  network are not yet validated as first-boot success signals on Pi 4
 
 ## 9. Additional Manual Steps For Network Boot
 

@@ -8,10 +8,29 @@
   - `rpi4b`
 - current fixed smoke command:
   - `help`
+- current practical note for `rpi4b`:
+  - use the built-in `90` second `expect` timeout in the helper, because the
+    Pi 4 text-console lane now mirrors serial output into the framebuffer and
+    is slower than the earlier panel-only path
+- current status note for `rpi4b`:
+  - the helper needs one bounded re-verification step after the HDMI
+    text-console milestone, because a fresh clean rerun reached `psh`, echoed
+    `help`, and then did not complete the expected `Available commands:` round
+    trip before timeout
 - expected success markers:
   - `(psh)% help`
   - `Available commands:`
   - returned `(psh)%`
+
+## Current Pi 4 HDMI Smoke
+
+- use [scripts/qemu-rpi4b-hdmi-smoke.sh](/Users/witoldbolt/phoenix-rpi/scripts/qemu-rpi4b-hdmi-smoke.sh)
+- current success signature:
+  - framebuffer `1024x768`
+  - black background at the old stage-panel sample points
+  - at least `1000` white pixels in the first text row window
+  - at least `5000` black pixels in that same window
+  - no remaining brown stage-panel pixels in that window
 
 ## 1. Goals
 

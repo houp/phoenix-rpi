@@ -53,10 +53,35 @@ Start-gate status:
 - This project runs on a macOS Apple Silicon workstation. The recommended execution model is macOS host for coordination and hardware control, plus a Linux arm64 VM as the primary Phoenix build and emulation environment.
 - Future code must favor upstreamability: small diffs, Phoenix-native style, warning-clean builds, and no gratuitous reformatting.
 - The workflow now supports explicitly authorized unattended sessions, but only under the step, validation, commit, and stop-condition rules documented in `docs/unattended-agent-mode.md`.
+- The first acceptable real-device artifact handoff should now be based on a
+  Pi 4 image with HDMI text console output, not on the earlier stage-panel-only
+  artifact.
 
 ## Most Important Technical Findings
 
 - Phoenix has reusable AArch64 support, but it is currently too `zynqmp`-specific in build glue and DTB assumptions.
+- The first Pi 4 A72 QEMU HDMI text-console milestone is now complete:
+  `pl011-tty` mirrors transmitted bytes into the firmware-allocated framebuffer,
+  the background is black, and white glyphs are visible in the expected text
+  rows.
+- Two distinct bugs had to be fixed to reach that milestone:
+  - generic AArch64 kernel `_init.S` still used pre-graphics hardcoded syspage
+    offsets
+  - generic `plo` published graphmode metadata too early, because `video_init()`
+    runs before `syspage_init()` in `plo/main()`
+- a bounded gdbstub session also proved that packed `graphmode_t` by-value
+  passing in `plo` was unsafe on this AArch64 path; the current code now uses a
+  pointer-based `syspage_graphmodeSet()` helper instead.
+- The current Pi 4 QEMU validation pair is now:
+  - `./scripts/qemu-shell-smoke.sh rpi4b`
+  - `/bin/bash /Users/witoldbolt/phoenix-rpi/scripts/qemu-rpi4b-hdmi-smoke.sh`
+- the HDMI smoke is currently the stronger revalidated Pi 4 signal:
+  a clean rerun still passes, while the `rpi4b` shell helper now needs one
+  bounded follow-up because a fresh rerun echoed `help` but did not complete
+  the expected `Available commands:` exchange before timeout.
+- the current HDMI smoke no longer validates the old top-left stage panel; it
+  validates a black console background plus white text pixels in the first text
+  row instead.
 - Phoenix's AArch64 DTB parser needs generalization for Raspberry Pi DT layouts and standard FDT cell handling.
 - Phoenix's AArch64 HAL currently includes generic GICv2 support, but timer/platform selection is too platform-specific.
 - Phoenix's existing test runner is already structured for UART-driven DUT automation and can be extended for Raspberry Pi targets.

@@ -84,6 +84,8 @@ This file indexes the most important websites, repositories, documents, and sour
 
 - `phoenix-rtos-kernel/hal/aarch64/hal.c`
 - `phoenix-rtos-kernel/hal/aarch64/_init.S`
+  Important because the generic AArch64 path needed corrected syspage offsets
+  once `hal_syspage_t` grew a `graphmode` payload for the Pi 4 HDMI text lane.
 - `phoenix-rtos-kernel/hal/aarch64/dtb.c`
 - `phoenix-rtos-kernel/hal/aarch64/aarch64.h`
 - `phoenix-rtos-kernel/hal/aarch64/gtimer.c`
@@ -112,9 +114,20 @@ This file indexes the most important websites, repositories, documents, and sour
 - `plo/hal/aarch64/Makefile`
 - `plo/hal/aarch64/generic/_init.S`
 - `plo/hal/aarch64/generic/config.h`
+- `plo/plo.c`
+  Important because the current generic loader call order is
+  `hal_init() -> hal_customInit() -> syspage_init()`, which means generic Pi 4
+  framebuffer metadata must be published after `syspage_init()` rather than
+  from the earlier `video_init()` path.
 - `plo/ld/aarch64a53-generic.ldt`
 - `plo/hal/aarch64/zynqmp/hal.c`
 - `plo/hal/aarch64/zynqmp/console.c`
+- `plo/syspage.c`
+- `plo/syspage.h`
+  Important because the current generic Pi 4 framebuffer path now uses a
+  pointer-based `syspage_graphmodeSet()` helper after a bounded gdbstub session
+  proved that packed `graphmode_t` by-value passing was unsafe on the active
+  AArch64 path.
 - `plo/cmds/script.c`
 - `plo/cmds/call.c`
 - `plo/cmds/kernel.c`

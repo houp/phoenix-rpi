@@ -2,77 +2,75 @@
 
 ## Metadata
 
-- Step ID: `STEP-0301`
-- Title: Scope the first AArch64 framebuffer-graphmode exposure step for Pi 4 HDMI text
+- Step ID: `STEP-0306`
+- Title: Scope the smallest post-HDMI-text Pi 4 shell-smoke regression step
 - Status: `in_progress`
 - Date: `2026-03-21`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- define the smallest code step that exposes the already-populated Pi 4
-  framebuffer geometry through the generic AArch64 kernel/user ABI, so HDMI
-  text output can build on existing Phoenix framebuffer-console code
+- keep the HDMI text-console milestone recorded, then define the smallest next
+  technical step that explains why a fresh `./scripts/qemu-shell-smoke.sh rpi4b`
+  rerun no longer completes even though the Pi 4 HDMI smoke still passes
 
 ## Scope
 
 In scope:
 
-- identify the minimum generic AArch64 `platformctl` and syspage surface needed
-  for framebuffer consumers
-- keep the step below full text rendering or runtime app selection
+- tracking and documentation updates for the HDMI-text milestone and deferred
+  SD export
+- narrowing the next regression-analysis step for the `rpi4b` shell helper
+- keeping the current validated Pi 4 HDMI smoke baseline explicit
 
 Out of scope:
 
-- SD-image refresh or export
+- SD-image export or checksum refresh
 - manual hardware execution
 - USB keyboard support
-- a full framebuffer-console implementation
+- broad framebuffer-console redesign
 
 ## Expected Repositories
 
-- `phoenix-rtos-kernel`
 - coordination repo
 
 ## Expected Files Or Subsystems
 
-- `hal/aarch64/generic/generic.c`
-- `include/arch/aarch64/generic/generic.h`
 - `docs/status.md`
+- `docs/manual-operator-instructions.md`
+- `docs/testing-automation.md`
 - `docs/source-artifacts.md`
-- `manifests/`
 - `tracking/current-step.md`
 - `tracking/step-history.md`
+- `manifests/`
 
 ## Acceptance Criteria
 
-- the next code change is narrowed to one reusable AArch64 graphmode exposure
-  step
-- the plan explicitly prefers reuse of Phoenix's existing framebuffer text code
-  over a new font subsystem
-- the step does not widen into SD-image, USB, or manual-trial work
+- the repo no longer points at the paused SD-export step as active work
+- the operator runbook reflects the validated HDMI text-console signature
+- the next implementation step is explicitly scoped around the current
+  `rpi4b` shell-smoke mismatch rather than a stale artifact-export goal
 
 ## Validation Plan
 
-- Build:
-  not applicable for the scoping step
-- Emulator:
-  not applicable for the scoping step
-- Hardware:
-  not applicable
+- documentation consistency review
+- preserved current validation facts:
+  - `/bin/bash /Users/witoldbolt/phoenix-rpi/scripts/qemu-rpi4b-hdmi-smoke.sh`
+    passes
+  - `./scripts/qemu-shell-smoke.sh rpi4b` currently needs re-verification
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-21-aarch64-rpi4b-staged-hdmi-progress.md`
+  `manifests/2026-03-21-aarch64-rpi4b-hdmi-text-console.md`
 
 ## Notes
 
 - Risks:
-  avoid widening from graphmode exposure into a whole new tty or font design
+  do not silently resume artifact refresh after the user explicitly deferred it
 - Dependencies:
-  completed `STEP-0297` staged Pi 4 HDMI progress
+  completed `STEP-0303` Pi 4 HDMI text console validation
 - User-visible control point before next step:
-  after this step lands, the first implementation patch should be a narrow
-  generic AArch64 framebuffer metadata exposure change rather than more artifact
-  work
+  after this step lands, the repo should clearly state that HDMI text is ready,
+  SD export remains deferred, and the next bounded task is shell-smoke
+  re-verification

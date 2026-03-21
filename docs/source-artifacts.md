@@ -221,6 +221,9 @@ This file indexes the most important websites, repositories, documents, and sour
   It also now contains the first outbound-window and root-bridge shaping step:
   outbound window 0 programming, RC BAR2 programming, and root-bridge class
   shaping behind the sampled link-state gate.
+  It also now contains the first bridge-exposure step:
+  root-bridge cache-line, bus-number, memory-window, and command programming on
+  bus `0` behind the sampled link-state gate.
 
 - `phoenix-rtos-devices/pcie/server/Makefile`
   Important because it now carries the backend-selection build flag for the
@@ -497,6 +500,10 @@ This file indexes the most important websites, repositories, documents, and sour
   It is also the current reference for:
   outbound window 0 programming and root-bridge class-code shaping on Pi 4
   once sampled link state is acceptable.
+  It is also the current reference for:
+  bridge-side cache-line, bus-number, memory-window, and command programming in
+  `enable_bridge()` before downstream devices are treated as meaningfully
+  exposable.
 
 - `phoenix-rtos-corelibs/libgraph/graph.h`
 - `phoenix-rtos-corelibs/libgraph/graph.c`

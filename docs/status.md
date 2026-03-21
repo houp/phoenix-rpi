@@ -76,6 +76,9 @@ Start-gate status:
   root-bridge shaping slice:
   one outbound window, RC BAR2 programming, and root-bridge class-code shaping
   behind the sampled link-state gate.
+- the BCM2711 backend now also performs the first bridge-side exposure slice:
+  root-bridge cache-line, bus-number, memory-window, and command programming on
+  bus `0` behind the sampled link-state gate.
 
 ## Most Important Technical Findings
 
@@ -114,6 +117,9 @@ Start-gate status:
   transport gap is narrower again: root-bridge memory-window programming and
   downstream-bus exposure before downstream enumeration can be treated as
   meaningful.
+- after the new bridge-exposure step, the remaining transport gap is narrower
+  again: first meaningful downstream endpoint visibility before any xHCI-
+  specific work can be treated as meaningful.
 - Pi 4 `raspi4b` QEMU is not expected to validate that PCIe milestone, because
   the emulator still lacks the relevant PCIe root-port support.
 - The strongest currently available no-hardware validation for the new
@@ -139,6 +145,8 @@ Start-gate status:
 - the same validation shape also now covers the first BCM2711 outbound-window
   and root-bridge shaping step, because that work still stays in the
   compile-only lane
+- the same validation shape also now covers the first BCM2711 bridge-exposure
+  step, because that work still stays in the compile-only lane
 - the full `aarch64a53-zynqmp-qemu` project build is currently blocked by an
   unrelated kernel issue outside the PCIe step:
   `hal/aarch64/interrupts_gicv2.c` references `TIMER_IRQ_GROUP` without a

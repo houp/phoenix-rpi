@@ -199,8 +199,10 @@ Current implementation note:
 - the first BCM2711 outbound-window / root-bridge shaping slice now also
   exists:
   one outbound window, RC BAR2 programming, and root-bridge class shaping
-- the next bounded Pi 4 transport slice is therefore root-bridge memory-window
-  programming and downstream-bus exposure, not xHCI
+- the first BCM2711 bridge-exposure slice now also exists:
+  root-bridge cache-line, bus-number, memory-window, and command programming
+- the next bounded Pi 4 transport slice is therefore first downstream endpoint
+  visibility, not xHCI
 
 This work is also strategically useful later because it builds Phoenix PCIe and xHCI capabilities that Pi 5 will also need.
 

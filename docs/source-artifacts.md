@@ -286,6 +286,18 @@ This file indexes the most important websites, repositories, documents, and sour
   boot entry, DTB handoff in `x0`, current-firmware secondary-core release
   slots, Pi 4 MMIO base selection, and PL011 setup.
 
+- NetBSD `wsfont` / `wscons` references:
+  - <https://github.com/NetBSD/src/tree/trunk/sys/dev/wsfont>
+  - <https://man.bsd.lv/NetBSD-8.0/wsfont.4>
+  - <https://man.netbsd.org/wsfontload.8>
+  Important because they are a plausible later-stage reference for a simple
+  framebuffer text console font source. Current conclusion:
+  - Phoenix does not need the full `wsfont` infrastructure to benefit
+  - Phoenix already has a local font-shaped rendering interface in
+    `phoenix-rtos-corelibs/libgraph`
+  - the best likely reuse is a small permissively licensed bitmap font asset or
+    encoding reference, not a wholesale port of NetBSD wsfont management
+
 ## 6. External Reference Source Paths
 
 - `external/rpi4-osdev/part1-bootstrapping/boot.S`
@@ -375,6 +387,14 @@ This file indexes the most important websites, repositories, documents, and sour
 - `external/circle/lib/macb.cpp`
   Important because they are later-stage references for Pi 4 PCIe and network
   subsystems.
+
+- `phoenix-rtos-corelibs/libgraph/graph.h`
+- `phoenix-rtos-corelibs/libgraph/graph.c`
+- `phoenix-rtos-tests/gfx/font.h`
+  Important because Phoenix already has a `graph_font_t` abstraction and
+  `graph_print()` path for bitmap glyph rendering. This means a later Pi 4 HDMI
+  text console likely needs a framebuffer console wrapper and a suitable font
+  asset more than it needs a brand-new font subsystem.
 
 - `external/rpi-os/src/boot.S`
   Important because it is a compact Pi 4 EL3-to-EL1 handoff example with

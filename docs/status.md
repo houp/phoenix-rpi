@@ -536,6 +536,20 @@ Start-gate status:
 - both emulator lanes still reach the same prompt band after that cleanup, so
   the prompt-reaching fast lane now exists without the old console-specific
   diagnostic scaffolding
+- the first command-level shell smoke has now been attempted with `expect`:
+  - Pi 4 `raspi4b` succeeds with the built-in `help` command:
+    - `(psh)% help`
+    - `Available commands:`
+    - returned `(psh)%`
+  - generic `virt` does not yet succeed with the current runtime launch:
+    - the log reaches echoed `help`
+    - `Available commands:` does not appear
+    - the prompt does not return
+- the strongest current reason for that generic-only gap is the validation
+  launch mode, not Phoenix source:
+  the generic lane still uses `-serial mon:stdio`, which is likely muxing
+  stdin in a way that works for passive boot logs but not for automated shell
+  command injection
 - debugger-first is now the recorded policy for QEMU runtime triage:
   future sessions should start with a bounded gdbstub inspection and only add
   source-level probes after documenting why GDB cannot answer the current
@@ -553,9 +567,9 @@ Start-gate status:
 
 ## Immediate Next Implementation Milestones
 
-1. Establish a small interactive shell-smoke validation on both generic and Pi 4 QEMU lanes.
+1. Remove the generic `virt` stdin-path limitation so the same interactive shell smoke works on both fast lanes.
 2. Turn the prompt-reaching fast lane into a reusable QEMU command-validation loop.
-3. With the first Pi 4 QEMU command path in place, switch the next bounded steps back toward boot-media completeness and first real-device smoke preparation.
+3. With the first Pi 4 QEMU command path already proven, switch the next bounded steps back toward boot-media completeness and first real-device smoke preparation.
 4. Keep the new prompt-reaching lane stable while avoiding new diagnosis-only probe accumulation.
 
 ## Pi 4 Success Criteria for "Phase 1"

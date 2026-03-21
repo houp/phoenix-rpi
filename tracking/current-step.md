@@ -2,34 +2,29 @@
 
 ## Metadata
 
-- Step ID: `STEP-0258`
-- Title: Implement the first interactive shell-smoke validation
+- Step ID: `STEP-0259`
+- Title: Scope the smallest generic-`virt` stdin-path adjustment
 - Status: `planned`
 - Date: `2026-03-21`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- execute one deterministic shell command through the new `(psh)%` prompt on
-  both generic and Pi 4 fast lanes
+- define the smallest QEMU launch adjustment that should make the generic
+  `virt` shell smoke accept automated stdin like the Pi 4 lane already does
 
 ## Scope
 
 In scope:
 
-- launch interactive QEMU sessions for:
-  - `aarch64a53-generic-qemu`
-  - `aarch64a72-generic-rpi4b`
-- wait for the `(psh)%` prompt
-- send `help`
-- verify:
-  - `Available commands:`
-  - returned `(psh)%`
+- compare the current generic `virt` launch mode with the working Pi 4 launch
+- identify the smallest generic runtime change to test next
+- keep the change limited to the emulator invocation, not Phoenix source
 
 Out of scope:
 
-- changing source code
-- broader shell test automation or harness design
+- changing Phoenix source code
+- broad shell harness work
 - boot-media work
 - real hardware work
 
@@ -40,6 +35,7 @@ Out of scope:
 ## Expected Files Or Subsystems
 
 - QEMU runtime validation flow in `phoenix-dev`
+- existing generic and Pi 4 smoke logs in `/tmp`
 - `docs/status.md`
 - `manifests/`
 - `tracking/current-step.md`
@@ -47,32 +43,32 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- generic QEMU accepts `help` and returns to `(psh)%`
-- Pi 4 QEMU accepts `help` and returns to `(psh)%`
-- no source changes are needed for this validation step
+- one minimal generic `virt` launch change is selected for the next step
+- the rationale is tied to the observed generic-vs-Pi-4 difference
+- the next step stays runtime-only
 
 ## Validation Plan
 
-- Emulator:
-  interactive TTY QEMU sessions with command injection via stdin
-- Matching:
-  capture the first `help` output band and the returned prompt in both lanes
+- Runtime review:
+  compare the working Pi 4 smoke command with the failing generic command
+- Evidence:
+  use the saved shell-smoke logs and current QEMU arguments
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-21-aarch64-shell-smoke-scope.md`
+  `manifests/2026-03-21-aarch64-shell-smoke-validation.md`
 
 ## Notes
 
 - Risks:
-  avoid widening the step into persistent automation or shell feature work
+  avoid broad QEMU command rewrites when only stdin routing is under question
 - Dependencies:
-  completed `STEP-0257` interactive smoke scoping
+  completed `STEP-0258` first shell-smoke validation
 - Source reminder:
-  keep the step limited to the built-in `help` command path
+  Pi 4 already proves the shell command path itself
 - User-visible control point before next step:
-  after this validation lands, the next step can turn it into a reusable smoke
-  loop or move to the next boot-first target
+  after this scope lands, the next step should test exactly one adjusted
+  generic QEMU launch path

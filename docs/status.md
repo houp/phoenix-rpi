@@ -62,6 +62,9 @@ Start-gate status:
   direct ECAM access throughout its logic; it now goes through a small
   server-local config-space backend interface, which is the first enabling
   step toward a BCM2711 indexed-config backend.
+- the Pi 4 path now also has the first BCM2711-specific indexed config-space
+  backend behind that interface, selected by Pi 4 build settings and validated
+  in compile-only form.
 
 ## Most Important Technical Findings
 
@@ -87,6 +90,9 @@ Start-gate status:
   no longer “make the server less ECAM-shaped”; it is “add the first
   BCM2711-specific indexed config-space backend behind the new server-local
   interface”.
+- after that backend step, the remaining real Pi 4 transport gap is now
+  narrower and explicit: BCM2711 host-bridge initialization and link bring-up
+  before downstream enumeration can be treated as meaningful.
 - Pi 4 `raspi4b` QEMU is not expected to validate that PCIe milestone, because
   the emulator still lacks the relevant PCIe root-port support.
 - The strongest currently available no-hardware validation for the new
@@ -98,6 +104,13 @@ Start-gate status:
     lane with the correct project include path
   - fresh Pi 4 A72 full-build regression validation from a disposable temp
     buildroot
+- the strongest currently available no-hardware validation for the first
+  BCM2711-specific backend step is:
+  - preserved ZynqMP/Xilinx `pcie` server compilation from a fresh disposable
+    buildroot
+  - Pi 4 targeted `pcie` server compilation with
+    `PCI_EXPRESS_BCM2711_INDEXED_CFG=y`
+  - fresh Pi 4 A72 full-build regression from the same disposable buildroot
 - the full `aarch64a53-zynqmp-qemu` project build is currently blocked by an
   unrelated kernel issue outside the PCIe step:
   `hal/aarch64/interrupts_gicv2.c` references `TIMER_IRQ_GROUP` without a

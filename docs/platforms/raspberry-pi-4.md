@@ -188,8 +188,10 @@ Current implementation note:
 - Phoenix's platform-agnostic PCIe server scan path no longer hardcodes direct
   ECAM access throughout the scan logic; it now uses a small server-local
   config-space backend interface
-- the next bounded Pi 4 transport slice is therefore the first
-  BCM2711-specific indexed config-space backend behind that interface, not xHCI
+- the first BCM2711-specific indexed config-space backend now exists behind
+  that interface and is selected by the Pi 4 A72 build settings
+- the next bounded Pi 4 transport slice is therefore BCM2711 host-bridge
+  initialization and link bring-up, not xHCI
 
 This work is also strategically useful later because it builds Phoenix PCIe and xHCI capabilities that Pi 5 will also need.
 

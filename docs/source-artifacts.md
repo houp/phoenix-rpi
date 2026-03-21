@@ -212,13 +212,25 @@ This file indexes the most important websites, repositories, documents, and sour
 - `phoenix-rtos-devices/pcie/server/pcie.c`
   Important because the platform-agnostic PCIe scan path now uses a small
   server-local config-space backend interface instead of hardcoding direct ECAM
-  access throughout the scan logic. This is now the seam for a later BCM2711
-  indexed-config backend.
+  access throughout the scan logic. This is now the seam for the first BCM2711
+  indexed-config backend as well as the later host-bridge initialization work.
+
+- `phoenix-rtos-devices/pcie/server/Makefile`
+  Important because it now carries the backend-selection build flag for the
+  BCM2711 indexed-config path without forcing that backend onto other PCIe
+  targets.
 
 - `phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/board_config.h`
   Important because the current Pi 4 A72 project now opts into the
   `PL011_TTY_KBD_PATH` bridge policy without forcing that behavior on every
   PL011 target.
+  It also now carries the BCM2711 PCIe host-base and host-window size
+  constants used by the first indexed-config backend step.
+
+- `phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/build.project`
+  Important because the Pi 4 A72 project now exports
+  `PCI_EXPRESS_BCM2711_INDEXED_CFG=y`, which is the first build-level backend
+  selection hook for BCM2711 PCIe work.
 
 - `phoenix-rtos-filesystems/dummyfs/srv.c`
   Important because the `devfs` instance is started here with `dummyfs -N devfs -D`, and the next fast diagnostic step targets its non-filesystem namespace registration and `mtLookup` servicing path.
@@ -463,6 +475,10 @@ This file indexes the most important websites, repositories, documents, and sour
   window assumptions behind Circle's PCIe implementation. They are now the
   main external references for the first Phoenix BCM2711 indexed config-space
   backend slice.
+  In particular, Circle's `pcie_map_conf()` and `cfg_index()` logic are the
+  direct reference for:
+  root-complex slot-0 handling on bus 0 and indexed downstream config-space
+  access through `PCIE_EXT_CFG_INDEX` and `PCIE_EXT_CFG_DATA`.
 
 - `phoenix-rtos-corelibs/libgraph/graph.h`
 - `phoenix-rtos-corelibs/libgraph/graph.c`

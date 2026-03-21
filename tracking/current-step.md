@@ -2,48 +2,42 @@
 
 ## Metadata
 
-- Step ID: `STEP-0256`
-- Title: Remove obsolete console-path probes after the fast-lane fix
+- Step ID: `STEP-0257`
+- Title: Scope the smallest interactive shell-smoke validation step
 - Status: `planned`
 - Date: `2026-03-21`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- remove the smallest set of console-path diagnostic code that is no longer
-  needed now that both fast-lane QEMU targets reach `(psh)%`
+- define the smallest command-level QEMU validation that proves the new
+  `(psh)%` prompt is genuinely interactive on both generic and Pi 4 fast lanes
 
 ## Scope
 
 In scope:
 
-- remove the old `/dev/console` investigation traces from:
-  - `psh`
-  - `libphoenix`
-  - kernel lookup / posix open paths
-- keep the currently useful broader boot-band markers
-- revalidate generic and Pi 4 QEMU prompt reachability after cleanup
+- inspect the available `psh` command options for the smallest deterministic
+  smoke command
+- define how to drive one command through QEMU on:
+  - `aarch64a53-generic-qemu`
+  - `aarch64a72-generic-rpi4b`
+- keep the step limited to validation method selection and acceptance markers
 
 Out of scope:
 
-- wider boot-trace cleanup
-- changing the new `/dev` bind startup fix
-- new shell behavior
+- changing shell code or image contents
+- broader shell test automation
+- boot-media work
 - real hardware work
 
 ## Expected Repositories
 
-- `sources/phoenix-rtos-utils`
-- `sources/libphoenix`
-- `sources/phoenix-rtos-kernel`
 - coordination repo
 
 ## Expected Files Or Subsystems
 
-- `sources/phoenix-rtos-utils/psh/psh.c`
-- `sources/libphoenix/unistd/file.c`
-- `sources/phoenix-rtos-kernel/syscalls.c`
-- `sources/phoenix-rtos-kernel/posix/posix.c`
+- `sources/phoenix-rtos-utils/psh/`
 - `docs/status.md`
 - `manifests/`
 - `tracking/current-step.md`
@@ -51,33 +45,34 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- the selected console-path probes are removed cleanly
-- generic QEMU still reaches `(psh)%`
-- Pi 4 QEMU still reaches `(psh)%`
-- no unrelated diagnostic removals are mixed into the patch
+- one concrete smoke command is selected
+- its expected success markers are defined for both QEMU fast lanes
+- the execution method is bounded enough to implement in the next step without
+  widening into a full test harness
 
 ## Validation Plan
 
-- Build:
-  copied-buildroot generic and Pi 4 rebuilds in `phoenix-dev`
-- Emulator:
-  generic QEMU first, then Pi 4 `raspi4b`
+- Source review:
+  inspect the relevant `psh` command path and output expectations
+- Runtime planning:
+  reuse the existing prompt-reaching QEMU launch method and define the minimum
+  stdin-driving approach for the next step
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-21-aarch64-console-probe-cleanup-scope.md`
+  `manifests/2026-03-21-aarch64-console-probe-cleanup.md`
 
 ## Notes
 
 - Risks:
-  do not remove broader bring-up markers that are still actively useful
+  avoid turning this into a broad shell test or harness-design step
 - Dependencies:
-  completed `STEP-0255` cleanup scoping
+  completed `STEP-0256` prompt-preserving probe cleanup
 - Source reminder:
-  the prompt-reaching fast lane has already superseded these console-path probes
+  keep the next step focused on one command path, not the whole shell
 - User-visible control point before next step:
-  after this cleanup lands, the next steps can shift back to either automated
-  shell smoke or new Pi 4 boot-completeness work
+  after this scope is fixed, the next step should execute exactly that one
+  command on both QEMU lanes

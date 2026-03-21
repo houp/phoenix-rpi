@@ -525,14 +525,17 @@ Start-gate status:
     - `psh: tty ready`
     - `psh: readcmd`
     - `(psh)%`
-    - `syscalls: psh console lookup 0`
-    - `posix: psh console open 0`
   - Pi 4 `raspi4b` now reaches the same prompt band:
     - `psh: tty ready`
     - `psh: readcmd`
     - `(psh)%`
-    - `syscalls: psh console lookup 0`
-    - `posix: psh console open 0`
+- the obsolete `/dev/console` investigation probes are now removed again from:
+  - `psh`
+  - `libphoenix`
+  - kernel lookup / posix open paths
+- both emulator lanes still reach the same prompt band after that cleanup, so
+  the prompt-reaching fast lane now exists without the old console-specific
+  diagnostic scaffolding
 - debugger-first is now the recorded policy for QEMU runtime triage:
   future sessions should start with a bounded gdbstub inspection and only add
   source-level probes after documenting why GDB cannot answer the current
@@ -550,10 +553,10 @@ Start-gate status:
 
 ## Immediate Next Implementation Milestones
 
-1. Remove the temporary console-path probes that were only needed to isolate the old `/dev/console` failure.
-2. Establish a small automated shell-smoke interaction on both generic and Pi 4 QEMU lanes.
-3. With the first Pi 4 QEMU shell prompt in place, switch the next bounded steps back toward boot-media completeness and first real-device smoke preparation.
-4. Keep the new prompt-reaching lane stable while cleaning up old diagnostic scaffolding.
+1. Establish a small interactive shell-smoke validation on both generic and Pi 4 QEMU lanes.
+2. Turn the prompt-reaching fast lane into a reusable QEMU command-validation loop.
+3. With the first Pi 4 QEMU command path in place, switch the next bounded steps back toward boot-media completeness and first real-device smoke preparation.
+4. Keep the new prompt-reaching lane stable while avoiding new diagnosis-only probe accumulation.
 
 ## Pi 4 Success Criteria for "Phase 1"
 

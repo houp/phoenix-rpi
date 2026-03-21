@@ -86,6 +86,10 @@ Start-gate status:
 - the Pi 4 A72 image path now also includes and stages the `pcie` server,
   which makes the current BCM2711 transport work reachable on the actual board
   image path instead of only compile-validated in isolation.
+- the Pi 4 board config now also carries the first VL805/xHCI fast-path
+  contract taken from Circle:
+  fixed downstream BDF, fixed xHCI class code, and MMIO through the outbound
+  PCIe window.
 
 ## Most Important Technical Findings
 
@@ -133,6 +137,10 @@ Start-gate status:
 - after the new Pi 4 project-integration step, that remaining gap is now tied
   to a real staged runtime component rather than to an unreferenced server
   binary.
+- after the new VL805 fast-path constants step, the remaining USB gap is now
+  also explicit:
+  the first compile-valid xHCI HCD skeleton before any staged runtime USB host
+  path is attempted on Pi 4.
 - Pi 4 `raspi4b` QEMU is not expected to validate that PCIe milestone, because
   the emulator still lacks the relevant PCIe root-port support.
 - The strongest currently available no-hardware validation for the new

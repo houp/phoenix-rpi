@@ -2,26 +2,26 @@
 
 ## Metadata
 
-- Step ID: `STEP-0327`
-- Title: Scope the smallest first direct downstream endpoint-readback step
+- Step ID: `STEP-0329`
+- Title: Scope the first compile-only Pi 4 xHCI HCD skeleton and discovery stub
 - Status: `in_progress`
 - Date: `2026-03-21`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- define the smallest BCM2711 direct downstream endpoint-readback slice that
-  should follow the new Pi 4 PCIe project-integration step without widening
-  into full enumeration or xHCI
+- define the first compile-only Pi 4 xHCI HCD skeleton slice and discovery
+  stub that should follow the new VL805 fast-path constants without widening
+  into staged runtime USB support
 
 ## Scope
 
 In scope:
 
-- reviewing the remaining gap between the new Pi 4 image integration state and
-  a meaningful first downstream config-space readback
-- selecting the smallest next slice that can follow without widening into full
-  bus management, xHCI, or endpoint-driver work
+- reviewing the remaining gap between the new Pi 4 VL805 fast-path constants
+  and the first compile-valid xHCI code
+- selecting the smallest xHCI slice that can compile without forcing the live
+  Pi 4 image to stage an unready USB host binary
 - preserving the current HDMI text-console baseline and the deferred SD export
 
 Out of scope:
@@ -31,14 +31,17 @@ Out of scope:
 - broad framebuffer-console redesign
 - changes to the existing `usbkbd` or `pl011-tty` logic
 - broad BCM2711 PCIe host-bridge redesign
-- xHCI, USB enumeration, or keyboard end-to-end validation
+- staged runtime USB host support
+- USB enumeration or keyboard end-to-end validation
 
 ## Expected Repositories
 
 - coordination repo
+- `phoenix-rtos-devices`
 
 ## Expected Files Or Subsystems
 
+- `sources/phoenix-rtos-devices/usb/`
 - `docs/status.md`
 - `docs/source-artifacts.md`
 - `tracking/current-step.md`
@@ -47,47 +50,43 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- the next downstream-readback step is explicitly bounded and justified against
-  the current Phoenix and Circle references
-- the next step does not widen into full enumeration, xHCI, or endpoint-driver
-  work
-- the tracking docs clearly state the exact remaining gap after the new
-  bridge-capability step
+- the first xHCI skeleton step is explicitly bounded and justified against the
+  current Phoenix USB stack plus the current Circle Pi 4 xHCI reference
+- the next step does not stage an unready USB runtime path on the live Pi 4
+  image
+- the tracking docs clearly state the exact remaining gap after the new VL805
+  fast-path constants
 
 ## Validation Plan
 
-- source inspection against the current Phoenix PCIe stack plus the existing
-  Circle reference for BCM2711 bridge enablement and first downstream endpoint
-  discovery
+- source inspection against the current Phoenix USB HCD model plus the existing
+  Circle Pi 4 xHCI reference
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-21-rpi4b-pcie-project-integration.md`
+  `manifests/2026-03-21-rpi4b-vl805-fastpath-constants.md`
 
 ## Notes
 
 - Risks:
-  do not jump straight into xHCI or overclaim that one downstream readback
-  implies robust enumeration
+  do not stage a USB host binary that would fail the current Pi 4 boot path
+  just because the first xHCI code compiles
 - Dependencies:
-  completed `STEP-0326` Pi 4 PCIe project integration
+  completed `STEP-0328` Pi 4 VL805 fast-path constants
 - User-visible control point before next step:
   after this step lands, the repo should clearly show the exact smallest
-  downstream-readback move and why it comes before xHCI
+  xHCI skeleton move and why it comes before staged runtime USB support
 
 Current scope finding:
 
-- the BCM2711 backend now supplies config-space access, early host-bridge prep,
-  link-state gating, outbound-window setup, root-bridge shaping, and
-  bridge-side memory-window / bus exposure
-- the BCM2711 backend now also mirrors the remaining Circle `enable_bridge()`
-  capability-state slice:
-  root-bridge parity and PCIe root-control CRS software visibility
-- the Pi 4 image path now also stages the `pcie` server itself, so the next
-  remaining gap can be defined against a real runtime component instead of an
-  unreferenced server binary
+- the Pi 4 board config now carries the first VL805 fast-path assumptions taken
+  from Circle:
+  `bus 1 / slot 0 / func 0`, class code `0x0c0330`, and MMIO through the
+  outbound PCIe window
+- the current Phoenix USB stack already provides the generic HCD, hub,
+  enumeration, and keyboard-driver layers
 - the remaining gap is now narrower:
-  the first bounded downstream config-space readback before any xHCI-specific
-  work can be treated as meaningful
-- Pi 4 `raspi4b` QEMU is still not expected to validate that real PCIe step
+  the first compile-valid xHCI HCD skeleton and discovery stub before any
+  staged runtime USB host path can be treated as meaningful
+- Pi 4 `raspi4b` QEMU is still not expected to validate that real xHCI path

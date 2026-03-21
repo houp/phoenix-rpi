@@ -206,6 +206,10 @@ Current implementation note:
 - the Pi 4 image path now also stages the `pcie` server itself
 - the next bounded Pi 4 transport slice is therefore one direct downstream
   endpoint readback from that staged server, not xHCI
+- for the fastest first Pi 4 USB path, the current external-reference contract
+  is now explicit:
+  VL805 as the single downstream xHCI endpoint at `bus 1 / slot 0 / func 0`,
+  class `0x0c0330`, with MMIO through the outbound PCIe window
 
 This work is also strategically useful later because it builds Phoenix PCIe and xHCI capabilities that Pi 5 will also need.
 

@@ -904,6 +904,19 @@ Current BCM2711 PCIe reference note:
   `phoenix-rtos-devices/_targets/Makefile.aarch64a72-generic` and
   `phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/user.plo.yaml`
 
+Current Pi 4 xHCI fast-path reference note:
+
+- Circle's Pi 4 xHCI path uses these bounded downstream assumptions:
+  - `XHCI_PCIE_BUS = 1`
+  - `XHCI_PCIE_SLOT = 0`
+  - `XHCI_PCIE_FUNC = 0`
+  - `XHCI_PCI_CLASS_CODE = 0x0c0330`
+  - MMIO through the outbound PCIe window
+- Circle also issues firmware property tag `PROPTAG_NOTIFY_XHCI_RESET`
+  `0x00030058` after the PCIe reset path and before enabling the device
+- Phoenix now records the fixed BDF/class/MMIO assumptions in the Pi 4 board
+  config, but no xHCI runtime code uses them yet
+
 Current preserved clue:
 
 - as of `STEP-0152`, the selected architectural timer is registered and armed, but no timer IRQ is dispatched on the generic fast lane even after explicit post-write instruction barriers

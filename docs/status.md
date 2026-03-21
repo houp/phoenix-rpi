@@ -687,6 +687,18 @@ Start-gate status:
   future sessions should start with a bounded gdbstub inspection and only add
   source-level probes after documenting why GDB cannot answer the current
   question
+- the user has explicitly deferred further SD-image refresh and manual Pi 4
+  board testing until HDMI text output exists, so the current fast lane shifts
+  from artifact handoff to framebuffer text enablement
+- Phoenix already contains an in-tree framebuffer text renderer and bundled 8x16
+  font in `phoenix-rtos-devices/tty/pc-tty/ttypc_fbcon.c` and
+  `phoenix-rtos-devices/tty/pc-tty/ttypc_fbfont.h`
+- the Pi 4 `plo` path already stores framebuffer geometry in the generic
+  AArch64 syspage through `syspage_graphmodeSet()`, but generic AArch64 does
+  not yet expose an IA32-style `pctl_graphmode` query for runtime consumers
+- the shortest current route to HDMI text is therefore:
+  expose generic AArch64 graphmode metadata through `platformctl`, then reuse
+  the existing Phoenix framebuffer renderer instead of adding a new font stack
 - copied-buildroot validation must be run sequentially per target; concurrent
   generic and Pi 4 builds against the same copied buildroot race on shared
   host-artifact paths such as `_build/host-generic-pc`
@@ -711,9 +723,10 @@ Start-gate status:
    a visible first real-device signal beyond UART-only diagnostics.
 5. Use the Circle review to keep the next bounded move on the HDMI-visible path
    rather than prematurely widening into PCIe, xHCI, or USB keyboard work.
-6. Use the refreshed host-visible Pi 4 SD image for the first manual board
-   trial, because it now contains the staged three-marker HDMI panel.
-7. Keep the new prompt-reaching lane stable while avoiding new diagnosis-only
+6. Reuse the existing `pc-tty` framebuffer text path surgically instead of
+   porting the whole IA32 `pc-tty` app or introducing a new font subsystem.
+7. Defer more SD-image refresh work until HDMI text output exists.
+8. Keep the new prompt-reaching lane stable while avoiding new diagnosis-only
    probe accumulation.
 
 ## Pi 4 Success Criteria for "Phase 1"

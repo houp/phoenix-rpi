@@ -93,6 +93,7 @@ This file indexes the most important websites, repositories, documents, and sour
 - `phoenix-rtos-kernel/hal/aarch64/interrupts_gicv2.c`
 - `phoenix-rtos-kernel/hal/aarch64/Makefile`
 - `phoenix-rtos-kernel/hal/aarch64/generic/config.h`
+- `phoenix-rtos-kernel/hal/aarch64/generic/generic.c`
 - `phoenix-rtos-kernel/hal/Makefile`
 - `phoenix-rtos-kernel/hal/timer.h`
 - `phoenix-rtos-kernel/hal/tlb/tlb.c`
@@ -184,6 +185,21 @@ This file indexes the most important websites, repositories, documents, and sour
 - `phoenix-rtos-filesystems/dummyfs/srv.c`
   Important because the `devfs` instance is started here with `dummyfs -N devfs -D`, and the next fast diagnostic step targets its non-filesystem namespace registration and `mtLookup` servicing path.
 
+- `phoenix-rtos-devices/tty/pc-tty/ttypc_fbcon.c`
+  Important because it already provides a Phoenix-native framebuffer text
+  renderer that can likely be reused for Pi 4 HDMI text output once generic
+  AArch64 `platformctl` exposes framebuffer geometry.
+
+- `phoenix-rtos-devices/tty/pc-tty/ttypc_fbfont.h`
+  Important because it already carries a bundled 8x16 bitmap font under a
+  permissive retained license, which is likely sufficient for the first Pi 4
+  HDMI text-console milestone.
+
+- `phoenix-rtos-devices/tty/pc-tty/ttypc_vga.c`
+  Important because it shows how the existing framebuffer renderer is integrated
+  with Phoenix terminal state today, helping isolate the minimal reusable text
+  drawing pieces from the IA32-specific VGA and PS/2 logic.
+
 - `phoenix-rtos-kernel/proc/name.c`
   Important because `proc_portLookup()` performs the kernel-side cached lookup and forwards `mtLookup` messages to the registered server port.
 
@@ -217,6 +233,15 @@ This file indexes the most important websites, repositories, documents, and sour
 
 - `phoenix-rtos-kernel/hal/aarch64/aarch64.h`
   Important because the next bounded experiment is explicit synchronization after architectural timer sysreg writes for both the physical and virtual timer paths.
+
+- `phoenix-rtos-kernel/include/arch/aarch64/generic/generic.h`
+  Important because the current generic AArch64 `platformctl_t` only exposes
+  reboot control, and the next HDMI-text step likely starts by adding a
+  reusable `pctl_graphmode` query there.
+
+- `phoenix-rtos-kernel/include/arch/ia32/ia32.h`
+  Important because it is the current reference definition for `pctl_graphmode`
+  and the framebuffer geometry contract used by the existing Phoenix fbcon path.
 
 ## 4. Raspberry Pi Official Documentation
 

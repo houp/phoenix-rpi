@@ -201,8 +201,11 @@ Current implementation note:
   one outbound window, RC BAR2 programming, and root-bridge class shaping
 - the first BCM2711 bridge-exposure slice now also exists:
   root-bridge cache-line, bus-number, memory-window, and command programming
-- the next bounded Pi 4 transport slice is therefore first downstream endpoint
-  visibility, not xHCI
+- the first BCM2711 bridge-capability slice now also exists:
+  root-bridge parity plus PCIe root-control CRS software visibility
+- the Pi 4 image path now also stages the `pcie` server itself
+- the next bounded Pi 4 transport slice is therefore one direct downstream
+  endpoint readback from that staged server, not xHCI
 
 This work is also strategically useful later because it builds Phoenix PCIe and xHCI capabilities that Pi 5 will also need.
 

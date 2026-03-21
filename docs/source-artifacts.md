@@ -889,6 +889,21 @@ Important current conclusion:
   based on the current official Raspberry Pi legacy `config.txt` HDMI
   documentation
 
+Current BCM2711 PCIe reference note:
+
+- Circle `external/circle/lib/bcmpciehostbridge.cpp` `enable_bridge()` still
+  provided one bounded bridge-local follow-up after the earlier Phoenix
+  bridge-exposure step:
+  - `PCI_BRIDGE_CONTROL` parity enable
+  - `BRCM_PCIE_CAP_REGS + PCI_EXP_RTCTL` CRS software visibility enable
+- that capability-state slice is now mirrored in the Phoenix BCM2711 backend
+  before any direct downstream endpoint readback is attempted
+- the next runtime-relevant integration point is no longer only inside the PCIe
+  server:
+  the Pi 4 image path now stages `pcie` through
+  `phoenix-rtos-devices/_targets/Makefile.aarch64a72-generic` and
+  `phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/user.plo.yaml`
+
 Current preserved clue:
 
 - as of `STEP-0152`, the selected architectural timer is registered and armed, but no timer IRQ is dispatched on the generic fast lane even after explicit post-write instruction barriers

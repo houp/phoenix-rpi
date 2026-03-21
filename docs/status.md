@@ -79,6 +79,13 @@ Start-gate status:
 - the BCM2711 backend now also performs the first bridge-side exposure slice:
   root-bridge cache-line, bus-number, memory-window, and command programming on
   bus `0` behind the sampled link-state gate.
+- the BCM2711 backend now also performs the next bounded bridge-capability
+  slice:
+  root-bridge parity plus PCIe root-control CRS software visibility behind the
+  sampled link-state gate.
+- the Pi 4 A72 image path now also includes and stages the `pcie` server,
+  which makes the current BCM2711 transport work reachable on the actual board
+  image path instead of only compile-validated in isolation.
 
 ## Most Important Technical Findings
 
@@ -120,6 +127,12 @@ Start-gate status:
 - after the new bridge-exposure step, the remaining transport gap is narrower
   again: first meaningful downstream endpoint visibility before any xHCI-
   specific work can be treated as meaningful.
+- after the new bridge-capability step, the remaining transport gap is narrower
+  again: one direct downstream config-space readback before any broader
+  enumeration or xHCI work can be treated as meaningful.
+- after the new Pi 4 project-integration step, that remaining gap is now tied
+  to a real staged runtime component rather than to an unreferenced server
+  binary.
 - Pi 4 `raspi4b` QEMU is not expected to validate that PCIe milestone, because
   the emulator still lacks the relevant PCIe root-port support.
 - The strongest currently available no-hardware validation for the new

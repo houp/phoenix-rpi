@@ -611,6 +611,14 @@ Start-gate status:
 - the docs now also state the current first-boot limitation clearly:
   without USB-TTL serial, the first hardware trial is useful as an
   artifact-deployment check but not yet as a strong runtime-validation milestone
+- the next non-UART observability target is now selected too:
+  start with a `plo`-side Raspberry Pi mailbox framebuffer step, because it is
+  visible on HDMI, testable under `raspi4b`, and narrower than early networking
+  or full runtime display plumbing
+- an important constraint on that choice is now explicit:
+  Phoenix already has `plo` `graphmode` state, but the current AArch64 kernel
+  path does not yet expose an IA32-style `pctl_graphmode` consumer, so the
+  first visibility step should stop at early framebuffer life signs
 - the currently available real-hardware lab is weaker than the ideal UART lab:
   microSD plus HDMI plus Ethernet plus USB keyboard or mouse are available, but
   no USB-TTL adapter is currently available
@@ -637,6 +645,7 @@ Start-gate status:
 
 1. Scope the smallest alternate-observability step for a Pi 4 lab without
    USB-TTL serial.
+   Result: selected `plo` mailbox framebuffer as the next bounded path.
 2. Keep the current QEMU shell smoke baseline stable:
   `help` plus the validated external-applet follow-up `echo -h`.
 3. Use the current QEMU shell confidence to drive the next bounded steps toward

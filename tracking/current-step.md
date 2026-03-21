@@ -2,35 +2,31 @@
 
 ## Metadata
 
-- Step ID: `STEP-0282`
-- Title: Scope the smallest alternate-observability step for a no-UART Pi 4 lab
+- Step ID: `STEP-0283`
+- Title: Implement the first Pi 4 `plo` mailbox-framebuffer visibility step
 - Status: `planned`
 - Date: `2026-03-21`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- select the smallest next technical step that can produce a meaningful runtime
-  signal on a Pi 4 board without USB-TTL serial
+- implement the smallest Pi 4-specific non-UART visibility step that can show
+  HDMI-side life signs before widening into full display or networking support
 
 ## Scope
 
 In scope:
 
-- decide whether the next bounded move should target:
-  - firmware-visible HDMI behavior
-  - simple framebuffer output
-  - early network visibility
-  - or another narrow non-UART signal path
-- keep the step technical but still bounded and no-hardware if possible
-- keep the decision aligned with the current user hardware:
-  HDMI plus Ethernet plus USB keyboard or mouse, but no USB-TTL adapter
+- add minimal Raspberry Pi mailbox property-call support in `plo`
+- allocate one simple framebuffer on the Pi 4 path
+- produce one visible framebuffer-side signal under `raspi4b` QEMU if possible
+- keep the step limited to early visibility, not full runtime display support
 
 Out of scope:
 
-- implementing the chosen observability path itself
+- runtime framebuffer console support
 - real hardware execution
-- broad multi-subsystem bring-up
+- broad graphics, USB, or network bring-up
 
 ## Expected Repositories
 
@@ -43,6 +39,8 @@ Out of scope:
 - `docs/platforms/raspberry-pi-4.md`
 - current Pi 4 source and reference notes for mailbox, framebuffer, and early
   network possibilities
+- `sources/plo`
+- current Pi 4 `board_config.h`
 - `docs/status.md`
 - `manifests/`
 - `tracking/current-step.md`
@@ -50,30 +48,32 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- the next non-UART observability step is selected explicitly
-- the choice is justified against the current hardware available to the
-  operator
+- the Pi 4 path performs one minimal mailbox property transaction in `plo`
+- the step produces one visible HDMI-side sign of life or one tightly bounded
+  negative result under `raspi4b` QEMU
 - no Phoenix upstream repo changes are introduced
 
 ## Validation Plan
 
-- review the current no-UART lab constraints and already-available artifacts
-- inspect the most promising narrow observability options in the current
-  knowledge base and source references
+- build the Pi 4 image after the change
+- validate first in `raspi4b` QEMU
+- use GDB-first debugging if the expected visible path does not appear
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-21-aarch64-rpi4b-macos-flash-doc.md`
+  `manifests/2026-03-21-aarch64-rpi4b-no-uart-observability-scope.md`
 
 ## Notes
 
 - Risks:
-  avoid widening into broad display, USB, or network subsystem implementation
+  avoid widening into full framebuffer console plumbing or general graphics
+  support
 - Dependencies:
-  completed `STEP-0281` macOS flashing-workflow runbook step
+  completed `STEP-0282` no-UART observability scoping
 - User-visible control point before next step:
-  after the scope decision, the next bounded implementation step can target one
-  visible runtime path beyond UART
+  after this step lands, the next bounded move can either refine the mailbox
+  framebuffer signal or start threading that graphmode data into later runtime
+  consumers

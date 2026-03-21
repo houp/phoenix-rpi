@@ -241,6 +241,13 @@ Current Pi 4 HDMI QEMU validation shape:
 This is the current automated-friendly regression signature for the first Pi 4
 HDMI visibility path.
 
+Current helper:
+
+- `scripts/qemu-rpi4b-hdmi-smoke.sh`
+- it runs the current Pi 4 QEMU lane in `phoenix-dev`, captures one
+  framebuffer dump, checks the current marker pixels, and exits non-zero on
+  regression
+
 ## 4.3 What QEMU should never be the sole authority for
 
 - xHCI correctness

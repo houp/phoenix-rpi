@@ -633,6 +633,10 @@ Start-gate status:
   - framebuffer size `1024 x 768`
   - bright top-left marker pixels such as `(0, 0) -> (240, 240, 240)`
   - filled background pixels such as `(639, 479) -> (160, 96, 48)`
+- that visibility path is now regression-testable with one command:
+  - `scripts/qemu-rpi4b-hdmi-smoke.sh`
+  - it runs the existing Pi 4 QEMU lane, captures a framebuffer dump, and
+    validates the current marker and background pixels
 - this is still an early `plo` visibility path only:
   it is not yet a runtime display console, windowing path, or general graphics
   subsystem
@@ -668,9 +672,7 @@ Start-gate status:
    USB-TTL serial.
    Result: selected `plo` mailbox framebuffer as the next bounded path.
 2. Keep the new Pi 4 HDMI visibility path stable and regression-testable.
-   Result: the next bounded move should automate the current QEMU
-   framebuffer-marker validation rather than widening immediately into a runtime
-   console.
+   Result: the current helper is now `scripts/qemu-rpi4b-hdmi-smoke.sh`.
 3. Keep the current QEMU shell smoke baseline stable:
   `help` plus the validated external-applet follow-up `echo -h`.
 4. Use the current QEMU shell confidence to drive the next bounded steps toward

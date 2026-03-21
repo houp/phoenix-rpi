@@ -2,33 +2,31 @@
 
 ## Metadata
 
-- Step ID: `STEP-0284`
-- Title: Scope the smallest automated regression check for the Pi 4 HDMI visibility path
+- Step ID: `STEP-0286`
+- Title: Scope the smallest real-hardware-oriented HDMI refinement for the first Pi 4 trial
 - Status: `planned`
 - Date: `2026-03-21`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- define the smallest next step that turns the new Pi 4 `plo` HDMI visibility
-  path into a repeatable regression check rather than a one-off manual QEMU
-  experiment
+- define the smallest next move that improves the odds and interpretability of
+  the first real Pi 4 HDMI trial without widening into a full display stack
 
 ## Scope
 
 In scope:
 
-- define one automated-friendly validation shape for the current early HDMI path
-- keep the step limited to the existing `plo` marker visibility behavior
-- prefer a coordination-repo helper or documented smoke path over wider source
-  work
+- review the current firmware-facing Pi 4 HDMI staging assumptions
+- identify one minimal refinement for the first real board trial
+- prefer firmware config or operator-facing expectations over new graphics logic
 
 Out of scope:
 
 - runtime framebuffer console support
-- new framebuffer rendering logic
-- real hardware execution
-- broad graphics, USB, or network bring-up
+- keyboard or mouse UI support
+- broad graphics subsystem work
+- real hardware execution in this step
 
 ## Expected Repositories
 
@@ -36,20 +34,19 @@ Out of scope:
 
 ## Expected Files Or Subsystems
 
-- `docs/testing-automation.md`
+- `docs/manual-operator-instructions.md`
 - `docs/status.md`
-- `scripts/`
+- `docs/source-artifacts.md`
+- `sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/config.txt`
 - `manifests/`
 - `tracking/current-step.md`
 - `tracking/step-history.md`
 
 ## Acceptance Criteria
 
-- the next implementation move is reduced to one explicit regression-check
-  shape for the current Pi 4 HDMI marker
-- the step does not widen into new framebuffer or firmware logic
-- the result records what exact artifact or pixel signature the automated check
-  should validate
+- one explicit next refinement is selected for the first real Pi 4 HDMI trial
+- the refinement stays small and does not widen into runtime graphics support
+- the result records what should be changed or validated next and why
 
 ## Validation Plan
 
@@ -63,15 +60,15 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-21-aarch64-rpi4b-plo-hdmi-visibility.md`
+  `manifests/2026-03-21-aarch64-rpi4b-hdmi-smoke-helper.md`
 
 ## Notes
 
 - Risks:
-  avoid widening into a runtime display subsystem or a broad test harness
+  avoid turning a firmware-config refinement into a broad display-policy change
 - Dependencies:
-  completed `STEP-0283` Pi 4 `plo` HDMI visibility
+  completed `STEP-0285` Pi 4 HDMI smoke helper
 - User-visible control point before next step:
   after this step lands, the next bounded move should either implement the
-  agreed regression helper or pivot to the smallest real-hardware HDMI
-  readiness refinement
+  selected firmware or operator refinement or return to the next common Pi 4
+  runtime blocker

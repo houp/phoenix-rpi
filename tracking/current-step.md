@@ -2,31 +2,34 @@
 
 ## Metadata
 
-- Step ID: `STEP-0291`
-- Title: Assemble and export the refreshed Pi 4 SD image
+- Step ID: `STEP-0293`
+- Title: Rerun the full Pi 4 artifact-refresh chain
 - Status: `planned`
 - Date: `2026-03-21`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- refresh the host-visible Pi 4 SD image so the first board trial uses the
-  latest HDMI firmware refinement
+- refresh the host-visible Pi 4 SD image completely so the first board trial
+  uses the latest HDMI firmware refinement
 
 ## Scope
 
 In scope:
 
-- rerun `scripts/assemble-rpi4b-sdimg.sh`
-- rerun `scripts/export-rpi4b-sdimg.sh`
-- record the new host artifact checksum
-- update docs/status if the exported artifact path remains the same
+- rerun:
+  - `scripts/assemble-rpi4b-bootfs.sh`
+  - `scripts/assemble-rpi4b-bootfs-img.sh`
+  - `scripts/assemble-rpi4b-sdimg.sh`
+  - `scripts/export-rpi4b-sdimg.sh`
+- record the refreshed host-visible checksum
+- update the docs/status with the new artifact hash
 
 Out of scope:
 
-- flashing the image
+- flashing
 - real hardware execution
-- further image-layout changes
+- new firmware or runtime logic
 
 ## Expected Repositories
 
@@ -34,6 +37,8 @@ Out of scope:
 
 ## Expected Files Or Subsystems
 
+- `scripts/assemble-rpi4b-bootfs.sh`
+- `scripts/assemble-rpi4b-bootfs-img.sh`
 - `scripts/assemble-rpi4b-sdimg.sh`
 - `scripts/export-rpi4b-sdimg.sh`
 - `artifacts/rpi4b/rpi4b-sd.img`
@@ -45,15 +50,16 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- the VM-local Pi 4 SD image is rebuilt
-- the host-visible `artifacts/rpi4b/rpi4b-sd.img` is refreshed
-- the refreshed image checksum is recorded
-- the docs clearly point the operator to the refreshed image path
+- the full helper chain completes
+- `artifacts/rpi4b/rpi4b-sd.img` is refreshed
+- the new checksum is recorded
+- the docs clearly indicate that the exported image now includes the HDMI
+  firmware refinement
 
 ## Validation Plan
 
 - Build:
-  use the already refreshed VM-local Pi 4 boot artifacts
+  use the already rebuilt Pi 4 project outputs as the chain input
 - Emulator:
   not applicable
 - Hardware:
@@ -67,9 +73,9 @@ Out of scope:
 ## Notes
 
 - Risks:
-  avoid mixing export refresh with board execution
+  avoid mixing artifact refresh with flashing or board execution
 - Dependencies:
-  completed `STEP-0290` corrected image-refresh scoping
+  completed `STEP-0292` full artifact-refresh scoping
 - User-visible control point before next step:
   after this step lands, the next bounded move can start the manual Pi 4 board
   trial or scope one more tiny pre-hardware refinement

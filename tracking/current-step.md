@@ -2,47 +2,46 @@
 
 ## Metadata
 
-- Step ID: `STEP-0254`
-- Title: Implement the pre-`psh` `/dev` bind fast-lane fix
+- Step ID: `STEP-0255`
+- Title: Scope cleanup of obsolete console-path probes
 - Status: `planned`
 - Date: `2026-03-21`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- make `/dev` visible in the filesystem namespace before the shell opens
-  `/dev/console`
+- identify the smallest cleanup set for the console-path probes that are no
+  longer needed now that both fast-lane QEMU targets reach `(psh)%`
 
 ## Scope
 
 In scope:
 
-- stage `psh` aliases for `mkdir` and `bind` in the fast-lane project images
-- invoke those aliases before the final `psh` app in:
-  - generic QEMU fast lane
-  - Pi 4 fast lane
-- keep the change inside project-local startup composition
+- inspect the currently committed `psh`, libphoenix, and kernel console-path
+  traces added during the `/dev/console` investigation
+- identify which ones were only diagnostic and should now be removed
+- keep the selected cleanup set small and reviewable
 
 Out of scope:
 
-- kernel name-resolution changes
-- libphoenix path-resolution changes
-- `psh` runtime policy changes
-- new utilities or new applets
-- unrelated Pi 4 bring-up work
+- changing the new `/dev` bind startup logic
+- unrelated boot-trace cleanup
+- new shell features
 - real hardware work
 
 ## Expected Repositories
 
-- `sources/phoenix-rtos-project`
 - coordination repo
+- `sources/phoenix-rtos-utils`
+- `sources/libphoenix`
+- `sources/phoenix-rtos-kernel`
 
 ## Expected Files Or Subsystems
 
-- `sources/phoenix-rtos-project/_projects/aarch64a53-generic-qemu/build.project`
-- `sources/phoenix-rtos-project/_projects/aarch64a53-generic-qemu/user.plo.yaml`
-- `sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/build.project`
-- `sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/user.plo.yaml`
+- `sources/phoenix-rtos-utils/psh/psh.c`
+- `sources/libphoenix/unistd/file.c`
+- `sources/phoenix-rtos-kernel/syscalls.c`
+- `sources/phoenix-rtos-kernel/posix/posix.c`
 - `docs/status.md`
 - `manifests/`
 - `tracking/current-step.md`
@@ -50,36 +49,34 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- both fast-lane projects stage the required `mkdir` and `bind` aliases
-- both fast-lane projects run pre-shell `/dev` namespace setup before the final
-  `psh` app
-- generic QEMU validation moves past `psh: tty open fail open -2`
-- Pi 4 QEMU validation is rerun against the same startup shape
+- one small cleanup set is identified
+- the selected cleanup does not remove still-needed validation signal
+- the result is captured in one manifest and the next implementation step
 
 ## Validation Plan
 
-- Build:
-  copied-buildroot generic and Pi 4 project rebuilds in `phoenix-dev`
+- Analysis:
+  source review of the currently committed console-path probes
 - Emulator:
-  generic QEMU first, then Pi 4 `raspi4b`
+  not required unless the necessity of one probe remains ambiguous
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-21-aarch64-pre-psh-dev-bind-scope.md`
+  `manifests/2026-03-21-aarch64-fastlane-dev-bind.md`
 
 ## Notes
 
 - Risks:
-  keep the fix project-local and avoid dragging shell or libc changes into the
-  same step
+  keep the cleanup narrow and avoid removing broader bring-up visibility that is
+  still actively useful
 - Dependencies:
-  completed `STEP-0253` fix scoping
+  completed `STEP-0254` prompt-reaching `/dev` bind fix
 - Source reminder:
-  `mkdir` and `bind` already exist as `psh` applets and do not require
-  `psh_ttyopen()`
+  current prompt-reaching logs already prove the old `/dev/console` issue is
+  resolved
 - User-visible control point before next step:
-  after this implementation lands, the next step depends on whether the shell
-  moves past `/dev/console` open
+  after this scope step lands, the next change should be cleanup-oriented, not a
+  new subsystem jump

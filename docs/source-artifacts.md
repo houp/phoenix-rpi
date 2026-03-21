@@ -584,6 +584,14 @@ Important Phoenix filesystem / shell findings to preserve:
   in `rootfs-overlay/etc/rc.psh`
 - the current fast-lane generic and Pi 4 projects do not yet stage an
   equivalent pre-shell `/dev` bind path
+- `sources/phoenix-rtos-project/_projects/aarch64a53-generic-qemu/build.project`
+  and
+  `sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/build.project`
+  now stage `psh` aliases for `mkdir` and `bind` for pre-shell startup use
+- `sources/phoenix-rtos-project/_projects/aarch64a53-generic-qemu/user.plo.yaml`
+  and
+  `sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/user.plo.yaml`
+  now run `mkdir;/dev` and `bind;devfs;/dev` before the final `psh` app
 - `raspberrypi/linux` `rpi-6.12.y` and `rpi-6.19.y` both contain:
   - `arch/arm/boot/dts/broadcom/bcm2711-rpi.dtsi`
     - `memory@0` comment: `Will be filled by the bootloader`

@@ -513,6 +513,26 @@ Start-gate status:
     namespace, not at `/dev`
   - the current generic and Pi 4 fast-lane projects do not stage the usual
     pre-shell `devfs -> /dev` bind path used by established projects
+- the pre-shell `/dev` fast-lane fix is now in place in
+  `phoenix-rtos-project`:
+  - both fast-lane projects stage `psh` aliases for `mkdir` and `bind`
+  - both fast-lane `user.plo` scripts now run:
+    - `mkdir /dev`
+    - `bind devfs /dev`
+    before the final `psh` app
+- that fix is validated on both emulator lanes:
+  - generic `virt` now reaches:
+    - `psh: tty ready`
+    - `psh: readcmd`
+    - `(psh)%`
+    - `syscalls: psh console lookup 0`
+    - `posix: psh console open 0`
+  - Pi 4 `raspi4b` now reaches the same prompt band:
+    - `psh: tty ready`
+    - `psh: readcmd`
+    - `(psh)%`
+    - `syscalls: psh console lookup 0`
+    - `posix: psh console open 0`
 - debugger-first is now the recorded policy for QEMU runtime triage:
   future sessions should start with a bounded gdbstub inspection and only add
   source-level probes after documenting why GDB cannot answer the current
@@ -530,10 +550,10 @@ Start-gate status:
 
 ## Immediate Next Implementation Milestones
 
-1. Create `/dev` and bind `devfs` into the filesystem namespace before launching the fast-lane shell.
-2. Validate that both generic and Pi 4 QEMU move past `psh: tty open fail open -2`.
-3. Drive both fast lanes from `psh: tty open` to `psh: tty ready`, then to `psh: readcmd`.
-4. Once the Pi 4 fast lane reaches stable interactive shell readiness, switch the next bounded steps back to firmware-bundle completeness and first real-device smoke preparation.
+1. Remove the temporary console-path probes that were only needed to isolate the old `/dev/console` failure.
+2. Establish a small automated shell-smoke interaction on both generic and Pi 4 QEMU lanes.
+3. With the first Pi 4 QEMU shell prompt in place, switch the next bounded steps back toward boot-media completeness and first real-device smoke preparation.
+4. Keep the new prompt-reaching lane stable while cleaning up old diagnostic scaffolding.
 
 ## Pi 4 Success Criteria for "Phase 1"
 

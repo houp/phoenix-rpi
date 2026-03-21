@@ -2,39 +2,41 @@
 
 ## Metadata
 
-- Step ID: `STEP-0255`
-- Title: Scope cleanup of obsolete console-path probes
+- Step ID: `STEP-0256`
+- Title: Remove obsolete console-path probes after the fast-lane fix
 - Status: `planned`
 - Date: `2026-03-21`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- identify the smallest cleanup set for the console-path probes that are no
-  longer needed now that both fast-lane QEMU targets reach `(psh)%`
+- remove the smallest set of console-path diagnostic code that is no longer
+  needed now that both fast-lane QEMU targets reach `(psh)%`
 
 ## Scope
 
 In scope:
 
-- inspect the currently committed `psh`, libphoenix, and kernel console-path
-  traces added during the `/dev/console` investigation
-- identify which ones were only diagnostic and should now be removed
-- keep the selected cleanup set small and reviewable
+- remove the old `/dev/console` investigation traces from:
+  - `psh`
+  - `libphoenix`
+  - kernel lookup / posix open paths
+- keep the currently useful broader boot-band markers
+- revalidate generic and Pi 4 QEMU prompt reachability after cleanup
 
 Out of scope:
 
-- changing the new `/dev` bind startup logic
-- unrelated boot-trace cleanup
-- new shell features
+- wider boot-trace cleanup
+- changing the new `/dev` bind startup fix
+- new shell behavior
 - real hardware work
 
 ## Expected Repositories
 
-- coordination repo
 - `sources/phoenix-rtos-utils`
 - `sources/libphoenix`
 - `sources/phoenix-rtos-kernel`
+- coordination repo
 
 ## Expected Files Or Subsystems
 
@@ -49,34 +51,33 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- one small cleanup set is identified
-- the selected cleanup does not remove still-needed validation signal
-- the result is captured in one manifest and the next implementation step
+- the selected console-path probes are removed cleanly
+- generic QEMU still reaches `(psh)%`
+- Pi 4 QEMU still reaches `(psh)%`
+- no unrelated diagnostic removals are mixed into the patch
 
 ## Validation Plan
 
-- Analysis:
-  source review of the currently committed console-path probes
+- Build:
+  copied-buildroot generic and Pi 4 rebuilds in `phoenix-dev`
 - Emulator:
-  not required unless the necessity of one probe remains ambiguous
+  generic QEMU first, then Pi 4 `raspi4b`
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-21-aarch64-fastlane-dev-bind.md`
+  `manifests/2026-03-21-aarch64-console-probe-cleanup-scope.md`
 
 ## Notes
 
 - Risks:
-  keep the cleanup narrow and avoid removing broader bring-up visibility that is
-  still actively useful
+  do not remove broader bring-up markers that are still actively useful
 - Dependencies:
-  completed `STEP-0254` prompt-reaching `/dev` bind fix
+  completed `STEP-0255` cleanup scoping
 - Source reminder:
-  current prompt-reaching logs already prove the old `/dev/console` issue is
-  resolved
+  the prompt-reaching fast lane has already superseded these console-path probes
 - User-visible control point before next step:
-  after this scope step lands, the next change should be cleanup-oriented, not a
-  new subsystem jump
+  after this cleanup lands, the next steps can shift back to either automated
+  shell smoke or new Pi 4 boot-completeness work

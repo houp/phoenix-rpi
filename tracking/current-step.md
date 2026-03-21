@@ -2,26 +2,27 @@
 
 ## Metadata
 
-- Step ID: `STEP-0261`
-- Title: Scope the smallest reusable QEMU shell-smoke helper
+- Step ID: `STEP-0262`
+- Title: Implement the reusable QEMU shell-smoke helper
 - Status: `planned`
 - Date: `2026-03-21`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- define the smallest reusable helper that can run the validated `help` shell
-  smoke on the fast QEMU lanes without hand-written long commands
+- implement the smallest reusable helper for the validated QEMU `help` shell
+  smoke
 
 ## Scope
 
 In scope:
 
-- choose the smallest helper form for the now-validated QEMU `help` smoke
-- keep the helper limited to the existing fast lanes:
-  - `aarch64a53-generic-qemu`
-  - `aarch64a72-generic-rpi4b`
-- keep the command under test fixed to `help`
+- add `scripts/qemu-shell-smoke.sh`
+- support only:
+  - `generic`
+  - `rpi4b`
+- keep the smoke command fixed to `help`
+- rerun the helper for both targets
 
 Out of scope:
 
@@ -46,33 +47,33 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- one concrete helper shape is selected
-- the helper scope stays small enough to implement in the next step
-- the helper design reuses the already validated QEMU arguments and smoke
-  markers
+- the helper runs successfully for both supported targets
+- it proves the same `help` smoke markers already validated by hand
+- no Phoenix upstream repo changes are needed
 
 ## Validation Plan
 
-- Source review:
-  examine the validated smoke commands and choose the minimum wrapper
-- Runtime planning:
-  keep the next step limited to packaging, then rerun both lanes
+- Script validation:
+  run `scripts/qemu-shell-smoke.sh generic`
+  run `scripts/qemu-shell-smoke.sh rpi4b`
+- Matching:
+  confirm each run reaches `Available commands:` and the returned prompt
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-21-aarch64-generic-shell-stdin-validation.md`
+  `manifests/2026-03-21-aarch64-qemu-shell-smoke-helper-scope.md`
 
 ## Notes
 
 - Risks:
   avoid turning a small smoke helper into a full lab framework
 - Dependencies:
-  completed `STEP-0260` generic stdin-path validation
+  completed `STEP-0261` helper scoping
 - Source reminder:
   both fast lanes now pass the same `help` smoke
 - User-visible control point before next step:
-  after this scope lands, the next step should implement only that helper and
-  rerun the same validated smoke
+  after this helper lands, the next step can extend smoke depth or shift back
+  toward boot-first system work

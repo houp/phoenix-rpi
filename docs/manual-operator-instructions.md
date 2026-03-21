@@ -371,13 +371,12 @@ Current payload rule:
 - by default it exports that disk image into the host workspace at:
   - `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
 - current validated exported full-image SHA-256:
-  - `acfdb8c251be03a716cdd9811b151c412de1e3a11c24db76ed5a476d8fc8f107`
+  - `b2f3a33fe7b4e96d364b6e7579350d7c548359701cbaf0e9ac6b86fbf18860b0`
 - the current exported full-disk artifact includes the latest firmware-stage
-  HDMI refinement:
+  HDMI staging state:
   - `hdmi_force_hotplug=1`
   - `disable_overscan=1`
-- after the next refreshed export, the intended first-screen Pi 4 HDMI
-  signature is:
+- the current intended first-screen Pi 4 HDMI signature is:
   - a small dark top-left panel
   - up to three bright square markers that light from left to right
   - if fewer markers light before the board stops, treat that as useful

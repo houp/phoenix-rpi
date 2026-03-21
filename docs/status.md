@@ -661,6 +661,10 @@ Start-gate status:
   full helper chain after that firmware change, so
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
   is the current flashable image that includes the HDMI refinement
+- after the staged HDMI progress implementation, the host-visible Pi 4 SD image
+  has now been refreshed again, and the current validated exported full-image
+  SHA-256 is:
+  - `b2f3a33fe7b4e96d364b6e7579350d7c548359701cbaf0e9ac6b86fbf18860b0`
 - Circle has now been reviewed in detail as a Pi 4 external reference:
   - it strongly confirms the current Phoenix early-HDMI direction:
     low-memory mailbox property requests plus firmware-allocated framebuffer
@@ -707,9 +711,8 @@ Start-gate status:
    a visible first real-device signal beyond UART-only diagnostics.
 5. Use the Circle review to keep the next bounded move on the HDMI-visible path
    rather than prematurely widening into PCIe, xHCI, or USB keyboard work.
-6. Refresh the host-visible Pi 4 SD image after the staged HDMI update so the
-   real board gets the current three-stage panel instead of the older single
-   rectangle marker.
+6. Use the refreshed host-visible Pi 4 SD image for the first manual board
+   trial, because it now contains the staged three-marker HDMI panel.
 7. Keep the new prompt-reaching lane stable while avoiding new diagnosis-only
    probe accumulation.
 

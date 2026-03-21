@@ -2,39 +2,36 @@
 
 ## Metadata
 
-- Step ID: `STEP-0299`
-- Title: Refresh the host-visible Pi 4 SD image after staged HDMI progress
+- Step ID: `STEP-0300`
+- Title: Scope the first manual Pi 4 board trial with staged HDMI progress
 - Status: `planned`
 - Date: `2026-03-21`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- refresh the host-visible Pi 4 SD image so the real board uses the staged HDMI
-  progress indicator instead of the older single-rectangle marker
+- define the exact first manual Pi 4 board trial using the refreshed SD image
+  and current no-UART HDMI expectations
 
 ## Scope
 
 In scope:
 
-- rerun the known-good full helper chain
-- record the refreshed host-visible image checksum
-- update the operator-facing docs with the new image identity
+- select the smallest manual execution plan for the first real board attempt
+- keep the scope to operator actions and expected observations
 
 Out of scope:
 
-- new firmware or runtime logic
 - flashing or hardware execution
-- changes to the established helper sequence
+- new firmware or runtime logic
+- new artifact-export work
 
 ## Expected Repositories
 
 - coordination repo
-- helper scripts only as already established
 
 ## Expected Files Or Subsystems
 
-- `artifacts/rpi4b/rpi4b-sd.img`
 - `docs/manual-operator-instructions.md`
 - `docs/status.md`
 - `manifests/`
@@ -44,14 +41,14 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- the full helper chain completes successfully
-- `artifacts/rpi4b/rpi4b-sd.img` is refreshed
-- the new checksum is recorded in the docs and manifest
+- the first manual board trial is reduced to a concrete short sequence
+- the expected HDMI observations are explicit
+- the step stays manual-only and does not quietly widen back into code changes
 
 ## Validation Plan
 
 - Build:
-  use the already rebuilt Pi 4 outputs as input to the helper chain
+  not applicable
 - Emulator:
   not applicable
 - Hardware:
@@ -60,15 +57,14 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-21-aarch64-rpi4b-staged-hdmi-refresh-scope.md`
+  `manifests/2026-03-21-aarch64-rpi4b-staged-hdmi-image-refresh.md`
 
 ## Notes
 
 - Risks:
-  avoid assuming the export helper alone is sufficient; the full helper chain is
-  still required
+  avoid broadening a manual trial scope step into new implementation work
 - Dependencies:
-  completed `STEP-0298` refreshed-image handoff scope
+  completed `STEP-0299` refreshed Pi 4 SD-image export
 - User-visible control point before next step:
-  after this step lands, the current host-visible artifact should be ready for
-  a manual Pi 4 board trial with the staged HDMI panel
+  after this step lands, the project should be fully ready for the user to
+  flash the card and perform the first manual Pi 4 board trial

@@ -99,6 +99,9 @@ Start-gate status:
 - the Pi 4 xHCI path now also extracts the next controller register-layout
   facts needed before later interrupter or ring work:
   doorbell and runtime-register offsets.
+- the Pi 4 xHCI path now also extracts the remaining pre-interrupt capability
+  facts needed before later event-ring work:
+  max interrupters, interrupt moderation scale, and maximum ERST size.
 - that validation also exposed and fixed the first generic AArch64 USB-host
   portability issue in `phoenix-rtos-usb`:
   `usb.c` now passes the message-thread port value through `uintptr_t`.
@@ -114,6 +117,10 @@ Start-gate status:
   again:
   pre-interrupt capability limits such as max interrupters and ERST sizing
   should be extracted before any future event-ring work.
+- after the new pre-interrupt capability step, the remaining controller gap is
+  narrower again:
+  addressability and scratchpad-memory capability should be extracted before
+  any future DCBAA or scratchpad-allocation work.
 
 ## Most Important Technical Findings
 

@@ -240,6 +240,9 @@ This file indexes the most important websites, repositories, documents, and sour
   max slots, max scratchpad-buffer count, and context size.
   It now also extracts the doorbell and runtime-register offsets needed before
   later interrupter or ring design.
+  It now also extracts the pre-interrupt controller limits needed before later
+  event-ring work:
+  max interrupters, interrupt moderation scale, and maximum ERST size.
   The current code intentionally remains pre-root-hub, pre-ring, and
   pre-enumeration.
 

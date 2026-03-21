@@ -2,33 +2,33 @@
 
 ## Metadata
 
-- Step ID: `STEP-0264`
-- Title: Implement the first external-applet shell smoke
+- Step ID: `STEP-0266`
+- Title: Implement the unique-token external-applet smoke
 - Status: `planned`
 - Date: `2026-03-21`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- validate one deterministic external-applet shell command on both fast lanes
+- validate one deterministic external-applet command with a unique output token
+  on both fast lanes
 
 ## Scope
 
 In scope:
 
 - run:
-  - `ls /`
+  - `echo codex-smoke-echo`
 - verify:
   - command echo after the prompt
-  - `dev`
-  - `syspage`
+  - `codex-smoke-echo`
   - returned prompt
-- keep the step limited to runtime validation and coordination updates
+- keep the step runtime-only
 
 Out of scope:
 
 - changing Phoenix source code
-- extending the helper beyond this one new command
+- extending the smoke set beyond this one command
 - boot-media work
 - real hardware work
 
@@ -48,32 +48,32 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- both fast lanes pass the `ls /` smoke
-- the output includes `dev` and `syspage`
+- both fast lanes pass the unique-token applet smoke
+- the token `codex-smoke-echo` is visible in the command output band
 - no Phoenix source changes are introduced
 
 ## Validation Plan
 
 - Emulator:
-  reuse the current `expect`-driven helper pattern for `ls /`
+  reuse the current `expect`-driven pattern with `echo codex-smoke-echo`
 - Matching:
-  capture the command echo, root entries, and returned prompt on both lanes
+  capture the command echo, token output, and returned prompt on both lanes
 - Hardware:
   not applicable
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-21-aarch64-external-applet-smoke-scope.md`
+  `manifests/2026-03-21-aarch64-unique-token-applet-scope.md`
 
 ## Notes
 
 - Risks:
   avoid widening into broad shell test design
 - Dependencies:
-  completed `STEP-0263` external-applet smoke scoping
+  completed `STEP-0265` unique-token applet scoping
 - Source reminder:
-  keep the command surface minimal and deterministic
+  keep the token unique enough to avoid accidental matches
 - User-visible control point before next step:
-  after this validation lands, the next step can decide whether to extend the
-  helper or shift back toward boot-first system work
+  after this validation lands, the next step can decide whether to fold the new
+  command into the helper or pivot back toward boot-first system work

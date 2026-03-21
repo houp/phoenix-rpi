@@ -376,6 +376,12 @@ Current payload rule:
   HDMI refinement:
   - `hdmi_force_hotplug=1`
   - `disable_overscan=1`
+- after the next refreshed export, the intended first-screen Pi 4 HDMI
+  signature is:
+  - a small dark top-left panel
+  - up to three bright square markers that light from left to right
+  - if fewer markers light before the board stops, treat that as useful
+    no-UART progress information
 
 ### Current first macOS flashing workflow
 

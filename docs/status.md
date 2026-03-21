@@ -631,8 +631,11 @@ Start-gate status:
   window instead of widening into broader graphics changes
 - the currently validated Pi 4 HDMI fast-lane signature is:
   - framebuffer size `1024 x 768`
-  - bright top-left marker pixels such as `(0, 0) -> (240, 240, 240)`
-  - filled background pixels such as `(639, 479) -> (160, 96, 48)`
+  - a small top-left staged progress panel
+  - panel background pixel `(20, 20) -> (72, 72, 72)`
+  - stage pixels `(48, 48)`, `(112, 48)`, `(176, 48)` all lit as
+    `(240, 240, 240)` by the time `plo` reaches kernel jump
+  - preserved background pixel `(639, 479) -> (160, 96, 48)`
 - that visibility path is now regression-testable with one command:
   - `scripts/qemu-rpi4b-hdmi-smoke.sh`
   - it runs the existing Pi 4 QEMU lane, captures a framebuffer dump, and
@@ -649,6 +652,8 @@ Start-gate status:
 - this is still an early `plo` visibility path only:
   it is not yet a runtime display console, windowing path, or general graphics
   subsystem
+- the HDMI path is now more useful for the current no-UART lab:
+  it shows three coarse loader milestones instead of only "framebuffer alive"
 - that firmware refinement is now build-validated too:
   the rebuilt staged Pi 4 boot artifact contains both added `config.txt`
   lines in `_boot/aarch64a72-generic-rpi4b/rpi4b/config.txt`
@@ -702,7 +707,10 @@ Start-gate status:
    a visible first real-device signal beyond UART-only diagnostics.
 5. Use the Circle review to keep the next bounded move on the HDMI-visible path
    rather than prematurely widening into PCIe, xHCI, or USB keyboard work.
-6. Keep the new prompt-reaching lane stable while avoiding new diagnosis-only
+6. Refresh the host-visible Pi 4 SD image after the staged HDMI update so the
+   real board gets the current three-stage panel instead of the older single
+   rectangle marker.
+7. Keep the new prompt-reaching lane stable while avoiding new diagnosis-only
    probe accumulation.
 
 ## Pi 4 Success Criteria for "Phase 1"

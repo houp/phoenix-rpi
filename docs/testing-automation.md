@@ -235,8 +235,10 @@ Current Pi 4 HDMI QEMU validation shape:
 - run `raspi4b` QEMU with a real display backend such as `-display vnc=:<n>`
 - use the QEMU monitor `screendump` command instead of a human-only GUI check
 - confirm the captured PPM is not black and contains:
-  - bright top-left marker pixels around `(240, 240, 240)`
-  - filled background pixels around `(160, 96, 48)`
+  - top-left panel background pixel `(20, 20) -> (72, 72, 72)`
+  - lit stage pixels `(48, 48)`, `(112, 48)`, `(176, 48)` around
+    `(240, 240, 240)`
+  - preserved background pixel `(639, 479) -> (160, 96, 48)`
 
 This is the current automated-friendly regression signature for the first Pi 4
 HDMI visibility path.
@@ -245,7 +247,7 @@ Current helper:
 
 - `scripts/qemu-rpi4b-hdmi-smoke.sh`
 - it runs the current Pi 4 QEMU lane in `phoenix-dev`, captures one
-  framebuffer dump, checks the current marker pixels, and exits non-zero on
+  framebuffer dump, checks the staged panel pixels, and exits non-zero on
   regression
 
 ## 4.3 What QEMU should never be the sole authority for

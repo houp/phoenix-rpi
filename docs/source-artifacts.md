@@ -921,6 +921,10 @@ Current Pi 4 xHCI fast-path reference note:
   derive the operational-register base from `CAPLENGTH`, wait for `USBSTS.CNR`,
   assert `USBCMD.HCRST`, and wait for reset completion before still failing
   cleanly
+- the next Phoenix xHCI readiness slice now also mirrors Circle's immediate
+  post-reset checks:
+  validate `OP_PAGESIZE` support for 4K pages and extract the basic max-port
+  count from `HCSPARAMS1`
 - Circle also issues firmware property tag `PROPTAG_NOTIFY_XHCI_RESET`
   `0x00030058` after the PCIe reset path and before enabling the device
 - Phoenix now records the fixed BDF/class/MMIO assumptions in the Pi 4 board

@@ -172,6 +172,11 @@ Start-gate status:
   the image path now includes the first VL805 firmware-load hook before device
   enable, so the next useful xHCI work item is controller-readiness refinement
   inside `xhci` rather than more Pi 4 firmware plumbing.
+- after the new post-notify xHCI readiness step, the remaining gap is narrower
+  again:
+  the Pi 4 xHCI path now validates 4K page support and a non-zero port count,
+  so the next useful work item remains inside structural xHCI capability state
+  rather than firmware or PCIe plumbing.
 - Pi 4 `raspi4b` QEMU is not expected to validate that PCIe milestone, because
   the emulator still lacks the relevant PCIe root-port support.
 - The strongest currently available no-hardware validation for the new

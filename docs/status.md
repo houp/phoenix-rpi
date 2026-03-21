@@ -559,6 +559,9 @@ Start-gate status:
   current fast lane:
   its natural markers like `dev` collide with earlier boot-band text such as
   `create_dev: ...`, so the next applet smoke should use a unique token instead
+- the next candidate, `echo codex-smoke-echo`, is also not a valid proof shape:
+  the token appears in the echoed command line itself, so it still does not
+  independently prove applet stdout
 - debugger-first is now the recorded policy for QEMU runtime triage:
   future sessions should start with a bounded gdbstub inspection and only add
   source-level probes after documenting why GDB cannot answer the current
@@ -576,7 +579,7 @@ Start-gate status:
 
 ## Immediate Next Implementation Milestones
 
-1. Extend the fast lane from the built-in `help` smoke to one deterministic external-applet shell check with a unique output token.
+1. Extend the fast lane from the built-in `help` smoke to one deterministic external-applet shell check whose output is distinct from the command echo.
 2. Keep the new `scripts/qemu-shell-smoke.sh` baseline stable while adding one more shell-level proof point.
 3. With the first Pi 4 QEMU command path now proven and scripted, switch the next bounded steps back toward boot-media completeness and first real-device smoke preparation.
 4. Keep the new prompt-reaching lane stable while avoiding new diagnosis-only probe accumulation.

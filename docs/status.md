@@ -65,6 +65,9 @@ Start-gate status:
 - the Pi 4 path now also has the first BCM2711-specific indexed config-space
   backend behind that interface, selected by Pi 4 build settings and validated
   in compile-only form.
+- the BCM2711 backend now also performs the first host-bridge preparation slice:
+  reset sequencing, SerDes IDDQ clear, revision read, and early `MISC_CTRL`
+  preparation before any claim of link-up or downstream enumeration.
 
 ## Most Important Technical Findings
 
@@ -93,6 +96,9 @@ Start-gate status:
 - after that backend step, the remaining real Pi 4 transport gap is now
   narrower and explicit: BCM2711 host-bridge initialization and link bring-up
   before downstream enumeration can be treated as meaningful.
+- after the new early host-bridge step, the remaining transport gap is narrower
+  again: outbound-window setup, PERST release, link-up checks, and RC-mode
+  verification before downstream enumeration can be treated as meaningful.
 - Pi 4 `raspi4b` QEMU is not expected to validate that PCIe milestone, because
   the emulator still lacks the relevant PCIe root-port support.
 - The strongest currently available no-hardware validation for the new
@@ -111,6 +117,8 @@ Start-gate status:
   - Pi 4 targeted `pcie` server compilation with
     `PCI_EXPRESS_BCM2711_INDEXED_CFG=y`
   - fresh Pi 4 A72 full-build regression from the same disposable buildroot
+- the same validation shape also now covers the first BCM2711 host-bridge
+  preparation hook, because that step still stays in the compile-only lane
 - the full `aarch64a53-zynqmp-qemu` project build is currently blocked by an
   unrelated kernel issue outside the PCIe step:
   `hal/aarch64/interrupts_gicv2.c` references `TIMER_IRQ_GROUP` without a

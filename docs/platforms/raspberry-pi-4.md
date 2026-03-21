@@ -190,8 +190,11 @@ Current implementation note:
   config-space backend interface
 - the first BCM2711-specific indexed config-space backend now exists behind
   that interface and is selected by the Pi 4 A72 build settings
-- the next bounded Pi 4 transport slice is therefore BCM2711 host-bridge
-  initialization and link bring-up, not xHCI
+- the first BCM2711 host-bridge preparation slice now also exists:
+  reset sequencing, SerDes IDDQ clear, revision read, and early `MISC_CTRL`
+  preparation
+- the next bounded Pi 4 transport slice is therefore outbound-window setup and
+  link bring-up, not xHCI
 
 This work is also strategically useful later because it builds Phoenix PCIe and xHCI capabilities that Pi 5 will also need.
 

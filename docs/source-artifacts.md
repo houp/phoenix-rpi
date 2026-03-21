@@ -214,6 +214,8 @@ This file indexes the most important websites, repositories, documents, and sour
   server-local config-space backend interface instead of hardcoding direct ECAM
   access throughout the scan logic. This is now the seam for the first BCM2711
   indexed-config backend as well as the later host-bridge initialization work.
+  It now also contains the first BCM2711 backend-local reset and `MISC_CTRL`
+  preparation hook.
 
 - `phoenix-rtos-devices/pcie/server/Makefile`
   Important because it now carries the backend-selection build flag for the
@@ -479,6 +481,9 @@ This file indexes the most important websites, repositories, documents, and sour
   direct reference for:
   root-complex slot-0 handling on bus 0 and indexed downstream config-space
   access through `PCIE_EXT_CFG_INDEX` and `PCIE_EXT_CFG_DATA`.
+  The same file also provides the current reference sequence for:
+  bridge reset handling, SerDes IDDQ clear, revision read, and early
+  `PCIE_MISC_MISC_CTRL` preparation before outbound-window setup and link-up.
 
 - `phoenix-rtos-corelibs/libgraph/graph.h`
 - `phoenix-rtos-corelibs/libgraph/graph.c`

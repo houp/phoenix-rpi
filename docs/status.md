@@ -193,10 +193,16 @@ Start-gate status:
 - that single-command polled no-op path is now also in the tree:
   the Pi 4 xHCI code can now submit one internal no-op command through the
   command ring and event ring in a compile-validated form.
+- that first xHCI roothub-control seam is now also in the tree:
+  the Pi 4 xHCI code now answers the bounded Phoenix roothub subset needed for
+  early enumeration:
+  - device/config/string/hub descriptors
+  - `PORTSC`-based port status
+  - minimal port feature set/clear handling
 - the project is still not ready for interactive real-device USB testing:
-  the live Pi 4 image still does not stage `/sbin/usb` or `/sbin/usbkbd`,
-  `usb` still exits if `hcd_init()` cannot produce a usable HCD, and the xHCI
-  roothub request path is still the next missing subsystem.
+  the live Pi 4 image still does not stage `/sbin/usb` or `/sbin/usbkbd`, and
+  `usb` would still exit because `xhci_init()` still ends with `-ENOSYS` even
+  though the roothub request path now exists.
 
 ## Most Important Technical Findings
 

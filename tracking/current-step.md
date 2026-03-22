@@ -2,78 +2,73 @@
 
 ## Metadata
 
-- Step ID: `STEP-0370`
-- Title: Implement the smallest xHCI roothub control/request step
+- Step ID: `STEP-0371`
+- Title: Scope the smallest xHCI init-success step before live `/sbin/usb` staging
 - Status: `in_progress`
 - Date: `2026-03-22`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- implement the first usable xHCI roothub request subset needed before the live
-  Pi 4 image can safely stage `/sbin/usb`
+- define the smallest safe step that could let the Pi 4 xHCI path survive
+  `hcd_init()` as a roothub-only host, without yet claiming general USB-device
+  enumeration or keyboard support
 
 ## Scope
 
 In scope:
 
-- special-casing `usb_isRoothub(pipe->dev)` in `xhci_transferEnqueue()`
-- implementing the smallest roothub request subset needed by early enumeration:
-  - hub descriptor
-  - port status read
-  - minimal set/clear port feature handling
-- keeping the step pre-full-enumeration and pre-keyboard claims
+- deciding whether the current xHCI state is sufficient for `xhci_init()` to
+  return success instead of `-ENOSYS`
+- keeping the step bounded to controller lifetime and roothub-only readiness
+- keeping `/sbin/usb` image staging out of this planning step
 
 Out of scope:
 
 - non-roothub transfer support
-- USB keyboard device bring-up
-- staging `/sbin/usb` or `/sbin/usbkbd` on the Pi 4 image in this step
+- slot enable / address-device / endpoint-context work
+- staging `/sbin/usb` or `/sbin/usbkbd` on the Pi 4 image
 - SD-image export or checksum refresh
 - manual hardware execution
-- unrelated shell, console, or PCIe changes
+- unrelated shell, HDMI, or PCIe changes
 
 ## Expected Repositories
 
 - coordination repo
-- `phoenix-rtos-devices`
 
 ## Expected Files Or Subsystems
 
-- `sources/phoenix-rtos-devices/usb/xhci/xhci.c`
-- `sources/phoenix-rtos-usb/usb/usb.c`
-- `docs/status.md`
-- `docs/source-artifacts.md`
 - `tracking/current-step.md`
 - `tracking/step-history.md`
+- `docs/status.md`
+- `docs/source-artifacts.md`
 - `manifests/`
 
 ## Acceptance Criteria
 
-- the xHCI path now contains a bounded roothub request handler for the minimal
-  early-enumeration subset
-- the step stays pre-full-device-enumeration and pre-keyboard claims
-- the full `aarch64a72-generic-rpi4b` build still succeeds
+- the next bounded USB-host move is explicitly selected
+- the scope stays pre-non-roothub enumeration and pre-keyboard claims
+- the next implementation step answers whether `/sbin/usb` is any closer to
+  being stageable on the Pi 4 image
 
 ## Validation Plan
 
-- fresh `aarch64a72-generic-rpi4b` build from the copied VM-local buildroot in
-  `phoenix-dev`
-- preserve the staged Pi 4 image composition until the roothub path and xHCI
-  init are stronger
+- source-level review of the current xHCI init, roothub, and Phoenix `usb`
+  startup contract
+- no code changes required for the planning step itself
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-22-xhci-roothub-scope.md`
+  `manifests/2026-03-22-xhci-roothub.md`
 
 ## Notes
 
 - Risks:
-  avoid widening directly into full USB enumeration or image staging before the
-  roothub contract exists
+  do not widen directly into child-device enumeration or live image staging
+  before the controller can survive `hcd_init()`
 - Dependencies:
-  completed `STEP-0369` xHCI roothub scope
+  completed `STEP-0370` xHCI roothub request implementation
 - User-visible control point before next step:
-  the next implementation step should answer the concrete readiness question:
-  whether `/sbin/usb` is any closer to being stageable on the Pi 4 image
+  the next implementation step should say whether the current Pi 4 xHCI path
+  can now remain alive as a roothub-only host

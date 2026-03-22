@@ -988,6 +988,29 @@ Current Pi 4 xHCI fast-path reference note:
   bounded way:
   build `libusb`, build the A72 USB device pieces, then build the USB host
   binary against `libusbxhci` and `libusbdrv-usbkbd`
+- the first bounded xHCI roothub contract is now also in the Phoenix tree:
+  `phoenix-rtos-devices/usb/xhci/xhci.c` now mirrors the EHCI roothub shape
+  just enough for Phoenix enumeration:
+  - root-hub device/config/string/hub descriptors
+  - `usb_isRoothub(pipe->dev)` control-request handling
+  - `PORTSC` to `usb_port_status_t` mapping
+  - minimal `POWER` / `RESET` / change-bit clear handling
+- the most useful external xHCI roothub bitfield reference so far is still
+  Circle:
+  - `external/circle/include/circle/usb/xhci.h`
+  - `external/circle/lib/usb/xhcirootport.cpp`
+  especially for `PORTSC`:
+  - `CCS`
+  - `PED`
+  - `PP`
+  - `PR`
+  - `CSC`
+  - `PEC`
+  - `OCC`
+  - `PRC`
+- the next concrete Pi 4 USB blocker is now narrower:
+  `xhci_init()` still returns `-ENOSYS` after the internal controller tests,
+  so `/sbin/usb` is still not stageable even though roothub requests now exist
 
 Current preserved clue:
 

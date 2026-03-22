@@ -1011,6 +1011,14 @@ Current Pi 4 xHCI fast-path reference note:
 - the next concrete Pi 4 USB blocker is now narrower:
   `xhci_init()` still returns `-ENOSYS` after the internal controller tests,
   so `/sbin/usb` is still not stageable even though roothub requests now exist
+- that blocker is now partially cleared:
+  `xhci_init()` now survives the current internal controller sequence, so the
+  next missing xHCI piece is no longer basic controller lifetime
+- the next xHCI blocker is now specifically root-hub status delivery on the
+  current Pi 4 path:
+  the discovery stub still reports `irq = 0`, so port-change notification will
+  need either a temporary polling path or a later real interrupt path before
+  live `usb` staging can react to keyboard plug events
 
 Current preserved clue:
 

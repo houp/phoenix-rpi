@@ -199,10 +199,13 @@ Start-gate status:
   - device/config/string/hub descriptors
   - `PORTSC`-based port status
   - minimal port feature set/clear handling
+- the first xHCI init-success seam is now also in the tree:
+  `xhci_init()` no longer deliberately returns `-ENOSYS` after the current
+  roothub-ready controller setup sequence
 - the project is still not ready for interactive real-device USB testing:
   the live Pi 4 image still does not stage `/sbin/usb` or `/sbin/usbkbd`, and
-  `usb` would still exit because `xhci_init()` still ends with `-ENOSYS` even
-  though the roothub request path now exists.
+  the next concrete blocker is roothub status delivery on the current Pi 4
+  no-IRQ xHCI path, followed by non-roothub transfer support.
 
 ## Most Important Technical Findings
 

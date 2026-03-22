@@ -3,10 +3,16 @@
 set -euo pipefail
 
 image_path="${RPI4B_SDIMG_PATH:-/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img}"
-image_sha256="${RPI4B_SDIMG_SHA256:-475d8d21cdc00d2c2fc79819fe02bdcc946b5ee75329b503198dda7ac16877c3}"
 report_dir="${RPI4B_REPORT_DIR:-/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-reports}"
 timestamp="$(date +%Y%m%d-%H%M%S)"
 report_path="${RPI4B_REPORT_PATH:-$report_dir/pi4-first-trial-$timestamp.md}"
+
+if [ ! -f "$image_path" ]; then
+	printf 'missing image: %s\n' "$image_path" >&2
+	exit 1
+fi
+
+image_sha256="${RPI4B_SDIMG_SHA256:-$(shasum -a 256 "$image_path" | awk '{print $1}')}"
 
 mkdir -p "$report_dir"
 

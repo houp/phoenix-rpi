@@ -2,26 +2,25 @@
 
 ## Metadata
 
-- Step ID: `STEP-0391`
-- Title: Scope the smallest Pi 4 live USB-host staging step
+- Step ID: `STEP-0392`
+- Title: Implement the smallest Pi 4 live USB-host staging step
 - Status: `in_progress`
 - Date: `2026-03-22`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- choose the smallest live Pi 4 image-integration step after the new bounded
+- implement the smallest live Pi 4 image-integration step after the new bounded
   xHCI keyboard-transfer support
 
 ## Scope
 
 In scope:
 
-- deciding the smallest live-image staging change needed to exercise the new
-  Pi 4 USB path on real hardware
-- confirming whether `/sbin/usb` alone is the relevant staged binary for the
-  internal-host-driver path
-- keeping the next move below SD export and operator execution
+- staging `/sbin/usb` on the Pi 4 image path
+- preserving the current `pcie -> usb -> psh` bring-up order
+- validating that the new staged image still keeps the Pi 4 QEMU shell lane
+  alive
 
 Out of scope:
 
@@ -45,6 +44,7 @@ Out of scope:
 - `sources/phoenix-rtos-usb/usb/usbhost.h`
 - `sources/phoenix-rtos-usb/usb/usb.c`
 - `sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/user.plo.yaml`
+- `docs/status.md`
 - `tracking/current-step.md`
 - `tracking/step-history.md`
 - `docs/status.md`
@@ -53,14 +53,15 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- the next live-image staging seam is explicitly chosen and documented
-- the staging choice is justified against the current internal-driver USB host
-  architecture
-- the chosen next step stays narrow and below SD export or manual execution
+- the Pi 4 image stages `/sbin/usb` in the intended place
+- a fresh full `aarch64a72-generic-rpi4b` build still passes
+- the Pi 4 shell smoke still passes after the staging change
 
 ## Validation Plan
 
-- code reading and bounded source-path analysis only
+- fresh Pi 4 A72 build in `phoenix-dev` using the standard copied-buildroot
+  path
+- Pi 4 shell smoke after rebuild
 
 ## Rollback / Baseline
 
@@ -70,11 +71,9 @@ Out of scope:
 ## Notes
 
 - Risks:
-  avoid widening the next move into SD export or manual hardware execution too
-  early
+  avoid widening the step into SD export or manual execution too early
 - Dependencies:
-  completed `STEP-0390` bounded interrupt-transfer and no-IRQ completion
-  support
+  completed `STEP-0391` live USB-host staging scope
 - User-visible control point before next step:
-  after this scope step, the next bounded move should be the first live Pi 4
-  staging change needed for keyboard testing
+  after this step, the next bounded move should be either SD-image refresh or a
+  clearly justified additional live-image fix discovered during validation

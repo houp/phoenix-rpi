@@ -2,31 +2,31 @@
 
 ## Metadata
 
-- Step ID: `STEP-0393`
-- Title: Scope the smallest refreshed Pi 4 SD-image export step for the first HDMI plus USB-keyboard trial
+- Step ID: `STEP-0394`
+- Title: Implement the refreshed Pi 4 SD-image export step
 - Status: `in_progress`
 - Date: `2026-03-22`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- define the smallest artifact-handoff step after the Pi 4 live USB-host image
-  integration is complete
+- rebuild and export the first Pi 4 SD-card image that includes the current
+  HDMI text-console path plus the live staged USB-host path
 
 ## Scope
 
 In scope:
 
-- defining the next smallest handoff artifact for real-device Pi 4 testing
-- keeping the step focused on image export and operator readiness
-- deciding whether any further code-side blocker still exists before exporting
-  the SD-card image
+- fresh Pi 4 A72 rebuild on the standard copied-buildroot lane
+- bootfs and SD-card image regeneration
+- SD-card image export into `artifacts/rpi4b/`
+- documentation of the specific handoff artifact and first operator trial
 
 Out of scope:
 
-- new xHCI feature work
-- new keyboard-path source changes
+- new code-side USB or xHCI feature work
 - manual hardware execution itself
+- wider packaging such as `phoenix-rtos-ports`
 
 ## Expected Repositories
 
@@ -36,6 +36,10 @@ Out of scope:
 
 - `docs/manual-operator-instructions.md`
 - `docs/status.md`
+- `scripts/assemble-rpi4b-bootfs.sh`
+- `scripts/assemble-rpi4b-bootfs-img.sh`
+- `scripts/assemble-rpi4b-sdimg.sh`
+- `scripts/export-rpi4b-sdimg.sh`
 - `tracking/current-step.md`
 - `tracking/step-history.md`
 - `docs/source-artifacts.md`
@@ -43,29 +47,31 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- the smallest next artifact step is explicitly identified
-- the docs reflect that `/sbin/usb` is already live on the Pi 4 image path
-- the next implementation step is clearly bounded as either SD-image export or
-  a specific newly discovered blocker
+- a refreshed Pi 4 SD image exists under `artifacts/rpi4b/`
+- the exported image corresponds to the current staged `pcie -> usb -> psh`
+  path
+- the operator runbook points at that specific image for the first HDMI plus
+  USB-keyboard trial
 
 ## Validation Plan
 
-- inspect the current integrated image state and the existing validation
-  evidence
-- confirm whether any remaining blocker is code-side or only hardware-side
+- fresh Pi 4 A72 build in `phoenix-dev`
+- regenerate the Pi 4 bootfs and SD-card image
+- export the SD-card image to the host workspace
+- record the exported artifact path and checksum
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-22-rpi4b-usb-staging.md`
+  `manifests/2026-03-22-rpi4b-sdimg-refresh-scope.md`
 
 ## Notes
 
 - Risks:
-  avoid widening the step into extra xHCI work if the current board image is
-  already ready for handoff
+  avoid widening the step into extra code work if the current integrated image
+  can already be handed off for board validation
 - Dependencies:
-  completed `STEP-0392` live USB-host integration step
+  completed `STEP-0393` SD-image refresh scope
 - User-visible control point before next step:
-  after this step, the next bounded move should be a refreshed SD-image export
-  unless a concrete remaining blocker is identified
+  after this step, the next bounded move should be real-device execution or a
+  specific hardware-discovered blocker

@@ -223,11 +223,15 @@ Start-gate status:
   - input-control `AddContextFlags`
   - slot-context root-hub port, speed, and context entries
   - EP0 dequeue pointer, error count, type, max packet, and average TRB length
+- the first bounded xHCI `Address Device` action is now also in the tree:
+  the Pi 4 xHCI path now handles only non-roothub `REQ_SET_ADDRESS` under an
+  explicit temporary equality contract:
+  requested USB address must match the enabled slot ID
 - the project is still not ready for interactive real-device USB testing:
   the live Pi 4 image still does not stage `/sbin/usb` or `/sbin/usbkbd`, and
-  the next concrete blocker is the address-ownership contract between Phoenix
-  USB enumeration and xHCI slot IDs before the first bounded
-  `Address Device` command path.
+  the next concrete blocker is the first non-`SET_ADDRESS` endpoint-0 control
+  path needed for descriptor reads after the new bounded `Address Device`
+  support.
 
 ## Most Important Technical Findings
 

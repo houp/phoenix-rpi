@@ -1045,10 +1045,15 @@ Current Pi 4 xHCI fast-path reference note:
   - EP0 max-packet selection for low/full/high speed
   - an initialized EP0 ring layout with a final link TRB
   - a bounded direct-root-port input-context preparation helper
+- the first bounded xHCI `Address Device` wrapper is now also in the tree:
+  `phoenix-rtos-devices/usb/xhci/xhci.c` now:
+  - has an internal `Address Device` command helper
+  - handles non-roothub `REQ_SET_ADDRESS`
+  - requires the temporary slot-ID-equals-address contract explicitly instead
+    of silently rewriting addresses
 - the next concrete xHCI blocker is now narrower:
-  before the first bounded `Address Device` wrapper, Phoenix must decide how
-  its HCD-assigned USB address maps onto the xHCI slot ID returned by
-  `Enable Slot`
+  after `SET_ADDRESS`, Phoenix still lacks the first non-`SET_ADDRESS`
+  endpoint-0 control path needed for descriptor reads
 
 Current preserved clue:
 

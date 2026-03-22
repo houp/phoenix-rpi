@@ -2,33 +2,31 @@
 
 ## Metadata
 
-- Step ID: `STEP-0386`
-- Title: Implement the bounded xHCI EP0 control-write/no-data path
+- Step ID: `STEP-0387`
+- Title: Scope the smallest xHCI interrupt-IN endpoint step
 - Status: `in_progress`
 - Date: `2026-03-22`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- implement the smallest real post-enumeration control-write seam needed by
-  `usbkbd` after the new bounded descriptor-read path
+- choose the smallest real interrupt-endpoint seam needed after the new bounded
+  control-transfer support
 
 ## Scope
 
 In scope:
 
-- adding the minimum TRB shape and polling needed for endpoint-0 OUT requests
-  with no data stage
-- handling only the current direct-root-port child under the temporary
-  slot-ID-equals-address contract
-- supporting only the currently required post-enumeration writes:
-  `REQ_SET_CONFIGURATION`, `CLASS_REQ_SET_PROTOCOL`, and
-  `CLASS_REQ_SET_IDLE`
+- deciding which first interrupt-endpoint responsibility should be implemented
+  next
+- keeping the next move as narrow as possible
+- using the existing Phoenix USB host and `usbkbd` flow to justify the chosen
+  seam
 
 Out of scope:
 
 - generic endpoint-0 transfer support
-- control transfers with a data stage
+- implementing the next interrupt-endpoint path yet
 - interrupt-IN endpoint work
 - staging `/sbin/usb` or `/sbin/usbkbd` on the Pi 4 image
 
@@ -43,6 +41,8 @@ Out of scope:
 - `sources/phoenix-rtos-usb/usb/dev.c`
 - `sources/phoenix-rtos-usb/libusb/driver.c`
 - `sources/phoenix-rtos-devices/tty/usbkbd/usbkbd.c`
+- `sources/phoenix-rtos-usb/usb/drv.c`
+- `sources/phoenix-rtos-usb/usb/usbhost.h`
 - `tracking/current-step.md`
 - `tracking/step-history.md`
 - `docs/status.md`
@@ -51,31 +51,27 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- `xhci` can execute a bounded synchronous EP0 control write with setup and
-  status TRBs only
-- the path stays limited to the current direct-root-port child and to the
-  required zero-length OUT requests
-- a fresh full `aarch64a72-generic-rpi4b` build still passes
-- the Pi 4 shell smoke still passes because the live image path remains
-  unchanged
+- the next interrupt-endpoint seam is explicitly chosen and documented
+- the choice is justified against the existing Phoenix USB host and `usbkbd`
+  call paths
+- the chosen next step stays narrow and below live Pi 4 image staging
 
 ## Validation Plan
 
-- fresh Pi 4 A72 build in `phoenix-dev` using the standard copied-buildroot
-  path
-- Pi 4 shell smoke after rebuild, because the live image path remains unchanged
+- code reading and bounded source-path analysis only
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-22-xhci-get-descriptor.md`
+  `manifests/2026-03-22-xhci-control-write.md`
 
 ## Notes
 
 - Risks:
-  avoid widening the step into a generic endpoint-0 engine too early
+  avoid widening the next move into generic interrupt scheduling or full device
+  enumeration too early
 - Dependencies:
-  completed `STEP-0385` bounded post-enumeration control-write scope
+  completed `STEP-0386` bounded control-write/no-data support
 - User-visible control point before next step:
-  after this step, the next bounded move should be whichever endpoint or
-  transfer shape still blocks a real keyboard report path
+  after this scope step, the next bounded move should be the first interrupt
+  endpoint responsibility that still blocks keyboard report delivery

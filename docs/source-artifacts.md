@@ -1063,8 +1063,19 @@ Current Pi 4 xHCI fast-path reference note:
 - the next concrete xHCI blocker is now after descriptor reads:
   real drivers such as `phoenix-rtos-devices/tty/usbkbd/usbkbd.c` call
   `usb_setConfiguration()` and then class-specific control writes
-  (`CLASS_REQ_SET_PROTOCOL`, `CLASS_REQ_SET_IDLE`), so the next bounded xHCI
-  seam should start with `REQ_SET_CONFIGURATION`
+  (`CLASS_REQ_SET_PROTOCOL`, `CLASS_REQ_SET_IDLE`)
+- that bounded post-enumeration control-write seam is now also in the tree:
+  `phoenix-rtos-devices/usb/xhci/xhci.c` now:
+  - emits setup/status TRBs for zero-length OUT requests
+  - handles only:
+    - `REQ_SET_CONFIGURATION`
+    - `CLASS_REQ_SET_PROTOCOL`
+    - `CLASS_REQ_SET_IDLE`
+  - stays limited to the first direct-root-port child under the temporary
+    slot-ID-equals-address contract
+- the next concrete xHCI blocker is now after control transfers:
+  the existing `usbkbd` path still needs the first interrupt-IN endpoint path,
+  including endpoint context/ring setup and delivery of keyboard reports
 
 Current preserved clue:
 

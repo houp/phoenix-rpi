@@ -235,10 +235,18 @@ Start-gate status:
 - that bounded descriptor-read path is also non-regression-validated:
   a fresh full `aarch64a72-generic-rpi4b` build passes and the Pi 4 shell smoke
   still passes after the xHCI change
+- the first bounded post-enumeration xHCI control-write path is now also in
+  the tree:
+  the Pi 4 xHCI path now executes synchronous polled EP0 zero-length OUT
+  control writes for the current direct-root-port child, limited to:
+  - `REQ_SET_CONFIGURATION`
+  - `CLASS_REQ_SET_PROTOCOL`
+  - `CLASS_REQ_SET_IDLE`
 - the project is still not ready for interactive real-device USB testing:
   the live Pi 4 image still does not stage `/sbin/usb` or `/sbin/usbkbd`, and
-  the next concrete blocker is the first post-enumeration control-write path
-  needed by real drivers after the new bounded descriptor-read support.
+  the next concrete blocker is the first interrupt-IN endpoint path needed to
+  open a keyboard endpoint and receive reports after the new bounded control
+  transfers.
 
 ## Most Important Technical Findings
 

@@ -309,9 +309,14 @@ This file indexes the most important websites, repositories, documents, and sour
   and now provides the current shell-side visibility markers.
 
 - `phoenix-rtos-utils/psh/pshapp/pshapp.c`
-  Important because `psh_run()` currently bounds the next blocker:
-  both fast lanes now reach `psh_ttyopen(_PATH_CONSOLE)` but exit before
-  `psh: tty ready`.
+  Important because `psh_run()` carried the bounded retry-policy fix for the
+  Pi 4 `/dev/console` startup race, and both fast lanes now reach
+  `psh: tty ready` again.
+
+- `phoenix-rtos-kernel/syscalls.c`
+  Important because stale false-hypothesis `create_dev` probes were removed
+  here once the Pi 4 shell startup race was solved, restoring clean generic and
+  Pi 4 shell-smoke output.
 
 - `phoenix-rtos-kernel/hal/aarch64/gtimer_backend.c`
   Important because the next bounded timer diagnostic needs to expose which common AArch64 timer source and IRQ are selected from the DTB before the missing wakeup interrupt should arrive.

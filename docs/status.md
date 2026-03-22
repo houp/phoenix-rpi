@@ -166,6 +166,12 @@ Start-gate status:
   the Pi 4 shell lane again reaches `psh: tty ready`, prompt, and `help`, so
   the remaining automated-smoke issue is stale kernel probe noise rather than
   the earlier console-open race.
+- that stale probe noise is now also removed:
+  generic shell smoke passes, Pi 4 shell smoke passes cleanly again, and Pi 4
+  HDMI smoke still passes after deleting the obsolete `create_dev` probes.
+- after that cleanup, the next clean xHCI seam is again explicit:
+  the first pre-run operational step beyond `DCBAAP`, `CRCR`, and `CONFIG`
+  programming.
 
 ## Most Important Technical Findings
 

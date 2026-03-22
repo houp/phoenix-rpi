@@ -197,6 +197,9 @@ Current local `raspi4b` smoke result:
   - with the same DTB-prepared image, the current Pi 4 shell smoke now also
     completes the `help` round-trip and returns to `(psh)%`
   - the Pi 4 HDMI smoke also passes on that DTB-prepared image
+  - after removal of the stale kernel `create_dev` probes, both shell-smoke
+    helpers are clean again and no longer rely on filtering past obsolete
+    debug noise
 
 Inference:
 

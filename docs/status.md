@@ -190,6 +190,13 @@ Start-gate status:
 - the current Pi 4 xHCI discovery contract still reports `irq = 0`, so the next
   clean seam is a single-command polled no-op submission path rather than
   interrupt-enable work.
+- that single-command polled no-op path is now also in the tree:
+  the Pi 4 xHCI code can now submit one internal no-op command through the
+  command ring and event ring in a compile-validated form.
+- the project is still not ready for interactive real-device USB testing:
+  the live Pi 4 image still does not stage `/sbin/usb` or `/sbin/usbkbd`,
+  `usb` still exits if `hcd_init()` cannot produce a usable HCD, and the xHCI
+  roothub request path is still the next missing subsystem.
 
 ## Most Important Technical Findings
 

@@ -323,6 +323,12 @@ This file indexes the most important websites, repositories, documents, and sour
   `.irq = 0`, which makes the next realistic bounded bring-up step a polled
   command path rather than interrupt-enable work.
 
+- `phoenix-rtos-usb/usb/usb.c`
+  Important because `/sbin/usb` still exits if `hcd_init()` returns `NULL`, so
+  staging the USB host service on the live Pi 4 image remains premature until
+  the xHCI path can survive initialization and provide at least the first
+  roothub contract.
+
 - `phoenix-rtos-kernel/hal/aarch64/gtimer_backend.c`
   Important because the next bounded timer diagnostic needs to expose which common AArch64 timer source and IRQ are selected from the DTB before the missing wakeup interrupt should arrive.
 

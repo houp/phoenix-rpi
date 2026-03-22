@@ -1081,9 +1081,20 @@ Current Pi 4 xHCI fast-path reference note:
   - allocates one interrupt-IN transfer ring
   - populates one interrupt endpoint context
   - issues one bounded `Configure Endpoint` command
-- the next concrete xHCI blocker is now after endpoint configuration:
-  the existing `usbkbd` path still needs a real interrupt-IN transfer path and
-  completion delivery for keyboard reports
+- that first bounded interrupt-IN transfer path is now also in the tree:
+  `phoenix-rtos-devices/usb/xhci/xhci.c` now:
+  - emits one normal TRB on the configured interrupt ring
+  - keeps one outstanding interrupt-IN transfer
+  - uses the existing no-IRQ status thread to poll the event ring and complete
+    the pending transfer
+- `phoenix-rtos-usb/usb/usb.c` initializes registered linked drivers as
+  host-side internal drivers, so for Pi 4 image staging the relevant binary is
+  `/sbin/usb`; a separate staged `/sbin/usbkbd` process is not required for the
+  linked-host-driver path
+- the next concrete blocker is now no longer the xHCI keyboard-transfer
+  mechanics themselves:
+  the next step should stage `/sbin/usb` on the Pi 4 image and validate the
+  integrated board path
 
 Current preserved clue:
 

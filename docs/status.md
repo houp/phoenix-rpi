@@ -247,10 +247,15 @@ Start-gate status:
   the Pi 4 xHCI path now derives the keyboard interrupt-IN endpoint identity,
   allocates one transfer ring, populates one endpoint context, and completes
   one bounded `Configure Endpoint` command for the current child device
+- the first bounded no-IRQ xHCI interrupt-transfer path is now also in the
+  tree:
+  the Pi 4 xHCI path now queues one outstanding interrupt-IN transfer on the
+  configured endpoint and completes it from the existing status thread by
+  polling the event ring
 - the project is still not ready for interactive real-device USB testing:
-  the live Pi 4 image still does not stage `/sbin/usb` or `/sbin/usbkbd`, and
-  the next concrete blocker is a real interrupt-IN transfer path with
-  completion delivery on the current no-IRQ xHCI path.
+  the live Pi 4 image still does not stage `/sbin/usb`, and the next concrete
+  blocker is live Pi 4 image integration plus real-device validation of the new
+  USB path.
 
 ## Most Important Technical Findings
 

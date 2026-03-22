@@ -128,8 +128,8 @@ Start-gate status:
   `usb.c` now passes the message-thread port value through `uintptr_t`.
 - the normal `aarch64a72-generic` build now also produces the USB host and
   keyboard artifacts:
-  `/sbin/usb` and `/sbin/usbkbd`, while the live Pi 4 image script still does
-  not stage them.
+  `/sbin/usb` and `/sbin/usbkbd`, and the live Pi 4 image script now stages
+  `/sbin/usb` as the intended linked-driver integration point.
 - after the new xHCI capability-shape step, the remaining controller gap is
   narrower again:
   register-layout facts such as doorbell and runtime offsets should be
@@ -253,9 +253,9 @@ Start-gate status:
   configured endpoint and completes it from the existing status thread by
   polling the event ring
 - the project is still not ready for interactive real-device USB testing:
-  the live Pi 4 image still does not stage `/sbin/usb`, and the next concrete
-  blocker is live Pi 4 image integration plus real-device validation of the new
-  USB path.
+  the live Pi 4 image now stages `/sbin/usb`, the Pi 4 QEMU shell smoke still
+  passes after that integration, and the next concrete blocker is real-device
+  validation of the new HDMI plus USB-keyboard path.
 
 ## Most Important Technical Findings
 

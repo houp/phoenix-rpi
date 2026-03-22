@@ -2,78 +2,70 @@
 
 ## Metadata
 
-- Step ID: `STEP-0392`
-- Title: Implement the smallest Pi 4 live USB-host staging step
+- Step ID: `STEP-0393`
+- Title: Scope the smallest refreshed Pi 4 SD-image export step for the first HDMI plus USB-keyboard trial
 - Status: `in_progress`
 - Date: `2026-03-22`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- implement the smallest live Pi 4 image-integration step after the new bounded
-  xHCI keyboard-transfer support
+- define the smallest artifact-handoff step after the Pi 4 live USB-host image
+  integration is complete
 
 ## Scope
 
 In scope:
 
-- staging `/sbin/usb` on the Pi 4 image path
-- preserving the current `pcie -> usb -> psh` bring-up order
-- validating that the new staged image still keeps the Pi 4 QEMU shell lane
-  alive
+- defining the next smallest handoff artifact for real-device Pi 4 testing
+- keeping the step focused on image export and operator readiness
+- deciding whether any further code-side blocker still exists before exporting
+  the SD-card image
 
 Out of scope:
 
-- generic endpoint-0 transfer support
-- implementing the next interrupt-endpoint path yet
-- staging `/sbin/usb` or `/sbin/usbkbd` on the Pi 4 image
-- SD-image export or manual hardware execution
+- new xHCI feature work
+- new keyboard-path source changes
+- manual hardware execution itself
 
 ## Expected Repositories
 
-- `phoenix-rtos-devices`
 - coordination repo
 
 ## Expected Files Or Subsystems
 
-- `sources/phoenix-rtos-devices/usb/xhci/xhci.c`
-- `sources/phoenix-rtos-usb/usb/dev.c`
-- `sources/phoenix-rtos-usb/libusb/driver.c`
-- `sources/phoenix-rtos-devices/tty/usbkbd/usbkbd.c`
-- `sources/phoenix-rtos-usb/usb/drv.c`
-- `sources/phoenix-rtos-usb/usb/usbhost.h`
-- `sources/phoenix-rtos-usb/usb/usb.c`
-- `sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/user.plo.yaml`
+- `docs/manual-operator-instructions.md`
 - `docs/status.md`
 - `tracking/current-step.md`
 - `tracking/step-history.md`
-- `docs/status.md`
 - `docs/source-artifacts.md`
 - `manifests/`
 
 ## Acceptance Criteria
 
-- the Pi 4 image stages `/sbin/usb` in the intended place
-- a fresh full `aarch64a72-generic-rpi4b` build still passes
-- the Pi 4 shell smoke still passes after the staging change
+- the smallest next artifact step is explicitly identified
+- the docs reflect that `/sbin/usb` is already live on the Pi 4 image path
+- the next implementation step is clearly bounded as either SD-image export or
+  a specific newly discovered blocker
 
 ## Validation Plan
 
-- fresh Pi 4 A72 build in `phoenix-dev` using the standard copied-buildroot
-  path
-- Pi 4 shell smoke after rebuild
+- inspect the current integrated image state and the existing validation
+  evidence
+- confirm whether any remaining blocker is code-side or only hardware-side
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-22-xhci-interrupt-transfer.md`
+  `manifests/2026-03-22-rpi4b-usb-staging.md`
 
 ## Notes
 
 - Risks:
-  avoid widening the step into SD export or manual execution too early
+  avoid widening the step into extra xHCI work if the current board image is
+  already ready for handoff
 - Dependencies:
-  completed `STEP-0391` live USB-host staging scope
+  completed `STEP-0392` live USB-host integration step
 - User-visible control point before next step:
-  after this step, the next bounded move should be either SD-image refresh or a
-  clearly justified additional live-image fix discovered during validation
+  after this step, the next bounded move should be a refreshed SD-image export
+  unless a concrete remaining blocker is identified

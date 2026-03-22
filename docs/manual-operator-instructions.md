@@ -469,9 +469,10 @@ The following physical items are currently required to run tests on an actual Ra
 - the first manual SD-card boot attempt should currently be treated as a media
   deployment and gross boot-behavior check, not as a strong milestone
   validation step
-- at the current project state, a successful keyboard-driven runtime shell on
-  real hardware is still not a documented expectation, because USB host and
-  keyboard input are not yet part of the validated Pi 4 path
+- at the current project state, the first real-device image now includes the
+  intended HDMI text-console plus USB-host path, so a keyboard-driven runtime
+  shell is a reasonable target for the first manual Pi 4 trial even though it
+  is not yet hardware-validated
 - the first positive HDMI sign now worth looking for is broader than before:
   - `plo` may still briefly show its earlier top-left progress panel
   - the stronger target is a black text-console background with white glyphs
@@ -561,8 +562,9 @@ Do not over-interpret the result:
 
 - the current software path is still primarily validated through QEMU plus UART
   on emulated lanes
-- display output is now a meaningful real-hardware sign, but keyboard and
-  network are not yet validated as first-boot success signals on Pi 4
+- display output is now a meaningful real-hardware sign
+- keyboard interaction is now part of the staged Pi 4 image path, but it still
+  needs first real-hardware confirmation
 
 ## 9. Additional Manual Steps For Network Boot
 

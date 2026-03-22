@@ -1091,10 +1091,11 @@ Current Pi 4 xHCI fast-path reference note:
   host-side internal drivers, so for Pi 4 image staging the relevant binary is
   `/sbin/usb`; a separate staged `/sbin/usbkbd` process is not required for the
   linked-host-driver path
-- the next concrete blocker is now no longer the xHCI keyboard-transfer
-  mechanics themselves:
-  the next step should stage `/sbin/usb` on the Pi 4 image and validate the
-  integrated board path
+- `phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/user.plo.yaml` now
+  stages `/sbin/usb` between `pcie` and `psh`, which is the intended live Pi 4
+  integration point for the linked-host-driver keyboard path
+- after that live-image integration, the next concrete blocker is no longer
+  image staging but real-device validation of the HDMI plus USB-keyboard path
 
 Current preserved clue:
 

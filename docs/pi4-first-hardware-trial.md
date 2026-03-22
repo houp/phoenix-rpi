@@ -37,6 +37,8 @@ Do not assume UART visibility is available.
 
 1. Flash the SD image using the existing macOS workflow from
    [manual-operator-instructions.md](/Users/witoldbolt/phoenix-rpi/docs/manual-operator-instructions.md).
+   If you want a prefilled report file first, run:
+   - [scripts/create-rpi4b-first-trial-report.sh](/Users/witoldbolt/phoenix-rpi/scripts/create-rpi4b-first-trial-report.sh)
    Before writing the card, run:
    - [scripts/verify-rpi4b-sdimg.sh](/Users/witoldbolt/phoenix-rpi/scripts/verify-rpi4b-sdimg.sh)
    If helpful, print the exact flash commands with:

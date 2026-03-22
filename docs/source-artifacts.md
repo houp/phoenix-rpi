@@ -1105,6 +1105,7 @@ Current Pi 4 xHCI fast-path reference note:
 - the current macOS-side first-trial helpers are:
   - `/Users/witoldbolt/phoenix-rpi/scripts/verify-rpi4b-sdimg.sh`
   - `/Users/witoldbolt/phoenix-rpi/scripts/print-rpi4b-macos-flash-commands.sh`
+  - `/Users/witoldbolt/phoenix-rpi/scripts/create-rpi4b-first-trial-report.sh`
 
 Current preserved clue:
 

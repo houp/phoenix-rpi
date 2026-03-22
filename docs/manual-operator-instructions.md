@@ -397,13 +397,15 @@ Recommended manual sequence on macOS:
    - [scripts/verify-rpi4b-sdimg.sh](/Users/witoldbolt/phoenix-rpi/scripts/verify-rpi4b-sdimg.sh)
 3. if you want the exact commands printed for a chosen disk identifier:
    - [scripts/print-rpi4b-macos-flash-commands.sh](/Users/witoldbolt/phoenix-rpi/scripts/print-rpi4b-macos-flash-commands.sh) `diskN`
-4. identify the target SD card:
+4. if you want a prefilled first-trial report file before you start:
+   - [scripts/create-rpi4b-first-trial-report.sh](/Users/witoldbolt/phoenix-rpi/scripts/create-rpi4b-first-trial-report.sh)
+5. identify the target SD card:
    - `diskutil list`
-5. unmount the whole target disk:
+6. unmount the whole target disk:
    - `diskutil unmountDisk /dev/diskN`
-6. write the image to the raw device:
+7. write the image to the raw device:
    - `sudo dd if=/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img of=/dev/rdiskN bs=4m`
-7. flush and eject the card:
+8. flush and eject the card:
    - `sync`
    - `diskutil eject /dev/diskN`
 

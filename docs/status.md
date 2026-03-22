@@ -267,6 +267,8 @@ Start-gate status:
 - the operator-side handoff now also includes two non-destructive macOS helpers:
   - `/Users/witoldbolt/phoenix-rpi/scripts/verify-rpi4b-sdimg.sh`
   - `/Users/witoldbolt/phoenix-rpi/scripts/print-rpi4b-macos-flash-commands.sh`
+- the first board-trial handoff now also includes one report helper:
+  - `/Users/witoldbolt/phoenix-rpi/scripts/create-rpi4b-first-trial-report.sh`
 - after rechecking the full handoff set, no further meaningful pre-boot
   operator-side blocker remains; the next stronger lane is the real Raspberry
   Pi 4 board boot with the current image

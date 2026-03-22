@@ -242,11 +242,15 @@ Start-gate status:
   - `REQ_SET_CONFIGURATION`
   - `CLASS_REQ_SET_PROTOCOL`
   - `CLASS_REQ_SET_IDLE`
+- the first bounded non-EP0 xHCI endpoint-ownership slice is now also in the
+  tree:
+  the Pi 4 xHCI path now derives the keyboard interrupt-IN endpoint identity,
+  allocates one transfer ring, populates one endpoint context, and completes
+  one bounded `Configure Endpoint` command for the current child device
 - the project is still not ready for interactive real-device USB testing:
   the live Pi 4 image still does not stage `/sbin/usb` or `/sbin/usbkbd`, and
-  the next concrete blocker is the first interrupt-IN endpoint path needed to
-  open a keyboard endpoint and receive reports after the new bounded control
-  transfers.
+  the next concrete blocker is a real interrupt-IN transfer path with
+  completion delivery on the current no-IRQ xHCI path.
 
 ## Most Important Technical Findings
 

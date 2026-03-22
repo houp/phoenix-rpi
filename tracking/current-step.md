@@ -2,32 +2,32 @@
 
 ## Metadata
 
-- Step ID: `STEP-0388`
-- Title: Implement the bounded xHCI interrupt-IN endpoint ownership/configuration step
+- Step ID: `STEP-0389`
+- Title: Scope the smallest xHCI interrupt-IN transfer step
 - Status: `in_progress`
 - Date: `2026-03-22`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- implement the smallest real interrupt-endpoint seam needed after the new
-  bounded control-transfer support
+- choose the smallest real interrupt-transfer seam needed after the new
+  endpoint-configuration support
 
 ## Scope
 
 In scope:
 
-- adding the minimum state needed for one interrupt-IN endpoint on the current
-  direct-root-port child
-- deriving endpoint identity from the current `usb_pipe_t`
-- allocating one transfer ring and populating one endpoint context
-- issuing one bounded `Configure Endpoint` command
+- deciding which first interrupt-IN transfer and completion responsibility
+  should be implemented next
+- keeping the next move as narrow as possible
+- using the current `usbkbd` async URB flow and the no-IRQ xHCI reality to
+  justify the chosen seam
 
 Out of scope:
 
 - generic endpoint-0 transfer support
 - implementing the next interrupt-endpoint path yet
-- interrupt transfer submission or completion delivery
+- implementing the next interrupt transfer path yet
 - staging `/sbin/usb` or `/sbin/usbkbd` on the Pi 4 image
 
 ## Expected Repositories
@@ -43,6 +43,7 @@ Out of scope:
 - `sources/phoenix-rtos-devices/tty/usbkbd/usbkbd.c`
 - `sources/phoenix-rtos-usb/usb/drv.c`
 - `sources/phoenix-rtos-usb/usb/usbhost.h`
+- `sources/phoenix-rtos-usb/usb/usb.c`
 - `tracking/current-step.md`
 - `tracking/step-history.md`
 - `docs/status.md`
@@ -51,32 +52,27 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- `xhci` can allocate and remember one interrupt-IN endpoint ring for the
-  current child device
-- `xhci` can populate the matching endpoint context and complete one bounded
-  `Configure Endpoint` command
-- a fresh full `aarch64a72-generic-rpi4b` build still passes
-- the Pi 4 shell smoke still passes because the live image path remains
-  unchanged
+- the next interrupt-transfer seam is explicitly chosen and documented
+- the choice is justified against the current async URB and no-IRQ xHCI flow
+- the chosen next step stays narrow and below live Pi 4 image staging
 
 ## Validation Plan
 
-- fresh Pi 4 A72 build in `phoenix-dev` using the standard copied-buildroot
-  path
-- Pi 4 shell smoke after rebuild, because the live image path remains unchanged
+- code reading and bounded source-path analysis only
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-22-xhci-control-write.md`
+  `manifests/2026-03-22-xhci-interrupt-endpoint.md`
 
 ## Notes
 
 - Risks:
-  avoid widening the step into interrupt transfer submission or generic
-  multi-endpoint support too early
+  avoid widening the next move into generic multi-endpoint scheduling or live
+  image staging too early
 - Dependencies:
-  completed `STEP-0387` bounded interrupt-endpoint scope
+  completed `STEP-0388` bounded interrupt-endpoint ownership/configuration
+  support
 - User-visible control point before next step:
-  after this step, the next bounded move should be whichever transfer-submission
-  or completion-delivery seam still blocks keyboard reports
+  after this scope step, the next bounded move should be the first real
+  interrupt transfer or completion seam that still blocks keyboard reports

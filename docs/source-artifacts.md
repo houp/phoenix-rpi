@@ -1068,14 +1068,22 @@ Current Pi 4 xHCI fast-path reference note:
   `phoenix-rtos-devices/usb/xhci/xhci.c` now:
   - emits setup/status TRBs for zero-length OUT requests
   - handles only:
-    - `REQ_SET_CONFIGURATION`
-    - `CLASS_REQ_SET_PROTOCOL`
-    - `CLASS_REQ_SET_IDLE`
+  - `REQ_SET_CONFIGURATION`
+  - `CLASS_REQ_SET_PROTOCOL`
+  - `CLASS_REQ_SET_IDLE`
   - stays limited to the first direct-root-port child under the temporary
     slot-ID-equals-address contract
-- the next concrete xHCI blocker is now after control transfers:
-  the existing `usbkbd` path still needs the first interrupt-IN endpoint path,
-  including endpoint context/ring setup and delivery of keyboard reports
+- that first bounded interrupt-IN endpoint-ownership slice is now also in the
+  tree:
+  `phoenix-rtos-devices/usb/xhci/xhci.c` now:
+  - derives an xHCI endpoint ID from `usb_pipe_t`
+  - converts the Phoenix polling interval to xHCI interval encoding
+  - allocates one interrupt-IN transfer ring
+  - populates one interrupt endpoint context
+  - issues one bounded `Configure Endpoint` command
+- the next concrete xHCI blocker is now after endpoint configuration:
+  the existing `usbkbd` path still needs a real interrupt-IN transfer path and
+  completion delivery for keyboard reports
 
 Current preserved clue:
 

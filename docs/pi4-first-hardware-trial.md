@@ -120,3 +120,23 @@ After the first board trial:
 - do not jump straight into wide code changes
 - classify the result first
 - then choose the smallest next step that matches the observed class
+
+## Next Step By Observed Class
+
+- `firmware-load`
+  Recheck SD-image flashing, firmware file presence, and visible power-on
+  behavior before touching Phoenix runtime code.
+- `early-boot`
+  Focus the next step on the earliest visible transition that failed:
+  firmware, `plo`, or kernel-to-runtime handoff.
+- `runtime-no-input`
+  Keep the next step on the Pi 4 PCIe plus VL805 plus xHCI keyboard path, not
+  on the HDMI text path.
+- `runtime-shell`
+  Treat the bring-up goal as met and move to small follow-up interaction or
+  stability tests.
+- `reboot-loop`
+  Focus first on the repeating visible phase and on capturing more precise boot
+  timing before changing multiple subsystems.
+- `unknown`
+  Improve observation first, then choose the smallest subsystem-specific step.

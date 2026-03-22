@@ -162,6 +162,10 @@ Start-gate status:
   startup issue:
   generic shell smoke still passes, Pi 4 HDMI smoke still passes, but the Pi 4
   shell smoke now stalls before `(psh)%`.
+- the bounded shell-side retry fix is now also in place:
+  the Pi 4 shell lane again reaches `psh: tty ready`, prompt, and `help`, so
+  the remaining automated-smoke issue is stale kernel probe noise rather than
+  the earlier console-open race.
 
 ## Most Important Technical Findings
 

@@ -2,23 +2,23 @@
 
 ## Metadata
 
-- Step ID: `STEP-0356`
-- Title: Implement the smallest bounded `psh_ttyopen()` retry-policy refinement for the Pi 4 shell startup race
+- Step ID: `STEP-0358`
+- Title: Implement the smallest cleanup step for the stale `create_dev` probes
 - Status: `in_progress`
 - Date: `2026-03-22`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- restore the Pi 4 `raspi4b` shell smoke after the post-xHCI validation pass
-  with the smallest shell-side console-open timing fix
+- restore a clean automated Pi 4 shell-smoke signal by removing the stale
+  kernel `create_dev` probes that are no longer diagnostically needed
 
 ## Scope
 
 In scope:
 
-- a small retry-policy refinement in `psh` startup around `psh_ttyopen()`
-- preserving the current console architecture and `/dev/console` usage
+- removing the old `create_dev` probe helpers and their call sites
+- preserving the current runtime behavior
 - validating through:
   - generic shell smoke
   - Pi 4 shell smoke
@@ -29,18 +29,17 @@ Out of scope:
 - SD-image export or checksum refresh
 - manual hardware execution
 - xHCI, PCIe, or USB-host runtime behavior changes
-- `pl011-tty` logic changes
-- kernel namespace redesign
-- removing historical debug probes in unrelated files
+- `pl011-tty`, `psh`, or namespace logic changes
+- broad probe cleanup outside the active `create_dev` spam source
 
 ## Expected Repositories
 
 - coordination repo
-- `phoenix-rtos-utils`
+- `phoenix-rtos-kernel`
 
 ## Expected Files Or Subsystems
 
-- `sources/phoenix-rtos-utils/psh/`
+- `sources/phoenix-rtos-kernel/syscalls.c`
 - `docs/status.md`
 - `docs/source-artifacts.md`
 - `docs/testing-automation.md`
@@ -50,10 +49,11 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- the Pi 4 shell smoke reaches `(psh)%` and completes the `help` round-trip
-  again
+- the generic shell smoke still passes
+- the Pi 4 shell smoke passes cleanly again without stale `create_dev` prompt
+  interleaving
 - generic shell smoke stays green
-- the fix remains small and localized to shell startup policy
+- the cleanup stays limited to obsolete probe removal
 
 ## Validation Plan
 
@@ -66,14 +66,15 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-22-pi4-console-open-race-scope.md`
+  `manifests/2026-03-22-pi4-shell-smoke-cleanup-scope.md`
 
 ## Notes
 
 - Risks:
-  do not widen the fix into namespace, kernel, or console-driver redesign if a
-  bounded retry-policy change is enough
+  do not hide a live functional bug behind a blind log cleanup; remove only the
+  probes already shown to be stale
 - Dependencies:
-  completed `STEP-0355` Pi 4 console-open race scope
+  completed `STEP-0357` Pi 4 shell-smoke cleanup scope
 - User-visible control point before next step:
-  after this step lands, the Pi 4 `raspi4b` shell smoke should be green again
+  after this step lands, the Pi 4 `raspi4b` shell-smoke helper should be clean
+  and deterministic again

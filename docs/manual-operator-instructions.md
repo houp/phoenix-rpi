@@ -289,6 +289,9 @@ Current practical rule:
 
 - ordinary no-hardware validation may omit the DTB
 - before the first realistic Pi 4 firmware-boot test, the operator or agent must provide a real `bcm2711-rpi-4-b.dtb` through one of the two inputs above unless the boot flow is later changed and this document is updated
+- when `phoenix-dev` is restarted, do not assume `/tmp/rpi4b-dtb/bcm2711-rpi-4-b.dtb`
+  still exists; regenerate it with:
+  - [scripts/prepare-rpi4b-dtb.sh](/Users/witoldbolt/phoenix-rpi/scripts/prepare-rpi4b-dtb.sh)
 
 Current QEMU-only helper for the emulated Pi 4 lane:
 
@@ -371,7 +374,7 @@ Current payload rule:
 - by default it exports that disk image into the host workspace at:
   - `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
 - current validated exported full-image SHA-256:
-  - `b2f3a33fe7b4e96d364b6e7579350d7c548359701cbaf0e9ac6b86fbf18860b0`
+  - `d815e4c1b72bf0c170fb7fb6c00165d918d82f3d7b78bad97ec1c345a00e86db`
 - the current exported full-disk artifact includes the latest firmware-stage
   HDMI staging state:
   - `hdmi_force_hotplug=1`
@@ -395,6 +398,8 @@ Recommended manual sequence on macOS:
    - [scripts/export-rpi4b-sdimg.sh](/Users/witoldbolt/phoenix-rpi/scripts/export-rpi4b-sdimg.sh)
 2. verify the exported artifact before flashing:
    - [scripts/verify-rpi4b-sdimg.sh](/Users/witoldbolt/phoenix-rpi/scripts/verify-rpi4b-sdimg.sh)
+   - current expected SHA-256:
+     `d815e4c1b72bf0c170fb7fb6c00165d918d82f3d7b78bad97ec1c345a00e86db`
 3. if you want the exact commands printed for a chosen disk identifier:
    - [scripts/print-rpi4b-macos-flash-commands.sh](/Users/witoldbolt/phoenix-rpi/scripts/print-rpi4b-macos-flash-commands.sh) `diskN`
 4. if you want a prefilled first-trial report file before you start:

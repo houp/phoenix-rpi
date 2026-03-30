@@ -19,7 +19,7 @@ Use this image:
 
 Current SHA-256:
 
-- `475d8d21cdc00d2c2fc79819fe02bdcc946b5ee75329b503198dda7ac16877c3`
+- `d815e4c1b72bf0c170fb7fb6c00165d918d82f3d7b78bad97ec1c345a00e86db`
 
 ## Hardware Setup
 
@@ -90,7 +90,7 @@ Copy this block into the next report or chat message:
 ```text
 Pi 4 first hardware trial
 Image: artifacts/rpi4b/rpi4b-sd.img
-SHA256: 475d8d21cdc00d2c2fc79819fe02bdcc946b5ee75329b503198dda7ac16877c3
+SHA256: d815e4c1b72bf0c170fb7fb6c00165d918d82f3d7b78bad97ec1c345a00e86db
 Board revision:
 Display:
 Keyboard:

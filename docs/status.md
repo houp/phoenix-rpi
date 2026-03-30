@@ -6,6 +6,22 @@
 - Implementation state: Phase 1 common AArch64 cleanup started; first upstream build-glue step completed
 - Documentation baseline prepared: 2026-03-19
 
+Latest sync and retest:
+
+- on `2026-03-30`, the current Phoenix sibling repositories were fetched from
+  GitHub, upstream changes were merged locally where needed, and the validated
+  build plus QEMU lanes were rebuilt and re-run successfully
+- the refreshed current Pi 4 exported SD-card artifact is:
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+- current validated Pi 4 SD-image SHA-256:
+  `d815e4c1b72bf0c170fb7fb6c00165d918d82f3d7b78bad97ec1c345a00e86db`
+- current sync manifest:
+  `manifests/2026-03-30-upstream-sync-and-retest.md`
+- current practical Pi 4 QEMU note:
+  after restarting `phoenix-dev`, regenerate `/tmp/rpi4b-dtb/bcm2711-rpi-4-b.dtb`
+  with `/Users/witoldbolt/phoenix-rpi/scripts/prepare-rpi4b-dtb.sh`
+  before re-running the Pi 4 DTB-prepared QEMU lane
+
 ## Implementation Readiness
 
 Documentation readiness:
@@ -259,7 +275,7 @@ Start-gate status:
 - the first refreshed real-device Pi 4 SD-card artifact is now exported at:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
   with SHA-256:
-  `475d8d21cdc00d2c2fc79819fe02bdcc946b5ee75329b503198dda7ac16877c3`
+  `d815e4c1b72bf0c170fb7fb6c00165d918d82f3d7b78bad97ec1c345a00e86db`
 - the first real-device execution handoff is now also structured in:
   `/Users/witoldbolt/phoenix-rpi/docs/pi4-first-hardware-trial.md`
   so the first board result can be reported in a form that directly maps to the
@@ -272,6 +288,12 @@ Start-gate status:
 - that report helper now derives the SHA-256 from the actual exported image by
   default, which removes one more stale-metadata risk after future image
   refreshes
+- the upstream sync retest also exposed one environment-specific Pi 4 rebuild
+  requirement:
+  after a `phoenix-dev` restart, `/tmp/rpi4b-dtb/bcm2711-rpi-4-b.dtb` is gone
+  and must be regenerated from `external/raspberrypi-linux` before Pi 4 rebuilds
+  with:
+  `/Users/witoldbolt/phoenix-rpi/scripts/prepare-rpi4b-dtb.sh`
 - after rechecking the full handoff set, no further meaningful pre-boot
   operator-side blocker remains; the next stronger lane is the real Raspberry
   Pi 4 board boot with the current image

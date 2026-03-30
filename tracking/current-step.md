@@ -2,67 +2,65 @@
 
 ## Metadata
 
-- Step ID: `STEP-0407`
-- Title: Re-hold the project at the Pi 4 hardware boundary
-- Status: `in_progress`
-- Date: `2026-03-22`
+- Step ID: `STEP-0409`
+- Title: Return to the Pi 4 hardware boundary after the upstream sync
+- Status: `pending`
+- Date: `2026-03-30`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- keep the project explicitly stopped at the real Pi 4 board boundary after the
-  final useful report-helper robustness fix
+- hold the project at the correct post-sync boundary:
+  the refreshed Pi 4 SD image is ready and the next stronger lane is the first
+  real hardware run
 
 ## Scope
 
 In scope:
 
-- preserving the final handoff set
-- making the hardware dependency explicit again
-- preventing renewed speculative pre-hardware drift
+- verifying that the upstream sync closeout is fully recorded
+- keeping the refreshed Pi 4 artifact and runbook as the current handoff state
+- waiting for the first real board result before widening into new runtime work
 
 Out of scope:
 
-- manual hardware execution itself
-- new code-side USB or xHCI feature work until board evidence exists
-- automatic flashing or other destructive helpers
+- speculative pre-hardware runtime changes
+- new USB or xHCI feature work without board evidence
+- unrelated refactors
 
 ## Expected Repositories
 
-- coordination repo
+- no code changes expected unless a documentation correction is needed
 
 ## Expected Files Or Subsystems
 
-- `docs/manual-operator-instructions.md`
-- `docs/pi4-first-hardware-trial.md`
-- `docs/status.md`
 - `tracking/current-step.md`
-- `tracking/step-history.md`
-- `docs/source-artifacts.md`
-- `manifests/`
+- `docs/pi4-first-hardware-trial.md`
+- `docs/manual-operator-instructions.md`
+- `docs/status.md`
 
 ## Acceptance Criteria
 
-- the final handoff set is preserved
-- the current dependency is explicitly the first board run
-- no further pre-hardware work is implied
+- the project state clearly reflects that the upstream sync and retest are done
+- the refreshed Pi 4 image and checksum remain the current handoff artifact
+- the next stronger validation lane is explicitly the first real Pi 4 boot
 
 ## Validation Plan
 
-- review the current helper set and confirm nothing stronger remains than the
-  actual board boot
+- re-read the sync closeout manifest and current hardware runbook
+- confirm the tracked repos remain clean
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-22-rpi4b-report-helper-refresh.md`
+  `manifests/2026-03-30-upstream-sync-and-retest.md`
 
 ## Notes
 
 - Risks:
-  avoid widening this into more pre-hardware busywork
+  avoid inventing new pre-hardware work without real board evidence
 - Dependencies:
-  completed `STEP-0406` report-helper refresh implementation
+  `STEP-0408` completed and recorded
 - User-visible control point before next step:
-  after this step, the next bounded move should be the user's first board boot
-  result or filled report file
+  the next bounded move should be the first real Pi 4 board run using the
+  refreshed image

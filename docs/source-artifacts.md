@@ -1099,13 +1099,17 @@ Current Pi 4 xHCI fast-path reference note:
 - the current exported real-device handoff image is:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
   SHA-256:
-  `475d8d21cdc00d2c2fc79819fe02bdcc946b5ee75329b503198dda7ac16877c3`
+  `d815e4c1b72bf0c170fb7fb6c00165d918d82f3d7b78bad97ec1c345a00e86db`
 - the dedicated operator-facing first board-trial checklist is:
   `/Users/witoldbolt/phoenix-rpi/docs/pi4-first-hardware-trial.md`
 - the current macOS-side first-trial helpers are:
   - `/Users/witoldbolt/phoenix-rpi/scripts/verify-rpi4b-sdimg.sh`
   - `/Users/witoldbolt/phoenix-rpi/scripts/print-rpi4b-macos-flash-commands.sh`
   - `/Users/witoldbolt/phoenix-rpi/scripts/create-rpi4b-first-trial-report.sh`
+- the current Pi 4 DTB regeneration helper for `phoenix-dev` is:
+  - `/Users/witoldbolt/phoenix-rpi/scripts/prepare-rpi4b-dtb.sh`
+- the current exported Pi 4 SD-image SHA-256 is:
+  `d815e4c1b72bf0c170fb7fb6c00165d918d82f3d7b78bad97ec1c345a00e86db`
 
 Current preserved clue:
 

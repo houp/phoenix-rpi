@@ -46,6 +46,10 @@ This directory is the long-lived knowledge base for the Phoenix RTOS Raspberry P
 - `source-artifacts.md`
   Important links and exact upstream source paths.
 
+- `publish-map.md`
+  Canonical map of the coordination repo, Phoenix fork remotes, and the
+  published long-running branch names used for future pushes and PRs.
+
 - `raspberry-pi-device-tree-reference.md`
   Raspberry Pi-specific DTS, firmware-DTB, alias, overlay, and UART notes that
   directly affect Pi 4 bring-up and DTB debugging.

@@ -101,6 +101,9 @@ Earliest real-board diagnostic note:
 - the Pi 4 activity LED is on GPIO 42
 - that makes GPIO42 one of the best no-UART earliest-entry proof points if the
   board still stays black before the current HDMI path becomes visible
+- the current exported Pi 4 hardware image now uses exactly that proof:
+  the custom Pi 4 armstub drives GPIO42 high on the primary core before the
+  existing timer and GIC setup
 
 Current early-HDMI note:
 

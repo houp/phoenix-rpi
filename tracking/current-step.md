@@ -2,81 +2,69 @@
 
 ## Metadata
 
-- Step ID: `STEP-0425`
-- Title: Choose the next Pi 4 earliest-entry diagnostic experiment from the expanded survey
+- Step ID: `STEP-0427`
+- Title: Await the next Pi 4 board retry on the GPIO42-proof image
 - Status: `in_progress`
 - Date: `2026-04-08`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- choose the next smallest real-hardware Pi 4 boot experiment using the
-  expanded low-level survey, now including the EDK2 Pi 4 platform findings,
-  with the focus on the remaining earliest-entry mismatch
+- hold the project at the next real-hardware boundary after exporting the Pi 4
+  image that drives GPIO42 from the custom armstub
 
 ## Scope
 
 In scope:
 
-- choosing the next bounded code experiment from the documented Pi 4 low-level
-  facts
-- prioritizing:
-  - GPIO42 activity-LED earliest-entry proof
-  - fuller Pi 4 armstub register preparation
-  - a bounded controller-selection proof if the GIC-versus-legacy path still
-    looks ambiguous
-  - an even earlier visible sign-of-life path before the current HDMI lane
-- keeping the choice narrow enough for one rebuild and one board retry
+- the first Pi 4 board retry on the refreshed SD image
+- classifying the result from:
+  - ACT LED behavior
+  - HDMI behavior
+  - keyboard-visible behavior
+- preserving the current narrow hardware-feedback loop
 
 Out of scope:
 
-- broader documentation harvesting
-- unrelated cleanup or later-stage subsystem work
+- new source changes before the next board observation arrives
+- wider redesigns not driven by the next hardware result
 
 ## Expected Repositories
 
 - coordination repo
-- `phoenix-rtos-project`
-- possibly `plo`
 
 ## Expected Files Or Subsystems
 
-- `docs/raspberry-pi-4-low-level-reference-survey.md`
-- `docs/status.md`
 - `tracking/current-step.md`
-- `tracking/step-history.md`
-- `docs/source-artifacts.md`
-- `docs/platforms/raspberry-pi-4.md`
-- `sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/`
-- `sources/plo/`
-- `manifests/`
+- `docs/status.md`
+- `docs/manual-operator-instructions.md`
+- `docs/pi4-first-hardware-trial.md`
 
 ## Acceptance Criteria
 
-- the next Pi 4 rebuild experiment is selected from the expanded low-level
-  evidence
-- the selected experiment is smaller and better justified than the previous ad
-  hoc boot guesses
-- the chosen path is recorded in docs and tracking before code changes begin
+- the refreshed SD image is available to the operator
+- the operator has a clear expectation for the GPIO42 ACT LED proof
+- the next hardware outcome can be classified into a bounded next step
 
 ## Validation Plan
 
-- use `docs/raspberry-pi-4-low-level-reference-survey.md` plus the existing
-  Pi 4 hardware evidence to justify the next specific experiment
-- record the selection in:
-  - `docs/status.md`
-  - `tracking/current-step.md`
-  - a new manifest
+- board result expected from the operator should cover:
+  - whether the ACT LED turns on and stays on after the initial firmware blink
+  - whether the screen stays black or shows a later Phoenix transition
+  - whether any keyboard-visible behavior appears
+- record the next board result in chat and, if needed, in the first-trial
+  report template
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-04-08-pi4-low-level-reference-survey-edk2.md`
+  `manifests/2026-04-08-pi4-gpio42-armstub-proof.md`
 
 ## Notes
 
-- Trigger:
-  the expanded survey now makes the most plausible next Pi 4 earliest-entry
-  paths more explicit: GPIO42 activity-LED proof, fuller armstub register
-  setup, or a bounded controller-selection proof if the firmware is still not
-  leaving the board in the expected GIC mode.
+- The active board artifact is now the GPIO42-proof image, not the earlier
+  armstub-only EL3/GIC-prep image.
+- The next useful branch in diagnosis is:
+  - ACT LED on: custom armstub executed; failure is later
+  - ACT LED still off: failure is before or inside the current earliest custom
+    armstub path

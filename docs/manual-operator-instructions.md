@@ -374,7 +374,7 @@ Current payload rule:
 - by default it exports that disk image into the host workspace at:
   - `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
 - current validated exported full-image SHA-256:
-  - `16c4f7f5e313266bdb197a9ddc4d3dc81a080fffb6bea631ab7016dbbb741590`
+  - `96743999a6e4312971de8787b36ef1bdb9affbd769a1b218b0943df3e77f73c7`
 - the current exported full-disk artifact includes the latest firmware-stage
   early handoff state:
   - Pi 4 A72 `plo` restored to the last coherent high-DDR placement used by
@@ -389,6 +389,10 @@ Current payload rule:
     - local timer control and prescaler setup
     - `CNTFRQ_EL0 = 54000000`
     - early GIC group-1 distributor / CPU-interface enablement
+  - that custom Pi 4 armstub now also performs the current earliest-entry
+    board-visible proof:
+    - drives GPIO42 high on the primary core
+    - should make the ACT LED stay on if the custom armstub executes
   - Pi 4 `plo` now also uses the ARM-visible GICv2 aliases:
     - `0xff841000`
     - `0xff842000`
@@ -417,7 +421,7 @@ Recommended manual sequence on macOS:
 2. verify the exported artifact before flashing:
    - [scripts/verify-rpi4b-sdimg.sh](/Users/witoldbolt/phoenix-rpi/scripts/verify-rpi4b-sdimg.sh)
    - current expected SHA-256:
-     `16c4f7f5e313266bdb197a9ddc4d3dc81a080fffb6bea631ab7016dbbb741590`
+     `96743999a6e4312971de8787b36ef1bdb9affbd769a1b218b0943df3e77f73c7`
 3. if you want the exact commands printed for a chosen disk identifier:
    - [scripts/print-rpi4b-macos-flash-commands.sh](/Users/witoldbolt/phoenix-rpi/scripts/print-rpi4b-macos-flash-commands.sh) `diskN`
 4. if you want a prefilled first-trial report file before you start:
@@ -573,7 +577,7 @@ For the current lab shape, the first practical manual trial is:
    - current exported artifact:
      [artifacts/rpi4b/rpi4b-sd.img](/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img)
    - current SHA-256:
-     `16c4f7f5e313266bdb197a9ddc4d3dc81a080fffb6bea631ab7016dbbb741590`
+     `96743999a6e4312971de8787b36ef1bdb9affbd769a1b218b0943df3e77f73c7`
    - focused trial checklist:
      [pi4-first-hardware-trial.md](/Users/witoldbolt/phoenix-rpi/docs/pi4-first-hardware-trial.md)
 2. flash the image to microSD using the workflow above
@@ -590,6 +594,7 @@ For the current lab shape, the first practical manual trial is:
 
 Current specific HDMI sign to record if present:
 
+- whether the ACT LED turns on and stays on after the initial firmware blink
 - early top-left progress panel if it appears
 - later black background with white text glyphs
 - any readable Phoenix boot lines or `(psh)%` prompt

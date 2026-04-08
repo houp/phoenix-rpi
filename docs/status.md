@@ -8,6 +8,28 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-08`, the next earliest-entry Pi 4 real-hardware proof was added
+  to the custom firmware armstub:
+  the primary core now drives GPIO42 high before the existing local-timer and
+  GIC setup, which should make the ACT LED stay visibly on if the custom
+  armstub executes on the real board
+- the active purpose of this image is now sharper than before:
+  a black screen plus ACT LED on implies the custom armstub ran and the next
+  failure is later, while a black screen plus ACT LED staying off points back
+  to the firmware-to-armstub boundary itself
+- the Pi 4 QEMU HDMI smoke still passes on the DTB-prepared validation lane
+  after that armstub change
+- the Pi 4 shell-smoke prompt gate is currently flaky again, but the serial log
+  still proves the same meaningful boot continuity after the new armstub code:
+  `plo -> kernel -> dummyfs -> pl011-tty -> psh`, with the smoke run even
+  reaching injected `help` input before hanging
+- the refreshed exported Pi 4 SD-card artifact is still:
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+- current validated Pi 4 SD-image SHA-256:
+  `96743999a6e4312971de8787b36ef1bdb9affbd769a1b218b0943df3e77f73c7`
+- current rebuild manifest:
+  `manifests/2026-04-08-pi4-gpio42-armstub-proof.md`
+
 - on `2026-04-08`, the first real Pi 4 board evidence was folded back into the
   image again:
   the earlier artifact reached firmware and either stayed on the rainbow splash
@@ -56,7 +78,7 @@ Latest rebuild and retest:
   armstub into the exported host-visible image
 - the rebuilt current Pi 4 exported SD-card artifact is:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
-- current validated Pi 4 SD-image SHA-256:
+- previous validated Pi 4 SD-image SHA-256:
   `16c4f7f5e313266bdb197a9ddc4d3dc81a080fffb6bea631ab7016dbbb741590`
 - current rebuild manifest:
   `manifests/2026-04-08-pi4-armstub-el3-gic-prep.md`

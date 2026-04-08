@@ -3,7 +3,7 @@
 set -euo pipefail
 
 image_path="${RPI4B_SDIMG_PATH:-/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img}"
-expected_sha256="${RPI4B_SDIMG_SHA256:-16c4f7f5e313266bdb197a9ddc4d3dc81a080fffb6bea631ab7016dbbb741590}"
+expected_sha256="${RPI4B_SDIMG_SHA256:-96743999a6e4312971de8787b36ef1bdb9affbd769a1b218b0943df3e77f73c7}"
 expected_size="${RPI4B_SDIMG_SIZE:-69206016}"
 
 if [ ! -f "$image_path" ]; then

@@ -19,7 +19,7 @@ Use this image:
 
 Current SHA-256:
 
-- `16c4f7f5e313266bdb197a9ddc4d3dc81a080fffb6bea631ab7016dbbb741590`
+- `96743999a6e4312971de8787b36ef1bdb9affbd769a1b218b0943df3e77f73c7`
 
 This image supersedes the earlier Pi 4 trial images that used the temporary
 firmware-default low-placement experiment:
@@ -36,6 +36,11 @@ This image now intentionally uses:
   - local timer control / prescaler
   - `CNTFRQ_EL0 = 54000000`
   - GIC group-1 setup through the ARM-visible aliases
+- earliest-entry GPIO42 proof:
+  - the custom armstub now drives GPIO42 high on the primary core before the
+    existing timer and GIC setup
+  - on Raspberry Pi 4 this should make the ACT LED stay visibly on if the
+    custom armstub executes
 - Pi 4 `plo` GIC base aliases:
   - `0xff841000`
   - `0xff842000`
@@ -80,6 +85,7 @@ Do not assume UART visibility is available.
 
 Any of these are useful:
 
+- ACT LED turns on and stays on after the initial firmware blink
 - visible top-left early panel from `plo`
 - black background with white text
 - readable Phoenix boot output
@@ -111,7 +117,7 @@ Copy this block into the next report or chat message:
 ```text
 Pi 4 first hardware trial
 Image: artifacts/rpi4b/rpi4b-sd.img
-SHA256: 16c4f7f5e313266bdb197a9ddc4d3dc81a080fffb6bea631ab7016dbbb741590
+SHA256: 96743999a6e4312971de8787b36ef1bdb9affbd769a1b218b0943df3e77f73c7
 Board revision:
 Display:
 Keyboard:
@@ -125,6 +131,9 @@ HDMI result:
 - early panel seen: yes/no
 - black text console seen: yes/no
 - prompt seen: yes/no
+
+ACT LED result:
+- stayed off / brief firmware blink only / turns on and stays on / other
 
 Keyboard result:
 - no visible effect / partial / full

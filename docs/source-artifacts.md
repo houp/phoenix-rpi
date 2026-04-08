@@ -606,6 +606,9 @@ This file indexes the most important websites, repositories, documents, and sour
   - the activity LED is on GPIO 42
   - if the firmware leaves the legacy interrupt controller active while software
     assumes the GIC, the board can hang on the four-color screen
+  Current use:
+  - the active Pi 4 hardware image now uses GPIO42 directly from the custom
+    armstub as the earliest no-UART sign-of-life proof
 
 - `external/circle/include/circle/bcm2836.h`
   Important because it defines the Pi 4 local interrupt controller base
@@ -1313,7 +1316,7 @@ Current Pi 4 xHCI fast-path reference note:
 - the current exported real-device handoff image is:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
   SHA-256:
-  `16c4f7f5e313266bdb197a9ddc4d3dc81a080fffb6bea631ab7016dbbb741590`
+  `96743999a6e4312971de8787b36ef1bdb9affbd769a1b218b0943df3e77f73c7`
 - the dedicated operator-facing first board-trial checklist is:
   `/Users/witoldbolt/phoenix-rpi/docs/pi4-first-hardware-trial.md`
 - the current macOS-side first-trial helpers are:
@@ -1323,7 +1326,11 @@ Current Pi 4 xHCI fast-path reference note:
 - the current Pi 4 DTB regeneration helper for `phoenix-dev` is:
   - `/Users/witoldbolt/phoenix-rpi/scripts/prepare-rpi4b-dtb.sh`
 - the current exported Pi 4 SD-image SHA-256 is:
-  `16c4f7f5e313266bdb197a9ddc4d3dc81a080fffb6bea631ab7016dbbb741590`
+  `96743999a6e4312971de8787b36ef1bdb9affbd769a1b218b0943df3e77f73c7`
+- the current earliest-entry board-visible proof in that image is:
+  - the custom Pi 4 armstub drives GPIO42 high on the primary core
+  - if the ACT LED stays off on the real board, the failure is still before or
+    inside the current earliest custom armstub path
 - the first real Pi 4 board evidence for the earlier image was:
   - firmware could read the SD card and reach the rainbow screen
   - the board then stayed on the rainbow forever with no Phoenix-visible output

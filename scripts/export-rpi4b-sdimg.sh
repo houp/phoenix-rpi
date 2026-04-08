@@ -11,7 +11,7 @@ tmp_file="${out_file}.tmp"
 mkdir -p "$out_dir"
 
 limactl shell -y "$vm" -- test -f "$remote_image"
-limactl copy --backend=rsync "${vm}:${remote_image}" "$tmp_file"
+limactl shell -y "$vm" -- base64 -w0 "$remote_image" | base64 -d > "$tmp_file"
 mv "$tmp_file" "$out_file"
 
 printf 'Exported: %s\n' "$out_file"

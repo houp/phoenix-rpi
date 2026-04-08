@@ -1326,11 +1326,12 @@ Current Pi 4 xHCI fast-path reference note:
 - the current Pi 4 DTB regeneration helper for `phoenix-dev` is:
   - `/Users/witoldbolt/phoenix-rpi/scripts/prepare-rpi4b-dtb.sh`
 - the current exported Pi 4 SD-image SHA-256 is:
-  `f6abd64a6dcd9e254a224c73d2402c4d33e09f52eec6da36418d903e31ffddac`
+  `d4e02f329c35f8187969f3c02e8f0d78189fac07b8884ddb774898598a1ddc36`
 - the current SD-image export lesson is now explicit:
   - the VM-local Pi 4 SD image may be valid even when the host-visible copy is
     corrupt
-  - the current export helper therefore uses `limactl copy --backend=rsync`
+  - the current export helper therefore uses a text-safe
+    `limactl shell ... base64 | base64 -d` path
   - the current verification helper therefore validates the embedded FAT boot
     partition itself, not only file size and SHA-256
 - the current earliest-entry board-visible proof in that image is:
@@ -1340,10 +1341,10 @@ Current Pi 4 xHCI fast-path reference note:
 - the current next board-visible split in that image is:
   - the primary-core custom armstub path drives GPIO42 low just before
     branching to `kernel8.img`
-  - if the ACT LED ends the attempt off, the board reached the final armstub
-    handoff point and the remaining failure is later
-  - if the ACT LED stays on, the failure is still earlier than that handoff
-    point
+  - the current image now also bypasses the firmware-patched `kernel_entry32`
+    slot and jumps directly to `0x40080000`
+  - this is now the smallest active test of whether the previous LED-reset
+    sequence was caused by the raw `kernel8.img` versus firmware-entry mismatch
 - the most recent real Pi 4 board result on the temporary late-`plo` proof
   image was:
   - both red and green LEDs on
@@ -1363,6 +1364,19 @@ Current Pi 4 xHCI fast-path reference note:
   - that proved the current Phoenix `plo` memory map still depends on the older
     high-DDR load model
 - the active bounded response is now:
+  - the most recent real Pi 4 board result on the previous pre-kernel-branch
+    armstub image was:
+    - ACT LED on
+    - brief off pulse
+    - then on forever
+    - blank screen
+    - no keyboard-visible reaction
+  - that strongly suggests reset immediately after the current armstub branch
+    to `kernel8.img`
+  - the current active bounded response is therefore:
+    - keep the current GPIO42 split
+    - but jump directly to `0x40080000` from the armstub instead of relying on
+      firmware-patched `kernel_entry32`
   - `plo/ld/aarch64a72-generic.ldt` is restored to the coherent high-placement
     model
   - `phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/config.txt`

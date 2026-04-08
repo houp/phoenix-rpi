@@ -19,7 +19,7 @@ Use this image:
 
 Current SHA-256:
 
-- `f6abd64a6dcd9e254a224c73d2402c4d33e09f52eec6da36418d903e31ffddac`
+- `d4e02f329c35f8187969f3c02e8f0d78189fac07b8884ddb774898598a1ddc36`
 
 This image supersedes the earlier Pi 4 trial images that used the temporary
 firmware-default low-placement experiment:
@@ -44,10 +44,10 @@ This image now intentionally uses:
 - current next armstub-handoff GPIO42 proof:
   - the primary-core armstub path now drives GPIO42 low just before branching
     to `kernel8.img`
-  - if the ACT LED ends the boot attempt off, the board reached the final
-    armstub handoff point and the remaining failure is later than that branch
-  - if the ACT LED stays on, the failure is still earlier than the final
-    armstub handoff point
+  - the current image now pairs that split with a direct jump to
+    `0x40080000`, instead of using the firmware-patched `kernel_entry32` slot
+  - if the board now moves past the earlier reset behavior, the raw
+    `kernel8.img` versus firmware-entry mismatch was the blocker
 - Pi 4 `plo` GIC base aliases:
   - `0xff841000`
   - `0xff842000`
@@ -125,7 +125,7 @@ Copy this block into the next report or chat message:
 ```text
 Pi 4 first hardware trial
 Image: artifacts/rpi4b/rpi4b-sd.img
-SHA256: f6abd64a6dcd9e254a224c73d2402c4d33e09f52eec6da36418d903e31ffddac
+SHA256: d4e02f329c35f8187969f3c02e8f0d78189fac07b8884ddb774898598a1ddc36
 Board revision:
 Display:
 Keyboard:

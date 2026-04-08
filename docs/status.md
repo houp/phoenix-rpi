@@ -8,6 +8,47 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-09`, the latest real Pi 4 board result on the
+  pre-kernel-branch armstub LED image produced:
+  - red LED on
+  - green LED on, then briefly off, then on forever
+  - blank screen
+  - no keyboard-visible reaction
+- that is a stronger clue than the earlier static-ON result:
+  - the custom armstub entry proof still holds
+  - the brief low pulse proves the armstub reaches its final pre-branch split
+  - the LED returning high strongly suggests the board resets and re-enters the
+    armstub immediately after the current handoff to `kernel8.img`
+- the highest-probability cause is now explicit:
+  the current `kernel8.img` is a raw `plo` binary beginning directly with
+  AArch64 instructions, not a Linux `Image`-format payload, while Raspberry Pi
+  firmware populates armstub `kernel_entry32` by parsing the 64-bit kernel
+  header
+
+- on `2026-04-09`, the active Pi 4 image was rebuilt around the smallest
+  bounded response to that clue:
+  - the custom armstub still performs the current timer and GIC setup
+  - the custom armstub still drives GPIO42 high early and low at the final
+    branch-site split
+  - but it now jumps directly to `0x40080000` instead of trusting the
+    firmware-patched `kernel_entry32` slot
+- the Pi 4 A72 rebuild passed
+- the direct Pi 4 QEMU serial-log sanity lane still reaches:
+  - `go!`
+  - `hal: jump exit el1`
+  - kernel markers `A3` and `KLM`
+- the host-side SD-image export path was tightened again during this step:
+  - both the earlier `rsync` export and a raw streamed `dd` export produced
+    zeroed FAT boot sectors in the host-visible copy
+  - the current export helper now uses:
+    `limactl shell ... base64 | base64 -d`
+- the refreshed exported Pi 4 SD image is:
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+- current validated Pi 4 SD-image SHA-256:
+  `d4e02f329c35f8187969f3c02e8f0d78189fac07b8884ddb774898598a1ddc36`
+- current manifest:
+  `manifests/2026-04-09-pi4-fixed-armstub-entry.md`
+
 - on `2026-04-08`, the real Pi 4 board retry on the temporary late-`plo`
   `_init.S` GPIO42 split image produced:
   - both red and green LEDs on

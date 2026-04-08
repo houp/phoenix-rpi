@@ -38,6 +38,7 @@ Practical ranking for the sources reviewed in this step:
   - Circle
   - NuttX BCM2711 porting case study
 - Good but narrower:
+  - EDK2 Raspberry Pi 4 platform
   - `rust-raspberrypi-OS-tutorials`
   - `markCwatson/rpi-os`
   - `sypstraw/rpi4-osdev`
@@ -136,6 +137,15 @@ supported by multiple high-value references.
 | GIC CPU interface | `0x40042000` | `0xff842000` | Linux DTS, Circle, `rpi4-bare-metal`, Rust tutorials | This is the corrected Phoenix Pi 4 value |
 | PCIe host bridge | `0x7d500000` | `0xfd500000` | Linux DTS plus `ranges`, current Phoenix board config | Key for VL805/xHCI path |
 
+EDK2's Pi 4 DSC independently matches several of these constants:
+
+- `PcdGicDistributorBase = 0xFF841000`
+- `PcdGicInterruptInterfaceBase = 0xFF842000`
+- `PcdBcm27xxPciRegBase = 0xfd500000`
+- `PcdBcm27xxPciBusMmioAdr = 0xf8000000`
+- `PcdBcmGenetRegistersAddress = 0xfd580000`
+- `PcdBcm283xRegistersAddress = 0xfe000000`
+
 The consensus is strong on these addresses. The earlier Phoenix use of
 `0x40041000` / `0x40042000` in real-hardware code was therefore a genuine
 board-config bug, not an alternative valid interpretation.
@@ -160,6 +170,22 @@ Implication for Phoenix:
 
 - staged Pi 4 images should continue to treat the firmware boot tree as the
   authoritative source of firmware binaries and board DTBs
+
+EDK2's Pi 4 README is also useful as a firmware-facing boot reference because
+it stages:
+
+- `enable_gic=1`
+- `armstub=RPI_EFI.fd`
+- `disable_commandline_tags=2`
+- `device_tree_address=0x3e0000`
+- `device_tree_end=0x400000`
+
+Implication for Phoenix:
+
+- it is another concrete example that a custom firmware-stage payload on Pi 4
+  often pairs an explicit armstub with an explicit DTB staging window
+- the low-memory region around `0x3e0000..0x400000` should be treated with care
+  in any future radical low-memory diagnostic image or armstub experiment
 
 ### 5.2 Historical Pi 4 Linux boot helpers are useful, but not final truth
 
@@ -471,6 +497,11 @@ Important implications:
   stable early-debug choice
 - Rust tutorial Pi 4 bring-up uses `init_uart_clock=48000000` in `config.txt`
   and a Pi 4-specific GPIO/UART driver split
+- EDK2's Pi 4 DSC also uses:
+  - PL011 clock input `48000000`
+  - mini-UART clock `500000000`
+  and its README warns that mini-UART serial from the OS may be unreliable
+  under CPU throttling
 
 Implication for Phoenix:
 
@@ -556,6 +587,14 @@ U-Boot `bcm2711.dtsi` independently confirms the same Pi 4 PCIe node placement
 and shows the same outbound-window style rooted at `0xf8000000`, which adds a
 second primary-source-style check for the current Phoenix PCIe constants.
 
+EDK2's Pi 4 DSC adds one more useful constant here:
+
+- `PcdBcm27xxPciCpuMmioAdr = 0x600000000`
+
+That is a UEFI-specific mapping choice rather than a bare-metal hardware
+constant, but it confirms that EDK2 also treats the outbound window as a
+translated CPU-visible PCIe aperture rather than direct device space.
+
 ### 10.2 VL805 and USB
 
 Circle remains the strongest non-Linux reference for the actual Pi 4 USB host
@@ -569,6 +608,12 @@ Implication for Phoenix:
 
 - the existing Phoenix USB keyboard path is correctly layered:
   generic `usbkbd` logic first, BCM2711 PCIe plus xHCI transport next
+- EDK2 adds one practical caution for future Phoenix xHCI work:
+  its Pi 4 README states that xHCI may only work reliably in pre-OS mode unless
+  RAM is limited to 3 GB, because of nonstandard DMA constraints
+- that should be treated as a warning that future real-hardware Phoenix xHCI
+  failures on larger-memory boards may involve DMA aperture assumptions rather
+  than only driver logic
 
 ### 10.3 Supplementary later-stage sources
 
@@ -607,6 +652,9 @@ or validated.
    working Pi 4 armstubs from Circle and `rpi4-bare-metal`.
 3. The earliest visible diagnostic point is still too late in the path, so the
    board dies before Phoenix can repaint HDMI or expose a clearer signal.
+4. A future low-memory diagnostic path could accidentally collide with the
+   firmware / DTB staging region if it ignores the same kind of reserved window
+   that EDK2 keeps at `0x3e0000..0x400000`.
 
 ### 11.3 Best next experiments
 
@@ -641,6 +689,8 @@ High-value implementation references:
 
 - U-Boot `bcm2711.dtsi`:
   <https://github.com/u-boot/u-boot/blob/master/arch/arm/dts/bcm2711.dtsi>
+- EDK2 Raspberry Pi 4 platform:
+  <https://github.com/tianocore/edk2-platforms/tree/master/Platform/RaspberryPi/RPi4>
 - Circle:
   <https://github.com/rsta2/circle>
 - NuttX BCM2711 porting case study:

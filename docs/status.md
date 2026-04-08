@@ -106,6 +106,22 @@ Latest rebuild and retest:
   - the historical `sakaki-/bcm2711-kernel` config now serves as time-sensitive
     evidence that early Pi 4 64-bit Linux often paired `enable_gic=1` with an
     explicit `armstub8-gic.bin`
+- on `2026-04-08`, the EDK2 Raspberry Pi 4 platform was also folded into the
+  same low-level dossier
+  The useful new deltas from EDK2 are:
+  - another independent confirmation of the Pi 4 ARM-visible GIC aliases
+    `0xFF841000` / `0xFF842000`
+  - another independent confirmation of the Pi 4 PCIe register base
+    `0xfd500000` and outbound window `0xf8000000`
+  - a concrete firmware-stage DTB staging window at `0x003e0000..0x00400000`,
+    which now strengthens the warning against careless low-memory earliest-entry
+    experiments
+  - confirmation that PL011 is still the safer early serial path while
+    mini-UART remains tied to the `500000000` clock and can be throttling
+    sensitive
+  - a warning that Pi 4 xHCI can be sensitive to DMA constraints above 3 GB of
+    RAM, which is relevant for later real-hardware USB debugging even though it
+    is not the current earliest-boot blocker
 
 Latest sync and retest history:
 

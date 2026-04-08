@@ -442,6 +442,18 @@ This file indexes the most important websites, repositories, documents, and sour
   as wrong load addresses, wrong GIC version assumptions, and using GPIO as an
   earliest-entry proof when UART setup is still broken.
 
+- EDK2 Raspberry Pi 4 platform:
+  <https://github.com/tianocore/edk2-platforms/tree/master/Platform/RaspberryPi/RPi4>
+  Local clone: `/Users/witoldbolt/phoenix-rpi/external/edk2-platforms`
+  Important because it is a mature firmware-stage Pi 4 platform reference that
+  confirms the ARM-visible GIC and PCIe constants, documents a firmware DTB
+  staging window at `0x3e0000..0x400000`, and warns about real Pi 4 xHCI DMA
+  constraints above 3 GB of RAM.
+  Caution:
+  it is a UEFI / TF-A platform, not the target Phoenix native boot model, so
+  use it for constants and boot-firmware interaction details, not for overall
+  architecture.
+
 - U-Boot `bcm2711.dtsi`:
   <https://github.com/u-boot/u-boot/blob/master/arch/arm/dts/bcm2711.dtsi>
   Local clone: `/Users/witoldbolt/phoenix-rpi/external/u-boot`
@@ -511,6 +523,28 @@ This file indexes the most important websites, repositories, documents, and sour
   - the Pi 4 PCIe and GENET node shape
   This makes it the best cross-check after Raspberry Pi Linux DTS when there
   is doubt about whether a fact is Linux-specific or board-generic.
+
+- `external/edk2-platforms/Platform/RaspberryPi/RPi4/Readme.md`
+  Important because it records one concrete custom-armstub Pi 4 firmware
+  staging shape:
+  - `enable_gic=1`
+  - `armstub=RPI_EFI.fd`
+  - `disable_commandline_tags=2`
+  - `device_tree_address=0x3e0000`
+  - `device_tree_end=0x400000`
+  This is not Phoenix's final design, but it is a useful warning that the low
+  memory DTB window must be respected in any radical early-entry experiment.
+
+- `external/edk2-platforms/Platform/RaspberryPi/RPi4/RPi4.dsc`
+  Important because it independently confirms:
+  - `0xFF841000` / `0xFF842000` for GICD / GICC
+  - `0xfd500000` for the PCIe register base
+  - `0xf8000000` for the Pi 4 PCIe outbound window
+  - `0xfd580000` for GENET
+  - PL011 clock `48000000`
+  - mini-UART clock `500000000`
+  It also records a real Pi 4 firmware-stage memory layout where RAM begins at
+  `0x00400000` and the DTB is reserved in `0x003e0000..0x00400000`.
 
 - `external/bcm2711-kernel/README.md`
   Important because it preserves a historically real Pi 4 64-bit Linux boot

@@ -68,6 +68,10 @@ Low-level reference note:
   - `GICD = 0xff841000`
   - `GICC = 0xff842000`
   - `CNTFRQ_EL0 = 54000000`
+- current additional firmware-stage caution from the EDK2 Pi 4 platform:
+  custom armstub or firmware payload paths may reserve the DTB in the low
+  memory window `0x003e0000..0x00400000`, so radical low-memory experiments
+  should avoid colliding with that region
 
 ## 4. CPU and SMP Notes
 

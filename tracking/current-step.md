@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- Step ID: `STEP-0423`
+- Step ID: `STEP-0425`
 - Title: Choose the next Pi 4 earliest-entry diagnostic experiment from the expanded survey
 - Status: `in_progress`
 - Date: `2026-04-08`
@@ -11,8 +11,8 @@
 ## Objective
 
 - choose the next smallest real-hardware Pi 4 boot experiment using the
-  expanded low-level survey, with the focus on the remaining earliest-entry
-  mismatch rather than more broad source gathering
+  expanded low-level survey, now including the EDK2 Pi 4 platform findings,
+  with the focus on the remaining earliest-entry mismatch
 
 ## Scope
 
@@ -46,6 +46,7 @@ Out of scope:
 - `tracking/current-step.md`
 - `tracking/step-history.md`
 - `docs/source-artifacts.md`
+- `docs/platforms/raspberry-pi-4.md`
 - `sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/`
 - `sources/plo/`
 - `manifests/`
@@ -70,7 +71,7 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-04-08-pi4-low-level-reference-survey-followup.md`
+  `manifests/2026-04-08-pi4-low-level-reference-survey-edk2.md`
 
 ## Notes
 

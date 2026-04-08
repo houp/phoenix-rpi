@@ -19,7 +19,7 @@ Use this image:
 
 Current SHA-256:
 
-- `254712ec591df30ec2368d783e4ad3c9ddf50f80613faad64c340bf8a1fa9ec3`
+- `16c4f7f5e313266bdb197a9ddc4d3dc81a080fffb6bea631ab7016dbbb741590`
 
 This image supersedes the earlier Pi 4 trial images that used the temporary
 firmware-default low-placement experiment:
@@ -32,6 +32,10 @@ This image now intentionally uses:
 - `kernel_address=0x40080000`
 - `boot_load_flags=0x1`
 - `armstub=phoenix-armstub8-rpi4.bin`
+- custom Pi 4 armstub EL3 preparation:
+  - local timer control / prescaler
+  - `CNTFRQ_EL0 = 54000000`
+  - GIC group-1 setup through the ARM-visible aliases
 - Pi 4 `plo` GIC base aliases:
   - `0xff841000`
   - `0xff842000`
@@ -107,7 +111,7 @@ Copy this block into the next report or chat message:
 ```text
 Pi 4 first hardware trial
 Image: artifacts/rpi4b/rpi4b-sd.img
-SHA256: 254712ec591df30ec2368d783e4ad3c9ddf50f80613faad64c340bf8a1fa9ec3
+SHA256: 16c4f7f5e313266bdb197a9ddc4d3dc81a080fffb6bea631ab7016dbbb741590
 Board revision:
 Display:
 Keyboard:

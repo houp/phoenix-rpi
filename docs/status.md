@@ -31,18 +31,45 @@ Latest rebuild and retest:
   code uses the high-peripheral aliases `0xff841000` / `0xff842000`
 - the active Pi 4 image now also includes that GIC correction in
   `board_config.h`
-- the Pi 4 bootfs and SD-image assembly helpers now also carry that armstub
-  into the exported host-visible image
+- deep comparison against Circle and the other local Pi 4 bare-metal
+  references then exposed the next missing real-hardware setup gap:
+  the earlier custom `phoenix-armstub8-rpi4.bin` only implemented the small
+  firmware handoff header, while Circle's working Pi 4 armstub also performs
+  EL3 timer and GIC preparation before entering the runtime image
+- the active Pi 4 armstub now also performs the bounded Circle-style setup
+  that best matches that gap:
+  - local timer control and prescaler initialization at
+    `0xff800000` / `0xff800008`
+  - `CNTFRQ_EL0 = 54000000`
+  - EL3 GIC group-1 preparation and distributor/CPU-interface enablement using
+    the ARM-visible aliases `0xff841000` / `0xff842000`
+  - the `FIQS` marker used by Circle's Pi 4 GIC-aware bare-metal path
+- the Pi 4 QEMU shell and HDMI smokes still pass after that armstub expansion,
+  but only on the dedicated DTB-prepared validation lane that sets:
+  - `RPI4B_DTB_PATH=/tmp/rpi4b-dtb/bcm2711-rpi-4-b.dtb`
+  - `RPI4B_QEMU_MEMORY_SIZE=80000000`
+- the exported host-visible real-hardware image is rebuilt separately from that
+  QEMU-only lane:
+  it stages the Pi 4 DTB into `loader.disk`, but does not apply the QEMU-only
+  memory-node patch
+- the Pi 4 bootfs and SD-image assembly helpers now also carry that expanded
+  armstub into the exported host-visible image
 - the rebuilt current Pi 4 exported SD-card artifact is:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
 - current validated Pi 4 SD-image SHA-256:
-  `254712ec591df30ec2368d783e4ad3c9ddf50f80613faad64c340bf8a1fa9ec3`
+  `16c4f7f5e313266bdb197a9ddc4d3dc81a080fffb6bea631ab7016dbbb741590`
 - current rebuild manifest:
-  `manifests/2026-04-08-pi4-gic-high-address-rebuild.md`
+  `manifests/2026-04-08-pi4-armstub-el3-gic-prep.md`
 - current practical Pi 4 QEMU note:
   after restarting `phoenix-dev`, regenerate `/tmp/rpi4b-dtb/bcm2711-rpi-4-b.dtb`
   with `/Users/witoldbolt/phoenix-rpi/scripts/prepare-rpi4b-dtb.sh`
   before re-running the Pi 4 DTB-prepared QEMU lane
+- the next preserved Pi 4 DTB clue is now explicit:
+  the staged downstream `system.dtb` still inherits Raspberry Pi Linux's
+  bootloader-filled placeholder
+  `memory@0 { reg = <0 0 0>; }`, so future work should not treat the
+  build-time DTB blob as equivalent to the firmware-patched live DTB passed at
+  boot
 
 Latest sync and retest history:
 

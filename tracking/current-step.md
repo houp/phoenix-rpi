@@ -2,8 +2,8 @@
 
 ## Metadata
 
-- Step ID: `STEP-0417`
-- Title: Await the next Pi 4 board retry on the corrected GIC-address image
+- Step ID: `STEP-0419`
+- Title: Await the next Pi 4 board retry on the expanded armstub image
 - Status: `in_progress`
 - Date: `2026-04-08`
 - Milestone / phase: `Phase 1`
@@ -11,8 +11,8 @@
 ## Objective
 
 - hold the project at the next justified real-hardware boundary and collect the
-  first board evidence from the refreshed Pi 4 SD image that now corrects the
-  ARM-visible GIC addresses used by `plo`
+  first board evidence from the refreshed Pi 4 SD image that now includes the
+  expanded custom armstub EL3 timer and GIC preparation
 
 ## Scope
 
@@ -20,7 +20,8 @@ In scope:
 
 - the next real Pi 4 SD-card boot on the refreshed exported image
 - recording the exact HDMI, LED, keyboard, and reboot behavior
-- mapping that evidence to the smallest next code or image step
+- mapping that evidence to the next smallest firmware-handoff or earliest-entry
+  step
 
 Out of scope:
 
@@ -58,12 +59,13 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-04-08-pi4-gic-high-address-rebuild.md`
+  `manifests/2026-04-08-pi4-armstub-el3-gic-prep.md`
 
 ## Notes
 
 - Current exported image SHA-256:
-  `254712ec591df30ec2368d783e4ad3c9ddf50f80613faad64c340bf8a1fa9ec3`
+  `16c4f7f5e313266bdb197a9ddc4d3dc81a080fffb6bea631ab7016dbbb741590`
 - Trigger:
-  the custom armstub rebuild left the real Pi 4 behavior unchanged
-- The next stronger signal must now come from the real board again.
+  the earlier corrected-GIC-address image still left the board black and
+  silent, and the next bounded response has now expanded the custom Pi 4
+  armstub with Circle-style EL3 timer and GIC preparation.

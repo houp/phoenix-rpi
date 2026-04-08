@@ -1099,7 +1099,7 @@ Current Pi 4 xHCI fast-path reference note:
 - the current exported real-device handoff image is:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
   SHA-256:
-  `254712ec591df30ec2368d783e4ad3c9ddf50f80613faad64c340bf8a1fa9ec3`
+  `16c4f7f5e313266bdb197a9ddc4d3dc81a080fffb6bea631ab7016dbbb741590`
 - the dedicated operator-facing first board-trial checklist is:
   `/Users/witoldbolt/phoenix-rpi/docs/pi4-first-hardware-trial.md`
 - the current macOS-side first-trial helpers are:
@@ -1109,7 +1109,7 @@ Current Pi 4 xHCI fast-path reference note:
 - the current Pi 4 DTB regeneration helper for `phoenix-dev` is:
   - `/Users/witoldbolt/phoenix-rpi/scripts/prepare-rpi4b-dtb.sh`
 - the current exported Pi 4 SD-image SHA-256 is:
-  `254712ec591df30ec2368d783e4ad3c9ddf50f80613faad64c340bf8a1fa9ec3`
+  `16c4f7f5e313266bdb197a9ddc4d3dc81a080fffb6bea631ab7016dbbb741590`
 - the first real Pi 4 board evidence for the earlier image was:
   - firmware could read the SD card and reach the rainbow screen
   - the board then stayed on the rainbow forever with no Phoenix-visible output
@@ -1132,6 +1132,13 @@ Current Pi 4 xHCI fast-path reference note:
   - `phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/phoenix-armstub8-rpi4.S`
     now provides a Pi-4-specific firmware handoff stub derived from the
     Raspberry Pi/Circle `armstub8-rpi4` lineage
+  - that custom armstub now also carries the bounded Circle-style EL3 setup
+    that was still missing in the earlier 0x100-only handoff stub:
+    - `LOCAL_CONTROL = 0xff800000`
+    - `LOCAL_PRESCALER = 0xff800008`
+    - `CNTFRQ_EL0 = 54000000`
+    - `setup_gic` against `0xff841000` / `0xff842000`
+    - `FIQS` marker at offset `0xd4`
   - `scripts/assemble-rpi4b-bootfs.sh` now carries
     `phoenix-armstub8-rpi4.bin` into the exported FAT and SD images
 - the next concrete real-hardware MMIO clue is now also resolved in the image:
@@ -1141,6 +1148,13 @@ Current Pi 4 xHCI fast-path reference note:
     `0xff841000` / `0xff842000`
   - the active Phoenix Pi 4 `board_config.h` now uses those ARM-visible GIC
     aliases for `plo`
+- a new preserved DTB caveat is now explicit:
+  - Raspberry Pi Linux keeps `memory@0 { reg = <0 0 0>; }` in source and
+    expects the bootloader to patch it at runtime
+  - the staged `system.dtb` blob inside `loader.disk` is therefore not
+    equivalent to the firmware-updated live DTB yet
+  - future real-hardware cleanup should prefer the live firmware DTB path over
+    treating the build-time staged blob as authoritative
 
 Current preserved clue:
 

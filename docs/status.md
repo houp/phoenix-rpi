@@ -8,6 +8,31 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-08`, the current Pi 4 host-visible SD-card artifact was audited
+  after a failed macOS mount attempt, and the problem turned out to be
+  host-side export corruption rather than a bad VM-local build
+- the VM-local Pi 4 SD image inside `phoenix-dev` remained valid:
+  its FAT partition boot sector was intact and `mdir` could list the staged
+  firmware-visible files at the partition offset
+- the previously exported host copy was corrupt:
+  the first partition existed in the MBR, but the FAT boot sector at offset
+  `1048576` had been zeroed, which explains the earlier macOS mount failure
+- the host-side export helper now uses:
+  - `limactl copy --backend=rsync`
+  instead of the older export path that produced the corrupted host copy
+- the host-side verification helper is now FAT-aware:
+  it checks image size, SHA-256, the first partition boot-sector signature,
+  a non-zero FAT bytes-per-sector field, and an `mdir` listing at the computed
+  partition offset
+- the refreshed exported Pi 4 SD-card artifact is:
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+- current validated Pi 4 SD-image SHA-256:
+  `44085197192f5578759269813c3aa38a8adcf04b18bc0092ec509b8fa5543920`
+- current export-fix manifest:
+  `manifests/2026-04-08-pi4-sdimg-export-fix.md`
+- the current image content still corresponds to the latest Pi 4 earliest-entry
+  GPIO42 armstub proof; this step fixed only the host-side exported copy
+
 - on `2026-04-08`, the next earliest-entry Pi 4 real-hardware proof was added
   to the custom firmware armstub:
   the primary core now drives GPIO42 high before the existing local-timer and
@@ -26,9 +51,9 @@ Latest rebuild and retest:
 - the refreshed exported Pi 4 SD-card artifact is still:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
 - current validated Pi 4 SD-image SHA-256:
-  `96743999a6e4312971de8787b36ef1bdb9affbd769a1b218b0943df3e77f73c7`
+  `44085197192f5578759269813c3aa38a8adcf04b18bc0092ec509b8fa5543920`
 - current rebuild manifest:
-  `manifests/2026-04-08-pi4-gpio42-armstub-proof.md`
+  `manifests/2026-04-08-pi4-sdimg-export-fix.md`
 
 - on `2026-04-08`, the first real Pi 4 board evidence was folded back into the
   image again:

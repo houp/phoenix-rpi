@@ -1316,7 +1316,7 @@ Current Pi 4 xHCI fast-path reference note:
 - the current exported real-device handoff image is:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
   SHA-256:
-  `96743999a6e4312971de8787b36ef1bdb9affbd769a1b218b0943df3e77f73c7`
+  `44085197192f5578759269813c3aa38a8adcf04b18bc0092ec509b8fa5543920`
 - the dedicated operator-facing first board-trial checklist is:
   `/Users/witoldbolt/phoenix-rpi/docs/pi4-first-hardware-trial.md`
 - the current macOS-side first-trial helpers are:
@@ -1326,7 +1326,13 @@ Current Pi 4 xHCI fast-path reference note:
 - the current Pi 4 DTB regeneration helper for `phoenix-dev` is:
   - `/Users/witoldbolt/phoenix-rpi/scripts/prepare-rpi4b-dtb.sh`
 - the current exported Pi 4 SD-image SHA-256 is:
-  `96743999a6e4312971de8787b36ef1bdb9affbd769a1b218b0943df3e77f73c7`
+  `44085197192f5578759269813c3aa38a8adcf04b18bc0092ec509b8fa5543920`
+- the current SD-image export lesson is now explicit:
+  - the VM-local Pi 4 SD image may be valid even when the host-visible copy is
+    corrupt
+  - the current export helper therefore uses `limactl copy --backend=rsync`
+  - the current verification helper therefore validates the embedded FAT boot
+    partition itself, not only file size and SHA-256
 - the current earliest-entry board-visible proof in that image is:
   - the custom Pi 4 armstub drives GPIO42 high on the primary core
   - if the ACT LED stays off on the real board, the failure is still before or

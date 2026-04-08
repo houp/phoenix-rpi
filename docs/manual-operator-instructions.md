@@ -371,10 +371,14 @@ Current payload rule:
   - embedded FAT offset `1048576`
 - the current host-side full-disk-image export helper is:
   - [scripts/export-rpi4b-sdimg.sh](/Users/witoldbolt/phoenix-rpi/scripts/export-rpi4b-sdimg.sh)
+- current practical note:
+  - the helper now uses `limactl copy --backend=rsync`
+  - this is required because the older host export path produced a corrupted
+    host-visible copy even though the VM-local SD image itself was valid
 - by default it exports that disk image into the host workspace at:
   - `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
 - current validated exported full-image SHA-256:
-  - `96743999a6e4312971de8787b36ef1bdb9affbd769a1b218b0943df3e77f73c7`
+  - `44085197192f5578759269813c3aa38a8adcf04b18bc0092ec509b8fa5543920`
 - the current exported full-disk artifact includes the latest firmware-stage
   early handoff state:
   - Pi 4 A72 `plo` restored to the last coherent high-DDR placement used by
@@ -421,7 +425,7 @@ Recommended manual sequence on macOS:
 2. verify the exported artifact before flashing:
    - [scripts/verify-rpi4b-sdimg.sh](/Users/witoldbolt/phoenix-rpi/scripts/verify-rpi4b-sdimg.sh)
    - current expected SHA-256:
-     `96743999a6e4312971de8787b36ef1bdb9affbd769a1b218b0943df3e77f73c7`
+     `44085197192f5578759269813c3aa38a8adcf04b18bc0092ec509b8fa5543920`
 3. if you want the exact commands printed for a chosen disk identifier:
    - [scripts/print-rpi4b-macos-flash-commands.sh](/Users/witoldbolt/phoenix-rpi/scripts/print-rpi4b-macos-flash-commands.sh) `diskN`
 4. if you want a prefilled first-trial report file before you start:
@@ -444,7 +448,8 @@ Critical cautions:
 - prefer `/dev/rdiskN` over `/dev/diskN` for faster raw writes on macOS
 - re-verify the target disk before running `dd`
 - the new helper scripts are intentionally non-destructive:
-  - the verification helper only checks path, size, and SHA-256
+  - the verification helper checks path, size, SHA-256, the FAT boot-sector
+    signature, and a directory listing at the embedded partition offset
   - the flash helper only prints commands and does not write to the disk
 
 ## 5. What Must Be Provided For Real-Device Testing
@@ -577,7 +582,7 @@ For the current lab shape, the first practical manual trial is:
    - current exported artifact:
      [artifacts/rpi4b/rpi4b-sd.img](/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img)
    - current SHA-256:
-     `96743999a6e4312971de8787b36ef1bdb9affbd769a1b218b0943df3e77f73c7`
+     `44085197192f5578759269813c3aa38a8adcf04b18bc0092ec509b8fa5543920`
    - focused trial checklist:
      [pi4-first-hardware-trial.md](/Users/witoldbolt/phoenix-rpi/docs/pi4-first-hardware-trial.md)
 2. flash the image to microSD using the workflow above

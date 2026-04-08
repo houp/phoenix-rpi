@@ -2,69 +2,63 @@
 
 ## Metadata
 
-- Step ID: `STEP-0427`
-- Title: Await the next Pi 4 board retry on the GPIO42-proof image
+- Step ID: `STEP-0429`
+- Title: Retry the Pi 4 board boot on the FAT-verified exported image
 - Status: `in_progress`
 - Date: `2026-04-08`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- hold the project at the next real-hardware boundary after exporting the Pi 4
-  image that drives GPIO42 from the custom armstub
+- re-run the next real Pi 4 board boot using the now-correct host-visible SD
+  image whose FAT boot partition has been verified on macOS
 
 ## Scope
 
 In scope:
 
-- the first Pi 4 board retry on the refreshed SD image
-- classifying the result from:
-  - ACT LED behavior
-  - HDMI behavior
-  - keyboard-visible behavior
-- preserving the current narrow hardware-feedback loop
+- flashing the corrected Pi 4 SD image to the real board's microSD card
+- observing the first board result on the corrected exported image
+- classifying the result and using it to choose the next bounded boot step
 
 Out of scope:
 
-- new source changes before the next board observation arrives
-- wider redesigns not driven by the next hardware result
+- unrelated image-export or host-artifact work
+- wide bring-up changes before the board result is classified
 
 ## Expected Repositories
 
-- coordination repo
+- none unless the board result uncovers the next implementation step
 
 ## Expected Files Or Subsystems
 
 - `tracking/current-step.md`
-- `docs/status.md`
-- `docs/manual-operator-instructions.md`
 - `docs/pi4-first-hardware-trial.md`
+- `docs/manual-operator-instructions.md`
 
 ## Acceptance Criteria
 
-- the refreshed SD image is available to the operator
-- the operator has a clear expectation for the GPIO42 ACT LED proof
-- the next hardware outcome can be classified into a bounded next step
+- the corrected image is flashed to the card without using the partition node
+- the board result is captured in enough detail to classify:
+  - screen state
+  - ACT LED state
+  - keyboard-visible reaction
+- the next smallest implementation step is chosen from that evidence
 
 ## Validation Plan
 
-- board result expected from the operator should cover:
-  - whether the ACT LED turns on and stays on after the initial firmware blink
-  - whether the screen stays black or shows a later Phoenix transition
-  - whether any keyboard-visible behavior appears
-- record the next board result in chat and, if needed, in the first-trial
-  report template
+- run `scripts/verify-rpi4b-sdimg.sh`
+- flash the corrected image to the whole SD-card device
+- boot the Pi 4 and record the observed result with
+  `docs/pi4-first-hardware-trial.md`
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-04-08-pi4-gpio42-armstub-proof.md`
+  `manifests/2026-04-08-pi4-sdimg-export-fix.md`
 
 ## Notes
 
-- The active board artifact is now the GPIO42-proof image, not the earlier
-  armstub-only EL3/GIC-prep image.
-- The next useful branch in diagnosis is:
-  - ACT LED on: custom armstub executed; failure is later
-  - ACT LED still off: failure is before or inside the current earliest custom
-    armstub path
+- The host-side SD-image export corruption is now fixed.
+- The current exported image SHA-256 is:
+  `44085197192f5578759269813c3aa38a8adcf04b18bc0092ec509b8fa5543920`.

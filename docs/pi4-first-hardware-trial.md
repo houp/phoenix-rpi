@@ -19,7 +19,7 @@ Use this image:
 
 Current SHA-256:
 
-- `96743999a6e4312971de8787b36ef1bdb9affbd769a1b218b0943df3e77f73c7`
+- `44085197192f5578759269813c3aa38a8adcf04b18bc0092ec509b8fa5543920`
 
 This image supersedes the earlier Pi 4 trial images that used the temporary
 firmware-default low-placement experiment:
@@ -117,7 +117,7 @@ Copy this block into the next report or chat message:
 ```text
 Pi 4 first hardware trial
 Image: artifacts/rpi4b/rpi4b-sd.img
-SHA256: 96743999a6e4312971de8787b36ef1bdb9affbd769a1b218b0943df3e77f73c7
+SHA256: 44085197192f5578759269813c3aa38a8adcf04b18bc0092ec509b8fa5543920
 Board revision:
 Display:
 Keyboard:

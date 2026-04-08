@@ -2,65 +2,73 @@
 
 ## Metadata
 
-- Step ID: `STEP-0409`
-- Title: Return to the Pi 4 hardware boundary after the upstream sync
-- Status: `pending`
-- Date: `2026-03-30`
+- Step ID: `STEP-0412`
+- Title: Await the next Pi 4 board retry on the rebuilt firmware-placement image
+- Status: `in_progress`
+- Date: `2026-04-08`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- hold the project at the correct post-sync boundary:
-  the refreshed Pi 4 SD image is ready and the next stronger lane is the first
-  real hardware run
+- run the next real Pi 4 board trial on the rebuilt image that aligns the Pi 4
+  A72 loader placement with the firmware default 64-bit load model, then
+  classify the result before touching wider bring-up code
 
 ## Scope
 
 In scope:
 
-- verifying that the upstream sync closeout is fully recorded
-- keeping the refreshed Pi 4 artifact and runbook as the current handoff state
-- waiting for the first real board result before widening into new runtime work
+- flashing the rebuilt image
+- booting the real Raspberry Pi 4 again
+- classifying the observed result with the focused first-trial checklist
+- using that board evidence to choose the smallest next implementation step
 
 Out of scope:
 
-- speculative pre-hardware runtime changes
-- new USB or xHCI feature work without board evidence
+- speculative code changes before the rebuilt image is tested on hardware
+- wider Pi 4 bring-up changes unrelated to the observed next failure
 - unrelated refactors
 
 ## Expected Repositories
 
-- no code changes expected unless a documentation correction is needed
+- coordination repo
 
 ## Expected Files Or Subsystems
 
-- `tracking/current-step.md`
 - `docs/pi4-first-hardware-trial.md`
 - `docs/manual-operator-instructions.md`
-- `docs/status.md`
+- `tracking/current-step.md`
+- future trial report or chat evidence
 
 ## Acceptance Criteria
 
-- the project state clearly reflects that the upstream sync and retest are done
-- the refreshed Pi 4 image and checksum remain the current handoff artifact
-- the next stronger validation lane is explicitly the first real Pi 4 boot
+- the rebuilt image is flashed to the board
+- the next Pi 4 board result is captured clearly enough to classify
+- the next implementation step is chosen from observed evidence, not guesswork
 
 ## Validation Plan
 
-- re-read the sync closeout manifest and current hardware runbook
-- confirm the tracked repos remain clean
+- verify the exported image with:
+  - `/Users/witoldbolt/phoenix-rpi/scripts/verify-rpi4b-sdimg.sh`
+- flash and run the board
+- classify the result using:
+  - `/Users/witoldbolt/phoenix-rpi/docs/pi4-first-hardware-trial.md`
 
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-03-30-upstream-sync-and-retest.md`
+  `manifests/2026-04-08-pi4-firmware-placement-rebuild.md`
 
 ## Notes
 
 - Risks:
-  avoid inventing new pre-hardware work without real board evidence
+  without UART, the next board result still has limited observability, so the
+  visible HDMI state and gross LED behavior must be recorded carefully
 - Dependencies:
-  `STEP-0408` completed and recorded
+  rebuilt Pi 4 image with:
+  - `plo` linked at `0x00200000`
+  - no forced Pi 4 `kernel_address`
+  - no forced `boot_load_flags`
 - User-visible control point before next step:
-  the next bounded move should be the first real Pi 4 board run using the
-  refreshed image
+  after the board retry, stop and classify the observed result before taking
+  wider action

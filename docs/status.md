@@ -6,14 +6,36 @@
 - Implementation state: Phase 1 common AArch64 cleanup started; first upstream build-glue step completed
 - Documentation baseline prepared: 2026-03-19
 
-Latest sync and retest:
+Latest rebuild and retest:
+
+- on `2026-04-08`, the first real Pi 4 board evidence was folded back into the
+  image:
+  the earlier artifact reached firmware and either stayed on the rainbow splash
+  forever or, after on-card `config.txt` edits, hung on a black screen with no
+  Phoenix-visible output
+- the Pi 4 A72 `plo` linker placement is now aligned with the real firmware
+  default 64-bit load model instead of the old generic `0x40080000` placement
+- the Pi 4 `config.txt` no longer overrides the firmware kernel load address or
+  uses the earlier `boot_load_flags=0x1` setting
+- the rebuilt current Pi 4 exported SD-card artifact is:
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+- current validated Pi 4 SD-image SHA-256:
+  `1c3bc4f6c474baad547059801ba49ea4c2de31c088aea3b1ef68fc7b8eb2924f`
+- current rebuild manifest:
+  `manifests/2026-04-08-pi4-firmware-placement-rebuild.md`
+- current practical Pi 4 QEMU note:
+  after restarting `phoenix-dev`, regenerate `/tmp/rpi4b-dtb/bcm2711-rpi-4-b.dtb`
+  with `/Users/witoldbolt/phoenix-rpi/scripts/prepare-rpi4b-dtb.sh`
+  before re-running the Pi 4 DTB-prepared QEMU lane
+
+Latest sync and retest history:
 
 - on `2026-03-30`, the current Phoenix sibling repositories were fetched from
   GitHub, upstream changes were merged locally where needed, and the validated
   build plus QEMU lanes were rebuilt and re-run successfully
-- the refreshed current Pi 4 exported SD-card artifact is:
+- the then-current Pi 4 exported SD-card artifact was:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
-- current validated Pi 4 SD-image SHA-256:
+- the then-current validated Pi 4 SD-image SHA-256 was:
   `d815e4c1b72bf0c170fb7fb6c00165d918d82f3d7b78bad97ec1c345a00e86db`
 - current sync manifest:
   `manifests/2026-03-30-upstream-sync-and-retest.md`
@@ -272,10 +294,17 @@ Start-gate status:
   the live Pi 4 image now stages `/sbin/usb`, the Pi 4 QEMU shell smoke still
   passes after that integration, and the next concrete blocker is real-device
   validation of the new HDMI plus USB-keyboard path.
-- the first refreshed real-device Pi 4 SD-card artifact is now exported at:
+- the current rebuilt real-device Pi 4 SD-card artifact is now exported at:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
   with SHA-256:
-  `d815e4c1b72bf0c170fb7fb6c00165d918d82f3d7b78bad97ec1c345a00e86db`
+  `1c3bc4f6c474baad547059801ba49ea4c2de31c088aea3b1ef68fc7b8eb2924f`
+- the first real Pi 4 board evidence is now also preserved:
+  the earlier image was readable by firmware but either remained on the rainbow
+  splash forever or, after removing the forced `kernel_address` override
+  directly on-card, hung on a black screen with no Phoenix-visible output
+- the smallest confirmed response was therefore to align the Pi 4 A72 `plo`
+  image placement with the real firmware default 64-bit kernel load contract
+  and rebuild the SD artifact around that model
 - the first real-device execution handoff is now also structured in:
   `/Users/witoldbolt/phoenix-rpi/docs/pi4-first-hardware-trial.md`
   so the first board result can be reported in a form that directly maps to the

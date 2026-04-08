@@ -1099,7 +1099,7 @@ Current Pi 4 xHCI fast-path reference note:
 - the current exported real-device handoff image is:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
   SHA-256:
-  `d815e4c1b72bf0c170fb7fb6c00165d918d82f3d7b78bad97ec1c345a00e86db`
+  `1c3bc4f6c474baad547059801ba49ea4c2de31c088aea3b1ef68fc7b8eb2924f`
 - the dedicated operator-facing first board-trial checklist is:
   `/Users/witoldbolt/phoenix-rpi/docs/pi4-first-hardware-trial.md`
 - the current macOS-side first-trial helpers are:
@@ -1109,7 +1109,20 @@ Current Pi 4 xHCI fast-path reference note:
 - the current Pi 4 DTB regeneration helper for `phoenix-dev` is:
   - `/Users/witoldbolt/phoenix-rpi/scripts/prepare-rpi4b-dtb.sh`
 - the current exported Pi 4 SD-image SHA-256 is:
-  `d815e4c1b72bf0c170fb7fb6c00165d918d82f3d7b78bad97ec1c345a00e86db`
+  `1c3bc4f6c474baad547059801ba49ea4c2de31c088aea3b1ef68fc7b8eb2924f`
+- the first real Pi 4 board evidence for the earlier image was:
+  - firmware could read the SD card and reach the rainbow screen
+  - the board then stayed on the rainbow forever with no Phoenix-visible output
+  - after removing the forced `kernel_address` and `boot_load_flags` directly
+    on-card, the board instead hung on a black screen with no Phoenix-visible
+    output
+- the bounded response to that evidence is now in-tree:
+  - `plo/ld/aarch64a72-generic.ldt` now links the Pi 4 A72 loader at
+    `0x00200000`
+  - `phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/config.txt` no
+    longer forces `kernel_address` or `boot_load_flags`
+  - `disable_splash=1` remains enabled so the firmware splash does not mask the
+    earliest post-handoff screen state
 
 Current preserved clue:
 

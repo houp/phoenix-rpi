@@ -19,7 +19,14 @@ Use this image:
 
 Current SHA-256:
 
-- `d815e4c1b72bf0c170fb7fb6c00165d918d82f3d7b78bad97ec1c345a00e86db`
+- `1c3bc4f6c474baad547059801ba49ea4c2de31c088aea3b1ef68fc7b8eb2924f`
+
+This image supersedes the earlier Pi 4 trial images that used:
+
+- `kernel_address=0x40080000`
+- `boot_load_flags=0x1`
+
+Do not reuse those on-card edits. Reflash the whole image instead.
 
 ## Hardware Setup
 
@@ -90,7 +97,7 @@ Copy this block into the next report or chat message:
 ```text
 Pi 4 first hardware trial
 Image: artifacts/rpi4b/rpi4b-sd.img
-SHA256: d815e4c1b72bf0c170fb7fb6c00165d918d82f3d7b78bad97ec1c345a00e86db
+SHA256: 1c3bc4f6c474baad547059801ba49ea4c2de31c088aea3b1ef68fc7b8eb2924f
 Board revision:
 Display:
 Keyboard:

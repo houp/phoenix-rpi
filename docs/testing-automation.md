@@ -147,15 +147,18 @@ Current practical note for the first Pi 4 hardware attempt without USB-TTL:
 - current post-`IMG_0004.mov` telemetry split:
   - the previous video most strongly mapped to completion of checkpoint `4`
     (`plo _start` entry) and failure before the first EL-path marker
-  - the current telemetry image therefore extends the early `plo` map to:
-    - `5`: after general-purpose register clearing
-    - `6`: after `currentEL` sampling, before EL dispatch
-    - `7`: `start_el3`
-    - `8`: `start_el2`
-    - `9`: `start_el1`
-    - `10`: `start_common`
-    - `11`: core-0 branch to `_startc`
-    - `12`: unexpected-EL trap path
+  - `IMG_0005.mov` then tightened the same conclusion:
+    it still did not reach the old stage `5`, so the current telemetry image
+    now extends the early `plo` map to:
+    - `5`: midpoint of general-purpose register clearing
+    - `6`: end of general-purpose register clearing
+    - `7`: after `currentEL` sampling, before EL dispatch
+    - `8`: `start_el3`
+    - `9`: `start_el2`
+    - `10`: `start_el1`
+    - `11`: `start_common`
+    - `12`: core-0 branch to `_startc`
+    - `13`: unexpected-EL trap path
 
 ## 4. QEMU Strategy
 

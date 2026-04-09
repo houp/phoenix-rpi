@@ -8,6 +8,32 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-09`, the stage-`4` to stage-`5` gap was split again inside the
+  earliest generic AArch64 `_start` register-clearing block:
+  - stage `5` is now the midpoint of the `mov xN, #0` sequence
+  - stage `6` is now the end of register clearing
+  - later stages were shifted to `7..13`
+- validation summary for the mid-register-clear split image:
+  - Pi 4 A72 rebuild: pass
+  - generic QEMU shell smoke: pass
+  - direct Pi 4 QEMU serial sanity on the real-device build still reaches:
+    - `call: exec go!`
+    - `go: enter`
+    - `hal: jump exit el1`
+    - `A3`
+    - `KLM`
+    - later `Exception #37`
+  - bootfs assembly: pass
+  - SD-image assembly: pass
+  - canonical SD-image export: pass
+  - FAT-aware host verification: pass
+- the refreshed exported mid-register-clear split image is:
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+- current validated Pi 4 SD-image SHA-256:
+  `03a0729254dc0bc81f542fe8db276f7a2b70d3fb76de9fc7303ea470aca83137`
+- current manifest:
+  `manifests/2026-04-09-pi4-stage4-mid-register-clear-split.md`
+
 - on `2026-04-09`, the next hardware retry video `IMG_0005.mov` tightened the
   same early `plo` conclusion again:
   - `ffprobe` shows the clip is actually `30.01 fps`, not `60 fps`
@@ -26,8 +52,9 @@ Latest rebuild and retest:
   - so the current failure is now best classified as:
     - after checkpoint `4` (`plo _start` entry)
     - before checkpoint `5` (after register clearing)
-- the next bounded response should therefore move the split into the current
-  `_start` register-clearing block itself, not later EL-path code
+- that bounded response is now implemented above:
+  the split has been moved into the `_start` register-clearing block itself,
+  not later EL-path code
 
 - on `2026-04-09`, the latest `IMG_0004.mov` `60 fps` hardware video was
   mapped onto the slower GPIO42 telemetry timeline:

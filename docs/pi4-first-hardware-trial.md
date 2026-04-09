@@ -19,7 +19,7 @@ Use this image:
 
 Current SHA-256:
 
-- `d1e0fd5b2e3817d4e0d2ad339b63be34fb96d17f2d8a05d4e318d52a02952c20`
+- `03a0729254dc0bc81f542fe8db276f7a2b70d3fb76de9fc7303ea470aca83137`
 
 This image supersedes the earlier Pi 4 trial images that used the temporary
 firmware-default low-placement experiment:
@@ -45,21 +45,22 @@ This image now intentionally uses:
     - about `0.4s` LED off between pulses inside one group
     - about `2.0s` LED off between groups
   - the current stage emitters now start each group immediately and use one
-    long trailing separator, so the full `1..9` sequence stays within about
-    one minute instead of stretching much longer
+    long trailing separator, so the full sequence stays within about one
+    minute instead of stretching much longer
   - the current checkpoint map is:
     - `1`: armstub primary-core entry
     - `2`: armstub after early timer / GIC preparation
     - `3`: armstub just before the fixed-address jump to `plo`
     - `4`: earliest generic AArch64 `plo` `_start`
-    - `5`: after general-purpose register clearing
-    - `6`: after `currentEL` sampling, before EL dispatch
-    - `7`: `start_el3`
-    - `8`: `start_el2`
-    - `9`: `start_el1`
-    - `10`: `start_common`
-    - `11`: core-0 branch to `_startc`
-    - `12`: unexpected-EL trap path
+    - `5`: midpoint of general-purpose register clearing
+    - `6`: end of general-purpose register clearing
+    - `7`: after `currentEL` sampling, before EL dispatch
+    - `8`: `start_el3`
+    - `9`: `start_el2`
+    - `10`: `start_el1`
+    - `11`: `start_common`
+    - `12`: core-0 branch to `_startc`
+    - `13`: unexpected-EL trap path
   - the goal of the next board trial is no longer “did one probe move?”
   - the goal is “what is the highest completed numbered checkpoint?”
 - Pi 4 `plo` GIC base aliases:
@@ -97,7 +98,7 @@ Do not assume UART visibility is available.
 6. Power on the board.
 7. Start a high-framerate close-up video before power-on and keep both LEDs in
    frame for at least 70 seconds.
-   If convenient, record 90 seconds so the full slower `1..9` sequence still
+   If convenient, record 90 seconds so the full slower `1..13` sequence still
    fits even if the board progresses farther than expected.
 8. Wait at least 60 seconds before classifying a silent result.
 9. If text or prompt appears, try:
@@ -143,7 +144,7 @@ Copy this block into the next report or chat message:
 ```text
 Pi 4 first hardware trial
 Image: artifacts/rpi4b/rpi4b-sd.img
-SHA256: d1e0fd5b2e3817d4e0d2ad339b63be34fb96d17f2d8a05d4e318d52a02952c20
+SHA256: 03a0729254dc0bc81f542fe8db276f7a2b70d3fb76de9fc7303ea470aca83137
 Board revision:
 Display:
 Keyboard:
@@ -193,17 +194,20 @@ phone recording without frame-by-frame inspection.
 - highest completed `4`:
   earliest generic AArch64 `plo` `_start` was entered
 - highest completed `5`:
-  `_start` cleared the general-purpose registers but did not reach
-  `currentEL` sampling
+  `_start` reached the midpoint of the general-purpose register-clearing block
+  but did not finish it
 - highest completed `6`:
+  `_start` finished clearing the general-purpose registers but did not reach
+  `currentEL` sampling
+- highest completed `7`:
   `_start` sampled `currentEL` but did not reach the chosen EL-path body
-- highest completed `7`, `8`, or `9`:
+- highest completed `8`, `9`, or `10`:
   `plo` selected EL3, EL2, or EL1 respectively
-- highest completed `10`:
-  `plo` reached `start_common`
 - highest completed `11`:
-  `plo` reached the core-0 branch to `_startc`
+  `plo` reached `start_common`
 - highest completed `12`:
+  `plo` reached the core-0 branch to `_startc`
+- highest completed `13`:
   `plo` reached the unexpected-EL trap path
 
 ## Next-Agent Interpretation Rule

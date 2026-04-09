@@ -8,6 +8,51 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-09`, the latest `IMG_0004.mov` `60 fps` hardware video was
+  mapped onto the slower GPIO42 telemetry timeline:
+  - the highest-confidence green-on windows were:
+    - `0.78s - 0.82s`
+    - `0.93s - 5.72s`
+    - `6.70s - 7.12s`
+    - `7.92s - 8.35s`
+    - `9.95s - 10.37s`
+    - `14.03s - 14.43s`
+    - `15.23s - 15.65s`
+    - `16.45s - 16.85s`
+  - the strongest interpretation is still:
+    - the board completes checkpoint `4`
+    - the failure is after earliest generic AArch64 `plo` `_start`
+    - the failure is before the first EL-path marker from the older map
+- the bounded response is now implemented in generic AArch64 `plo _start`:
+  - keep checkpoints `1..4` unchanged
+  - split the former post-stage-`4` band into:
+    - `5`: after general-purpose register clearing
+    - `6`: after `currentEL` sampling, before EL dispatch
+    - `7`: `start_el3`
+    - `8`: `start_el2`
+    - `9`: `start_el1`
+    - `10`: `start_common`
+    - `11`: core-0 branch to `_startc`
+    - `12`: unexpected-EL trap path
+- validation summary for the narrowed post-stage-`4` image:
+  - Pi 4 A72 rebuild: pass
+  - generic QEMU shell smoke: pass on rerun
+  - direct Pi 4 QEMU serial sanity on the real-device build still reaches:
+    - `call: exec go!`
+    - `go: enter`
+    - `hal: jump exit el1`
+    - `A3`
+    - `KLM`
+    - later `Exception #37`
+  - canonical SD-image export: pass
+  - FAT-aware host verification: pass
+- the refreshed exported post-stage-`4` split image is:
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+- current validated Pi 4 SD-image SHA-256:
+  `d1e0fd5b2e3817d4e0d2ad339b63be34fb96d17f2d8a05d4e318d52a02952c20`
+- current manifest:
+  `manifests/2026-04-09-pi4-post-stage4-el-dispatch-split.md`
+
 - on `2026-04-09`, the first structured-telemetry video was re-analyzed at
   higher frame granularity and proved the initial reading wrong:
   - the green ACT LED does blink repeatedly

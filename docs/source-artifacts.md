@@ -1316,7 +1316,7 @@ Current Pi 4 xHCI fast-path reference note:
 - the current exported real-device handoff image is:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
   SHA-256:
-  `4698611f2231fd5508e6eddeed25a24147701ce3efc209371425ea75d502f23e`
+  `d1e0fd5b2e3817d4e0d2ad339b63be34fb96d17f2d8a05d4e318d52a02952c20`
 - the dedicated operator-facing first board-trial checklist is:
   `/Users/witoldbolt/phoenix-rpi/docs/pi4-first-hardware-trial.md`
 - the current macOS-side first-trial helpers are:
@@ -1326,7 +1326,7 @@ Current Pi 4 xHCI fast-path reference note:
 - the current Pi 4 DTB regeneration helper for `phoenix-dev` is:
   - `/Users/witoldbolt/phoenix-rpi/scripts/prepare-rpi4b-dtb.sh`
 - the current exported Pi 4 SD-image SHA-256 is:
-  `4698611f2231fd5508e6eddeed25a24147701ce3efc209371425ea75d502f23e`
+  `d1e0fd5b2e3817d4e0d2ad339b63be34fb96d17f2d8a05d4e318d52a02952c20`
 - the current SD-image export lesson is now explicit:
   - the VM-local Pi 4 SD image may be valid even when the host-visible copy is
     corrupt
@@ -1350,13 +1350,23 @@ Current Pi 4 xHCI fast-path reference note:
   - `2`: armstub after early timer / GIC preparation
   - `3`: armstub just before the fixed-address jump to `plo`
   - `4`: earliest generic AArch64 `plo` `_start`
-  - `5`: `plo` EL3 path selected
-  - `6`: `plo` EL2 path selected
-  - `7`: `plo` EL1 path selected
-  - `8`: `plo` `start_common`
-  - `9`: `plo` core-0 branch to `_startc`
+  - `5`: after general-purpose register clearing
+  - `6`: after `currentEL` sampling, before EL dispatch
+  - `7`: `start_el3`
+  - `8`: `start_el2`
+  - `9`: `start_el1`
+  - `10`: `start_common`
+  - `11`: core-0 branch to `_startc`
+  - `12`: unexpected-EL trap path
 - each checkpoint is one pulse group separated by a longer off gap so a single
   high-framerate LED video can reveal the highest completed stage
+- the latest `IMG_0004.mov` analysis most strongly suggests the previous image
+  completed checkpoint `4` and then died before the first EL-path marker,
+  because visible activity stopped at about `16.85s`, which fits cumulative
+  timing through stage `4` much better than through stage `6`
+- the current active bounded response is therefore the post-stage-`4`
+  `plo _start` split inside `hal/aarch64/generic/_init.S`, not another
+  armstub-only change
 - the most recent real Pi 4 board result on the temporary late-`plo` proof
   image was:
   - both red and green LEDs on

@@ -19,7 +19,7 @@ Use this image:
 
 Current SHA-256:
 
-- `6d6b4d7dd84f237f3e8dab1764f8be34b29b4e4d46d6f92ad30aee1869a2acdc`
+- `d1e0fd5b2e3817d4e0d2ad339b63be34fb96d17f2d8a05d4e318d52a02952c20`
 
 This image supersedes the earlier Pi 4 trial images that used the temporary
 firmware-default low-placement experiment:
@@ -52,11 +52,14 @@ This image now intentionally uses:
     - `2`: armstub after early timer / GIC preparation
     - `3`: armstub just before the fixed-address jump to `plo`
     - `4`: earliest generic AArch64 `plo` `_start`
-    - `5`: `plo` EL3 path selected
-    - `6`: `plo` EL2 path selected
-    - `7`: `plo` EL1 path selected
-    - `8`: `plo` `start_common`
-    - `9`: `plo` core-0 branch to `_startc`
+    - `5`: after general-purpose register clearing
+    - `6`: after `currentEL` sampling, before EL dispatch
+    - `7`: `start_el3`
+    - `8`: `start_el2`
+    - `9`: `start_el1`
+    - `10`: `start_common`
+    - `11`: core-0 branch to `_startc`
+    - `12`: unexpected-EL trap path
   - the goal of the next board trial is no longer “did one probe move?”
   - the goal is “what is the highest completed numbered checkpoint?”
 - Pi 4 `plo` GIC base aliases:
@@ -140,7 +143,7 @@ Copy this block into the next report or chat message:
 ```text
 Pi 4 first hardware trial
 Image: artifacts/rpi4b/rpi4b-sd.img
-SHA256: e5f8662aca8c859464bed6c23e9742afd196bf1136a09f453e9c975e06b6441c
+SHA256: d1e0fd5b2e3817d4e0d2ad339b63be34fb96d17f2d8a05d4e318d52a02952c20
 Board revision:
 Display:
 Keyboard:
@@ -189,12 +192,19 @@ phone recording without frame-by-frame inspection.
   not observed
 - highest completed `4`:
   earliest generic AArch64 `plo` `_start` was entered
-- highest completed `5`, `6`, or `7`:
-  `plo` reached exception-level dispatch and selected EL3, EL2, or EL1
-- highest completed `8`:
+- highest completed `5`:
+  `_start` cleared the general-purpose registers but did not reach
+  `currentEL` sampling
+- highest completed `6`:
+  `_start` sampled `currentEL` but did not reach the chosen EL-path body
+- highest completed `7`, `8`, or `9`:
+  `plo` selected EL3, EL2, or EL1 respectively
+- highest completed `10`:
   `plo` reached `start_common`
-- highest completed `9`:
+- highest completed `11`:
   `plo` reached the core-0 branch to `_startc`
+- highest completed `12`:
+  `plo` reached the unexpected-EL trap path
 
 ## Next-Agent Interpretation Rule
 

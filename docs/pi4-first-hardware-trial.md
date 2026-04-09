@@ -19,7 +19,7 @@ Use this image:
 
 Current SHA-256:
 
-- `d4e02f329c35f8187969f3c02e8f0d78189fac07b8884ddb774898598a1ddc36`
+- `e5f8662aca8c859464bed6c23e9742afd196bf1136a09f453e9c975e06b6441c`
 
 This image supersedes the earlier Pi 4 trial images that used the temporary
 firmware-default low-placement experiment:
@@ -48,6 +48,12 @@ This image now intentionally uses:
     `0x40080000`, instead of using the firmware-patched `kernel_entry32` slot
   - if the board now moves past the earlier reset behavior, the raw
     `kernel8.img` versus firmware-entry mismatch was the blocker
+- current earliest post-branch `plo` GPIO42 proof:
+  - generic AArch64 `plo` `_start` now performs a Pi-4-only GPIO42 pattern at
+    the very top of `_start`
+  - that pattern runs before register clearing and exception-level setup
+  - if the board reaches that point, the ACT LED sequence should now differ
+    from the fixed-address armstub-only image
 - Pi 4 `plo` GIC base aliases:
   - `0xff841000`
   - `0xff842000`
@@ -125,7 +131,7 @@ Copy this block into the next report or chat message:
 ```text
 Pi 4 first hardware trial
 Image: artifacts/rpi4b/rpi4b-sd.img
-SHA256: d4e02f329c35f8187969f3c02e8f0d78189fac07b8884ddb774898598a1ddc36
+SHA256: e5f8662aca8c859464bed6c23e9742afd196bf1136a09f453e9c975e06b6441c
 Board revision:
 Display:
 Keyboard:

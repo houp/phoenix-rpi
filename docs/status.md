@@ -8,6 +8,35 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-09`, the next real Pi 4 board retry on the fixed-address
+  armstub image produced:
+  - no HDMI output
+  - no keyboard-visible reaction
+  - red LED always on
+  - green LED on at power-up, then off, then briefly on again, then off again,
+    then on later and steady on
+- that is not identical to the earlier single reset-like sequence:
+  the fixed-address handoff changed the earliest hardware-visible behavior, but
+  still did not prove that `plo` itself executed
+
+- on `2026-04-09`, the active Pi 4 image was rebuilt around the next bounded
+  response to that clue:
+  - keep the current fixed-address custom armstub handoff
+  - add a Pi-4-only GPIO42 pattern at the very top of generic AArch64 `plo`
+    `_start`
+  - run that pattern before register clearing and exception-level setup
+- the Pi 4 A72 rebuild passed
+- the direct Pi 4 QEMU serial-log sanity lane still reaches:
+  - `go!`
+  - `hal: jump exit el1`
+  - kernel markers `A3` and `KLM`
+- the refreshed exported Pi 4 SD image is:
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+- current validated Pi 4 SD-image SHA-256:
+  `e5f8662aca8c859464bed6c23e9742afd196bf1136a09f453e9c975e06b6441c`
+- current manifest:
+  `manifests/2026-04-09-pi4-earliest-plo-entry-led.md`
+
 - on `2026-04-09`, the Pi 4 SD-image export workflow was tightened into a
   fixed project rule:
   - `scripts/export-rpi4b-sdimg.sh` is now the only approved VM-to-host export
@@ -56,7 +85,7 @@ Latest rebuild and retest:
     `limactl shell ... base64 | base64 -d`
 - the refreshed exported Pi 4 SD image is:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
-- current validated Pi 4 SD-image SHA-256:
+- historical validated Pi 4 SD-image SHA-256 at that step:
   `d4e02f329c35f8187969f3c02e8f0d78189fac07b8884ddb774898598a1ddc36`
 - current manifest:
   `manifests/2026-04-09-pi4-fixed-armstub-entry.md`

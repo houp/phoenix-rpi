@@ -2,17 +2,16 @@
 
 ## Metadata
 
-- Step ID: `STEP-0437`
-- Title: Await the next Pi 4 board retry on the fixed-address armstub image
+- Step ID: `STEP-0439`
+- Title: Await the next Pi 4 board retry on the earliest `plo` `_start` GPIO42 image
 - Status: `pending`
 - Date: `2026-04-09`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- collect the next real-hardware answer after replacing the firmware-patched
-  `kernel_entry32` handoff with a direct branch to the known configured
-  Pi 4 `kernel_address`
+- collect the next real-hardware answer after adding the first hardware-visible
+  GPIO42 pattern at the earliest `plo` `_start` entry point
 
 ## Scope
 
@@ -42,7 +41,7 @@ Out of scope:
 - `docs/pi4-first-hardware-trial.md`
 - `docs/manual-operator-instructions.md`
 - `docs/source-artifacts.md`
-- `manifests/2026-04-09-pi4-fixed-armstub-entry.md`
+- `manifests/2026-04-09-pi4-earliest-plo-entry-led.md`
 
 ## Acceptance Criteria
 
@@ -51,8 +50,8 @@ Out of scope:
   - screen state
   - any keyboard-visible reaction
 - the next implementation step can then choose between:
-  - earlier fixed-address armstub diagnosis
-  - first post-branch `plo` entry diagnosis
+  - still-earlier branch or reset diagnosis
+  - later `plo` entry diagnosis
   - a wider real-hardware boot-model change
 
 ## Validation Plan
@@ -63,17 +62,20 @@ Out of scope:
 ## Rollback / Baseline
 
 - Known-good manifest or commit set:
-  `manifests/2026-04-09-pi4-fixed-armstub-entry.md`
+  `manifests/2026-04-09-pi4-earliest-plo-entry-led.md`
 
 ## Notes
 
-- The last real Pi 4 board result on the pre-kernel-branch image was:
-  - ACT LED on
-  - brief off pulse
-  - then on forever
+- The latest real Pi 4 board result on the fixed-address armstub image was:
+  - both LEDs on at power-up
+  - green off
+  - green briefly on again
+  - green off again
+  - green on later and then steady on
   - blank screen
   - no keyboard-visible reaction
-- The current image keeps the same GPIO42 split but now jumps directly to
-  `0x40080000` instead of using firmware-patched `kernel_entry32`.
-- The next board retry is expected to answer whether the previous loop was
-  caused by the raw-`kernel8.img` versus firmware-entry mismatch.
+- That changed sequence strongly suggests the fixed-address branch altered the
+  early hardware behavior but still did not prove that `plo` itself executed.
+- The current image keeps the fixed-address armstub handoff and now adds a
+  Pi-4-only GPIO42 pulse pattern at the very top of generic AArch64 `plo`
+  `_start`, before register clearing and exception-level setup.

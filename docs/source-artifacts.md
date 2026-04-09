@@ -1326,7 +1326,7 @@ Current Pi 4 xHCI fast-path reference note:
 - the current Pi 4 DTB regeneration helper for `phoenix-dev` is:
   - `/Users/witoldbolt/phoenix-rpi/scripts/prepare-rpi4b-dtb.sh`
 - the current exported Pi 4 SD-image SHA-256 is:
-  `d4e02f329c35f8187969f3c02e8f0d78189fac07b8884ddb774898598a1ddc36`
+  `e5f8662aca8c859464bed6c23e9742afd196bf1136a09f453e9c975e06b6441c`
 - the current SD-image export lesson is now explicit:
   - the VM-local Pi 4 SD image may be valid even when the host-visible copy is
     corrupt
@@ -1350,6 +1350,12 @@ Current Pi 4 xHCI fast-path reference note:
     slot and jumps directly to `0x40080000`
   - this is now the smallest active test of whether the previous LED-reset
     sequence was caused by the raw `kernel8.img` versus firmware-entry mismatch
+- the current next post-branch split in that image is now:
+  - generic AArch64 `plo` `_start` performs a Pi-4-only GPIO42 pattern at the
+    very top of `_start`
+  - it runs before register clearing and exception-level setup
+  - it is now the smallest active test of whether the fixed-address branch
+    reaches `plo` at all on real hardware
 - the most recent real Pi 4 board result on the temporary late-`plo` proof
   image was:
   - both red and green LEDs on
@@ -1376,12 +1382,20 @@ Current Pi 4 xHCI fast-path reference note:
     - then on forever
     - blank screen
     - no keyboard-visible reaction
-  - that strongly suggests reset immediately after the current armstub branch
-    to `kernel8.img`
+  - the next real Pi 4 board result on the fixed-address armstub image was:
+    - both LEDs on at power-up
+    - green off
+    - green briefly on again
+    - green off again
+    - green on later and then steady on
+    - blank screen
+    - no keyboard-visible reaction
+  - that changed sequence shows the fixed-address handoff changed the earliest
+    hardware-visible behavior, but still did not prove `plo` entry
   - the current active bounded response is therefore:
     - keep the current GPIO42 split
-    - but jump directly to `0x40080000` from the armstub instead of relying on
-      firmware-patched `kernel_entry32`
+    - keep the current fixed-address armstub handoff
+    - move the next split into the very top of generic AArch64 `plo` `_start`
   - `plo/ld/aarch64a72-generic.ldt` is restored to the coherent high-placement
     model
   - `phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/config.txt`

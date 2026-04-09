@@ -8,6 +8,39 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-09`, the first structured-telemetry video was re-analyzed at
+  higher frame granularity and proved the initial reading wrong:
+  - the green ACT LED does blink repeatedly
+  - the clip shows multiple later pulse groups rather than a simple
+    `off -> on forever` sequence
+  - but the current structured protocol is still too dense to decode
+    confidently from one ordinary iPhone recording
+- the bounded response is now implemented:
+  - keep the same checkpoint map `1..9`
+  - slow the GPIO42 timing to about `0.4s` on, `0.4s` off inside a group, and
+    `2.0s` off between groups
+  - remove the redundant leading gap from each stage emitter so the full
+    sequence still fits within about one minute
+- validation summary for the slower-telemetry image:
+  - Pi 4 A72 rebuild: pass
+  - generic QEMU shell smoke: pass
+  - direct Pi 4 QEMU serial sanity on the real-device build still reaches:
+    - `call: exec go!`
+    - `go: enter`
+    - `hal: jump exit el1`
+    - `A3`
+    - `KLM`
+    - later `Exception #37`
+  - Pi 4 HDMI smoke helper was attempted twice and both runs failed in the
+    helper harness itself with early `socat ... Connection refused`, so that
+    lane was not re-verified in this step
+- the refreshed exported slower-telemetry image is:
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+- current validated Pi 4 SD-image SHA-256:
+  `4698611f2231fd5508e6eddeed25a24147701ce3efc209371425ea75d502f23e`
+- current manifest:
+  `manifests/2026-04-09-pi4-led-telemetry-slower-protocol.md`
+
 - on `2026-04-09`, the tighter LED-only hardware video from the current Pi 4
   image proved the old one-off GPIO42 probes were no longer sufficient:
   - the ACT LED sequence is now more complex than a simple armstub-only loop

@@ -410,9 +410,16 @@ Current payload rule:
     - `5`: `plo` EL3 path selected
     - `6`: `plo` EL2 path selected
     - `7`: `plo` EL1 path selected
-    - `8`: `plo` `start_common`
-    - `9`: `plo` core-0 branch to `_startc`
+  - `8`: `plo` `start_common`
+  - `9`: `plo` core-0 branch to `_startc`
   - each checkpoint is emitted as one pulse group separated by longer off gaps
+  - current timing target for the slower video-decodable protocol:
+    - about `0.4s` LED on per pulse
+    - about `0.4s` LED off between pulses inside one group
+    - about `2.0s` LED off between groups
+  - the current emitters start each group immediately and rely on a single
+    long trailing separator so the full `1..9` sequence still fits within
+    about one minute
   - the armstub still uses the current fixed-address jump to `0x40080000`
     instead of the firmware-patched `kernel_entry32` slot
   - Pi 4 `plo` now also uses the ARM-visible GICv2 aliases:
@@ -444,7 +451,7 @@ Recommended manual sequence on macOS:
 2. verify the exported artifact before flashing:
    - [scripts/verify-rpi4b-sdimg.sh](/Users/witoldbolt/phoenix-rpi/scripts/verify-rpi4b-sdimg.sh)
    - current expected SHA-256:
-     `6d6b4d7dd84f237f3e8dab1764f8be34b29b4e4d46d6f92ad30aee1869a2acdc`
+     `4698611f2231fd5508e6eddeed25a24147701ce3efc209371425ea75d502f23e`
 3. if you want the exact commands printed for a chosen disk identifier:
    - [scripts/print-rpi4b-macos-flash-commands.sh](/Users/witoldbolt/phoenix-rpi/scripts/print-rpi4b-macos-flash-commands.sh) `diskN`
 4. if you want a prefilled first-trial report file before you start:
@@ -531,7 +538,9 @@ For the current Pi 4 hardware loop without UART:
 - start recording before power-on
 - keep both LEDs in frame continuously
 - prefer at least `60 fps`
-- keep recording for at least `20` seconds
+- keep recording for at least `70` seconds
+- preferably record `90` seconds so the full slower checkpoint sequence still
+  fits even if the board progresses farther than expected
 - use the ACT LED pulse groups as the authoritative earliest boot evidence
 - do not summarize the result only as “green on/off”; preserve the full pulse
   sequence whenever possible

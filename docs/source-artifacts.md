@@ -1316,7 +1316,7 @@ Current Pi 4 xHCI fast-path reference note:
 - the current exported real-device handoff image is:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
   SHA-256:
-  `f6abd64a6dcd9e254a224c73d2402c4d33e09f52eec6da36418d903e31ffddac`
+  `4698611f2231fd5508e6eddeed25a24147701ce3efc209371425ea75d502f23e`
 - the dedicated operator-facing first board-trial checklist is:
   `/Users/witoldbolt/phoenix-rpi/docs/pi4-first-hardware-trial.md`
 - the current macOS-side first-trial helpers are:
@@ -1326,7 +1326,7 @@ Current Pi 4 xHCI fast-path reference note:
 - the current Pi 4 DTB regeneration helper for `phoenix-dev` is:
   - `/Users/witoldbolt/phoenix-rpi/scripts/prepare-rpi4b-dtb.sh`
 - the current exported Pi 4 SD-image SHA-256 is:
-  `6d6b4d7dd84f237f3e8dab1764f8be34b29b4e4d46d6f92ad30aee1869a2acdc`
+  `4698611f2231fd5508e6eddeed25a24147701ce3efc209371425ea75d502f23e`
 - the current SD-image export lesson is now explicit:
   - the VM-local Pi 4 SD image may be valid even when the host-visible copy is
     corrupt
@@ -1341,6 +1341,10 @@ Current Pi 4 xHCI fast-path reference note:
     or manual `cat` pipelines for this artifact
 - the current earliest-entry no-UART diagnostic path is now a structured
   GPIO42 telemetry protocol rather than one-off probes
+- the current slower telemetry timing target is:
+  - about `0.4s` LED on per pulse
+  - about `0.4s` LED off between pulses inside one group
+  - about `2.0s` LED off between groups
 - current checkpoint map:
   - `1`: armstub primary-core entry
   - `2`: armstub after early timer / GIC preparation

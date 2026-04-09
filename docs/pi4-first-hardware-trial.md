@@ -40,6 +40,13 @@ This image now intentionally uses:
   - the earlier one-off ACT-LED proofs were removed
   - the current image now emits numbered pulse groups separated by longer off
     gaps
+  - current timing target:
+    - about `0.4s` LED on per pulse
+    - about `0.4s` LED off between pulses inside one group
+    - about `2.0s` LED off between groups
+  - the current stage emitters now start each group immediately and use one
+    long trailing separator, so the full `1..9` sequence stays within about
+    one minute instead of stretching much longer
   - the current checkpoint map is:
     - `1`: armstub primary-core entry
     - `2`: armstub after early timer / GIC preparation
@@ -86,7 +93,9 @@ Do not assume UART visibility is available.
 5. Optionally connect Ethernet.
 6. Power on the board.
 7. Start a high-framerate close-up video before power-on and keep both LEDs in
-   frame for at least 20 seconds.
+   frame for at least 70 seconds.
+   If convenient, record 90 seconds so the full slower `1..9` sequence still
+   fits even if the board progresses farther than expected.
 8. Wait at least 60 seconds before classifying a silent result.
 9. If text or prompt appears, try:
    - `help`
@@ -168,6 +177,8 @@ Additional notes:
 ## Current LED Telemetry Interpretation Rule
 
 Count complete pulse groups separated by the longer off gaps.
+With the current slower protocol, groups should now be human-visible in a
+phone recording without frame-by-frame inspection.
 
 - highest completed `1` only:
   armstub started but did not reach the post-setup armstub checkpoint

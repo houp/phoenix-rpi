@@ -133,6 +133,13 @@ Current practical note for the first Pi 4 hardware attempt without USB-TTL:
   should be alternate observability, not repeated blind boot attempts
 - the current preferred no-UART observability path is now structured GPIO42
   ACT-LED telemetry plus high-framerate video capture, not one-off LED probes
+- for the current slower Pi 4 telemetry image, record at least `70` seconds and
+  preferably `90` seconds from power-on so the full checkpoint sequence can be
+  decoded from one clip
+- current intended timing for that slower protocol:
+  - about `0.4s` LED on per pulse
+  - about `0.4s` LED off between pulses inside one group
+  - about `2.0s` LED off between groups
 
 ## 4. QEMU Strategy
 

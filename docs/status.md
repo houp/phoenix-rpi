@@ -8,6 +8,35 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-09`, the next real-device hardware clip `IMG_0009.mov`
+  materially tightened the earliest `plo` boundary again:
+  - `ffprobe` confirms the clip is actually `59.93 fps`
+  - the strongest extracted ACT windows were:
+    - `1.985s - 2.002s`
+    - `2.203s - 7.392s`
+    - `8.360s - 8.760s`
+    - `9.562s - 9.978s`
+    - `11.597s - 11.997s`
+    - `12.798s - 12.848s` (weak / near-threshold)
+    - `15.668s - 16.068s`
+    - `16.870s - 17.287s`
+    - `18.088s - 18.488s`
+  - no later ACT activity is visible after about `18.49s`
+  - the early armstub activity is still partially merged by capture effects, so
+    the clip is not a literal one-pulse-per-stage decode from checkpoint `1`
+  - the strongest current interpretation is now:
+    - stage `4` is still reached
+    - the later grouped activity fits completion through stage `6` better than
+      a halt before stage `5`
+    - no convincing later group fits stage `7`
+  - so the active failure band shifts again:
+    - likely after stage `6`
+    - likely before the existing stage `7` marker
+    - meaning the next bounded split should be directly around
+      `mrs currentEL`
+- current manifest:
+  `manifests/2026-04-09-pi4-mid-register-clear-video-analysis.md`
+
 - on `2026-04-09`, the stage-`4` to stage-`5` gap was split again inside the
   earliest generic AArch64 `_start` register-clearing block:
   - stage `5` is now the midpoint of the `mov xN, #0` sequence

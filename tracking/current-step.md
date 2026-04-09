@@ -2,60 +2,66 @@
 
 ## Metadata
 
-- Step ID: `STEP-0447`
-- Title: Await the next Pi 4 board retry on the mid-register-clear split image
+- Step ID: `STEP-0448`
+- Title: Split the Pi 4 failure between end-of-clear and post-`currentEL` entry
 - Status: `in_progress`
 - Date: `2026-04-09`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- run the next real Pi 4 board retry on the refreshed GPIO42 telemetry image
-  and determine whether the current failure is:
-  - before the midpoint of generic AArch64 `_start` register clearing
-  - after the midpoint but before the end of register clearing
-  - or later than the new post-register-clear checkpoint
+- add the next narrowest GPIO42 split immediately around `currentEL` sampling in
+  earliest generic AArch64 `plo _start`
+- determine whether the current real Pi 4 failure is:
+  - before the `mrs currentEL` instruction
+  - after `currentEL` sampling but before the existing stage `7` marker
+  - or inside the first EL-dispatch path selected after `currentEL`
 
 ## Scope
 
 In scope:
 
-- flashing the refreshed Pi 4 SD image
-- recording a high-framerate close-up LED video from power-on
-- mapping the highest completed checkpoint group against the current `1..13`
-  stage table
-- using that result to choose the next smallest earliest-boot step
+- adding one tighter bounded checkpoint split around `mrs currentEL`
+- rebuilding the Pi 4 A72 image
+- re-exporting and verifying the Pi 4 SD image
+- updating the hardware runbook and tracker for the next board retry
 
 Out of scope:
 
 - unrelated USB, framebuffer, shell, or later-runtime work
-- broad early-boot rewrites before the narrowed telemetry result is observed
+- broad early-boot rewrites before the `currentEL` boundary is split
 
 ## Expected Repositories
 
+- `sources/plo`
 - coordination repo
 
 ## Expected Files Or Subsystems
 
+- `/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S`
 - `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
 - `/Users/witoldbolt/phoenix-rpi/docs/pi4-first-hardware-trial.md`
-- `/Users/witoldbolt/phoenix-rpi/docs/manual-operator-instructions.md`
+- `/Users/witoldbolt/phoenix-rpi/docs/status.md`
 - `/Users/witoldbolt/phoenix-rpi/tracking/current-step.md`
 
 ## Acceptance Criteria
 
-- a new board retry is performed on the refreshed image
-- the LED video is long enough to decode the slower `1..13` checkpoint map
-- the highest completed checkpoint is identified with enough confidence to
-  select the next bounded earliest-boot implementation step
+- the earliest generic AArch64 `plo _start` path has one more bounded split
+  around `currentEL`
+- the Pi 4 A72 image rebuilds successfully
+- the exported SD image is refreshed and passes the FAT-aware verifier
+- the next board retry can distinguish pre-`currentEL` failure from
+  post-`currentEL` but pre-EL-dispatch failure
 
 ## Validation Plan
 
-- Hardware:
+- Build and export:
+  - rebuild `aarch64a72-generic-rpi4b`
+  - reassemble bootfs and SD image
+  - export the image through
+    `/Users/witoldbolt/phoenix-rpi/scripts/export-rpi4b-sdimg.sh`
   - verify the exported image with
     `/Users/witoldbolt/phoenix-rpi/scripts/verify-rpi4b-sdimg.sh`
-  - flash the full SD image
-  - record at least `70` seconds of high-framerate LED video
 
 ## Rollback / Baseline
 
@@ -64,10 +70,11 @@ Out of scope:
 
 ## Notes
 
-- `IMG_0005.mov` is actually `30.01 fps` according to `ffprobe`, not `60 fps`.
-- The previous image still most strongly fit failure before the old stage `5`,
-  so the current image adds one midpoint checkpoint inside the register-clearing
-  block itself.
+- `IMG_0009.mov` is `59.93 fps` according to `ffprobe`.
+- The strongest current interpretation is:
+  - the later ACT pulse envelopes fit completion through stage `6`
+  - no later visible group fits the existing stage `7` marker
+  - so the next useful split is around `mrs currentEL`, not deeper EL-path code
 - The current telemetry checkpoint map is:
   - `1`: armstub primary-core entry
   - `2`: armstub after early timer / GIC preparation

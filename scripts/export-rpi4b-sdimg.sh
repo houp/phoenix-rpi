@@ -7,12 +7,28 @@ remote_image="${RPI4B_REMOTE_SDIMG:-/home/witoldbolt.guest/phoenix-buildroots/ph
 out_dir="${RPI4B_EXPORT_DIR:-/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b}"
 out_file="${RPI4B_EXPORT_SDIMG_PATH:-$out_dir/rpi4b-sd.img}"
 tmp_file="${out_file}.tmp"
+verify_script="${RPI4B_VERIFY_SCRIPT:-/Users/witoldbolt/phoenix-rpi/scripts/verify-rpi4b-sdimg.sh}"
+
+cleanup()
+{
+	rm -f "$tmp_file"
+}
+
+trap cleanup EXIT
 
 mkdir -p "$out_dir"
 
 limactl shell -y "$vm" -- test -f "$remote_image"
+remote_size="$(limactl shell -y "$vm" -- stat -c%s "$remote_image" | tr -d '\r\n')"
+remote_sha256="$(limactl shell -y "$vm" -- sha256sum "$remote_image" | awk '{print $1}')"
 limactl shell -y "$vm" -- base64 -w0 "$remote_image" | base64 -d > "$tmp_file"
+RPI4B_SDIMG_PATH="$tmp_file" \
+	RPI4B_SDIMG_SHA256="$remote_sha256" \
+	RPI4B_SDIMG_SIZE="$remote_size" \
+	"$verify_script" >/dev/null
 mv "$tmp_file" "$out_file"
+trap - EXIT
 
 printf 'Exported: %s\n' "$out_file"
-wc -c < "$out_file"
+printf 'Size: %s\n' "$remote_size"
+printf 'SHA256: %s\n' "$remote_sha256"

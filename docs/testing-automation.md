@@ -303,6 +303,11 @@ On this machine, the recommended default is:
 - do not run two Phoenix target builds concurrently against the same copied
   buildroot path; generic and Pi 4 builds race on shared host-artifact paths
   such as `_build/host-generic-pc`
+- for Pi 4 SD-card artifacts, the only approved VM-to-host export path is
+  `scripts/export-rpi4b-sdimg.sh`
+- do not improvise with `scp`, `sftp`, `rsync`, `limactl copy`, streamed `dd`,
+  or manual binary-copy pipelines for that artifact; if export reliability is
+  in doubt, fix the helper and keep it canonical
 
 Reason:
 

@@ -28,6 +28,9 @@ Make future sessions cheaper and less error-prone.
 4. When new information is time-sensitive, mark it `Re-verify:`.
 5. Prefer exact upstream paths and URLs over summary-only prose.
 6. If a document grows too large, split by concern rather than by date.
+7. When a repeated workflow failure is resolved, promote one canonical method
+   into the docs and explicitly mark the rejected fallback methods as
+   disallowed, so later sessions do not re-run the same experiments.
 
 ## What Belongs Where
 

@@ -67,8 +67,11 @@ For each substantial task:
 7. simplify the patch until it matches nearby Phoenix style and remains easy to review
 8. run the fastest validation lane available
 9. capture artifacts and classify failures
-10. commit each touched upstream repository once the step succeeds
-11. update the docs, tracker, or integration manifest if any new fact or constraint was discovered
+10. for Pi 4 SD-card images exported from `phoenix-dev`, use only
+    `scripts/export-rpi4b-sdimg.sh`; if it fails, fix that helper instead of
+    trying an alternate transfer method
+11. commit each touched upstream repository once the step succeeds
+12. update the docs, tracker, or integration manifest if any new fact or constraint was discovered
 
 ## 3A. Unattended Loop
 

@@ -8,6 +8,18 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-09`, the Pi 4 SD-image export workflow was tightened into a
+  fixed project rule:
+  - `scripts/export-rpi4b-sdimg.sh` is now the only approved VM-to-host export
+    path for the Pi 4 SD image
+  - it now captures the VM-local image size and SHA-256, transfers the image
+    through the text-safe base64 path, and runs the FAT-aware host verifier
+    against those VM-derived values before replacing the exported artifact
+  - future sessions must not improvise with `scp`, `sftp`, `rsync`,
+    `limactl copy`, streamed `dd`, or manual binary-copy pipelines for this
+    artifact; if export reliability is in doubt, the helper must be fixed
+    instead of bypassed
+
 - on `2026-04-09`, the latest real Pi 4 board result on the
   pre-kernel-branch armstub LED image produced:
   - red LED on
@@ -123,16 +135,18 @@ Latest rebuild and retest:
 - the previously exported host copy was corrupt:
   the first partition existed in the MBR, but the FAT boot sector at offset
   `1048576` had been zeroed, which explains the earlier macOS mount failure
-- the host-side export helper now uses:
-  - `limactl copy --backend=rsync`
-  instead of the older export path that produced the corrupted host copy
+- historical note:
+  - an intermediate `limactl copy --backend=rsync` export step was tried at
+    that stage
+  - it was later also classified as unreliable and is now superseded by the
+    fixed canonical helper described at the top of this file
 - the host-side verification helper is now FAT-aware:
   it checks image size, SHA-256, the first partition boot-sector signature,
   a non-zero FAT bytes-per-sector field, and an `mdir` listing at the computed
   partition offset
 - the refreshed exported Pi 4 SD-card artifact is:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
-- current validated Pi 4 SD-image SHA-256:
+- historical exported Pi 4 SD-image SHA-256 at that stage:
   `acea299fb225edb0293b4d022b9b19d984fe51627a168bd69c403442590b757d`
 - current export-fix manifest:
   `manifests/2026-04-08-pi4-plo-entry-led-proof.md`

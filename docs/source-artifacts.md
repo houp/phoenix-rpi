@@ -1330,10 +1330,15 @@ Current Pi 4 xHCI fast-path reference note:
 - the current SD-image export lesson is now explicit:
   - the VM-local Pi 4 SD image may be valid even when the host-visible copy is
     corrupt
-  - the current export helper therefore uses a text-safe
-    `limactl shell ... base64 | base64 -d` path
+  - the current export helper is now the only approved VM-to-host transfer path
+    for this artifact
+  - it captures remote size and SHA-256 first, uses a text-safe
+    `limactl shell ... base64 | base64 -d` path, then runs the FAT-aware
+    verifier against those remote values before replacing the host-visible copy
   - the current verification helper therefore validates the embedded FAT boot
     partition itself, not only file size and SHA-256
+  - do not fall back to `scp`, `sftp`, `rsync`, `limactl copy`, streamed `dd`,
+    or manual `cat` pipelines for this artifact
 - the current earliest-entry board-visible proof in that image is:
   - the custom Pi 4 armstub drives GPIO42 high on the primary core
   - if the ACT LED stays off on the real board, the failure is still before or

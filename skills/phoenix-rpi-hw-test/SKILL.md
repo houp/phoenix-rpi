@@ -38,6 +38,10 @@ Read the relevant platform file if the failing test is platform-specific.
    - shell startup
    - runtime regression
    - lab infrastructure
+8. For Pi 4 SD-card artifacts exported from `phoenix-dev`, use only
+   `scripts/export-rpi4b-sdimg.sh`. Do not improvise with alternate VM-to-host
+   copy methods; if export reliability is in doubt, fix the helper and re-run
+   it.
 
 ## Key Existing Phoenix Test Assets
 

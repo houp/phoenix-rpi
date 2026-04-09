@@ -372,13 +372,16 @@ Current payload rule:
 - the current host-side full-disk-image export helper is:
   - [scripts/export-rpi4b-sdimg.sh](/Users/witoldbolt/phoenix-rpi/scripts/export-rpi4b-sdimg.sh)
 - current practical note:
-  - the helper now uses a text-safe
-    `limactl shell ... base64 | base64 -d` path
-  - this is required because both earlier host export paths:
-    - `limactl copy --backend=rsync`
-    - and a raw streamed `dd`
-    produced corrupted host-visible copies even though the VM-local SD image
-    itself was valid
+  - this helper is now the only approved VM-to-host export path for the Pi 4
+    SD image
+  - it captures the VM-local image size and SHA-256 first, transfers the image
+    through a text-safe `limactl shell ... base64 | base64 -d` path, then runs
+    the host-side FAT-aware verifier against those VM-derived values before
+    replacing the exported artifact
+  - do not improvise with `scp`, `sftp`, `rsync`, `limactl copy`, streamed
+    `dd`, or manual `cat` pipelines for this artifact
+  - those earlier ad hoc paths already produced corrupted host-visible copies
+    even while the VM-local SD image remained valid
 - by default it exports that disk image into the host workspace at:
   - `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
 - current validated exported full-image SHA-256:
@@ -433,6 +436,7 @@ Recommended manual sequence on macOS:
 
 1. refresh the exported artifact if needed:
    - [scripts/export-rpi4b-sdimg.sh](/Users/witoldbolt/phoenix-rpi/scripts/export-rpi4b-sdimg.sh)
+   - do not replace this step with a manual VM-to-host copy method
 2. verify the exported artifact before flashing:
    - [scripts/verify-rpi4b-sdimg.sh](/Users/witoldbolt/phoenix-rpi/scripts/verify-rpi4b-sdimg.sh)
    - current expected SHA-256:

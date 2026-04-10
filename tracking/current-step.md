@@ -2,62 +2,57 @@
 
 ## Metadata
 
-- Step ID: `STEP-0449`
-- Title: Await the next Pi 4 board retry on the compact stage-code telemetry image
+- Step ID: `STEP-0450`
+- Title: Split the Pi 4 failure between armstub stage `3` and earliest `plo` stage `4`
 - Status: `in_progress`
 - Date: `2026-04-10`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- run the next real Pi 4 retry on the refreshed compact stage-code image
-- capture one high-quality LED video that can identify the highest completed
-  early-boot checkpoint without another immediate probe redesign
-- use that video to distinguish failure:
-  - before `currentEL`
-  - after `currentEL` but before EL-path selection
-  - in a specific EL path
-  - or later in `start_common` / core-0 startup
+- explain why the compact stage-code image reaches armstub stage `3` but does
+  not emit earliest generic `plo` stage `4`
+- choose the smallest next experiment that distinguishes:
+  - failure before the fixed-address branch target is entered
+  - failure at the first instructions of generic `plo _start`
+  - reset or re-entry that hides stage `4`
 
 ## Scope
 
 In scope:
 
-- flashing the current exported SD image
-- recording a close ACT-LED video at `60 fps` or better when possible
-- decoding the highest completed telemetry stage from the new compact format
+- analysis of the compact stage-code video result
+- the next bounded early-handoff experiment between stage `3` and stage `4`
+- rebuilding and re-exporting the Pi 4 image after that experiment
 
 Out of scope:
 
-- new code changes before the next video is analyzed
-- unrelated USB, framebuffer, DTB, or later-runtime work
+- unrelated `currentEL`, EL-path, USB, framebuffer, DTB, or later-runtime work
 
 ## Expected Repositories
 
+- `sources/plo`
+- `sources/phoenix-rtos-project`
 - coordination repo
 
 ## Expected Files Or Subsystems
 
-- `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
-- `/Users/witoldbolt/phoenix-rpi/docs/pi4-first-hardware-trial.md`
-- `/Users/witoldbolt/phoenix-rpi/docs/manual-operator-instructions.md`
+- `/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/phoenix-armstub8-rpi4.S`
+- `/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S`
+- `/Users/witoldbolt/phoenix-rpi/docs/status.md`
 - `/Users/witoldbolt/phoenix-rpi/tracking/current-step.md`
 
 ## Acceptance Criteria
 
-- the operator flashes the refreshed image
-- the next video is long enough to contain several stage-code bursts
-- the next analysis can identify the highest completed stage with materially
-  better confidence than the old count-based pulse protocol
+- the current compact-stage video result is preserved in the knowledge base
+- the next experiment is explicitly centered on the stage `3 -> 4` seam
+- the next image should answer whether generic `plo` is entered at all
 
 ## Validation Plan
 
-- current code/image baseline already validated:
-  - Pi 4 A72 rebuild: pass
-  - generic shell smoke: pass
-  - direct Pi 4 QEMU serial sanity: pass
-  - canonical SD-image export: pass
-  - FAT-aware verifier: pass
+- use the decoded `IMG_7135.mov` result as the current hardware baseline
+- preserve the usual rebuild, export, and FAT-aware verification flow for the
+  next image
 
 ## Rollback / Baseline
 
@@ -66,41 +61,20 @@ Out of scope:
 
 ## Notes
 
-- `IMG_0009.mov` was the key trigger for the redesign:
-  it most strongly fit completion through stage `6`, so the next split was
-  centered on `mrs currentEL`.
-- `gemini-findings.md` influenced this step in a narrow way:
-  - `dsb sy` / `isb` before `mrs currentEL` was adopted
-  - preserving `x0` remains plausible later but is not the tightest current
-    explanation for this earliest `plo` band
-- Current compact telemetry protocol:
-  - one sync pulse starts each stage burst
-  - then `5` fixed-width bits are emitted MSB-first
-  - short on-time encodes `0`
-  - long on-time encodes `1`
-  - a longer off gap separates stage bursts
-- Current checkpoint map:
-  - `1` / `00001`: armstub primary-core entry
-  - `2` / `00010`: armstub after early timer / GIC preparation
-  - `3` / `00011`: armstub just before the fixed-address jump to `plo`
-  - `4` / `00100`: earliest generic AArch64 `plo` `_start`
-  - `5` / `00101`: after clearing `x0..x7`
-  - `6` / `00110`: after clearing `x8..x15`
-  - `7` / `00111`: after clearing `x16..x23`
-  - `8` / `01000`: after clearing `x24..x30`
-  - `9` / `01001`: after `dsb sy` / `isb`
-  - `10` / `01010`: after `mrs currentEL`
-  - `11` / `01011`: `start_el3`
-  - `12` / `01100`: `start_el2`
-  - `13` / `01101`: `start_el1`
-  - `14` / `01110`: EL3 path complete, just before `start_common`
-  - `15` / `01111`: EL2 path complete, just before `start_common`
-  - `16` / `10000`: EL1 path complete, just before `start_common`
-  - `17` / `10001`: `start_common`
-  - `18` / `10010`: after stack initialization
-  - `19` / `10011`: core-0 branch to `_startc`
-  - `20` / `10100`: unexpected-EL trap path
-- Current refreshed exported image:
-  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
-- Current validated SHA-256:
-  `cada5a0cf3c5ce41a2197cc4296e81ed43b6b671d878660e3e303e16098ab60c`
+- `IMG_7135.mov` is genuinely high-framerate:
+  `ffprobe` reports `60000/1001` nominal rate and about `30.21s` duration.
+- The later ACT windows decode cleanly as compact stage-code bursts:
+  - around `8.44s - 10.79s`: stage `1` / `00001`
+  - around `11.28s - 13.61s`: stage `2` / `00010`
+  - around `14.10s - 16.53s`: stage `3` / `00011`
+- No later stage-`4` sync burst is visible after stage `3`.
+- There is earlier green activity at about `1.95s - 7.42s`, but it does not
+  fit the sync-plus-`5`-bit structure and is therefore treated as pre-telemetry
+  firmware / media activity, not as a valid decoded Phoenix stage.
+- The current strongest interpretation is now:
+  - armstub primary-core entry is reached
+  - armstub timer / GIC prep is reached
+  - armstub reaches the final fixed-address pre-`plo` branch point
+  - earliest generic `plo` stage `4` is not observed
+  - so the active failure band moves back from `currentEL` to the stage
+    `3 -> 4` handoff itself

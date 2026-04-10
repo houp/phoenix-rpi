@@ -8,6 +8,27 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-10`, the first real-board retry on the compact stage-code image
+  produced a materially clearer decode than the earlier count-based protocol:
+  - `ffprobe` confirms `IMG_7135.mov` is truly `59.94 fps`
+  - the later ACT windows decode cleanly as:
+    - stage `1` / `00001` around `8.44s - 10.79s`
+    - stage `2` / `00010` around `11.28s - 13.61s`
+    - stage `3` / `00011` around `14.10s - 16.53s`
+  - no later stage-`4` sync burst is visible after stage `3`
+  - earlier green activity around `1.95s - 7.42s` does not match the current
+    sync-plus-`5`-bit structure and is therefore treated as pre-telemetry
+    firmware / media activity, not as valid decoded Phoenix stage output
+  - the strongest current interpretation is now:
+    - armstub stage `1` is reached
+    - armstub stage `2` is reached
+    - armstub stage `3` is reached
+    - earliest generic `plo` stage `4` is not observed
+  - so the active failure band moves back from the `currentEL` seam to the
+    stage `3 -> 4` handoff itself
+- current manifest:
+  `manifests/2026-04-10-pi4-compact-stage-code-video-analysis.md`
+
 - on `2026-04-10`, the Pi 4 earliest-`plo` telemetry was redesigned to reduce
   future probe churn after `IMG_0009.mov`:
   - the old count-based GPIO42 pulse groups were replaced with a compact

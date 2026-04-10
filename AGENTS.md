@@ -84,6 +84,15 @@ Use them as follows:
 - When debugging runtime behavior under QEMU, prefer GDB through the QEMU gdbstub before changing source code to add probes, traces, or debug prints. Only add source-level runtime instrumentation after documenting why the GDB-first path is insufficient for the current question.
 - If a code change is introduced only to probe, diagnose, or verify a hypothesis and that hypothesis turns out false, remove that diagnostic code before the step is closed or committed. Keep only the code changes that are actually required by the confirmed fix or design.
 - Optimize all future code for readability and upstreamability: keep changes small, consistent with nearby Phoenix code, warning-clean, and free of gratuitous formatting churn.
+- Treat warnings and non-fatal errors from tools as first-class signals. Surface
+  them to the user in the same session, decide whether they are likely
+  significant, and either fix the process so they stop happening or document why
+  they are currently tolerated.
+- Pay special attention to DTS, DTSI, and DTB handling. Prefer authoritative
+  final-form DTB blobs from trusted upstream sources or already-built artifacts
+  over ad hoc local DTS preprocessing whenever that is practical. If DTB or DTS
+  manipulation is still required, surface every warning and tighten the helper
+  so later sessions do not silently repeat questionable transformations.
 - When the user explicitly prioritizes the first Raspberry Pi 4 boot, use a boot-first fast lane:
   prefer the smallest steps that unlock common timer runtime validation, generic QEMU `virt`, PL011 console reuse, `plo` boot, and Pi 4 kernel handoff; defer generic cleanup that is not on that path.
 - Do not bury important findings in chat history. Update the docs when new constraints, addresses, boot flows, test commands, or risks are discovered.

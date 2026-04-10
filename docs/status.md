@@ -8,6 +8,30 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-11`, the repository policy was tightened so warnings and
+  recoverable tool errors must now be surfaced, classified, and either fixed or
+  explicitly justified in the same session:
+  - the docs and agent rules now treat warnings as first-class signals rather
+    than cosmetic noise
+  - DTS, DTSI, and DTB warnings are now explicitly classified as
+    boot-significant until proved otherwise
+  - `scripts/prepare-rpi4b-dtb.sh` now prefers final-form DTB blobs over local
+    DTS compilation whenever possible
+  - the same helper now fails by default if DTS compilation emits warnings
+  - first strict-helper result:
+    - compiling the current Raspberry Pi Linux
+      `bcm2711-rpi-4-b.dts` path emits many `dtc` warnings such as:
+      - `unit_address_vs_reg`
+      - `simple_bus_reg`
+      - `unique_unit_address`
+      - `gpios_property`
+    - that warning set is now surfaced instead of being silently ignored
+  - practical implication:
+    - prefer final DTB blobs for Pi 4 work
+    - treat local DTS compilation as fallback, not as the default trusted path
+  - manifest:
+    `manifests/2026-04-11-warning-discipline-and-dtb-policy.md`
+
 - on `2026-04-11`, the next Pi 4 retry clip
   `/Users/witoldbolt/Downloads/IMG_0014.mov` did **not** produce any valid
   decodable Phoenix ACT-LED stage burst:

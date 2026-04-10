@@ -82,6 +82,9 @@ For each substantial task:
     plus
     `scripts/summarize-rpi4b-uart-log.py`
     instead of ad hoc serial commands
+10c. if a build, packaging, DTB, download, or helper step emits warnings or
+    recoverable errors, surface them, classify them, and tighten the process so
+    later sessions do not keep reproducing them silently
 11. commit each touched upstream repository once the step succeeds
 12. update the docs, tracker, or integration manifest if any new fact or constraint was discovered
 

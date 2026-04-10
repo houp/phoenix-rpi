@@ -737,6 +737,20 @@ For code-quality-sensitive steps, also keep:
 
 - build logs showing warning-clean status for touched targets
 - the exact commit SHAs validated
+- any non-fatal helper warnings that affected image, DTB, packaging, or UART
+  capture workflow
+
+Current warning-discipline rule:
+
+- if a test or helper emits warnings, mention them in the session result
+- decide whether they are:
+  - real failure signals
+  - risky assumptions
+  - benign but removable workflow noise
+- then improve the helper or workflow so later sessions do not keep seeing the
+  same warnings
+- apply extra caution to DTS, DTSI, DTB, and firmware-staging warnings because
+  they can directly affect boot and hardware enumeration
 
 ## 12. AI-Agent Workflow Recommendations
 

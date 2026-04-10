@@ -228,6 +228,8 @@ Use tools to reinforce quality, not to fight the codebase.
 - `clang-format` in tightly scoped form only
 - `rg` for consistency checks across similar drivers
 - compiler warnings as the first line of static analysis
+- build, link, image, packaging, and helper-script warnings as real quality
+  signals, not cosmetic noise
 
 ### 7.3 Optional advisory tools
 
@@ -264,11 +266,37 @@ For every milestone:
 
 1. implement the smallest coherent change
 2. build with Phoenix warning policy
-3. run the fastest relevant tests
-4. simplify the patch before committing
-5. commit only after the diff is reviewable and stylistically consistent
+3. inspect warnings and non-fatal tool errors, not only hard failures
+4. fix or explicitly justify recurring warnings in the same session
+5. run the fastest relevant tests
+6. simplify the patch before committing
+7. commit only after the diff is reviewable and stylistically consistent
 
-## 10. When To Add New Quality Rules
+## 10. Warning Discipline
+
+Warnings must not disappear into terminal scrollback.
+
+Rules:
+
+- if a tool emits a warning or recoverable error, mention it in the session
+  summary unless it is obviously irrelevant shell noise
+- decide whether it is:
+  - a true bug or misconfiguration
+  - a risky assumption
+  - a benign but recurring nuisance that should still be removed
+- if it is recurring, improve the helper, script, build flags, or workflow so
+  the warning stops recurring
+- do not normalize repeated warnings just because the step still "worked"
+
+Special DTB / DTS rule:
+
+- treat `cpp`, `dtc`, `fdtdump`, overlay, and DTB-staging warnings as
+  potentially significant until proved otherwise
+- prefer trusted final-form DTB blobs over local ad hoc DTS-to-DTB pipelines
+  when both are available
+- if a DTB helper still has to compile DTS locally, make it surface warnings
+  explicitly and fail by default when those warnings appear
+## 11. When To Add New Quality Rules
 
 Update this file if future sessions discover:
 

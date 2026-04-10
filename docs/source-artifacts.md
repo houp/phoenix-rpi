@@ -558,6 +558,25 @@ Important current UART facts from the official documentation:
   - `0xfd500000` for the PCIe register base
   - `0xf8000000` for the Pi 4 PCIe outbound window
   - `0xfd580000` for GENET
+
+## 6.1 DTB source preference rule
+
+Current practical DTB-source order for this project:
+
+1. a final-form DTB blob from an authoritative upstream source
+2. a project-local validated DTB blob
+3. only as fallback, a locally compiled DTS source tree
+
+Reason:
+
+- the current Raspberry Pi Linux DTS compile path emits multiple `dtc`
+  structural warnings under the stricter helper policy
+- those warnings may be upstream-tolerated for Linux, but they should still be
+  treated as significant for Phoenix bring-up until consciously reviewed
+
+Current helper implementing that rule:
+
+- [prepare-rpi4b-dtb.sh](/Users/witoldbolt/phoenix-rpi/scripts/prepare-rpi4b-dtb.sh)
   - PL011 clock `48000000`
   - mini-UART clock `500000000`
   It also records a real Pi 4 firmware-stage memory layout where RAM begins at

@@ -31,6 +31,8 @@ Make future sessions cheaper and less error-prone.
 7. When a repeated workflow failure is resolved, promote one canonical method
    into the docs and explicitly mark the rejected fallback methods as
    disallowed, so later sessions do not re-run the same experiments.
+8. When tools emit recurring warnings or recoverable errors, record both the
+   warning and the adopted mitigation so future sessions do not normalize it.
 
 ## What Belongs Where
 

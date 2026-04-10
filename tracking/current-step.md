@@ -94,3 +94,8 @@ Out of scope:
   - `IMG_0014.mov` did not decode any valid Phoenix stage burst under the
     current layout
   - treat that clip as ambiguous and do not widen the LED-only loop from it
+- DTB process note:
+  - the strict `prepare-rpi4b-dtb.sh` run against the Raspberry Pi Linux DTS
+    source now surfaces multiple `dtc` warnings and fails by default
+  - prefer final DTB blobs over local DTS compilation for future Pi 4 DTB
+    preparation whenever possible

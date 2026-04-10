@@ -136,6 +136,8 @@ In chat:
 - what step is active
 - what repository is being touched
 - what validation is being run
+- any warnings or recoverable errors emitted by the active tools
+- whether those warnings are being fixed, tolerated, or escalated
 
 ### Layer 2: durable step record
 
@@ -225,6 +227,8 @@ Before ending an implementation session:
 3. update or create a manifest if code changed
 4. update `docs/status.md`
 5. clearly state the next smallest step
+6. explicitly mention any warnings or non-fatal tool errors seen in the session
+   and what changed so they do not silently recur
 
 ## 13. User-Friendly Operating Mode
 

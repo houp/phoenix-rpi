@@ -281,6 +281,12 @@ Current accepted inputs are:
 - project-local file:
   `sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/bcm2711-rpi-4-b.dtb`
 
+Preferred input order:
+
+1. a final-form trusted DTB blob
+2. a project-local validated DTB blob
+3. only as fallback, a locally compiled DTS path
+
 Current staged output path:
 
 - `_boot/aarch64a72-generic-rpi4b/rpi4b/bcm2711-rpi-4-b.dtb`
@@ -292,6 +298,11 @@ Current practical rule:
 - when `phoenix-dev` is restarted, do not assume `/tmp/rpi4b-dtb/bcm2711-rpi-4-b.dtb`
   still exists; regenerate it with:
   - [scripts/prepare-rpi4b-dtb.sh](/Users/witoldbolt/phoenix-rpi/scripts/prepare-rpi4b-dtb.sh)
+- the DTB helper now prefers final DTB blobs over local DTS compilation
+- if it has to compile DTS and `dtc` emits warnings, it now fails by default
+  instead of silently continuing
+- if a warning is consciously tolerated for a temporary reason, rerun only with
+  `RPI4B_DTB_ALLOW_WARNINGS=1` and document why
 
 Current QEMU-only helper for the emulated Pi 4 lane:
 

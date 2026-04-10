@@ -19,7 +19,7 @@ Use this image:
 
 Current SHA-256:
 
-- `03a0729254dc0bc81f542fe8db276f7a2b70d3fb76de9fc7303ea470aca83137`
+- `cada5a0cf3c5ce41a2197cc4296e81ed43b6b671d878660e3e303e16098ab60c`
 
 This image supersedes the earlier Pi 4 trial images that used the temporary
 firmware-default low-placement experiment:
@@ -36,33 +36,40 @@ This image now intentionally uses:
   - local timer control / prescaler
   - `CNTFRQ_EL0 = 54000000`
   - GIC group-1 setup through the ARM-visible aliases
-- structured GPIO42 telemetry protocol:
-  - the earlier one-off ACT-LED proofs were removed
-  - the current image now emits numbered pulse groups separated by longer off
-    gaps
-  - current timing target:
-    - about `0.4s` LED on per pulse
-    - about `0.4s` LED off between pulses inside one group
-    - about `2.0s` LED off between groups
-  - the current stage emitters now start each group immediately and use one
-    long trailing separator, so the full sequence stays within about one
-    minute instead of stretching much longer
+- compact GPIO42 telemetry protocol:
+  - the earlier one-off ACT-LED proofs and later count-based pulse groups were
+    removed
+  - each stage now emits:
+    - one sync pulse
+    - then `5` fixed-width bits, MSB first
+    - short on-time = `0`
+    - long on-time = `1`
+    - then one longer off gap before the next stage
+  - this keeps the protocol denser than counting long pulse groups while still
+    staying decodable from a high-framerate video
   - the current checkpoint map is:
-    - `1`: armstub primary-core entry
-    - `2`: armstub after early timer / GIC preparation
-    - `3`: armstub just before the fixed-address jump to `plo`
-    - `4`: earliest generic AArch64 `plo` `_start`
-    - `5`: midpoint of general-purpose register clearing
-    - `6`: end of general-purpose register clearing
-    - `7`: after `currentEL` sampling, before EL dispatch
-    - `8`: `start_el3`
-    - `9`: `start_el2`
-    - `10`: `start_el1`
-    - `11`: `start_common`
-    - `12`: core-0 branch to `_startc`
-    - `13`: unexpected-EL trap path
-  - the goal of the next board trial is no longer “did one probe move?”
-  - the goal is “what is the highest completed numbered checkpoint?”
+    - `1` / `00001`: armstub primary-core entry
+    - `2` / `00010`: armstub after early timer / GIC preparation
+    - `3` / `00011`: armstub just before the fixed-address jump to `plo`
+    - `4` / `00100`: earliest generic AArch64 `plo` `_start`
+    - `5` / `00101`: after clearing `x0..x7`
+    - `6` / `00110`: after clearing `x8..x15`
+    - `7` / `00111`: after clearing `x16..x23`
+    - `8` / `01000`: after clearing `x24..x30`
+    - `9` / `01001`: after `dsb sy` / `isb`
+    - `10` / `01010`: after `mrs currentEL`
+    - `11` / `01011`: `start_el3`
+    - `12` / `01100`: `start_el2`
+    - `13` / `01101`: `start_el1`
+    - `14` / `01110`: EL3 path complete, before `start_common`
+    - `15` / `01111`: EL2 path complete, before `start_common`
+    - `16` / `10000`: EL1 path complete, before `start_common`
+    - `17` / `10001`: `start_common`
+    - `18` / `10010`: after stack initialization
+    - `19` / `10011`: core-0 branch to `_startc`
+    - `20` / `10100`: unexpected-EL trap path
+  - the goal of the next board trial is to identify the highest completed
+    stage code, not to count approximate pulse envelopes
 - Pi 4 `plo` GIC base aliases:
   - `0xff841000`
   - `0xff842000`
@@ -97,8 +104,8 @@ Do not assume UART visibility is available.
 5. Optionally connect Ethernet.
 6. Power on the board.
 7. Start a high-framerate close-up video before power-on and keep both LEDs in
-   frame for at least 70 seconds.
-   If convenient, record 90 seconds so the full slower `1..13` sequence still
+   frame for at least 60 seconds.
+   If convenient, record 90 seconds so the full compact `1..20` sequence still
    fits even if the board progresses farther than expected.
 8. Wait at least 60 seconds before classifying a silent result.
 9. If text or prompt appears, try:
@@ -111,8 +118,8 @@ Do not assume UART visibility is available.
 
 Any of these are useful:
 
-- clearly separated numbered ACT-LED pulse groups
-- a highest completed checkpoint that can be counted from the video
+- clearly separated ACT-LED stage-code bursts
+- a highest completed checkpoint code that can be decoded from the video
 - visible top-left early panel from `plo`
 - black background with white text
 - readable Phoenix boot output
@@ -144,7 +151,7 @@ Copy this block into the next report or chat message:
 ```text
 Pi 4 first hardware trial
 Image: artifacts/rpi4b/rpi4b-sd.img
-SHA256: 03a0729254dc0bc81f542fe8db276f7a2b70d3fb76de9fc7303ea470aca83137
+SHA256: cada5a0cf3c5ce41a2197cc4296e81ed43b6b671d878660e3e303e16098ab60c
 Board revision:
 Display:
 Keyboard:
@@ -161,8 +168,8 @@ HDMI result:
 
 ACT LED result:
 - attach or summarize the LED video
-- highest completed checkpoint group:
-- final LED state after the pulse groups:
+- highest completed checkpoint code:
+- final LED state after the last visible stage burst:
 
 Keyboard result:
 - no visible effect / partial / full
@@ -180,34 +187,36 @@ Additional notes:
 
 ## Current LED Telemetry Interpretation Rule
 
-Count complete pulse groups separated by the longer off gaps.
-With the current slower protocol, groups should now be human-visible in a
-phone recording without frame-by-frame inspection.
+Decode each stage burst as:
 
-- highest completed `1` only:
-  armstub started but did not reach the post-setup armstub checkpoint
-- highest completed `2`:
-  armstub reached early timer / GIC setup but not the final pre-`plo` handoff
-- highest completed `3`:
-  armstub reached the final fixed-address jump point but `plo` stage `4` was
-  not observed
+- one sync pulse
+- then `5` bits MSB-first
+- short on-time = `0`
+- long on-time = `1`
+
+Current stage meanings:
+
+- highest completed `1`, `2`, or `3`:
+  still in the custom armstub path before generic `plo` runs
 - highest completed `4`:
   earliest generic AArch64 `plo` `_start` was entered
-- highest completed `5`:
-  `_start` reached the midpoint of the general-purpose register-clearing block
-  but did not finish it
-- highest completed `6`:
-  `_start` finished clearing the general-purpose registers but did not reach
-  `currentEL` sampling
-- highest completed `7`:
-  `_start` sampled `currentEL` but did not reach the chosen EL-path body
-- highest completed `8`, `9`, or `10`:
+- highest completed `5`, `6`, `7`, or `8`:
+  failure is inside the general-purpose register-clearing block
+- highest completed `9`:
+  failure is after `dsb sy` / `isb` but before or during `mrs currentEL`
+- highest completed `10`:
+  `currentEL` was sampled but the chosen EL-path body was not reached
+- highest completed `11`, `12`, or `13`:
   `plo` selected EL3, EL2, or EL1 respectively
-- highest completed `11`:
+- highest completed `14`, `15`, or `16`:
+  the chosen EL-path body ran to its pre-`start_common` boundary
+- highest completed `17`:
   `plo` reached `start_common`
-- highest completed `12`:
+- highest completed `18`:
+  `plo` passed stack setup
+- highest completed `19`:
   `plo` reached the core-0 branch to `_startc`
-- highest completed `13`:
+- highest completed `20`:
   `plo` reached the unexpected-EL trap path
 
 ## Next-Agent Interpretation Rule

@@ -8,6 +8,47 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-10`, the Pi 4 earliest-`plo` telemetry was redesigned to reduce
+  future probe churn after `IMG_0009.mov`:
+  - the old count-based GPIO42 pulse groups were replaced with a compact
+    sync-plus-`5`-bit stage-code protocol
+  - the protocol now carries more checkpoints in one video-decodable burst:
+    - `1..3`: armstub path
+    - `4`: earliest generic AArch64 `plo _start`
+    - `5..8`: the four bounded register-clear subranges
+    - `9`: after `dsb sy` / `isb`
+    - `10`: after `mrs currentEL`
+    - `11..13`: EL-path selection
+    - `14..16`: post-EL-path pre-`start_common` boundaries
+    - `17`: `start_common`
+    - `18`: after stack initialization
+    - `19`: core-0 branch to `_startc`
+    - `20`: unexpected-EL trap path
+  - `dsb sy` and `isb` were also inserted immediately before `mrs currentEL`,
+    which is the narrowest plausible fix suggested by `gemini-findings.md`
+    that directly overlaps the current failure band
+- validation summary for the compact stage-code image:
+  - Pi 4 A72 rebuild: pass
+  - generic QEMU shell smoke: pass
+  - direct Pi 4 QEMU serial sanity on the real-device build still reaches:
+    - `call: exec go!`
+    - `go: enter`
+    - `hal: jump exit el1`
+    - `A3`
+    - `KLM`
+    - later `Exception #37`
+  - bootfs assembly: pass
+  - FAT image assembly: pass
+  - SD-image assembly: pass
+  - canonical SD-image export: pass
+  - FAT-aware host verification: pass after refreshing the expected SHA
+- the refreshed exported compact stage-code image is:
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+- current validated Pi 4 SD-image SHA-256:
+  `cada5a0cf3c5ce41a2197cc4296e81ed43b6b671d878660e3e303e16098ab60c`
+- current manifest:
+  `manifests/2026-04-10-pi4-compact-stage-code-currentel-split.md`
+
 - on `2026-04-09`, the next real-device hardware clip `IMG_0009.mov`
   materially tightened the earliest `plo` boundary again:
   - `ffprobe` confirms the clip is actually `59.93 fps`

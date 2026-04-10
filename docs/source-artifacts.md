@@ -1316,7 +1316,7 @@ Current Pi 4 xHCI fast-path reference note:
 - the current exported real-device handoff image is:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
   SHA-256:
-  `03a0729254dc0bc81f542fe8db276f7a2b70d3fb76de9fc7303ea470aca83137`
+  `cada5a0cf3c5ce41a2197cc4296e81ed43b6b671d878660e3e303e16098ab60c`
 - the dedicated operator-facing first board-trial checklist is:
   `/Users/witoldbolt/phoenix-rpi/docs/pi4-first-hardware-trial.md`
 - the current macOS-side first-trial helpers are:
@@ -1326,7 +1326,7 @@ Current Pi 4 xHCI fast-path reference note:
 - the current Pi 4 DTB regeneration helper for `phoenix-dev` is:
   - `/Users/witoldbolt/phoenix-rpi/scripts/prepare-rpi4b-dtb.sh`
 - the current exported Pi 4 SD-image SHA-256 is:
-  `03a0729254dc0bc81f542fe8db276f7a2b70d3fb76de9fc7303ea470aca83137`
+  `cada5a0cf3c5ce41a2197cc4296e81ed43b6b671d878660e3e303e16098ab60c`
 - the current SD-image export lesson is now explicit:
   - the VM-local Pi 4 SD image may be valid even when the host-visible copy is
     corrupt
@@ -1339,28 +1339,38 @@ Current Pi 4 xHCI fast-path reference note:
     partition itself, not only file size and SHA-256
   - do not fall back to `scp`, `sftp`, `rsync`, `limactl copy`, streamed `dd`,
     or manual `cat` pipelines for this artifact
-- the current earliest-entry no-UART diagnostic path is now a structured
-  GPIO42 telemetry protocol rather than one-off probes
-- the current slower telemetry timing target is:
-  - about `0.4s` LED on per pulse
-  - about `0.4s` LED off between pulses inside one group
-  - about `2.0s` LED off between groups
+- the current earliest-entry no-UART diagnostic path is now a compact GPIO42
+  stage-code protocol rather than one-off probes or count-based pulse groups
+- the current protocol format is:
+  - one sync pulse
+  - then `5` fixed-width bits, MSB first
+  - short on-time = `0`
+  - long on-time = `1`
+  - one longer off gap between stage bursts
 - current checkpoint map:
-  - `1`: armstub primary-core entry
-  - `2`: armstub after early timer / GIC preparation
-  - `3`: armstub just before the fixed-address jump to `plo`
-  - `4`: earliest generic AArch64 `plo` `_start`
-  - `5`: midpoint of general-purpose register clearing
-  - `6`: end of general-purpose register clearing
-  - `7`: after `currentEL` sampling, before EL dispatch
-  - `8`: `start_el3`
-  - `9`: `start_el2`
-  - `10`: `start_el1`
-  - `11`: `start_common`
-  - `12`: core-0 branch to `_startc`
-  - `13`: unexpected-EL trap path
-- each checkpoint is one pulse group separated by a longer off gap so a single
-  high-framerate LED video can reveal the highest completed stage
+  - `1` / `00001`: armstub primary-core entry
+  - `2` / `00010`: armstub after early timer / GIC preparation
+  - `3` / `00011`: armstub just before the fixed-address jump to `plo`
+  - `4` / `00100`: earliest generic AArch64 `plo` `_start`
+  - `5` / `00101`: after clearing `x0..x7`
+  - `6` / `00110`: after clearing `x8..x15`
+  - `7` / `00111`: after clearing `x16..x23`
+  - `8` / `01000`: after clearing `x24..x30`
+  - `9` / `01001`: after `dsb sy` / `isb`
+  - `10` / `01010`: after `mrs currentEL`
+  - `11` / `01011`: `start_el3`
+  - `12` / `01100`: `start_el2`
+  - `13` / `01101`: `start_el1`
+  - `14` / `01110`: EL3 path complete, before `start_common`
+  - `15` / `01111`: EL2 path complete, before `start_common`
+  - `16` / `10000`: EL1 path complete, before `start_common`
+  - `17` / `10001`: `start_common`
+  - `18` / `10010`: after stack setup
+  - `19` / `10011`: core-0 branch to `_startc`
+  - `20` / `10100`: unexpected-EL trap path
+- each checkpoint is now one compact stage-code burst separated by a longer off
+  gap so a single high-framerate LED video can reveal the highest completed
+  stage without another immediate protocol redesign
 - the latest `IMG_0004.mov` analysis most strongly suggests the previous image
   completed checkpoint `4` and then died before the first EL-path marker,
   because visible activity stopped at about `16.85s`, which fits cumulative

@@ -131,34 +131,43 @@ Current practical note for the first Pi 4 hardware attempt without USB-TTL:
   the current bring-up path is still primarily observable through UART and QEMU
 - in that lab shape, the next technical priority after artifact preparation
   should be alternate observability, not repeated blind boot attempts
-- the current preferred no-UART observability path is now structured GPIO42
-  ACT-LED telemetry plus high-framerate video capture, not one-off LED probes
-- for the current slower Pi 4 telemetry image, record at least `70` seconds and
-  preferably `90` seconds from power-on so the full checkpoint sequence can be
-  decoded from one clip
+- the current preferred no-UART observability path is now compact GPIO42
+  stage-code telemetry plus high-framerate video capture, not one-off LED
+  probes
+- for the current compact Pi 4 telemetry image, record at least `60` seconds
+  and preferably `90` seconds from power-on so the full checkpoint sequence can
+  be decoded from one clip
 - when a timing-sensitive LED video is analyzed later, verify the actual frame
   rate with `ffprobe` instead of trusting the recording mode label alone; the
   `IMG_0005.mov` Pi 4 retry clip was expected to be `60 fps` but was actually
   encoded at `30.01 fps`
-- current intended timing for that slower protocol:
-  - about `0.4s` LED on per pulse
-  - about `0.4s` LED off between pulses inside one group
-  - about `2.0s` LED off between groups
-- current post-`IMG_0004.mov` telemetry split:
-  - the previous video most strongly mapped to completion of checkpoint `4`
-    (`plo _start` entry) and failure before the first EL-path marker
-  - `IMG_0005.mov` then tightened the same conclusion:
-    it still did not reach the old stage `5`, so the current telemetry image
-    now extends the early `plo` map to:
-    - `5`: midpoint of general-purpose register clearing
-    - `6`: end of general-purpose register clearing
-    - `7`: after `currentEL` sampling, before EL dispatch
-    - `8`: `start_el3`
-    - `9`: `start_el2`
-    - `10`: `start_el1`
-    - `11`: `start_common`
-    - `12`: core-0 branch to `_startc`
-    - `13`: unexpected-EL trap path
+- current compact stage-code protocol:
+  - one sync pulse starts each stage burst
+  - then `5` fixed-width bits are emitted MSB-first
+  - short on-time encodes `0`
+  - long on-time encodes `1`
+  - a longer off gap separates stage bursts
+- current post-`IMG_0009.mov` telemetry split:
+  - the previous video most strongly mapped to completion through stage `6`
+  - the current image therefore splits the `currentEL` seam and the next few
+    steps while also increasing protocol density
+  - the current early `plo` map is now:
+    - `5`: after clearing `x0..x7`
+    - `6`: after clearing `x8..x15`
+    - `7`: after clearing `x16..x23`
+    - `8`: after clearing `x24..x30`
+    - `9`: after `dsb sy` / `isb`
+    - `10`: after `mrs currentEL`
+    - `11`: `start_el3`
+    - `12`: `start_el2`
+    - `13`: `start_el1`
+    - `14`: EL3 path complete, before `start_common`
+    - `15`: EL2 path complete, before `start_common`
+    - `16`: EL1 path complete, before `start_common`
+    - `17`: `start_common`
+    - `18`: after stack setup
+    - `19`: core-0 branch to `_startc`
+    - `20`: unexpected-EL trap path
 
 ## 4. QEMU Strategy
 

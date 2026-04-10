@@ -385,7 +385,7 @@ Current payload rule:
 - by default it exports that disk image into the host workspace at:
   - `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
 - current validated exported full-image SHA-256:
-  - `03a0729254dc0bc81f542fe8db276f7a2b70d3fb76de9fc7303ea470aca83137`
+  - `cada5a0cf3c5ce41a2197cc4296e81ed43b6b671d878660e3e303e16098ab60c`
 - the current exported full-disk artifact includes the latest firmware-stage
   early handoff state:
   - Pi 4 A72 `plo` restored to the last coherent high-DDR placement used by
@@ -401,29 +401,35 @@ Current payload rule:
     - `CNTFRQ_EL0 = 54000000`
     - early GIC group-1 distributor / CPU-interface enablement
   - that custom Pi 4 armstub plus earliest generic AArch64 `plo` path now use
-    a structured GPIO42 telemetry protocol instead of one-off probes
+    a compact GPIO42 stage-code protocol instead of one-off probes or
+    count-based pulse groups
+  - each stage burst is:
+    - one sync pulse
+    - then `5` fixed-width bits, MSB first
+    - short on-time = `0`
+    - long on-time = `1`
+    - then one longer off gap before the next stage
   - the current checkpoint map is:
-    - `1`: armstub primary-core entry
-    - `2`: armstub after early timer / GIC preparation
-    - `3`: armstub just before the fixed-address jump to `plo`
-    - `4`: earliest generic AArch64 `plo` `_start`
-    - `5`: midpoint of general-purpose register clearing
-    - `6`: end of general-purpose register clearing
-    - `7`: after `currentEL` sampling, before EL dispatch
-    - `8`: `start_el3`
-    - `9`: `start_el2`
-    - `10`: `start_el1`
-    - `11`: `start_common`
-    - `12`: core-0 branch to `_startc`
-    - `13`: unexpected-EL trap path
-  - each checkpoint is emitted as one pulse group separated by longer off gaps
-  - current timing target for the slower video-decodable protocol:
-    - about `0.4s` LED on per pulse
-    - about `0.4s` LED off between pulses inside one group
-    - about `2.0s` LED off between groups
-  - the current emitters start each group immediately and rely on a single
-    long trailing separator so the full `1..13` sequence still fits within
-    about one minute
+    - `1` / `00001`: armstub primary-core entry
+    - `2` / `00010`: armstub after early timer / GIC preparation
+    - `3` / `00011`: armstub just before the fixed-address jump to `plo`
+    - `4` / `00100`: earliest generic AArch64 `plo` `_start`
+    - `5` / `00101`: after clearing `x0..x7`
+    - `6` / `00110`: after clearing `x8..x15`
+    - `7` / `00111`: after clearing `x16..x23`
+    - `8` / `01000`: after clearing `x24..x30`
+    - `9` / `01001`: after `dsb sy` / `isb`
+    - `10` / `01010`: after `mrs currentEL`
+    - `11` / `01011`: `start_el3`
+    - `12` / `01100`: `start_el2`
+    - `13` / `01101`: `start_el1`
+    - `14` / `01110`: EL3 path complete, before `start_common`
+    - `15` / `01111`: EL2 path complete, before `start_common`
+    - `16` / `10000`: EL1 path complete, before `start_common`
+    - `17` / `10001`: `start_common`
+    - `18` / `10010`: after stack setup
+    - `19` / `10011`: core-0 branch to `_startc`
+    - `20` / `10100`: unexpected-EL trap path
   - the armstub still uses the current fixed-address jump to `0x40080000`
     instead of the firmware-patched `kernel_entry32` slot
   - Pi 4 `plo` now also uses the ARM-visible GICv2 aliases:
@@ -455,7 +461,7 @@ Recommended manual sequence on macOS:
 2. verify the exported artifact before flashing:
    - [scripts/verify-rpi4b-sdimg.sh](/Users/witoldbolt/phoenix-rpi/scripts/verify-rpi4b-sdimg.sh)
    - current expected SHA-256:
-     `03a0729254dc0bc81f542fe8db276f7a2b70d3fb76de9fc7303ea470aca83137`
+     `cada5a0cf3c5ce41a2197cc4296e81ed43b6b671d878660e3e303e16098ab60c`
 3. if you want the exact commands printed for a chosen disk identifier:
    - [scripts/print-rpi4b-macos-flash-commands.sh](/Users/witoldbolt/phoenix-rpi/scripts/print-rpi4b-macos-flash-commands.sh) `diskN`
 4. if you want a prefilled first-trial report file before you start:
@@ -545,7 +551,7 @@ For the current Pi 4 hardware loop without UART:
 - keep recording for at least `70` seconds
 - preferably record `90` seconds so the full slower checkpoint sequence still
   fits even if the board progresses farther than expected
-- use the ACT LED pulse groups as the authoritative earliest boot evidence
+- use the ACT LED stage-code bursts as the authoritative earliest boot evidence
 - do not summarize the result only as “green on/off”; preserve the full pulse
   sequence whenever possible
 
@@ -626,7 +632,7 @@ For the current lab shape, the first practical manual trial is:
    - current exported artifact:
      [artifacts/rpi4b/rpi4b-sd.img](/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img)
    - current SHA-256:
-     `03a0729254dc0bc81f542fe8db276f7a2b70d3fb76de9fc7303ea470aca83137`
+     `cada5a0cf3c5ce41a2197cc4296e81ed43b6b671d878660e3e303e16098ab60c`
    - focused trial checklist:
      [pi4-first-hardware-trial.md](/Users/witoldbolt/phoenix-rpi/docs/pi4-first-hardware-trial.md)
 2. flash the image to microSD using the workflow above
@@ -638,7 +644,7 @@ For the current lab shape, the first practical manual trial is:
 5. power on the board
 6. record the gross result:
    - any visible HDMI behavior
-   - ACT LED pulse groups from a high-framerate close-up video
+   - ACT LED stage-code bursts from a high-framerate close-up video
    - whether the board appears to reboot repeatedly or stay powered
 
 Current specific HDMI sign to record if present:

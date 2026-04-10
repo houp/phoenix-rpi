@@ -8,6 +8,51 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-10`, the stage-`3 -> 4` seam was split again with a dedicated
+  fixed-address Pi 4 entry trampoline:
+  - generic AArch64 `plo _start` now starts with a tiny veneer at the fixed
+    branch target
+  - that veneer emits stage `4` inline, then branches to `_start_real`
+  - `_start_real` now emits stage `5` inline before the old generic body
+  - the old later stages were shifted by `+1`, so:
+    - `6`: after clearing `x0..x7`
+    - `7`: after clearing `x8..x15`
+    - `8`: after clearing `x16..x23`
+    - `9`: after clearing `x24..x30`
+    - `10`: after `dsb sy` / `isb`
+    - `11`: after `mrs currentEL`
+    - `12`: `start_el3`
+    - `13`: `start_el2`
+    - `14`: `start_el1`
+    - `15`: EL3 path complete
+    - `16`: EL2 path complete
+    - `17`: EL1 path complete
+    - `18`: `start_common`
+    - `19`: after stack setup
+    - `20`: core-0 branch to `_startc`
+    - `21`: unexpected-EL trap path
+- validation summary for dedicated-entry-trampoline image:
+  - Pi 4 A72 rebuild from refreshed copied buildroot: pass
+  - generic QEMU shell smoke: pass
+  - direct Pi 4 QEMU serial sanity on real-device build still reaches:
+    - `call: exec go!`
+    - `go: enter`
+    - `hal: jump exit el1`
+    - `A3`
+    - `KLM`
+    - later `Exception #37`
+  - bootfs assembly: pass
+  - FAT image assembly: pass
+  - SD-image assembly: pass
+  - canonical SD-image export: pass
+  - FAT-aware host verifier: pass
+- refreshed exported dedicated-entry-trampoline image:
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+- current validated Pi 4 SD-image SHA-256:
+  `d76a6c2bb0d15173f4a6a90aa5c82211b0ea286b5bb236960e51fdd3388c2320`
+- current manifest:
+  `manifests/2026-04-10-pi4-fixed-entry-trampoline.md`
+
 - on `2026-04-10`, OpenCV-based analysis of the new real-board retry
   `IMG_7136.mov` confirmed that the stage-`3 -> 4` handoff-hardened image
   still does not emit earliest generic `plo` stage `4`:

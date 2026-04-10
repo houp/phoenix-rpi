@@ -19,7 +19,7 @@ Use this image:
 
 Current SHA-256:
 
-- `4b9c967c9381e8935998a19eb1a976c43b440dd57da4c5fab489763f729a6835`
+- `d76a6c2bb0d15173f4a6a90aa5c82211b0ea286b5bb236960e51fdd3388c2320`
 
 This image supersedes the earlier Pi 4 trial images that used the temporary
 firmware-default low-placement experiment:
@@ -41,8 +41,9 @@ This image now intentionally uses:
     branch
   - the armstub now inserts `dsb sy; ic iallu; dsb sy; isb` immediately before
     the branch to `0x40080000`
-  - earliest generic `plo _start` now emits stage `4` inline, without relying
-    on the stage-emitter helper call
+  - fixed-address Pi 4 entry now uses:
+    - stage `4` inline in tiny veneer at raw branch target
+    - stage `5` inline at first instruction of old generic `_start` body
 - compact GPIO42 telemetry protocol:
   - the earlier one-off ACT-LED proofs and later count-based pulse groups were
     removed
@@ -58,23 +59,24 @@ This image now intentionally uses:
     - `1` / `00001`: armstub primary-core entry
     - `2` / `00010`: armstub after early timer / GIC preparation
     - `3` / `00011`: armstub just before the fixed-address jump to `plo`
-    - `4` / `00100`: earliest generic AArch64 `plo` `_start`
-    - `5` / `00101`: after clearing `x0..x7`
-    - `6` / `00110`: after clearing `x8..x15`
-    - `7` / `00111`: after clearing `x16..x23`
-    - `8` / `01000`: after clearing `x24..x30`
-    - `9` / `01001`: after `dsb sy` / `isb`
-    - `10` / `01010`: after `mrs currentEL`
-    - `11` / `01011`: `start_el3`
-    - `12` / `01100`: `start_el2`
-    - `13` / `01101`: `start_el1`
-    - `14` / `01110`: EL3 path complete, before `start_common`
-    - `15` / `01111`: EL2 path complete, before `start_common`
-    - `16` / `10000`: EL1 path complete, before `start_common`
-    - `17` / `10001`: `start_common`
-    - `18` / `10010`: after stack initialization
-    - `19` / `10011`: core-0 branch to `_startc`
-    - `20` / `10100`: unexpected-EL trap path
+    - `4` / `00100`: fixed-address Pi 4 entry veneer at branch target
+    - `5` / `00101`: first instruction of old generic `_start` body
+    - `6` / `00110`: after clearing `x0..x7`
+    - `7` / `00111`: after clearing `x8..x15`
+    - `8` / `01000`: after clearing `x16..x23`
+    - `9` / `01001`: after clearing `x24..x30`
+    - `10` / `01010`: after `dsb sy` / `isb`
+    - `11` / `01011`: after `mrs currentEL`
+    - `12` / `01100`: `start_el3`
+    - `13` / `01101`: `start_el2`
+    - `14` / `01110`: `start_el1`
+    - `15` / `01111`: EL3 path complete, before `start_common`
+    - `16` / `10000`: EL2 path complete, before `start_common`
+    - `17` / `10001`: EL1 path complete, before `start_common`
+    - `18` / `10010`: `start_common`
+    - `19` / `10011`: after stack initialization
+    - `20` / `10100`: core-0 branch to `_startc`
+    - `21` / `10101`: unexpected-EL trap path
   - the goal of the next board trial is to identify the highest completed
     stage code, not to count approximate pulse envelopes
 - Pi 4 `plo` GIC base aliases:
@@ -112,7 +114,7 @@ Do not assume UART visibility is available.
 6. Power on the board.
 7. Start a high-framerate close-up video before power-on and keep both LEDs in
    frame for at least 60 seconds.
-   If convenient, record 90 seconds so the full compact `1..20` sequence still
+   If convenient, record 90 seconds so the full compact `1..21` sequence still
    fits even if the board progresses farther than expected.
    The current host-side decoder is:
    - [scripts/analyze-rpi4-actled-video.py](/Users/witoldbolt/phoenix-rpi/scripts/analyze-rpi4-actled-video.py)
@@ -160,7 +162,7 @@ Copy this block into the next report or chat message:
 ```text
 Pi 4 first hardware trial
 Image: artifacts/rpi4b/rpi4b-sd.img
-SHA256: 4b9c967c9381e8935998a19eb1a976c43b440dd57da4c5fab489763f729a6835
+SHA256: d76a6c2bb0d15173f4a6a90aa5c82211b0ea286b5bb236960e51fdd3388c2320
 Board revision:
 Display:
 Keyboard:
@@ -208,24 +210,26 @@ Current stage meanings:
 - highest completed `1`, `2`, or `3`:
   still in the custom armstub path before generic `plo` runs
 - highest completed `4`:
-  earliest generic AArch64 `plo` `_start` was entered
-- highest completed `5`, `6`, `7`, or `8`:
+  fixed-address Pi 4 entry veneer at raw branch target was entered
+- highest completed `5`:
+  first instruction of old generic `plo _start` body was reached
+- highest completed `6`, `7`, `8`, or `9`:
   failure is inside the general-purpose register-clearing block
-- highest completed `9`:
-  failure is after `dsb sy` / `isb` but before or during `mrs currentEL`
 - highest completed `10`:
+  failure is after `dsb sy` / `isb` but before or during `mrs currentEL`
+- highest completed `11`:
   `currentEL` was sampled but the chosen EL-path body was not reached
-- highest completed `11`, `12`, or `13`:
+- highest completed `12`, `13`, or `14`:
   `plo` selected EL3, EL2, or EL1 respectively
-- highest completed `14`, `15`, or `16`:
+- highest completed `15`, `16`, or `17`:
   the chosen EL-path body ran to its pre-`start_common` boundary
-- highest completed `17`:
-  `plo` reached `start_common`
 - highest completed `18`:
-  `plo` passed stack setup
+  `plo` reached `start_common`
 - highest completed `19`:
-  `plo` reached the core-0 branch to `_startc`
+  `plo` passed stack setup
 - highest completed `20`:
+  `plo` reached the core-0 branch to `_startc`
+- highest completed `21`:
   `plo` reached the unexpected-EL trap path
 
 ## Next-Agent Interpretation Rule

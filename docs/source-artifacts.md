@@ -1316,7 +1316,7 @@ Current Pi 4 xHCI fast-path reference note:
 - the current exported real-device handoff image is:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
   SHA-256:
-  `4b9c967c9381e8935998a19eb1a976c43b440dd57da4c5fab489763f729a6835`
+  `d76a6c2bb0d15173f4a6a90aa5c82211b0ea286b5bb236960e51fdd3388c2320`
 - the dedicated operator-facing first board-trial checklist is:
   `/Users/witoldbolt/phoenix-rpi/docs/pi4-first-hardware-trial.md`
 - the current macOS-side first-trial helpers are:
@@ -1326,7 +1326,7 @@ Current Pi 4 xHCI fast-path reference note:
 - the current Pi 4 DTB regeneration helper for `phoenix-dev` is:
   - `/Users/witoldbolt/phoenix-rpi/scripts/prepare-rpi4b-dtb.sh`
 - the current exported Pi 4 SD-image SHA-256 is:
-  `4b9c967c9381e8935998a19eb1a976c43b440dd57da4c5fab489763f729a6835`
+  `d76a6c2bb0d15173f4a6a90aa5c82211b0ea286b5bb236960e51fdd3388c2320`
 - the current SD-image export lesson is now explicit:
   - the VM-local Pi 4 SD image may be valid even when the host-visible copy is
     corrupt
@@ -1342,11 +1342,13 @@ Current Pi 4 xHCI fast-path reference note:
 - the current earliest-entry no-UART diagnostic path is now a compact GPIO42
   stage-code protocol rather than one-off probes or count-based pulse groups
 - the current bounded response to the decoded stage-`3` boundary is:
-  - preserve the primary armstub path argument registers through the final
-    fixed-address branch
-  - execute `dsb sy; ic iallu; dsb sy; isb` immediately before that branch
-  - emit stage `4` inline at the first generic `plo _start` instruction rather
-    than through the helper call path
+  - keep the primary armstub handoff hardening:
+    - preserve the primary armstub path argument registers through the final
+      fixed-address branch
+    - execute `dsb sy; ic iallu; dsb sy; isb` immediately before that branch
+  - split the raw target from the old generic body:
+    - emit stage `4` inline in dedicated fixed-address veneer at `_start`
+    - emit stage `5` inline at `_start_real`, before the old generic body
 - the current protocol format is:
   - one sync pulse
   - then `5` fixed-width bits, MSB first
@@ -1357,23 +1359,24 @@ Current Pi 4 xHCI fast-path reference note:
   - `1` / `00001`: armstub primary-core entry
   - `2` / `00010`: armstub after early timer / GIC preparation
   - `3` / `00011`: armstub just before the fixed-address jump to `plo`
-  - `4` / `00100`: earliest generic AArch64 `plo` `_start`
-  - `5` / `00101`: after clearing `x0..x7`
-  - `6` / `00110`: after clearing `x8..x15`
-  - `7` / `00111`: after clearing `x16..x23`
-  - `8` / `01000`: after clearing `x24..x30`
-  - `9` / `01001`: after `dsb sy` / `isb`
-  - `10` / `01010`: after `mrs currentEL`
-  - `11` / `01011`: `start_el3`
-  - `12` / `01100`: `start_el2`
-  - `13` / `01101`: `start_el1`
-  - `14` / `01110`: EL3 path complete, before `start_common`
-  - `15` / `01111`: EL2 path complete, before `start_common`
-  - `16` / `10000`: EL1 path complete, before `start_common`
-  - `17` / `10001`: `start_common`
-  - `18` / `10010`: after stack setup
-  - `19` / `10011`: core-0 branch to `_startc`
-  - `20` / `10100`: unexpected-EL trap path
+  - `4` / `00100`: fixed-address Pi 4 entry veneer at raw branch target
+  - `5` / `00101`: first instruction of old generic `_start` body
+  - `6` / `00110`: after clearing `x0..x7`
+  - `7` / `00111`: after clearing `x8..x15`
+  - `8` / `01000`: after clearing `x16..x23`
+  - `9` / `01001`: after clearing `x24..x30`
+  - `10` / `01010`: after `dsb sy` / `isb`
+  - `11` / `01011`: after `mrs currentEL`
+  - `12` / `01100`: `start_el3`
+  - `13` / `01101`: `start_el2`
+  - `14` / `01110`: `start_el1`
+  - `15` / `01111`: EL3 path complete, before `start_common`
+  - `16` / `10000`: EL2 path complete, before `start_common`
+  - `17` / `10001`: EL1 path complete, before `start_common`
+  - `18` / `10010`: `start_common`
+  - `19` / `10011`: after stack setup
+  - `20` / `10100`: core-0 branch to `_startc`
+  - `21` / `10101`: unexpected-EL trap path
 - each checkpoint is now one compact stage-code burst separated by a longer off
   gap so a single high-framerate LED video can reveal the highest completed
   stage without another immediate protocol redesign

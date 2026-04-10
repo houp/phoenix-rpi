@@ -153,6 +153,28 @@ Current practical note for the first Pi 4 hardware attempt without USB-TTL:
     - `92,108,117,118`
   - example:
     - `scripts/analyze-rpi4-actled-video.py /path/to/IMG_xxxx.mov`
+- current post-`IMG_7136.mov` telemetry split:
+  - stages `1`, `2`, and `3` still decode cleanly
+  - no valid stage `4` appears on the handoff-hardened image
+  - current dedicated fixed-address entry split is now:
+    - `4`: fixed-address Pi 4 entry veneer at branch target
+    - `5`: first instruction of old generic `_start` body (`_start_real`)
+    - `6`: after clearing `x0..x7`
+    - `7`: after clearing `x8..x15`
+    - `8`: after clearing `x16..x23`
+    - `9`: after clearing `x24..x30`
+    - `10`: after `dsb sy` / `isb`
+    - `11`: after `mrs currentEL`
+    - `12`: `start_el3`
+    - `13`: `start_el2`
+    - `14`: `start_el1`
+    - `15`: EL3 path complete, before `start_common`
+    - `16`: EL2 path complete, before `start_common`
+    - `17`: EL1 path complete, before `start_common`
+    - `18`: `start_common`
+    - `19`: after stack setup
+    - `20`: core-0 branch to `_startc`
+    - `21`: unexpected-EL trap path
 - current post-`IMG_0009.mov` telemetry split:
   - the previous video most strongly mapped to completion through stage `6`
   - the current image therefore splits the `currentEL` seam and the next few

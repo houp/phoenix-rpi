@@ -8,6 +8,30 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-10`, the next real Pi 4 retry clip `IMG_7138.mov` tightened the
+  fixed-target-signature result without yet reaching a new later stage:
+  - `ffprobe` confirms the clip is effectively `59.92 fps`
+  - the analyzer auto-detects the ACT LED ROI at:
+    - `198,93,221,114`
+  - the best contiguous Phoenix run still ends at:
+    - stage `3` / `00011`
+  - no later valid:
+    - stage `4` / `00100`
+    - stage `31` / `11111`
+  - two unmatched decoded bursts exist:
+    - stage `16` / `10000`
+    - stage `26` / `11010`
+    but the current interpreter correctly treats them as noise, not the main
+    contiguous Phoenix run
+  - the active failure band therefore narrows again:
+    - armstub stage `3` reached
+    - no verified fixed-target signature result yet
+    - no signature-mismatch halt stage yet
+    - so the next bounded code step should split the tiny armstub band between
+      stage `3` and the first signature-memory read
+- current manifest:
+  `manifests/2026-04-10-pi4-img7138-signature-analysis.md`
+
 - on `2026-04-10`, the fixed-target-signature image for the Pi 4 stage-`3 -> 4`
   seam was implemented, rebuilt, exported, and FAT-verified:
   - the custom Pi 4 armstub now verifies a deliberate `plo` entry signature at

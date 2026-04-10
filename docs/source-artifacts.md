@@ -1353,6 +1353,16 @@ Current Pi 4 xHCI fast-path reference note:
   - split the raw target from the old generic body after that check:
     - emit stage `5` inline in dedicated fixed-address veneer at `_start`
     - emit stage `6` inline at `_start_real`, before the old generic body
+- the latest board retry `IMG_7138.mov` tightens that result further:
+  - after ignoring the early firmware SD-read preamble, the best contiguous
+    Phoenix run still ends at stage `3`
+  - no valid later stage `4` or stage `31` is seen
+  - that means the board is still dying in the tiny armstub band after stage
+    `3` but before any completed signature-check outcome is emitted
+  - the next bounded response should therefore split that tiny band itself:
+    - before fixed-target address load
+    - after first signature-word read
+    - after second signature-word read
 - the current protocol format is:
   - one sync pulse
   - then `5` fixed-width bits, MSB first

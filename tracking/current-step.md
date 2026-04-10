@@ -2,35 +2,38 @@
 
 ## Metadata
 
-- Step ID: `STEP-0457`
-- Title: Await the next Pi 4 board retry on the fixed-target-signature image
+- Step ID: `STEP-0458`
+- Title: Split the armstub pre-signature-read band after stage `3`
 - Status: `in_progress`
 - Date: `2026-04-10`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- get the next real Pi 4 LED video on the new image that distinguishes:
-  - stage `3` only: failure before or during target-signature verification
-  - stage `31`: signature missing at `0x40080000`
-  - stage `4`: signature present before branch
-  - stage `5`: fixed-entry veneer actually entered
-- preserve the new LED-analysis toolchain as the default readout path for the
-  next board retry
+- distinguish the three remaining possibilities inside the narrow armstub seam
+  after stage `3`:
+  - fault before even loading the fixed `0x40080000` target
+  - fault on the first or second signature-memory read
+  - successful reads followed by a signature mismatch path
+- keep the LED-analysis toolchain as the default readout path for the next
+  board retry
 
 ## Scope
 
 In scope:
 
-- collect the next board retry on the fixed-target-signature image
-- decode it with the current analyzer plus layout plus interpreter workflow
-- classify the new highest completed stage before touching more boot code
+- add one or two special armstub-only stage codes between:
+  - stage `3`
+  - first fixed-target read
+  - second fixed-target read
+  - existing stage `31` mismatch halt
+- keep the later `plo` stage map stable
 
 Out of scope:
 
 - unrelated EL-path, framebuffer, DTB, or USB work
-- redesigning the whole Pi 4 boot model before the new signature-check image
-  is tested
+- redesigning the whole Pi 4 boot model before the first fixed-target read
+  seam is answered
 
 ## Expected Repositories
 
@@ -48,17 +51,18 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- the refreshed SD image is rebuilt, exported, and FAT-verified
-- the next board video can now distinguish:
-  - stage `31`: missing or wrong fixed load target contents
-  - stage `4`: valid target contents before branch
-  - stage `5`: entry veneer reached after branch
+- the next image adds narrower armstub-side checkpoints without shifting the
+  later `plo` stage map again
+- the next board video can distinguish whether failure occurs:
+  - before fixed-target address load
+  - on the first or second target-memory read
+  - on the signature-mismatch halt path
 
 ## Validation Plan
 
-- board retry on the refreshed SD image
-- decode with the current LED-analysis toolchain
-- choose the next smallest boot fix from the resulting highest completed stage
+- rebuild Pi 4 image
+- rerun the strongest no-hardware gates
+- board retry plus LED decode
 
 ## Rollback / Baseline
 
@@ -67,11 +71,13 @@ Out of scope:
 
 ## Notes
 
-- the implementation part of the signature-check step is complete:
-  - stage `4` now means armstub target signature verified at `0x40080000`
-  - stage `31` now means signature mismatch and pre-branch halt
-  - stage `5` now means the fixed-address `plo` entry veneer was actually
-    entered after the branch
+- current confirmed decode from `IMG_7138.mov`:
+  - best contiguous Phoenix run:
+    - stage `3`
+  - no later valid stage `4`
+  - no valid stage `31`
+  - unmatched earlier `16` and later `26` bursts are treated as noise, not the
+    main run
 - current exported SD-image SHA-256:
   - `8ef476644f8fce5b5937096125421a218b8a67b0513b0fa4c0ab7e6592585e3e`
 - initial SD-read LED chatter remains firmware preamble noise and should be

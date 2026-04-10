@@ -162,6 +162,15 @@ Current practical note for the first Pi 4 hardware attempt without USB-TTL:
   - no later valid stage `4` is seen
   - so the active real-hardware failure band is still the stage-`3 -> 4`
     fixed-address handoff seam
+- current validated `IMG_7138.mov` result from that toolchain:
+  - best contiguous decoded run still reaches only stage `3`
+  - no later valid stage `4`
+  - no later valid stage `31`
+  - unmatched stage `16` and stage `26` groups exist, but the interpreter
+    correctly treats them as noise rather than the main contiguous Phoenix run
+  - the active real-hardware failure band is therefore now the tiny armstub
+    seam after stage `3` and before the first successful signature-check
+    outcome
 - important interpretation rule:
   - the initial ACT LED chatter seen while Raspberry Pi firmware reads the
     SD card is not Phoenix telemetry

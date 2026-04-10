@@ -177,9 +177,17 @@ Current practical note for the first Pi 4 hardware attempt without USB-TTL:
   - treat that early activity as preamble noise unless it decodes into a later
     valid contiguous Phoenix stage run
 - current fixed-target-signature split:
+  - current layout name:
+    - `pi4_dense_firstread_focus_map_2026_04_10`
+  - current focus-image note:
+    - seam stages of interest are emitted twice with an extra long gap
+    - the current `21` and `22` meanings are temporarily overloaded for the
+      armstub first-read micro-split
   - stage `23`: late armstub seam entered
   - stage `24`: fixed target address loaded
+  - stage `21`: immediately before the first signature-word read
   - stage `25`: first signature word read
+  - stage `22`: immediately before the second signature-word read
   - stage `26`: second signature word read
   - stage `27`: first expected signature constant loaded
   - stage `28`: first compare passed
@@ -206,8 +214,6 @@ Current practical note for the first Pi 4 hardware attempt without USB-TTL:
     - `18`: EL1 path complete, before `start_common`
     - `19`: `start_common`
     - `20`: after stack setup
-    - `21`: core-0 branch to `_startc`
-    - `22`: unexpected-EL trap path
 - current post-`IMG_0009.mov` telemetry split:
   - the previous video most strongly mapped to completion through stage `6`
   - the current image therefore splits the `currentEL` seam and the next few

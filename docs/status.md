@@ -8,6 +8,42 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-10`, the dense signature image was rebuilt again into a
+  first-read focus image to remove ambiguity in the live `24 -> 25` seam:
+  - the armstub seam stages of interest are now emitted twice with an extra
+    long gap
+  - barriers were inserted before both signature-word reads
+  - stage `21` is now a temporary micro-split marker immediately before the
+    first signature-word read
+  - stage `22` is now a temporary micro-split marker immediately before the
+    second signature-word read
+  - later compare-band stages remain stable:
+    - `25`: first signature-word read complete
+    - `26`: second signature-word read complete
+    - `27..30`: compare-band progress
+    - `4`: signature verified before branch
+    - `31`: mismatch halt
+    - `0`: EL2 exception trap
+  - Pi 4 A72 rebuild from refreshed copied buildroot: pass
+  - direct Pi 4 QEMU serial sanity still reaches:
+    - `call: exec go!`
+    - `go: enter`
+    - `hal: jump exit el1`
+    - `A3`
+    - `KLM`
+    - later `Exception #37`
+  - bootfs assembly: pass
+  - FAT image assembly: pass
+  - SD-image assembly: pass
+  - canonical SD-image export: pass
+  - FAT-aware host verifier: pass
+- refreshed exported first-read focus image:
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+- current validated Pi 4 SD-image SHA-256:
+  `6932d3a31fc0fee1494295c4e9d0587c689b7cde20a6fb1907d86164e9815883`
+- current manifest:
+  `manifests/2026-04-10-pi4-firstread-focus-image.md`
+
 - on `2026-04-10`, the first board retry on the dense armstub signature-map
   image moved the live failure band forward again:
   - input clip:

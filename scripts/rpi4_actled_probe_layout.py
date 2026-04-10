@@ -28,15 +28,15 @@ class LayoutDef:
     notes: tuple[str, ...]
 
 
-CURRENT_LAYOUT_NAME = "pi4_dense_armstub_signature_map_2026_04_10"
+CURRENT_LAYOUT_NAME = "pi4_dense_firstread_focus_map_2026_04_10"
 
 
 _CURRENT_LAYOUT = LayoutDef(
     name=CURRENT_LAYOUT_NAME,
-    description="Pi 4 compact GPIO42 telemetry with dense armstub-side signature-check probes and EL2 exception telemetry before the dedicated fixed-address entry trampoline",
+    description="Pi 4 compact GPIO42 telemetry with duplicated focus-stage bursts and a temporary first-read micro-split inside the dense armstub signature seam",
     code_bits=5,
     sync_pulses=1,
-    stage_order=(1, 2, 3, 23, 24, 25, 26, 27, 28, 29, 30, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22),
+    stage_order=(1, 2, 3, 23, 24, 21, 25, 22, 26, 27, 28, 29, 30, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20),
     stages={
         1: StageDef(
             code=1,
@@ -236,17 +236,17 @@ _CURRENT_LAYOUT = LayoutDef(
         ),
         21: StageDef(
             code=21,
-            label="core0 branch to _startc",
-            meaning="Core 0 reached the _startc branch.",
-            source_file="/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S",
-            source_symbol="start_common",
+            label="before first signature read",
+            meaning="Armstub completed barriers and is immediately before the first fixed-target signature-word read.",
+            source_file="/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/phoenix-armstub8-rpi4.S",
+            source_symbol="primary_cpu_late",
         ),
         22: StageDef(
             code=22,
-            label="unexpected EL trap",
-            meaning="Reached the unexpected currentEL trap path.",
-            source_file="/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S",
-            source_symbol="start_el_unknown",
+            label="before second signature read",
+            meaning="Armstub survived the first signature read and barriers and is immediately before the second fixed-target signature-word read.",
+            source_file="/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/phoenix-armstub8-rpi4.S",
+            source_symbol="primary_cpu_late",
         ),
         31: StageDef(
             code=31,
@@ -267,7 +267,8 @@ _CURRENT_LAYOUT = LayoutDef(
         "Compact GPIO42 protocol: one sync pulse, then 5 bits MSB-first.",
         "Short on-time encodes 0, long on-time encodes 1.",
         "Long off gap separates stage bursts.",
-        "This layout supersedes the earlier dedicated fixed-entry-trampoline map by inserting dense armstub-side probes around the fixed-target signature reads.",
+        "Focus seam stages are emitted twice with an extra long gap to reduce decode ambiguity in phone video.",
+        "This layout temporarily reuses stage codes 21 and 22 for armstub-side micro-split markers before the first and second signature reads; later plo meanings for 21 and 22 are suspended in this diagnostic image.",
         "Initial ACT LED activity during firmware SD-card reads is preamble noise and must be ignored unless it decodes into a later valid contiguous Phoenix stage run.",
         "Stage 31 is a special terminal mismatch stage, not part of the normal contiguous boot sequence.",
         "Stage 0 is a special EL2 exception-fault stage, not part of the normal contiguous boot sequence.",

@@ -19,7 +19,7 @@ Use this image:
 
 Current SHA-256:
 
-- `6b349fe6c2afe11ea0fdeb5d9fc874eb5ae1b990ee83d42c48f10662445875e8`
+- `6932d3a31fc0fee1494295c4e9d0587c689b7cde20a6fb1907d86164e9815883`
 
 This image supersedes the earlier Pi 4 trial images that used the temporary
 firmware-default low-placement experiment:
@@ -48,13 +48,17 @@ This image now intentionally uses:
   - the armstub now also carries a dense late seam ladder:
     - stage `23`: late seam entered after stage `3`
     - stage `24`: fixed target address loaded
+    - stage `21`: immediately before the first signature-word read
     - stage `25`: first signature word read
+    - stage `22`: immediately before the second signature-word read
     - stage `26`: second signature word read
     - stage `27`: first expected signature constant loaded
     - stage `28`: first compare passed
     - stage `29`: second expected signature constant loaded
     - stage `30`: second compare passed
     - stage `0`: EL2 exception trap during the seam
+  - the seam-stage codes are now emitted twice with an extra long gap to make
+    the next phone-video decode less ambiguous
   - fixed-address Pi 4 entry now uses:
     - stage `5` inline in tiny veneer at raw branch target
     - stage `6` inline at first instruction of old generic `_start` body
@@ -75,7 +79,9 @@ This image now intentionally uses:
     - `3` / `00011`: armstub just before the fixed-address jump to `plo`
     - `23` / `10111`: late seam entered
     - `24` / `11000`: fixed target address loaded
+    - `21` / `10101`: immediately before the first signature-word read
     - `25` / `11001`: first signature word read
+    - `22` / `10110`: immediately before the second signature-word read
     - `26` / `11010`: second signature word read
     - `27` / `11011`: first expected signature constant loaded
     - `28` / `11100`: first compare passed
@@ -98,8 +104,6 @@ This image now intentionally uses:
     - `18` / `10010`: EL1 path complete, before `start_common`
     - `19` / `10011`: `start_common`
     - `20` / `10100`: after stack initialization
-    - `21` / `10101`: core-0 branch to `_startc`
-    - `22` / `10110`: unexpected-EL trap path
     - `31` / `11111`: armstub signature mismatch before branch, hard halt
     - `0` / `00000`: EL2 exception trap during the seam
   - the goal of the next board trial is to identify the highest completed
@@ -153,7 +157,8 @@ Do not assume UART visibility is available.
      telemetry
    - ignore that preamble unless it becomes part of a later valid contiguous
      Phoenix stage run
-8. Wait at least 60 seconds before classifying a silent result.
+8. Wait at least 90 seconds before classifying a silent result on the current
+   first-read focus image.
 9. If text or prompt appears, try:
    - `help`
    - `ps`
@@ -197,7 +202,7 @@ Copy this block into the next report or chat message:
 ```text
 Pi 4 first hardware trial
 Image: artifacts/rpi4b/rpi4b-sd.img
-SHA256: 6b349fe6c2afe11ea0fdeb5d9fc874eb5ae1b990ee83d42c48f10662445875e8
+SHA256: 6932d3a31fc0fee1494295c4e9d0587c689b7cde20a6fb1907d86164e9815883
 Board revision:
 Display:
 Keyboard:
@@ -246,9 +251,17 @@ Current stage meanings:
   still in the custom armstub path before generic `plo` runs
 - highest completed `4`:
   armstub verified the expected `plo` signature before branching
-- highest completed `23`, `24`, `25`, `26`, `27`, `28`, `29`, or `30`:
+- highest completed `23`, `24`, `21`, `25`, `22`, `26`, `27`, `28`, `29`, or `30`:
   use the dense late armstub seam map to pinpoint the exact failing
   instruction band before the branch
+- highest completed `21`:
+  the armstub reached the pre-first-read marker, so the next live boundary is
+  the first fixed-target signature-word read itself
+- highest completed `25`:
+  the first fixed-target signature-word read completed
+- highest completed `22`:
+  the armstub reached the pre-second-read marker, so the next live boundary is
+  the second fixed-target signature-word read itself
 - highest completed `31`:
   armstub did not find the expected signature at `0x40080000` and halted
   before the branch

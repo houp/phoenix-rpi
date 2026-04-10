@@ -2,29 +2,29 @@
 
 ## Metadata
 
-- Step ID: `STEP-0460`
-- Title: Split the Pi 4 dense armstub seam around the first fixed-target read
+- Step ID: `STEP-0461`
+- Title: Await the next Pi 4 board retry on the first-read focus image
 - Status: `in_progress`
 - Date: `2026-04-10`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- use the new `IMG_0012.mov` dense-map result to attack the first fixed-target
-  read band directly, because the current board evidence now reaches stage
-  `24` and stops before the first read-complete stage `25`
+- collect the next board retry on the rebuilt first-read focus image, which
+  now duplicates the seam stages, inserts extra gap time, and temporarily
+  micro-splits the first and second signature reads with stages `21` and `22`
 
 ## Scope
 
 In scope:
 
-- split or harden the exact band between:
-  - `24`: fixed target address loaded
-  - `25`: first signature word read
-- decide whether the next change should be:
-  - a finer pre/post-read probe
-  - a no-call inline marker around the first read
-  - or an actual replacement of the fixed-target read strategy
+- decode the next board video against the first-read focus map
+- classify whether the live fault is:
+  - before the first read
+  - on the first read itself
+  - between the first and second reads
+  - on the second read itself
+  - later in the signature-compare band
 
 Out of scope:
 
@@ -47,17 +47,19 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- the next code step narrows the live seam around the first signature-word read
-- the next board video can distinguish whether the failure is:
-  - on the first fixed-target read itself
-  - immediately after the first read but before the stage-`25` emission
-  - or later, with the current stage-`25` absence explained as decode loss
+- the refreshed first-read focus image is rebuilt, exported, and FAT-verified
+- the next board video can distinguish whether the live fault is:
+  - before the first fixed-target read
+  - on the first fixed-target read
+  - between the first and second fixed-target reads
+  - on the second fixed-target read
+  - or later in the compare / branch band
 
 ## Validation Plan
 
-- use the already-collected `IMG_0012.mov` decode as the current boundary
-- rebuild one narrower or more robust first-read experiment
 - board retry plus LED decode
+- use the new duplicated-focus protocol to reduce missed or ambiguous seam
+  stages
 
 ## Rollback / Baseline
 
@@ -66,16 +68,10 @@ Out of scope:
 
 ## Notes
 
-- `IMG_0012.mov` on the dense-map image decodes as the current best contiguous
-  Phoenix run:
-  - `2`: armstub after timer/GIC
-  - `3`: armstub before fixed jump
-  - `23`: late seam entry
-  - `24`: fixed target address loaded
-- the next expected stage is:
-  - `25`: first signature word read
-- no later valid stage `25`, `31`, or `0` was seen in the main run
-- one lone later unmatched stage `27` burst exists, but it is not currently
-  trusted as the main run because the contiguous `25 -> 26` prefix is absent
-- current exported SD-image SHA-256 remains:
-  - `6b349fe6c2afe11ea0fdeb5d9fc874eb5ae1b990ee83d42c48f10662445875e8`
+- the new first-read focus image now keeps the dense seam stages but adds:
+  - duplicated focus-stage emission with an extra long inter-stage gap
+  - `21`: immediately before the first signature-word read
+  - `22`: immediately before the second signature-word read
+  - barriers before both reads
+- the current exported SD-image SHA-256 is now:
+  - `6932d3a31fc0fee1494295c4e9d0587c689b7cde20a6fb1907d86164e9815883`

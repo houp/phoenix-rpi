@@ -1316,7 +1316,7 @@ Current Pi 4 xHCI fast-path reference note:
 - the current exported real-device handoff image is:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
   SHA-256:
-  `6b349fe6c2afe11ea0fdeb5d9fc874eb5ae1b990ee83d42c48f10662445875e8`
+  `6932d3a31fc0fee1494295c4e9d0587c689b7cde20a6fb1907d86164e9815883`
 - the dedicated operator-facing first board-trial checklist is:
   `/Users/witoldbolt/phoenix-rpi/docs/pi4-first-hardware-trial.md`
 - the current macOS-side first-trial helpers are:
@@ -1326,7 +1326,7 @@ Current Pi 4 xHCI fast-path reference note:
 - the current Pi 4 DTB regeneration helper for `phoenix-dev` is:
   - `/Users/witoldbolt/phoenix-rpi/scripts/prepare-rpi4b-dtb.sh`
 - the current exported Pi 4 SD-image SHA-256 is:
-  `6b349fe6c2afe11ea0fdeb5d9fc874eb5ae1b990ee83d42c48f10662445875e8`
+  `6932d3a31fc0fee1494295c4e9d0587c689b7cde20a6fb1907d86164e9815883`
 - the current SD-image export lesson is now explicit:
   - the VM-local Pi 4 SD image may be valid even when the host-visible copy is
     corrupt
@@ -1341,6 +1341,14 @@ Current Pi 4 xHCI fast-path reference note:
     or manual `cat` pipelines for this artifact
 - the current earliest-entry no-UART diagnostic path is now a compact GPIO42
   stage-code protocol rather than one-off probes or count-based pulse groups
+- the current ACT-LED probe layout for real Pi 4 first-read diagnosis is now:
+  `pi4_dense_firstread_focus_map_2026_04_10`
+  - seam-stage bursts are duplicated with an extra long gap
+  - temporary armstub micro-split:
+    - `21`: immediately before first signature-word read
+    - `22`: immediately before second signature-word read
+  - later `plo` meanings for `21` and `22` are suspended only in this
+    diagnostic image
 - the current bounded response to the decoded stage-`3` boundary is:
   - keep the primary armstub handoff hardening:
     - preserve the primary armstub path argument registers through the final

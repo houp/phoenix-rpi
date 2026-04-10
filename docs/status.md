@@ -8,6 +8,26 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-10`, a canonical Pi 4 incremental rebuild fast lane was added so
+  future armstub and `plo` debug loops do not default to full clean world
+  rebuilds:
+  - helper:
+    `/Users/witoldbolt/phoenix-rpi/scripts/rebuild-rpi4b-fast.sh`
+  - default behavior:
+    - incrementally refresh the copied VM-local buildroot
+    - auto-select the narrowest safe build phase
+    - rebuild the Pi 4 image
+    - assemble, export, and verify the SD image
+  - current auto-scope policy:
+    - `project image` when only `phoenix-rtos-project` or `plo` are dirty
+    - `core project image` when core repos are dirty
+    - `clean host core project image` when build-infra repos are dirty
+  - current verified speed fact:
+    - a no-clean `project image` rebuild completed in about `1.08s` on the
+      copied buildroot
+  - verified helper run:
+    - `--build-only --scope project`: pass
+
 - on `2026-04-10`, the dense signature image was rebuilt again into a
   first-read focus image to remove ambiguity in the live `24 -> 25` seam:
   - the armstub seam stages of interest are now emitted twice with an extra

@@ -32,6 +32,8 @@ Then determine:
 - whether the work fits the currently active step without widening scope
 - whether the disposable local buildroot needs to be refreshed with `scripts/prepare-buildroot.sh` before any `phoenix-rtos-project` build
 - whether the task needs the linked or copied buildroot mode
+- whether the task can use `scripts/rebuild-rpi4b-fast.sh` instead of a full
+  clean rebuild
 - whether the user has explicitly authorized unattended continuation
 - whether a QEMU-side runtime question should be answered with a bounded gdbstub
   session before any source-level debug instrumentation is added
@@ -70,6 +72,11 @@ For each substantial task:
 10. for Pi 4 SD-card images exported from `phoenix-dev`, use only
     `scripts/export-rpi4b-sdimg.sh`; if it fails, fix that helper instead of
     trying an alternate transfer method
+10a. for iterative Pi 4 build loops, prefer
+    `scripts/rebuild-rpi4b-fast.sh`
+    and let it choose `project image`, `core project image`, or
+    `clean host core project image` based on dirty sibling repos; use the full
+    clean path only when the helper's scope or the situation clearly requires it
 11. commit each touched upstream repository once the step succeeds
 12. update the docs, tracker, or integration manifest if any new fact or constraint was discovered
 

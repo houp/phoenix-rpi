@@ -33,6 +33,32 @@
   - at least `5000` black pixels in that same window
   - no remaining brown stage-panel pixels in that window
 
+## Current Pi 4 Incremental Rebuild Fast Lane
+
+- use [scripts/rebuild-rpi4b-fast.sh](/Users/witoldbolt/phoenix-rpi/scripts/rebuild-rpi4b-fast.sh) for normal Pi 4 bring-up iteration
+- default behavior:
+  - refreshes the copied VM-local buildroot incrementally
+  - auto-selects the narrowest safe build phase
+  - rebuilds the Pi 4 image
+  - assembles, exports, and verifies the SD image
+- scope selection:
+  - `auto`:
+    - `project image` when only `phoenix-rtos-project` or `plo` are dirty
+    - `core project image` when core repos are dirty
+    - `clean host core project image` when build-infra repos are dirty
+  - `project`:
+    - force `build.sh project image`
+  - `core`:
+    - force `build.sh core project image`
+  - `full-clean`:
+    - force `build.sh clean host core project image`
+- current verified speed fact:
+  - on the current copied buildroot, a no-clean `project image` rebuild
+    completed in about `1.08s`
+- use `--build-only` when you only need a rebuilt Pi 4 image inside the VM and
+  do not need a fresh exported SD image yet
+- keep the full clean rebuild as the recovery lane, not the default lane
+
 ## 1. Goals
 
 The port should be developed in a way that supports long, semi-autonomous or autonomous AI-driven sessions. The build/test loop must therefore optimize for:

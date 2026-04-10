@@ -64,6 +64,10 @@ Use them as follows:
 - After every successful implementation step, commit the relevant changes in every touched upstream repository and then commit the coordination-repo documentation or manifest update that records the tested integration state.
 - Manage Phoenix as multiple sibling git repositories, not as a rewritten monorepo. Keep repository coordination in this repo through documentation and manifest files.
 - Use the disposable local buildroot prepared by `scripts/prepare-buildroot.sh` for `phoenix-rtos-project` builds; do not turn nested submodule clones into the primary working model.
+- For iterative Pi 4 bring-up rebuilds, prefer `scripts/rebuild-rpi4b-fast.sh`
+  over ad hoc `build.sh clean host core project image` loops. Reserve the full
+  clean rebuild for build-infra changes, upstream-sync churn, toolchain/sysroot
+  changes, or suspected stale-build state.
 - If the user explicitly authorizes unattended work, the agent may continue across normal step boundaries only under the rules in `docs/unattended-agent-mode.md`; those rules do not relax step sizing, validation, or commit discipline.
 - On this workstation, treat Linux as the authoritative build and emulation environment. Use macOS natively for coordination, editing, and hardware control; use a Linux VM for Phoenix builds and most QEMU runs unless a task is explicitly documented as safe on the host.
 - For Pi 4 SD-card images exported from `phoenix-dev` to the host, use only

@@ -1349,6 +1349,12 @@ Current Pi 4 xHCI fast-path reference note:
     - `22`: immediately before second signature-word read
   - later `plo` meanings for `21` and `22` are suspended only in this
     diagnostic image
+- the current default iterative Pi 4 rebuild helper is now:
+  `/Users/witoldbolt/phoenix-rpi/scripts/rebuild-rpi4b-fast.sh`
+  - it refreshes the copied VM-local buildroot incrementally
+  - it auto-selects the narrowest safe build phase from dirty sibling repos
+  - it reuses the canonical SD-image export and FAT-aware verify helpers
+  - the full clean rebuild remains the fallback, not the default
 - the current bounded response to the decoded stage-`3` boundary is:
   - keep the primary armstub handoff hardening:
     - preserve the primary armstub path argument registers through the final

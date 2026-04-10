@@ -75,3 +75,12 @@ Out of scope:
   - barriers before both reads
 - the current exported SD-image SHA-256 is now:
   - `6932d3a31fc0fee1494295c4e9d0587c689b7cde20a6fb1907d86164e9815883`
+- while awaiting the next hardware retry clip, a parallel host-side UART lane
+  is now prepared:
+  - [capture-rpi4b-uart.sh](/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh)
+  - [summarize-rpi4b-uart-log.py](/Users/witoldbolt/phoenix-rpi/scripts/summarize-rpi4b-uart-log.py)
+  - current Pi 4 `config.txt` already sets:
+    - `enable_uart=1`
+    - `uart_2ndstage=1`
+  - next board retry should use UART capture plus LED video together when the
+    USB-TTL cable arrives

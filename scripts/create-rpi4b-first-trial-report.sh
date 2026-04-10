@@ -28,6 +28,9 @@ cat > "$report_path" <<EOF
 - Display:
 - Keyboard:
 - Ethernet attached: yes/no
+- USB-TTL adapter:
+- Serial device path:
+- BOOT_UART enabled in EEPROM: yes/no/unknown
 
 ## Observed Class
 
@@ -48,6 +51,14 @@ cat > "$report_path" <<EOF
 
 - no visible effect / partial / full
 - keys tried:
+
+## UART Result
+
+- UART connected: yes/no
+- capture log path:
+- earliest visible output:
+- latest visible output:
+- summary helper result:
 
 ## Command Results
 

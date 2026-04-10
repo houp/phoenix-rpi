@@ -59,6 +59,39 @@
   do not need a fresh exported SD image yet
 - keep the full clean rebuild as the recovery lane, not the default lane
 
+## Current Pi 4 UART Capture Lane
+
+- canonical host capture helper:
+  - [scripts/capture-rpi4b-uart.sh](/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh)
+- canonical host log summarizer:
+  - [scripts/summarize-rpi4b-uart-log.py](/Users/witoldbolt/phoenix-rpi/scripts/summarize-rpi4b-uart-log.py)
+- current serial mode:
+  - `115200 8N1`
+- current host tool:
+  - `picocom`
+- preferred host device path form:
+  - `/dev/cu.*`
+- current practical rule:
+  - start UART capture before board power-on
+  - keep the raw log
+  - summarize the log after the run instead of trimming it manually
+  - keep ACT-LED video in parallel for current pre-console failures
+- current Pi 4 firmware/config prerequisites:
+  - the Phoenix Pi 4 `config.txt` already sets:
+    - `enable_uart=1`
+    - `uart_2ndstage=1`
+  - if earlier bootloader output is needed, enable Raspberry Pi EEPROM:
+    - `BOOT_UART=1`
+
+Current recommended command sequence:
+
+- list candidate serial adapters:
+  - [scripts/capture-rpi4b-uart.sh](/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh) `--list`
+- capture a trial:
+  - [scripts/capture-rpi4b-uart.sh](/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh) `--device /dev/cu.usbserial-XXXX --label pi4-boot`
+- summarize:
+  - [scripts/summarize-rpi4b-uart-log.py](/Users/witoldbolt/phoenix-rpi/scripts/summarize-rpi4b-uart-log.py) `/path/to/log`
+
 ## 1. Goals
 
 The port should be developed in a way that supports long, semi-autonomous or autonomous AI-driven sessions. The build/test loop must therefore optimize for:
@@ -697,6 +730,8 @@ For transient or unstable components, log:
 - firmware files used
 - QEMU version
 - relevant `config.txt` settings
+- serial device path
+- whether `BOOT_UART=1` was enabled
 
 For code-quality-sensitive steps, also keep:
 
@@ -718,7 +753,6 @@ This preserves iteration speed and reduces pointless hardware churn.
 
 Good later additions:
 
-- automatic UART log parsing into structured failure summaries
 - boot timing trend tracking
 - image deployment manifest files
 - flaky-test quarantine with explicit documentation

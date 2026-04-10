@@ -11,6 +11,11 @@ Use it together with
 [manual-operator-instructions.md](/Users/witoldbolt/phoenix-rpi/docs/manual-operator-instructions.md),
 not instead of it.
 
+Current strong recommendation:
+
+- when a USB-TTL cable is available, do not use LED-only hardware retries
+- run UART capture and LED video together
+
 ## Current Artifact
 
 Use this image:
@@ -32,6 +37,9 @@ This image now intentionally uses:
 - `kernel_address=0x40080000`
 - `boot_load_flags=0x1`
 - `armstub=phoenix-armstub8-rpi4.bin`
+- firmware UART options:
+  - `enable_uart=1`
+  - `uart_2ndstage=1`
 - custom Pi 4 armstub EL3 preparation:
   - local timer control / prescaler
   - `CNTFRQ_EL0 = 54000000`
@@ -122,9 +130,15 @@ Attach:
 - microSD card flashed with the image above
 - HDMI display
 - USB keyboard
+- USB-TTL adapter if available
 - optional Ethernet
 
-Do not assume UART visibility is available.
+Current UART wiring:
+
+- adapter RX -> Pi Pin 8 / `GPIO14` / `TXD0`
+- adapter TX -> Pi Pin 10 / `GPIO15` / `RXD0`
+- adapter GND -> Pi Pin 6 / `GND`
+- 3.3 V TTL only
 
 ## Execution Checklist
 
@@ -140,8 +154,14 @@ Do not assume UART visibility is available.
 3. Connect HDMI.
 4. Connect one USB keyboard directly to the Pi 4.
 5. Optionally connect Ethernet.
-6. Power on the board.
-7. Start a high-framerate close-up video before power-on and keep both LEDs in
+6. If a USB-TTL cable is available, start UART capture before power-on:
+   - [capture-rpi4b-uart.sh](/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh) `--list`
+   - [capture-rpi4b-uart.sh](/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh) `--device /dev/cu.usbserial-XXXX --label pi4-boot`
+   - if you want earlier EEPROM messages than `uart_2ndstage`, enable
+     `BOOT_UART=1` in the Raspberry Pi EEPROM on a known-good Raspberry Pi OS
+     card first
+7. Power on the board.
+8. Start a high-framerate close-up video before power-on and keep both LEDs in
    frame for at least 60 seconds.
    If convenient, record 90 seconds so the full compact `1..21` sequence still
    fits even if the board progresses farther than expected.
@@ -157,18 +177,23 @@ Do not assume UART visibility is available.
      telemetry
    - ignore that preamble unless it becomes part of a later valid contiguous
      Phoenix stage run
-8. Wait at least 90 seconds before classifying a silent result on the current
+9. Wait at least 90 seconds before classifying a silent result on the current
    first-read focus image.
-9. If text or prompt appears, try:
+10. After the trial, summarize the UART log if one was captured:
+   - [summarize-rpi4b-uart-log.py](/Users/witoldbolt/phoenix-rpi/scripts/summarize-rpi4b-uart-log.py) `/path/to/log`
+11. If text or prompt appears, try:
    - `help`
    - `ps`
    - `ls /`
-10. Record the outcome using the template below.
+12. Record the outcome using the template below.
 
 ## Expected Positive Signs
 
 Any of these are useful:
 
+- early EEPROM bootloader UART output
+- firmware second-stage UART output
+- later Phoenix `plo`, kernel, or shell UART output
 - clearly separated ACT-LED stage-code bursts
 - a highest completed checkpoint code that can be decoded from the video
 - visible top-left early panel from `plo`
@@ -207,9 +232,19 @@ Board revision:
 Display:
 Keyboard:
 Ethernet attached: yes/no
+USB-TTL adapter:
+Serial device path:
+BOOT_UART enabled in EEPROM: yes/no/unknown
 
 Observed class:
 Power-on time observed:
+
+UART result:
+- connected: yes/no
+- capture log path:
+- earliest visible output:
+- latest visible output:
+- summary helper result:
 
 HDMI result:
 - no signal / brief flash / stable picture

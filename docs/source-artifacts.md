@@ -25,6 +25,23 @@ This file indexes the most important websites, repositories, documents, and sour
 - Phoenix tests docs:
   <https://docs.phoenix-rtos.com/latest/tests/index.html>
 
+## 1.1 Raspberry Pi Official Firmware And Serial Documentation
+
+- Raspberry Pi `config.txt` reference:
+  <https://www.raspberrypi.com/documentation/computers/config_txt.html>
+
+- Raspberry Pi UART / serial reference:
+  <https://www.raspberrypi.com/documentation/hardware/raspberrypi/uart.md>
+
+- Raspberry Pi bootloader EEPROM configuration:
+  <https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#raspberry-pi-bootloader-configuration>
+
+Important current UART facts from the official documentation:
+
+- `BOOT_UART=1` enables bootloader UART debug on `GPIO14` and `GPIO15`
+- the official receiving terminal configuration is `115200 8N1`
+- `sudo -E rpi-eeprom-config --edit` is the standard EEPROM edit/apply path
+
 ## 2. Phoenix RTOS Upstream Repositories
 
 - Project umbrella:

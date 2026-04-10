@@ -75,6 +75,12 @@ Use them as follows:
   `rsync`, `dd`, `cat`, or manual Lima copy commands. If export reliability is
   ever in doubt, fix that helper and the corresponding docs instead of trying a
   different transfer path.
+- For Pi 4 UART capture on the macOS host, use only
+  `scripts/capture-rpi4b-uart.sh` together with
+  `scripts/summarize-rpi4b-uart-log.py`. Do not improvise with ad hoc
+  `screen`, `cu`, raw `picocom`, or one-off shell pipelines unless the
+  canonical helper is first proven insufficient and the docs are updated in the
+  same session.
 - When debugging runtime behavior under QEMU, prefer GDB through the QEMU gdbstub before changing source code to add probes, traces, or debug prints. Only add source-level runtime instrumentation after documenting why the GDB-first path is insufficient for the current question.
 - If a code change is introduced only to probe, diagnose, or verify a hypothesis and that hypothesis turns out false, remove that diagnostic code before the step is closed or committed. Keep only the code changes that are actually required by the confirmed fix or design.
 - Optimize all future code for readability and upstreamability: keep changes small, consistent with nearby Phoenix code, warning-clean, and free of gratuitous formatting churn.

@@ -77,6 +77,11 @@ For each substantial task:
     and let it choose `project image`, `core project image`, or
     `clean host core project image` based on dirty sibling repos; use the full
     clean path only when the helper's scope or the situation clearly requires it
+10b. for Pi 4 UART capture on the macOS host, prefer
+    `scripts/capture-rpi4b-uart.sh`
+    plus
+    `scripts/summarize-rpi4b-uart-log.py`
+    instead of ad hoc serial commands
 11. commit each touched upstream repository once the step succeeds
 12. update the docs, tracker, or integration manifest if any new fact or constraint was discovered
 
@@ -125,6 +130,7 @@ Update documentation during the same session when you learn:
 - an interrupt number, register block, DMA limit, or memory constraint
 - a firmware dependency or workaround
 - a lab automation caveat
+- a UART capture workflow caveat
 - a failure mode that is likely to recur
 
 Preferred destinations:

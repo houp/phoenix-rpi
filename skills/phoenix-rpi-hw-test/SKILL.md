@@ -29,7 +29,11 @@ Read the relevant platform file if the failing test is platform-specific.
 4. Prefer Pi 4 network boot as the steady-state hardware loop once the lab is stable enough; keep SD or USB media as the fallback recovery path.
 5. On this workstation, keep USB serial and power control on the macOS host unless there is a proven reason to move them.
 6. Preserve raw UART logs.
-7. Summarize failures with a clear class:
+7. Prefer the canonical host UART helpers:
+   - `scripts/capture-rpi4b-uart.sh`
+   - `scripts/summarize-rpi4b-uart-log.py`
+   instead of ad hoc serial commands.
+8. Summarize failures with a clear class:
    - build
    - image assembly
    - firmware load
@@ -38,10 +42,10 @@ Read the relevant platform file if the failing test is platform-specific.
    - shell startup
    - runtime regression
    - lab infrastructure
-8. If the Pi 4 lab lacks UART, prefer structured GPIO42 ACT-LED telemetry plus
+9. If the Pi 4 lab lacks UART, prefer structured GPIO42 ACT-LED telemetry plus
    high-framerate video capture over one-off LED probes. Preserve the full
    pulse sequence, not only the final LED state.
-9. For Pi 4 SD-card artifacts exported from `phoenix-dev`, use only
+10. For Pi 4 SD-card artifacts exported from `phoenix-dev`, use only
    `scripts/export-rpi4b-sdimg.sh`. Do not improvise with alternate VM-to-host
    copy methods; if export reliability is in doubt, fix the helper and re-run
    it.

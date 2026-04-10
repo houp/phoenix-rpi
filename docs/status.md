@@ -8,6 +8,28 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-11`, the first real Pi 4 UART host-debug lane was prepared so
+  tomorrow's USB-TTL cable can become a first-class bring-up signal rather than
+  an improvised manual step:
+  - canonical host capture helper:
+    `/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh`
+  - canonical host log summarizer:
+    `/Users/witoldbolt/phoenix-rpi/scripts/summarize-rpi4b-uart-log.py`
+  - current host tool baseline:
+    - `picocom` present on macOS host
+    - `tio` absent on macOS host
+  - current Pi 4 config already enables the firmware-facing UART path:
+    - `enable_uart=1`
+    - `uart_2ndstage=1`
+  - current next-lab recommendation:
+    - keep LED video
+    - add host UART capture in parallel
+    - if necessary, enable Raspberry Pi EEPROM `BOOT_UART=1` on a known-good
+      Raspberry Pi OS card for even earlier bootloader output
+  - no upstream boot code change was required for this UART-prep step
+  - manifest:
+    `manifests/2026-04-11-pi4-uart-host-lane-prep.md`
+
 - on `2026-04-10`, a canonical Pi 4 incremental rebuild fast lane was added so
   future armstub and `plo` debug loops do not default to full clean world
   rebuilds:

@@ -653,6 +653,57 @@ For the standard Raspberry Pi 40-pin header early-console path, the expected UAR
 
 Re-verify if a future board configuration or overlay changes the active UART routing.
 
+### Current macOS host UART capture workflow
+
+Use the macOS host as the canonical UART controller.
+
+Current approved helper:
+
+- [capture-rpi4b-uart.sh](/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh)
+
+Current log-summary helper:
+
+- [summarize-rpi4b-uart-log.py](/Users/witoldbolt/phoenix-rpi/scripts/summarize-rpi4b-uart-log.py)
+
+Current practical rules:
+
+- prefer `/dev/cu.*` device paths on macOS, not `/dev/tty.*`
+- current expected serial mode is `115200 8N1`
+- start UART capture before powering the board on
+- preserve the raw log file; summarize it after capture instead of trimming it
+- keep the LED-video workflow in parallel because the current live failure may
+  still be before the first Phoenix UART line
+
+Recommended operator flow:
+
+1. list candidate adapters:
+   - [capture-rpi4b-uart.sh](/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh) `--list`
+2. start capture before power-on:
+   - [capture-rpi4b-uart.sh](/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh) `--device /dev/cu.usbserial-XXXX --label pi4-boot`
+3. exit `picocom` after the trial with:
+   - `Ctrl-A` then `Ctrl-X`
+4. summarize the raw log:
+   - [summarize-rpi4b-uart-log.py](/Users/witoldbolt/phoenix-rpi/scripts/summarize-rpi4b-uart-log.py) `/path/to/log`
+
+Current UART-output expectations:
+
+- the current Phoenix Pi 4 `config.txt` already enables:
+  - `enable_uart=1`
+  - `uart_2ndstage=1`
+- so a working cable should help even without EEPROM debug, because the
+  firmware second stage and any later Phoenix serial path can become visible
+- if the board still emits no early firmware text, enable bootloader UART in
+  EEPROM on a known-good Raspberry Pi OS card first:
+  - `sudo -E rpi-eeprom-config --edit`
+  - set `BOOT_UART=1`
+
+Re-verify:
+
+- official Raspberry Pi bootloader docs say `BOOT_UART=1` enables UART debug on
+  `GPIO14` and `GPIO15` at `115200 8N1`
+- official docs also say `rpi-eeprom-config --edit` is the normal edit/apply
+  path for EEPROM settings
+
 ## 7. Required Manual Steps Before The First Real-Device Test
 
 Before the first hardware boot attempt, the operator must:
@@ -661,6 +712,10 @@ Before the first hardware boot attempt, the operator must:
    prepare the boot medium
 2. if a UART adapter is available:
    - connect it and confirm the host can see the serial device
+   - list it with:
+     [capture-rpi4b-uart.sh](/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh) `--list`
+   - if early EEPROM output is desired:
+     confirm `BOOT_UART=1` is enabled in the Raspberry Pi bootloader EEPROM
 3. connect power in a way that can be safely cycled
 4. attach HDMI if the current test is expected to use display-visible behavior
 5. attach Ethernet if the test expects it
@@ -716,6 +771,14 @@ Do not over-interpret the result:
 - display output is now a meaningful real-hardware sign
 - keyboard interaction is now part of the staged Pi 4 image path, but it still
   needs first real-hardware confirmation
+
+Current upgraded note:
+
+- once a USB-TTL cable is available, prefer the dual-lane workflow:
+  - UART capture on the host
+  - ACT-LED video in parallel
+- the current no-UART-only instructions above remain useful as fallback, not as
+  the preferred lane
 
 ## 9. Additional Manual Steps For Network Boot
 

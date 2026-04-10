@@ -13,6 +13,8 @@
 - collect the next board retry on the rebuilt first-read focus image, which
   now duplicates the seam stages, inserts extra gap time, and temporarily
   micro-splits the first and second signature reads with stages `21` and `22`
+- as soon as the USB-TTL cable is available, shift the strongest next boundary
+  source from LED-only inference to UART-plus-LED
 
 ## Scope
 
@@ -60,6 +62,10 @@ Out of scope:
 - board retry plus LED decode
 - use the new duplicated-focus protocol to reduce missed or ambiguous seam
   stages
+- when the USB-TTL cable is available:
+  - host UART capture
+  - UART log summary
+  - LED video in parallel
 
 ## Rollback / Baseline
 
@@ -84,3 +90,7 @@ Out of scope:
     - `uart_2ndstage=1`
   - next board retry should use UART capture plus LED video together when the
     USB-TTL cable arrives
+- latest LED-only retry note:
+  - `IMG_0014.mov` did not decode any valid Phoenix stage burst under the
+    current layout
+  - treat that clip as ambiguous and do not widen the LED-only loop from it

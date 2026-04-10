@@ -8,6 +8,24 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-11`, the next Pi 4 retry clip
+  `/Users/witoldbolt/Downloads/IMG_0014.mov` did **not** produce any valid
+  decodable Phoenix ACT-LED stage burst:
+  - clip facts:
+    - about `59.92 fps`
+    - about `94.83 s`
+  - the analyzer still detects many green-LED on-segments, but they do not
+    form any valid sync-plus-5-bit stage code under the current
+    `pi4_dense_firstread_focus_map_2026_04_10` layout
+  - interpreter result:
+    - `highest_completed=none`
+  - implication:
+    - this clip no longer gives a reliable LED-only boundary
+    - the next strongest lane is host UART capture with LED video kept in
+      parallel as a secondary signal
+  - manifest:
+    `manifests/2026-04-11-pi4-img0014-no-valid-stage-decode.md`
+
 - on `2026-04-11`, the first real Pi 4 UART host-debug lane was prepared so
   tomorrow's USB-TTL cable can become a first-class bring-up signal rather than
   an improvised manual step:

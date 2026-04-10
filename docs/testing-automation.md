@@ -147,6 +147,12 @@ Current practical note for the first Pi 4 hardware attempt without USB-TTL:
   - short on-time encodes `0`
   - long on-time encodes `1`
   - a longer off gap separates stage bursts
+- use the host-side decoder script for current hardware LED clips:
+  - [scripts/analyze-rpi4-actled-video.py](/Users/witoldbolt/phoenix-rpi/scripts/analyze-rpi4-actled-video.py)
+  - current default cropped-LED ROI:
+    - `92,108,117,118`
+  - example:
+    - `scripts/analyze-rpi4-actled-video.py /path/to/IMG_xxxx.mov`
 - current post-`IMG_0009.mov` telemetry split:
   - the previous video most strongly mapped to completion through stage `6`
   - the current image therefore splits the `currentEL` seam and the next few

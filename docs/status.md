@@ -8,6 +8,30 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-10`, OpenCV-based analysis of the new real-board retry
+  `IMG_7136.mov` confirmed that the stage-`3 -> 4` handoff-hardened image
+  still does not emit earliest generic `plo` stage `4`:
+  - `ffprobe` confirms the clip is `59.92 fps`
+  - the current host-side decoder is now:
+    - `/Users/witoldbolt/phoenix-rpi/scripts/analyze-rpi4-actled-video.py`
+  - the ACT LED ROI used for this clip is:
+    - `92,108,117,118`
+  - the decoder extracts these valid stage groups:
+    - stage `1` / `00001`
+    - stage `2` / `00010`
+    - stage `3` / `00011`
+  - no valid stage `4` / `00100` group appears after stage `3`
+  - the earlier green activity around `2.07s - 7.26s` still does not match
+    the compact sync-plus-`5`-bit Phoenix protocol and remains classified as
+    pre-telemetry firmware / media activity rather than valid Phoenix output
+  - the active failure band therefore remains:
+    - armstub stage `3` reached
+    - earliest generic `plo` stage `4` not reached
+    - failure still localized to the raw handoff seam or the first few fetched
+      instructions at the fixed branch target
+- current manifest:
+  `manifests/2026-04-10-pi4-img7136-opencv-analysis.md`
+
 - on `2026-04-10`, the active Pi 4 response to the decoded stage-`3` boundary
   was implemented and rebuilt:
   - the custom Pi 4 armstub no longer clears the primary-path argument

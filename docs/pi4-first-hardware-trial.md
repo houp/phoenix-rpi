@@ -114,6 +114,8 @@ Do not assume UART visibility is available.
    frame for at least 60 seconds.
    If convenient, record 90 seconds so the full compact `1..20` sequence still
    fits even if the board progresses farther than expected.
+   The current host-side decoder is:
+   - [scripts/analyze-rpi4-actled-video.py](/Users/witoldbolt/phoenix-rpi/scripts/analyze-rpi4-actled-video.py)
 8. Wait at least 60 seconds before classifying a silent result.
 9. If text or prompt appears, try:
    - `help`

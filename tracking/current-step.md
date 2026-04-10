@@ -2,17 +2,19 @@
 
 ## Metadata
 
-- Step ID: `STEP-0456`
-- Title: Verify fixed handoff target contents before the Pi 4 stage-`3 -> 4` branch
+- Step ID: `STEP-0457`
+- Title: Await the next Pi 4 board retry on the fixed-target-signature image
 - Status: `in_progress`
 - Date: `2026-04-10`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- distinguish the two remaining stage-`3 -> 4` possibilities:
-  - `plo` is not actually present at `0x40080000`
-  - `plo` is present there, but execution still fails before stage `4`
+- get the next real Pi 4 LED video on the new image that distinguishes:
+  - stage `3` only: failure before or during target-signature verification
+  - stage `31`: signature missing at `0x40080000`
+  - stage `4`: signature present before branch
+  - stage `5`: fixed-entry veneer actually entered
 - preserve the new LED-analysis toolchain as the default readout path for the
   next board retry
 
@@ -20,16 +22,15 @@
 
 In scope:
 
-- add one armstub-side target-memory verification step before the fixed branch
-- compare the fixed target against a deliberate `plo` entry signature
-- optionally record the firmware-patched `kernel_entry32` slot as a secondary
-  clue if that can be done without widening the step too much
+- collect the next board retry on the fixed-target-signature image
+- decode it with the current analyzer plus layout plus interpreter workflow
+- classify the new highest completed stage before touching more boot code
 
 Out of scope:
 
 - unrelated EL-path, framebuffer, DTB, or USB work
-- redesigning the whole Pi 4 boot model before the target-memory question is
-  answered
+- redesigning the whole Pi 4 boot model before the new signature-check image
+  is tested
 
 ## Expected Repositories
 
@@ -40,24 +41,24 @@ Out of scope:
 ## Expected Files Or Subsystems
 
 - `/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/phoenix-armstub8-rpi4.S`
-- `/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S`
 - `/Users/witoldbolt/phoenix-rpi/scripts/rpi4_actled_probe_layout.py`
+- `/Users/witoldbolt/phoenix-rpi/scripts/verify-rpi4b-sdimg.sh`
 - `/Users/witoldbolt/phoenix-rpi/docs/status.md`
 - `/Users/witoldbolt/phoenix-rpi/tracking/current-step.md`
 
 ## Acceptance Criteria
 
-- the next hardware image can answer whether the fixed handoff target memory at
-  `0x40080000` contains the expected `plo` entry signature before branching
-- the next board video can distinguish:
-  - missing or wrong load target
-  - valid target contents but failed execution after branch
+- the refreshed SD image is rebuilt, exported, and FAT-verified
+- the next board video can now distinguish:
+  - stage `31`: missing or wrong fixed load target contents
+  - stage `4`: valid target contents before branch
+  - stage `5`: entry veneer reached after branch
 
 ## Validation Plan
 
-- rebuild Pi 4 image
-- rerun the standard no-hardware gates
-- use the current LED-analysis toolchain on the next board video
+- board retry on the refreshed SD image
+- decode with the current LED-analysis toolchain
+- choose the next smallest boot fix from the resulting highest completed stage
 
 ## Rollback / Baseline
 
@@ -66,8 +67,12 @@ Out of scope:
 
 ## Notes
 
-- current confirmed decode from `IMG_7137.mov`:
-  - stage `3`: armstub before fixed jump
-  - no valid later stage `4`
+- the implementation part of the signature-check step is complete:
+  - stage `4` now means armstub target signature verified at `0x40080000`
+  - stage `31` now means signature mismatch and pre-branch halt
+  - stage `5` now means the fixed-address `plo` entry veneer was actually
+    entered after the branch
+- current exported SD-image SHA-256:
+  - `8ef476644f8fce5b5937096125421a218b8a67b0513b0fa4c0ab7e6592585e3e`
 - initial SD-read LED chatter remains firmware preamble noise and should be
   ignored unless it participates in a later valid contiguous Phoenix decode

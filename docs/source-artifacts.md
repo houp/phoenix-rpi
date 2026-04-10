@@ -1316,7 +1316,7 @@ Current Pi 4 xHCI fast-path reference note:
 - the current exported real-device handoff image is:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
   SHA-256:
-  `d76a6c2bb0d15173f4a6a90aa5c82211b0ea286b5bb236960e51fdd3388c2320`
+  `8ef476644f8fce5b5937096125421a218b8a67b0513b0fa4c0ab7e6592585e3e`
 - the dedicated operator-facing first board-trial checklist is:
   `/Users/witoldbolt/phoenix-rpi/docs/pi4-first-hardware-trial.md`
 - the current macOS-side first-trial helpers are:
@@ -1326,7 +1326,7 @@ Current Pi 4 xHCI fast-path reference note:
 - the current Pi 4 DTB regeneration helper for `phoenix-dev` is:
   - `/Users/witoldbolt/phoenix-rpi/scripts/prepare-rpi4b-dtb.sh`
 - the current exported Pi 4 SD-image SHA-256 is:
-  `d76a6c2bb0d15173f4a6a90aa5c82211b0ea286b5bb236960e51fdd3388c2320`
+  `8ef476644f8fce5b5937096125421a218b8a67b0513b0fa4c0ab7e6592585e3e`
 - the current SD-image export lesson is now explicit:
   - the VM-local Pi 4 SD image may be valid even when the host-visible copy is
     corrupt
@@ -1346,9 +1346,13 @@ Current Pi 4 xHCI fast-path reference note:
     - preserve the primary armstub path argument registers through the final
       fixed-address branch
     - execute `dsb sy; ic iallu; dsb sy; isb` immediately before that branch
-  - split the raw target from the old generic body:
-    - emit stage `4` inline in dedicated fixed-address veneer at `_start`
-    - emit stage `5` inline at `_start_real`, before the old generic body
+  - verify fixed-target contents before branching:
+    - place a deliberate `plo` entry signature at `0x40080000 + 0x4`
+    - emit stage `4` only when the armstub verifies that signature
+    - emit stage `31` and halt when the signature does not match
+  - split the raw target from the old generic body after that check:
+    - emit stage `5` inline in dedicated fixed-address veneer at `_start`
+    - emit stage `6` inline at `_start_real`, before the old generic body
 - the current protocol format is:
   - one sync pulse
   - then `5` fixed-width bits, MSB first
@@ -1359,24 +1363,26 @@ Current Pi 4 xHCI fast-path reference note:
   - `1` / `00001`: armstub primary-core entry
   - `2` / `00010`: armstub after early timer / GIC preparation
   - `3` / `00011`: armstub just before the fixed-address jump to `plo`
-  - `4` / `00100`: fixed-address Pi 4 entry veneer at raw branch target
-  - `5` / `00101`: first instruction of old generic `_start` body
-  - `6` / `00110`: after clearing `x0..x7`
-  - `7` / `00111`: after clearing `x8..x15`
-  - `8` / `01000`: after clearing `x16..x23`
-  - `9` / `01001`: after clearing `x24..x30`
-  - `10` / `01010`: after `dsb sy` / `isb`
-  - `11` / `01011`: after `mrs currentEL`
-  - `12` / `01100`: `start_el3`
-  - `13` / `01101`: `start_el2`
-  - `14` / `01110`: `start_el1`
-  - `15` / `01111`: EL3 path complete, before `start_common`
-  - `16` / `10000`: EL2 path complete, before `start_common`
-  - `17` / `10001`: EL1 path complete, before `start_common`
-  - `18` / `10010`: `start_common`
-  - `19` / `10011`: after stack setup
-  - `20` / `10100`: core-0 branch to `_startc`
-  - `21` / `10101`: unexpected-EL trap path
+  - `4` / `00100`: armstub verified the expected `plo` signature
+  - `5` / `00101`: fixed-address Pi 4 entry veneer at raw branch target
+  - `6` / `00110`: first instruction of old generic `_start` body
+  - `7` / `00111`: after clearing `x0..x7`
+  - `8` / `01000`: after clearing `x8..x15`
+  - `9` / `01001`: after clearing `x16..x23`
+  - `10` / `01010`: after clearing `x24..x30`
+  - `11` / `01011`: after `dsb sy` / `isb`
+  - `12` / `01100`: after `mrs currentEL`
+  - `13` / `01101`: `start_el3`
+  - `14` / `01110`: `start_el2`
+  - `15` / `01111`: `start_el1`
+  - `16` / `10000`: EL3 path complete, before `start_common`
+  - `17` / `10001`: EL2 path complete, before `start_common`
+  - `18` / `10010`: EL1 path complete, before `start_common`
+  - `19` / `10011`: `start_common`
+  - `20` / `10100`: after stack setup
+  - `21` / `10101`: core-0 branch to `_startc`
+  - `22` / `10110`: unexpected-EL trap path
+  - `31` / `11111`: armstub signature mismatch before branch, hard halt
 - each checkpoint is now one compact stage-code burst separated by a longer off
   gap so a single high-framerate LED video can reveal the highest completed
   stage without another immediate protocol redesign

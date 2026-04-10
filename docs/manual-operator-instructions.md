@@ -385,7 +385,7 @@ Current payload rule:
 - by default it exports that disk image into the host workspace at:
   - `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
 - current validated exported full-image SHA-256:
-  - `4b9c967c9381e8935998a19eb1a976c43b440dd57da4c5fab489763f729a6835`
+  - `8ef476644f8fce5b5937096125421a218b8a67b0513b0fa4c0ab7e6592585e3e`
 - the current exported full-disk artifact includes the latest firmware-stage
   early handoff state:
   - Pi 4 A72 `plo` restored to the last coherent high-DDR placement used by
@@ -408,8 +408,13 @@ Current payload rule:
       the fixed `0x40080000` `plo` load address
     - the armstub now executes `dsb sy; ic iallu; dsb sy; isb` immediately
       before that branch
-    - stage `4` is now emitted inline at the first generic `plo _start`
-      instruction instead of depending on the stage-emitter helper call
+    - the armstub now verifies a deliberate `plo` entry signature at
+      `0x40080000 + 0x4` before branching:
+      - stage `4`: signature verified
+      - stage `31`: signature mismatch, halt before branch
+    - stage `5` is now emitted inline at the fixed-address `plo` entry veneer
+    - stage `6` is now emitted inline at the first old generic `_start` body
+      instruction
   - each stage burst is:
     - one sync pulse
     - then `5` fixed-width bits, MSB first
@@ -420,23 +425,26 @@ Current payload rule:
     - `1` / `00001`: armstub primary-core entry
     - `2` / `00010`: armstub after early timer / GIC preparation
     - `3` / `00011`: armstub just before the fixed-address jump to `plo`
-    - `4` / `00100`: earliest generic AArch64 `plo` `_start`
-    - `5` / `00101`: after clearing `x0..x7`
-    - `6` / `00110`: after clearing `x8..x15`
-    - `7` / `00111`: after clearing `x16..x23`
-    - `8` / `01000`: after clearing `x24..x30`
-    - `9` / `01001`: after `dsb sy` / `isb`
-    - `10` / `01010`: after `mrs currentEL`
-    - `11` / `01011`: `start_el3`
-    - `12` / `01100`: `start_el2`
-    - `13` / `01101`: `start_el1`
-    - `14` / `01110`: EL3 path complete, before `start_common`
-    - `15` / `01111`: EL2 path complete, before `start_common`
-    - `16` / `10000`: EL1 path complete, before `start_common`
-    - `17` / `10001`: `start_common`
-    - `18` / `10010`: after stack setup
-    - `19` / `10011`: core-0 branch to `_startc`
-    - `20` / `10100`: unexpected-EL trap path
+    - `4` / `00100`: armstub verified `plo` signature at `0x40080000`
+    - `5` / `00101`: fixed-address Pi 4 entry veneer
+    - `6` / `00110`: first instruction of old generic `_start` body
+    - `7` / `00111`: after clearing `x0..x7`
+    - `8` / `01000`: after clearing `x8..x15`
+    - `9` / `01001`: after clearing `x16..x23`
+    - `10` / `01010`: after clearing `x24..x30`
+    - `11` / `01011`: after `dsb sy` / `isb`
+    - `12` / `01100`: after `mrs currentEL`
+    - `13` / `01101`: `start_el3`
+    - `14` / `01110`: `start_el2`
+    - `15` / `01111`: `start_el1`
+    - `16` / `10000`: EL3 path complete, before `start_common`
+    - `17` / `10001`: EL2 path complete, before `start_common`
+    - `18` / `10010`: EL1 path complete, before `start_common`
+    - `19` / `10011`: `start_common`
+    - `20` / `10100`: after stack setup
+    - `21` / `10101`: core-0 branch to `_startc`
+    - `22` / `10110`: unexpected-EL trap path
+    - `31` / `11111`: armstub signature mismatch before branch, hard halt
   - the armstub still uses the current fixed-address jump to `0x40080000`
     instead of the firmware-patched `kernel_entry32` slot
   - Pi 4 `plo` now also uses the ARM-visible GICv2 aliases:
@@ -468,7 +476,7 @@ Recommended manual sequence on macOS:
 2. verify the exported artifact before flashing:
    - [scripts/verify-rpi4b-sdimg.sh](/Users/witoldbolt/phoenix-rpi/scripts/verify-rpi4b-sdimg.sh)
    - current expected SHA-256:
-     `4b9c967c9381e8935998a19eb1a976c43b440dd57da4c5fab489763f729a6835`
+     `8ef476644f8fce5b5937096125421a218b8a67b0513b0fa4c0ab7e6592585e3e`
 3. if you want the exact commands printed for a chosen disk identifier:
    - [scripts/print-rpi4b-macos-flash-commands.sh](/Users/witoldbolt/phoenix-rpi/scripts/print-rpi4b-macos-flash-commands.sh) `diskN`
 4. if you want a prefilled first-trial report file before you start:
@@ -653,7 +661,7 @@ For the current lab shape, the first practical manual trial is:
    - current exported artifact:
      [artifacts/rpi4b/rpi4b-sd.img](/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img)
    - current SHA-256:
-     `d76a6c2bb0d15173f4a6a90aa5c82211b0ea286b5bb236960e51fdd3388c2320`
+     `8ef476644f8fce5b5937096125421a218b8a67b0513b0fa4c0ab7e6592585e3e`
    - focused trial checklist:
      [pi4-first-hardware-trial.md](/Users/witoldbolt/phoenix-rpi/docs/pi4-first-hardware-trial.md)
 2. flash the image to microSD using the workflow above

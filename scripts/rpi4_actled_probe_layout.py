@@ -33,10 +33,10 @@ CURRENT_LAYOUT_NAME = "pi4_fixed_entry_trampoline_2026_04_10"
 
 _CURRENT_LAYOUT = LayoutDef(
     name=CURRENT_LAYOUT_NAME,
-    description="Pi 4 compact GPIO42 telemetry after dedicated fixed-address entry trampoline split",
+    description="Pi 4 compact GPIO42 telemetry after fixed-target signature verification was added before the dedicated fixed-address entry trampoline",
     code_bits=5,
     sync_pulses=1,
-    stage_order=tuple(range(1, 22)),
+    stage_order=tuple(range(1, 23)),
     stages={
         1: StageDef(
             code=1,
@@ -61,137 +61,152 @@ _CURRENT_LAYOUT = LayoutDef(
         ),
         4: StageDef(
             code=4,
+            label="armstub target signature ok",
+            meaning="Custom armstub verified the expected plo signature at 0x40080000 before branching.",
+            source_file="/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/phoenix-armstub8-rpi4.S",
+            source_symbol="gpio42_stage4",
+        ),
+        5: StageDef(
+            code=5,
             label="fixed entry veneer",
             meaning="The fixed-address branch target veneer in plo was entered.",
             source_file="/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S",
             source_symbol="_start",
         ),
-        5: StageDef(
-            code=5,
+        6: StageDef(
+            code=6,
             label="generic _start body",
             meaning="The old generic plo _start body was reached after the fixed-entry veneer.",
             source_file="/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S",
             source_symbol="_start_real",
         ),
-        6: StageDef(
-            code=6,
+        7: StageDef(
+            code=7,
             label="after clear x0-x7",
             meaning="Reached the first quarter of the register-clearing block.",
             source_file="/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S",
             source_symbol="_start_real",
         ),
-        7: StageDef(
-            code=7,
+        8: StageDef(
+            code=8,
             label="after clear x8-x15",
             meaning="Reached the second quarter of the register-clearing block.",
             source_file="/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S",
             source_symbol="_start_real",
         ),
-        8: StageDef(
-            code=8,
+        9: StageDef(
+            code=9,
             label="after clear x16-x23",
             meaning="Reached the third quarter of the register-clearing block.",
             source_file="/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S",
             source_symbol="_start_real",
         ),
-        9: StageDef(
-            code=9,
+        10: StageDef(
+            code=10,
             label="after clear x24-x30",
             meaning="Completed the register-clearing block.",
             source_file="/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S",
             source_symbol="_start_real",
         ),
-        10: StageDef(
-            code=10,
+        11: StageDef(
+            code=11,
             label="after dsb/isb",
             meaning="Reached the barrier pair just before sampling currentEL.",
             source_file="/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S",
             source_symbol="_start_real",
         ),
-        11: StageDef(
-            code=11,
+        12: StageDef(
+            code=12,
             label="after mrs currentEL",
             meaning="Sampled currentEL successfully.",
             source_file="/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S",
             source_symbol="_start_real",
         ),
-        12: StageDef(
-            code=12,
+        13: StageDef(
+            code=13,
             label="start_el3",
             meaning="Entered the EL3-specific plo path.",
             source_file="/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S",
             source_symbol="start_el3",
         ),
-        13: StageDef(
-            code=13,
+        14: StageDef(
+            code=14,
             label="start_el2",
             meaning="Entered the EL2-specific plo path.",
             source_file="/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S",
             source_symbol="start_el2",
         ),
-        14: StageDef(
-            code=14,
+        15: StageDef(
+            code=15,
             label="start_el1",
             meaning="Entered the EL1-specific plo path.",
             source_file="/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S",
             source_symbol="start_el1",
         ),
-        15: StageDef(
-            code=15,
+        16: StageDef(
+            code=16,
             label="el3 path complete",
             meaning="Completed EL3 path, just before start_common.",
             source_file="/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S",
             source_symbol="start_el3",
         ),
-        16: StageDef(
-            code=16,
+        17: StageDef(
+            code=17,
             label="el2 path complete",
             meaning="Completed EL2 path, just before start_common.",
             source_file="/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S",
             source_symbol="start_el2",
         ),
-        17: StageDef(
-            code=17,
+        18: StageDef(
+            code=18,
             label="el1 path complete",
             meaning="Completed EL1 path, just before start_common.",
             source_file="/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S",
             source_symbol="start_el1",
         ),
-        18: StageDef(
-            code=18,
+        19: StageDef(
+            code=19,
             label="start_common",
             meaning="Entered start_common.",
             source_file="/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S",
             source_symbol="start_common",
         ),
-        19: StageDef(
-            code=19,
+        20: StageDef(
+            code=20,
             label="after stack setup",
             meaning="Completed early stack setup in start_common.",
             source_file="/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S",
             source_symbol="start_common",
         ),
-        20: StageDef(
-            code=20,
+        21: StageDef(
+            code=21,
             label="core0 branch to _startc",
             meaning="Core 0 reached the _startc branch.",
             source_file="/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S",
             source_symbol="start_common",
         ),
-        21: StageDef(
-            code=21,
+        22: StageDef(
+            code=22,
             label="unexpected EL trap",
             meaning="Reached the unexpected currentEL trap path.",
             source_file="/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S",
             source_symbol="start_el_unknown",
+        ),
+        31: StageDef(
+            code=31,
+            label="armstub target signature bad",
+            meaning="Custom armstub did not find the expected plo entry signature at 0x40080000 and halted before branching.",
+            source_file="/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/phoenix-armstub8-rpi4.S",
+            source_symbol="gpio42_stage31",
         ),
     },
     notes=(
         "Compact GPIO42 protocol: one sync pulse, then 5 bits MSB-first.",
         "Short on-time encodes 0, long on-time encodes 1.",
         "Long off gap separates stage bursts.",
-        "Only IMG_7137.mov and later clips match this exact layout.",
+        "This layout supersedes the earlier dedicated fixed-entry-trampoline map by inserting a pre-branch target-signature verification stage.",
         "Initial ACT LED activity during firmware SD-card reads is preamble noise and must be ignored unless it decodes into a later valid contiguous Phoenix stage run.",
+        "Stage 31 is a special terminal fault stage, not part of the normal contiguous boot sequence.",
     ),
 )
 

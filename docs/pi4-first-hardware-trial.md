@@ -19,7 +19,7 @@ Use this image:
 
 Current SHA-256:
 
-- `d76a6c2bb0d15173f4a6a90aa5c82211b0ea286b5bb236960e51fdd3388c2320`
+- `8ef476644f8fce5b5937096125421a218b8a67b0513b0fa4c0ab7e6592585e3e`
 
 This image supersedes the earlier Pi 4 trial images that used the temporary
 firmware-default low-placement experiment:
@@ -41,9 +41,13 @@ This image now intentionally uses:
     branch
   - the armstub now inserts `dsb sy; ic iallu; dsb sy; isb` immediately before
     the branch to `0x40080000`
+  - the armstub now also verifies a deliberate `plo` entry signature at
+    `0x40080000 + 0x4` before branching
+    - stage `4`: signature verified
+    - stage `31`: signature mismatch, halt before branch
   - fixed-address Pi 4 entry now uses:
-    - stage `4` inline in tiny veneer at raw branch target
-    - stage `5` inline at first instruction of old generic `_start` body
+    - stage `5` inline in tiny veneer at raw branch target
+    - stage `6` inline at first instruction of old generic `_start` body
 - compact GPIO42 telemetry protocol:
   - the earlier one-off ACT-LED proofs and later count-based pulse groups were
     removed
@@ -59,24 +63,26 @@ This image now intentionally uses:
     - `1` / `00001`: armstub primary-core entry
     - `2` / `00010`: armstub after early timer / GIC preparation
     - `3` / `00011`: armstub just before the fixed-address jump to `plo`
-    - `4` / `00100`: fixed-address Pi 4 entry veneer at branch target
-    - `5` / `00101`: first instruction of old generic `_start` body
-    - `6` / `00110`: after clearing `x0..x7`
-    - `7` / `00111`: after clearing `x8..x15`
-    - `8` / `01000`: after clearing `x16..x23`
-    - `9` / `01001`: after clearing `x24..x30`
-    - `10` / `01010`: after `dsb sy` / `isb`
-    - `11` / `01011`: after `mrs currentEL`
-    - `12` / `01100`: `start_el3`
-    - `13` / `01101`: `start_el2`
-    - `14` / `01110`: `start_el1`
-    - `15` / `01111`: EL3 path complete, before `start_common`
-    - `16` / `10000`: EL2 path complete, before `start_common`
-    - `17` / `10001`: EL1 path complete, before `start_common`
-    - `18` / `10010`: `start_common`
-    - `19` / `10011`: after stack initialization
-    - `20` / `10100`: core-0 branch to `_startc`
-    - `21` / `10101`: unexpected-EL trap path
+    - `4` / `00100`: armstub verified `plo` signature at `0x40080000`
+    - `5` / `00101`: fixed-address Pi 4 entry veneer at branch target
+    - `6` / `00110`: first instruction of old generic `_start` body
+    - `7` / `00111`: after clearing `x0..x7`
+    - `8` / `01000`: after clearing `x8..x15`
+    - `9` / `01001`: after clearing `x16..x23`
+    - `10` / `01010`: after clearing `x24..x30`
+    - `11` / `01011`: after `dsb sy` / `isb`
+    - `12` / `01100`: after `mrs currentEL`
+    - `13` / `01101`: `start_el3`
+    - `14` / `01110`: `start_el2`
+    - `15` / `01111`: `start_el1`
+    - `16` / `10000`: EL3 path complete, before `start_common`
+    - `17` / `10001`: EL2 path complete, before `start_common`
+    - `18` / `10010`: EL1 path complete, before `start_common`
+    - `19` / `10011`: `start_common`
+    - `20` / `10100`: after stack initialization
+    - `21` / `10101`: core-0 branch to `_startc`
+    - `22` / `10110`: unexpected-EL trap path
+    - `31` / `11111`: armstub signature mismatch before branch, hard halt
   - the goal of the next board trial is to identify the highest completed
     stage code, not to count approximate pulse envelopes
 - Pi 4 `plo` GIC base aliases:
@@ -172,7 +178,7 @@ Copy this block into the next report or chat message:
 ```text
 Pi 4 first hardware trial
 Image: artifacts/rpi4b/rpi4b-sd.img
-SHA256: d76a6c2bb0d15173f4a6a90aa5c82211b0ea286b5bb236960e51fdd3388c2320
+SHA256: 8ef476644f8fce5b5937096125421a218b8a67b0513b0fa4c0ab7e6592585e3e
 Board revision:
 Display:
 Keyboard:
@@ -220,26 +226,31 @@ Current stage meanings:
 - highest completed `1`, `2`, or `3`:
   still in the custom armstub path before generic `plo` runs
 - highest completed `4`:
-  fixed-address Pi 4 entry veneer at raw branch target was entered
+  armstub verified the expected `plo` signature before branching
+- highest completed `31`:
+  armstub did not find the expected signature at `0x40080000` and halted
+  before the branch
 - highest completed `5`:
+  fixed-address Pi 4 entry veneer at raw branch target was entered
+- highest completed `6`:
   first instruction of old generic `plo _start` body was reached
-- highest completed `6`, `7`, `8`, or `9`:
+- highest completed `7`, `8`, `9`, or `10`:
   failure is inside the general-purpose register-clearing block
-- highest completed `10`:
-  failure is after `dsb sy` / `isb` but before or during `mrs currentEL`
 - highest completed `11`:
+  failure is after `dsb sy` / `isb` but before or during `mrs currentEL`
+- highest completed `12`:
   `currentEL` was sampled but the chosen EL-path body was not reached
-- highest completed `12`, `13`, or `14`:
+- highest completed `13`, `14`, or `15`:
   `plo` selected EL3, EL2, or EL1 respectively
-- highest completed `15`, `16`, or `17`:
+- highest completed `16`, `17`, or `18`:
   the chosen EL-path body ran to its pre-`start_common` boundary
-- highest completed `18`:
-  `plo` reached `start_common`
 - highest completed `19`:
-  `plo` passed stack setup
+  `plo` reached `start_common`
 - highest completed `20`:
-  `plo` reached the core-0 branch to `_startc`
+  `plo` passed stack setup
 - highest completed `21`:
+  `plo` reached the core-0 branch to `_startc`
+- highest completed `22`:
   `plo` reached the unexpected-EL trap path
 
 ## Next-Agent Interpretation Rule

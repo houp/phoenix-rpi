@@ -8,6 +8,37 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-10`, the fixed-target-signature image for the Pi 4 stage-`3 -> 4`
+  seam was implemented, rebuilt, exported, and FAT-verified:
+  - the custom Pi 4 armstub now verifies a deliberate `plo` entry signature at
+    `0x40080000 + 0x4` before taking the fixed-address branch
+  - stage `4` now means signature verified before branch
+  - stage `31` now means signature mismatch and pre-branch halt
+  - the dedicated fixed-entry `plo` veneer therefore shifts to stage `5`, and
+    the old generic `_start` body shifts to stage `6`
+  - Pi 4 A72 rebuild from the refreshed copied buildroot: pass
+  - direct Pi 4 QEMU serial sanity on the real-device build still reaches:
+    - `call: exec go!`
+    - `go: enter`
+    - `hal: jump exit el1`
+    - `A3`
+    - `KLM`
+    - later `Exception #37`
+  - bootfs assembly: pass
+  - FAT image assembly: pass
+  - SD-image assembly: pass
+  - canonical SD-image export: pass
+  - FAT-aware host verifier: pass after updating the default expected SHA
+  - generic shell-smoke wrapper is currently flaky again after sending `help`;
+    because this step is Pi-4-armstub-only and the direct Pi 4 serial sanity
+    lane stayed stable, that wrapper was not used as the gate for this step
+- refreshed exported fixed-target-signature image:
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+- current validated Pi 4 SD-image SHA-256:
+  `8ef476644f8fce5b5937096125421a218b8a67b0513b0fa4c0ab7e6592585e3e`
+- current manifest:
+  `manifests/2026-04-10-pi4-fixed-target-signature-check.md`
+
 - on `2026-04-10`, the Pi 4 ACT-LED hardware-video workflow was rebuilt into a
   reusable analyzer-plus-layout-plus-interpreter toolchain:
   - raw analyzer:

@@ -167,28 +167,29 @@ Current practical note for the first Pi 4 hardware attempt without USB-TTL:
     SD card is not Phoenix telemetry
   - treat that early activity as preamble noise unless it decodes into a later
     valid contiguous Phoenix stage run
-- current post-`IMG_7136.mov` telemetry split:
-  - stages `1`, `2`, and `3` still decode cleanly
-  - no valid stage `4` appears on the handoff-hardened image
-  - current dedicated fixed-address entry split is now:
-    - `4`: fixed-address Pi 4 entry veneer at branch target
-    - `5`: first instruction of old generic `_start` body (`_start_real`)
-    - `6`: after clearing `x0..x7`
-    - `7`: after clearing `x8..x15`
-    - `8`: after clearing `x16..x23`
-    - `9`: after clearing `x24..x30`
-    - `10`: after `dsb sy` / `isb`
-    - `11`: after `mrs currentEL`
-    - `12`: `start_el3`
-    - `13`: `start_el2`
-    - `14`: `start_el1`
-    - `15`: EL3 path complete, before `start_common`
-    - `16`: EL2 path complete, before `start_common`
-    - `17`: EL1 path complete, before `start_common`
-    - `18`: `start_common`
-    - `19`: after stack setup
-    - `20`: core-0 branch to `_startc`
-    - `21`: unexpected-EL trap path
+- current fixed-target-signature split:
+  - stage `4`: armstub verified the expected `plo` signature at
+    `0x40080000 + 0x4`
+  - stage `31`: armstub did not find that signature and halted before branch
+  - later stages are now:
+    - `5`: fixed-address Pi 4 entry veneer at branch target
+    - `6`: first instruction of old generic `_start` body (`_start_real`)
+    - `7`: after clearing `x0..x7`
+    - `8`: after clearing `x8..x15`
+    - `9`: after clearing `x16..x23`
+    - `10`: after clearing `x24..x30`
+    - `11`: after `dsb sy` / `isb`
+    - `12`: after `mrs currentEL`
+    - `13`: `start_el3`
+    - `14`: `start_el2`
+    - `15`: `start_el1`
+    - `16`: EL3 path complete, before `start_common`
+    - `17`: EL2 path complete, before `start_common`
+    - `18`: EL1 path complete, before `start_common`
+    - `19`: `start_common`
+    - `20`: after stack setup
+    - `21`: core-0 branch to `_startc`
+    - `22`: unexpected-EL trap path
 - current post-`IMG_0009.mov` telemetry split:
   - the previous video most strongly mapped to completion through stage `6`
   - the current image therefore splits the `currentEL` seam and the next few

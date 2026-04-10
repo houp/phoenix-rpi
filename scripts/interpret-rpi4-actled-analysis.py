@@ -35,6 +35,7 @@ def build_interpretation(analysis: dict[str, Any], layout_name: str) -> dict[str
     layout = get_layout(layout_name)
     valid_groups = extract_decodes(analysis)
     stage_index = {code: idx for idx, code in enumerate(layout.stage_order)}
+    special_codes = {code for code in layout.stages if code not in stage_index}
 
     best_groups: list[dict[str, Any]] = []
     best_expected_idx = 0
@@ -109,8 +110,32 @@ def build_interpretation(analysis: dict[str, Any], layout_name: str) -> dict[str
             "meaning": stage.meaning,
         }
 
+    special_terminal = None
+    for group in valid_groups:
+        code = int(group["decode"]["code"])
+        if code not in special_codes:
+            continue
+        if highest is not None and group["start_s"] < highest["end_s"]:
+            continue
+        stage = layout.stages[code]
+        special_terminal = {
+            "code": code,
+            "bits": group["decode"]["bits"],
+            "label": stage.label,
+            "meaning": stage.meaning,
+            "group_index": group["group_index"],
+            "start_s": group["start_s"],
+            "end_s": group["end_s"],
+        }
+        break
+
     if highest is None:
         inference = "No valid Phoenix stage burst decoded."
+    elif special_terminal is not None:
+        inference = (
+            f"Best contiguous decoded run reaches stage {highest['code']} ({highest['label']}), "
+            f"then special terminal stage {special_terminal['code']} ({special_terminal['label']}) appears."
+        )
     elif next_expected is None:
         inference = f"Reached final known stage {highest['code']} ({highest['label']})."
     else:
@@ -124,6 +149,7 @@ def build_interpretation(analysis: dict[str, Any], layout_name: str) -> dict[str
         "matched_sequence": matched,
         "highest_completed": highest,
         "next_expected": next_expected,
+        "special_terminal": special_terminal,
         "inference": inference,
         "valid_group_count": len(valid_groups),
         "unmatched_groups": [
@@ -173,6 +199,15 @@ def main() -> int:
             f"{next_expected['code']} {next_expected['bits']} {next_expected['label']}"
         )
 
+    special_terminal = interpretation["special_terminal"]
+    if special_terminal is not None:
+        print(
+            "special_terminal="
+            f"{special_terminal['code']} {special_terminal['bits']} {special_terminal['label']} "
+            f"@ group {special_terminal['group_index']} "
+            f"{special_terminal['start_s']:.3f}-{special_terminal['end_s']:.3f}s"
+        )
+
     print("matched_sequence:")
     for item in interpretation["matched_sequence"]:
         print(
@@ -184,9 +219,13 @@ def main() -> int:
         print("unmatched_groups:")
         for group in interpretation["unmatched_groups"]:
             decode = group.get("decode", {})
+            label = ""
+            code = decode.get("code")
+            if isinstance(code, int) and str(code) in interpretation["layout"]["stages"]:
+                label = f" {interpretation['layout']['stages'][str(code)]['label']}"
             print(
                 f"  group {group['group_index']}: "
-                f"{decode.get('bits', '?')} ({decode.get('code', '?')}) "
+                f"{decode.get('bits', '?')} ({decode.get('code', '?')}){label} "
                 f"{group['start_s']:.3f}-{group['end_s']:.3f}s"
             )
 

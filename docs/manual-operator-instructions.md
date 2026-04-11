@@ -398,13 +398,13 @@ Current payload rule:
 - by default it exports that disk image into the host workspace at:
   - `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
 - current validated exported full-image SHA-256:
-  - `610dbbfd0192760f061395f7e85573261b85b18857bea426e6adab4930468698`
+  - `4d9daf70168d6990e7525d0c0accda4a8a1ffed0a5fe62432aab4dcff8e70217`
 - the current exported full-disk artifact includes the latest firmware-stage
   early handoff state:
-  - Pi 4 A72 `plo` restored to the last coherent high-DDR placement used by
-    the current Phoenix `plo` memory map
-  - `config.txt` again uses:
-    - `kernel_address=0x40080000`
+  - Pi 4 firmware-visible payloads now use the current low-memory placement
+    proven by live UART:
+    - `kernel8.img` loaded at `0x00200000`
+    - `loader.disk` loaded at `0x08000000`
   - `config.txt` now also uses:
     - `armstub=phoenix-armstub8-rpi4.bin`
   - that custom Pi 4 armstub now also performs the current bounded Circle-style
@@ -421,10 +421,14 @@ Current payload rule:
     - it now restores the Raspberry Pi firmware handoff contract by loading:
       - `dtb_ptr32`
       - `kernel_entry32`
-    - if `kernel_entry32 == 0`, the armstub emits stage `31` and halts
-    - otherwise it emits stage `4`, restores `x0` from the DTB slot, executes
-      `dsb sy; ic iallu; dsb sy; isb`, and branches through the firmware
-      entry slot
+    - if `dtb_ptr32 == 0`, the armstub falls back to the original firmware
+      entry `x0` value for the DTB pointer and emits stage `29`
+    - if `kernel_entry32 == 0`, the armstub falls back to `0x80000` and emits
+      stage `30`
+    - otherwise it emits stage `26`
+    - after that it emits stage `4`, restores `x0` from the effective DTB
+      pointer, executes `dsb sy; isb`, and branches through the effective
+      kernel entry
     - those seam stages are now emitted twice with an extra long gap
     - stage `5` is now emitted inline at the earliest `plo` entry veneer
     - stage `6` is now emitted inline at the first old generic `_start` body
@@ -454,6 +458,8 @@ Current payload rule:
     - `24` / `11000`: `dtb_ptr32` loaded
     - `25` / `11001`: `kernel_entry32` loaded
     - `26` / `11010`: `kernel_entry32` was nonzero
+    - `29` / `11101`: armstub fell back to entry `x0` for the DTB pointer
+    - `30` / `11110`: armstub fell back to `0x80000` for the kernel entry
     - `4` / `00100`: armstub branch imminent after firmware-slot handoff prep
     - `5` / `00101`: earliest `plo` entry veneer
     - `6` / `00110`: first instruction of old generic `_start` body
@@ -473,7 +479,6 @@ Current payload rule:
     - `20` / `10100`: after stack setup
     - `21` / `10101`: core-0 branch to `_startc`
     - `22` / `10110`: unexpected-EL trap path
-    - `31` / `11111`: armstub found `kernel_entry32 == 0`, hard halt
     - `0` / `00000`: EL2 exception trap during the seam
   - Pi 4 `plo` now also uses the ARM-visible GICv2 aliases:
     - `0xff841000`
@@ -503,8 +508,8 @@ Recommended manual sequence on macOS:
    - do not replace this step with a manual VM-to-host copy method
 2. verify the exported artifact before flashing:
    - [scripts/verify-rpi4b-sdimg.sh](/Users/witoldbolt/phoenix-rpi/scripts/verify-rpi4b-sdimg.sh)
-   - current expected SHA-256:
-     `610dbbfd0192760f061395f7e85573261b85b18857bea426e6adab4930468698`
+  - current expected SHA-256:
+    `4d9daf70168d6990e7525d0c0accda4a8a1ffed0a5fe62432aab4dcff8e70217`
    - the verifier now reads expected size and SHA-256 from the adjacent
      export-generated `.meta.txt` sidecar by default
 3. if you want the exact commands printed for a chosen disk identifier:
@@ -713,6 +718,14 @@ Current UART-output expectations:
   - `TR1`
   - `TR2`
   - `TR3`
+- current observed real-board limitation before the trampoline:
+  - the firmware still reprograms PL011 to about `103448.3` Hz
+  - host capture stays readable through that firmware line
+  - if the trampoline runs, it now reinitializes PL011 back to `115200`
+    before `TR0`
+- implication:
+  - a missing `TR0` is now stronger evidence that the board never reached the
+    relocatable trampoline entry
 - if only firmware lines appear and none of `TR0..TR3` appear, the current
   failure is still before the relocatable trampoline entry
 - if the board still emits no early firmware text, enable bootloader UART in
@@ -761,7 +774,7 @@ For the current lab shape, the first practical manual trial is:
    - current exported artifact:
      [artifacts/rpi4b/rpi4b-sd.img](/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img)
    - current SHA-256:
-     `610dbbfd0192760f061395f7e85573261b85b18857bea426e6adab4930468698`
+     `4d9daf70168d6990e7525d0c0accda4a8a1ffed0a5fe62432aab4dcff8e70217`
    - focused trial checklist:
      [pi4-first-hardware-trial.md](/Users/witoldbolt/phoenix-rpi/docs/pi4-first-hardware-trial.md)
 2. flash the image to microSD using the workflow above

@@ -27,7 +27,7 @@ rm -f "$monitor_sock" "$serial_log" "$ppm" "$monitor_out" "$qemu_out"
 	-serial "file:${serial_log}" \
 	-monitor "unix:${monitor_sock},server,nowait" \
 	-kernel _boot/aarch64a72-generic-rpi4b/plo.elf \
-	-device loader,file=_boot/aarch64a72-generic-rpi4b/rpi4b/loader.disk,addr=0x48000000,force-raw=on \
+	-device loader,file=_boot/aarch64a72-generic-rpi4b/rpi4b/loader.disk,addr=0x08000000,force-raw=on \
 	>"${qemu_out}" 2>&1 &
 qpid=$!
 

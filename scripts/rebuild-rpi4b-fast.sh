@@ -202,6 +202,11 @@ printf 'Scope: %s\n' "${scope}"
 printf 'Build args: %s\n' "${build_args[*]}"
 printf 'Reason: %s\n' "${scope_reason}"
 
+if ! limactl shell -y "${vm}" -- /bin/bash -lc "[ -f '${dtb_path}' ]"; then
+	printf 'info: missing Pi 4 DTB at %s; preparing it now\n' "${dtb_path}" >&2
+	"${repo_root}/scripts/prepare-rpi4b-dtb.sh"
+fi
+
 if [ "${do_prepare}" -eq 1 ]; then
 	limactl shell -y "${vm}" -- /bin/bash -lc \
 		"cd '${repo_root}' && ./scripts/prepare-buildroot.sh --copy-components '${buildroot}'"
@@ -213,7 +218,7 @@ limactl shell -y "${vm}" -- /bin/bash -lc \
 
 if [ "${do_qemu_sanity}" -eq 1 ]; then
 	limactl shell -y "${vm}" -- /bin/bash -lc \
-		"set -euo pipefail; cd '${buildroot}'; log=/tmp/pi4-direct-fast-helper.log; timeout 25s /home/witoldbolt.guest/tools/qemu-10.2.2/bin/qemu-system-aarch64 -M raspi4b -cpu cortex-a72 -smp 4 -m 2G -nographic -monitor none -kernel _boot/${target}/plo.elf -device loader,file=_boot/${target}/rpi4b/loader.disk,addr=0x48000000,force-raw=on >\"\$log\" 2>&1 || true; grep -En 'call: exec go!|go: enter|hal: jump exit el1|A3|KLM|Exception #37' \"\$log\" || true"
+		"set -euo pipefail; cd '${buildroot}'; log=/tmp/pi4-direct-fast-helper.log; timeout 25s /home/witoldbolt.guest/tools/qemu-10.2.2/bin/qemu-system-aarch64 -M raspi4b -cpu cortex-a72 -smp 4 -m 2G -nographic -monitor none -kernel _boot/${target}/plo.elf -device loader,file=_boot/${target}/rpi4b/loader.disk,addr=0x08000000,force-raw=on >\"\$log\" 2>&1 || true; grep -En 'call: exec go!|go: enter|hal: jump exit el1|A3|KLM|Exception #37' \"\$log\" || true"
 fi
 
 if [ "${do_build_artifacts}" -eq 0 ]; then

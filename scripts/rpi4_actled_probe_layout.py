@@ -33,7 +33,7 @@ CURRENT_LAYOUT_NAME = "pi4_firmware_entry_contract_map_2026_04_11"
 
 _CURRENT_LAYOUT = LayoutDef(
     name=CURRENT_LAYOUT_NAME,
-    description="Pi 4 compact GPIO42 telemetry with duplicated focus-stage bursts around the restored firmware handoff contract: dtb_ptr32, kernel_entry32, and branch into plo",
+    description="Pi 4 compact GPIO42 telemetry with duplicated focus-stage bursts around the restored firmware handoff contract: dtb_ptr32, kernel_entry32, kernel fallback to 0x80000, and branch into plo",
     code_bits=5,
     sync_pulses=1,
     stage_order=(1, 2, 3, 23, 24, 25, 26, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22),
@@ -84,6 +84,20 @@ _CURRENT_LAYOUT = LayoutDef(
             code=26,
             label="armstub kernel entry nonzero",
             meaning="The firmware-provided kernel entry was nonzero, and the armstub is about to branch after restoring x0.",
+            source_file="/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/phoenix-armstub8-rpi4.S",
+            source_symbol="primary_cpu_late",
+        ),
+        29: StageDef(
+            code=29,
+            label="armstub dtb fallback x0",
+            meaning="The dtb_ptr32 slot was zero, so the armstub fell back to the firmware entry x0 value for the DTB pointer.",
+            source_file="/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/phoenix-armstub8-rpi4.S",
+            source_symbol="primary_cpu_late",
+        ),
+        30: StageDef(
+            code=30,
+            label="armstub kernel fallback 0x80000",
+            meaning="The kernel_entry32 slot was zero, so the armstub fell back to the observed Pi 4 firmware relocation target 0x80000.",
             source_file="/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/phoenix-armstub8-rpi4.S",
             source_symbol="primary_cpu_late",
         ),
@@ -220,13 +234,6 @@ _CURRENT_LAYOUT = LayoutDef(
             source_file="/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S",
             source_symbol="start_el_unknown",
         ),
-        31: StageDef(
-            code=31,
-            label="armstub kernel entry missing",
-            meaning="Custom armstub found kernel_entry32 equal to zero and halted before branching.",
-            source_file="/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/phoenix-armstub8-rpi4.S",
-            source_symbol="gpio42_stage31",
-        ),
         0: StageDef(
             code=0,
             label="armstub el2 exception",
@@ -240,9 +247,10 @@ _CURRENT_LAYOUT = LayoutDef(
         "Short on-time encodes 0, long on-time encodes 1.",
         "Long off gap separates stage bursts.",
         "Focus seam stages are emitted twice with an extra long gap to reduce decode ambiguity in phone video.",
-        "The current firmware-handoff seam reads only dtb_ptr32 and kernel_entry32 from the armstub slots; it no longer dereferences the target image before branching.",
+        "The current firmware-handoff seam reads dtb_ptr32 and kernel_entry32 from the armstub slots, but falls back to entry x0 for DTB and 0x80000 for kernel entry if the slots are empty.",
         "Initial ACT LED activity during firmware SD-card reads is preamble noise and must be ignored unless it decodes into a later valid contiguous Phoenix stage run.",
-        "Stage 31 is a special terminal zero-entry stage, not part of the normal contiguous boot sequence.",
+        "Stage 29 is a special DTB-fallback stage, not part of the normal contiguous boot sequence.",
+        "Stage 30 is a special kernel-entry fallback stage, not part of the normal contiguous boot sequence.",
         "Stage 0 is a special EL2 exception-fault stage, not part of the normal contiguous boot sequence.",
     ),
 )

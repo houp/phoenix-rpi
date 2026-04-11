@@ -8,6 +8,138 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-11`, the second UART-assisted Pi 4 retry plus the matching LED
+  video finally exposed the real armstub contract bug directly:
+  - live UART results from
+    `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260411-234639.log`:
+    - the low-memory image fix is now active on real hardware:
+      - `Loaded 'loader.disk' to 0x8000000 size 0x311cd0`
+      - `Loaded 'kernel8.img' to 0x200000 size 0xe0d8`
+    - the firmware still relocates the kernel image to:
+      - `Kernel relocated to 0x80000`
+    - the firmware still changes PL011 away from `115200`:
+      - `uart: Set PL011 baud rate to 103448.300000 Hz`
+  - live LED result from `/Users/witoldbolt/Downloads/IMG_0016.mov`:
+    - the current ACT decoder now extracts a special terminal stage:
+      - `31` / `11111`
+    - that stage means the custom armstub found `kernel_entry32 == 0`
+  - combined implication:
+    - the current armstub assumption was wrong on this firmware path
+    - real firmware does load and relocate `kernel8.img`
+    - but the custom `armstub=` path does not give us a usable nonzero
+      `kernel_entry32` slot on this board / firmware combination
+    - so the next correct branch target is not “halt on empty slot”; it is the
+      observed relocation target `0x80000`
+  - active fix implemented from that evidence:
+    - the Pi 4 custom armstub now preserves the existing firmware-slot path if
+      `kernel_entry32` is nonzero
+    - if `kernel_entry32 == 0`, it now falls back to `0x80000`
+      instead of halting
+    - if `dtb_ptr32 == 0`, it now falls back to the original firmware entry
+      `x0` value for the DTB pointer
+    - new special ACT stages were added:
+      - `29`: DTB fallback to entry `x0`
+      - `30`: kernel-entry fallback to `0x80000`
+    - the old hard-stop stage `31` is no longer part of the active path
+  - warning surfaced and fixed in the same step:
+    - the fast rebuild helper still assumed `/tmp/rpi4b-dtb/...` existed
+    - after the host rebooted and `/tmp` was cleared, the helper failed with:
+      - `cp: cannot stat '/tmp/rpi4b-dtb/bcm2711-rpi-4-b.dtb'`
+      - missing `/etc/system.dtb` in `image_builder.py`
+    - fix:
+      `scripts/rebuild-rpi4b-fast.sh` now auto-runs
+      `scripts/prepare-rpi4b-dtb.sh` when the VM-local DTB is missing
+  - DTB warning policy status for this rebuild:
+    - the official Raspberry Pi Linux DTS compile path still emits many real
+      `dtc` warnings
+    - there is still no locally available final Pi 4 DTB blob to replace that
+      path
+    - for this rebuild only, DTB preparation was rerun with
+      `RPI4B_DTB_ALLOW_WARNINGS=1`
+    - those warnings are still considered significant and remain open process
+      debt, not ignored noise
+  - validation:
+    - `./scripts/rebuild-rpi4b-fast.sh --scope project --qemu-sanity`: pass
+    - direct Pi 4 QEMU serial sanity still reaches:
+      - `call: exec go!`
+      - `go: enter`
+      - `hal: jump exit el1`
+      - `A3`
+      - `KLMconsole: pl011 init done`
+      - later known `Exception #37: Data Abort (EL1)`
+    - canonical SD-image export: pass
+    - FAT-aware host verify: pass
+  - refreshed exported image:
+    - path:
+      `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+    - SHA-256:
+      `4d9daf70168d6990e7525d0c0accda4a8a1ffed0a5fe62432aab4dcff8e70217`
+  - next strongest real-device question:
+    - whether the board now emits special stage `30` and then reaches
+      trampoline UART `TR0..TR3`
+
+- on `2026-04-11`, the first real Pi 4 retry on the relocatable trampoline
+  image plus the matching UART logs narrowed the live boot failure further:
+  - live UART results:
+    - all `tio` captures on the current image stop cleanly at:
+      - `uart: Set PL011 baud rate to 103448.300000 Hz`
+      - `uart: Baud rate change done...`
+    - the `picocom` attempt captured only undecodable garbage bytes
+  - classification:
+    - the current host UART lane is trustworthy for the firmware stage at
+      `115200`, but not yet for the post-switch PL011 rate
+    - this is now treated as a host-capture limitation, not as proof that
+      Phoenix never emitted later bytes
+  - LED result from `/Users/witoldbolt/Downloads/IMG_7141.mov`:
+    - the downscaled decode still preserves the important timing
+    - best contiguous Phoenix run reached:
+      - `2`
+      - `3`
+      - `23`
+      - `24`
+      - `25`
+      - `26`
+      - `4`
+    - then the special terminal code `0` appears
+  - implication:
+    - the board now reaches armstub stage `4`
+    - then takes the EL2 exception path before trampoline UART `TR0`
+    - the current live failure seam is therefore inside the tiny late-armstub
+      band between stage `4` and the branch into the relocatable trampoline
+  - the narrowest and most suspicious instruction in that band was:
+    - `ic iallu`
+
+- on `2026-04-11`, the late-armstub Pi 4 seam was tightened again based on that
+  first UART-assisted retry:
+  - code change:
+    - the pre-branch `ic iallu` was removed from
+      `/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/phoenix-armstub8-rpi4.S`
+    - the seam now keeps only:
+      - `mov x0, x5`
+      - `dsb sy`
+      - `isb`
+      - `br x4`
+  - rationale:
+    - after stage `4`, the only remaining plausible live exception sources were
+      the manual cache invalidation and the final branch
+    - `ic iallu` was the more suspicious one, because the real firmware had
+      already loaded the relocatable trampoline and the trampoline itself
+      performs the cache maintenance needed after copying the high-linked `plo`
+      payload
+  - validation:
+    - `./scripts/rebuild-rpi4b-fast.sh --scope project --qemu-sanity`: pass
+    - no new compiler, linker, or packaging warnings surfaced in that rebuild
+    - canonical export: pass
+    - FAT-aware verify: pass
+  - refreshed exported image:
+    - path:
+      `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+    - SHA-256:
+      `830da43f4e3ffc85347ea9522dd9ccf6ed5c6956dc52c821813037d2dc46f639`
+  - next strongest real-device question:
+    - whether removing `ic iallu` finally allows the board to reach
+      trampoline UART `TR0`
+
 - on `2026-04-11`, the canonical Pi 4 SD-image verifier was fixed after a
   false mismatch was reported on the current exported image:
   - symptom:

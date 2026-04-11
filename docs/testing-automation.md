@@ -91,6 +91,13 @@
   - `TR1`: embedded `plo` copy started
   - `TR2`: copy plus cache maintenance complete
   - `TR3`: branch to the real high-linked `plo`
+- current observed UART limitation on the real Pi 4 lane:
+  - the firmware currently reprograms PL011 to about `103448.3` Hz
+  - `tio` and `picocom` captures started at `115200` stay useful up to that
+    baud-change line, then lose sync
+  - temporary workaround until a smarter capture helper exists:
+    - use `115200` to preserve firmware-side evidence
+    - if needed, run a second trial at `103448` to probe post-switch output
 
 Current recommended command sequence:
 
@@ -256,8 +263,9 @@ Current practical note for the first Pi 4 hardware attempt without USB-TTL:
   - stage `24`: `dtb_ptr32` loaded
   - stage `25`: `kernel_entry32` loaded
   - stage `26`: `kernel_entry32` was nonzero
+  - stage `29`: fallback to entry `x0` for DTB
+  - stage `30`: fallback to `0x80000` for kernel entry
   - stage `4`: armstub branch imminent after firmware-slot handoff prep
-  - stage `31`: armstub found `kernel_entry32 == 0` and halted before branch
   - stage `0`: EL2 exception trap during the dense armstub seam
   - later stages are now:
     - `5`: earliest `plo` entry veneer at branch target

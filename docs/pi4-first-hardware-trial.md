@@ -24,20 +24,19 @@ Use this image:
 
 Current SHA-256:
 
-- `610dbbfd0192760f061395f7e85573261b85b18857bea426e6adab4930468698`
+- `4d9daf70168d6990e7525d0c0accda4a8a1ffed0a5fe62432aab4dcff8e70217`
 
-This image supersedes the earlier Pi 4 trial images that used the temporary
-firmware-default low-placement experiment:
-
-- no custom `armstub`
-- no longer-coherent low `ADDR_PLO=0x200000` placement assumptions
+This image supersedes the earlier Pi 4 trial images that still halted in the
+late custom armstub seam on an empty `kernel_entry32` slot.
 
 This image now intentionally uses:
 
-- `kernel_address=0x40080000`
 - `armstub=phoenix-armstub8-rpi4.bin`
 - a relocatable `kernel8.img` trampoline instead of a raw direct copy of the
   high-linked `plo` image
+- low-memory firmware-visible placement:
+  - `kernel8.img` loaded by firmware to `0x00200000`
+  - `loader.disk` loaded by firmware to `0x08000000`
 - firmware UART options:
   - `enable_uart=1`
   - `uart_2ndstage=1`
@@ -51,8 +50,12 @@ This image now intentionally uses:
   - the armstub now reads:
     - `dtb_ptr32` into the temporary DTB handoff register
     - `kernel_entry32` into the branch target register
-  - the armstub now halts with a dedicated code only if `kernel_entry32 == 0`
-  - after firmware jumps to `kernel_entry32`, the new trampoline now emits:
+  - if `dtb_ptr32 == 0`, the armstub now falls back to the original entry
+    `x0` value for the DTB pointer
+  - if `kernel_entry32 == 0`, the armstub now falls back to the real observed
+    firmware relocation target `0x80000` instead of halting
+  - after the armstub jumps to the effective kernel entry, the new trampoline
+    now emits:
     - `TR0`
     - `TR1`
     - `TR2`
@@ -60,8 +63,8 @@ This image now intentionally uses:
   - that trampoline now copies the embedded `plo` payload to `0x40080000`,
     preserves the DTB pointer in `x0`, and only then branches to the real
     high-linked `plo`
-  - the armstub still executes `dsb sy; ic iallu; dsb sy; isb` immediately
-    before the final branch
+  - the armstub now keeps only `dsb sy; isb` immediately before the final
+    branch
   - the firmware DTB pointer is now preserved into earliest generic `plo` and
     stored in `hal_firmwareDtb` at `start_common`
   - the seam-stage codes are still emitted twice with an extra long gap to
@@ -88,6 +91,8 @@ This image now intentionally uses:
     - `24` / `11000`: `dtb_ptr32` loaded
     - `25` / `11001`: `kernel_entry32` loaded
     - `26` / `11010`: `kernel_entry32` was nonzero
+    - `29` / `11101`: DTB fallback to entry `x0`
+    - `30` / `11110`: kernel-entry fallback to `0x80000`
     - `4` / `00100`: armstub branch imminent after firmware-slot handoff prep
     - `5` / `00101`: earliest Pi 4 entry veneer at branch target
     - `6` / `00110`: first instruction of old generic `_start` body
@@ -105,7 +110,6 @@ This image now intentionally uses:
     - `18` / `10010`: EL1 path complete, before `start_common`
     - `19` / `10011`: `start_common`
     - `20` / `10100`: after stack initialization
-    - `31` / `11111`: armstub found `kernel_entry32 == 0`, hard halt
     - `0` / `00000`: EL2 exception trap during the seam
   - the goal of the next board trial is to identify the highest completed
     stage code, not to count approximate pulse envelopes
@@ -222,7 +226,7 @@ Copy this block into the next report or chat message:
 ```text
 Pi 4 first hardware trial
 Image: artifacts/rpi4b/rpi4b-sd.img
-SHA256: 610dbbfd0192760f061395f7e85573261b85b18857bea426e6adab4930468698
+SHA256: 4d9daf70168d6990e7525d0c0accda4a8a1ffed0a5fe62432aab4dcff8e70217
 Board revision:
 Display:
 Keyboard:
@@ -289,12 +293,15 @@ Current stage meanings:
   `kernel_entry32` read itself
 - highest completed `25`:
   the armstub loaded `kernel_entry32`, so the next live boundary is the
-  zero-check or the pre-branch path
+  nonzero-check or fallback-selection path
 - highest completed `26`:
   the armstub saw a nonzero `kernel_entry32`, so the next live boundary is the
   final branch-preparation path into `plo`
-- highest completed `31`:
-  armstub found `kernel_entry32 == 0` and halted before the branch
+- highest completed `29`:
+  the armstub fell back to the original entry `x0` for the DTB pointer
+- highest completed `30`:
+  the armstub fell back to `0x80000` for the kernel entry and the next live
+  boundary is the final branch into the relocatable trampoline
 - highest completed `0`:
   the armstub took an EL2 exception during the dense late seam
 - highest completed `5`:

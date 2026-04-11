@@ -2,34 +2,30 @@
 
 ## Metadata
 
-- Step ID: `STEP-0466`
-- Title: Await the first real Pi 4 retry on the relocatable kernel8 trampoline image
+- Step ID: `STEP-0469`
+- Title: Await the next Pi 4 retry on the armstub fallback-to-`0x80000` image
 - Status: `in_progress`
 - Date: `2026-04-11`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- validate the new relocatable `kernel8.img` trampoline on real Pi 4 hardware
-- confirm through UART whether the live board now reaches:
-  - `TR0`
-  - `TR1`
-  - `TR2`
-  - `TR3`
-- determine whether the previous relocation mismatch was the remaining blocker
+- validate whether the new armstub fallback from empty `kernel_entry32` to
+  `0x80000` lets the board reach trampoline UART `TR0`
+- capture both UART and LED again on the refreshed image
+- decide whether the next blocker is now later than the armstub contract
 
 ## Scope
 
 In scope:
 
-- running the next real Pi 4 board retry on the refreshed SD image
-- capturing UART plus LED video in parallel
-- classifying the highest reached phase from the UART log first
-- using LED only as a secondary cross-check if the UART path is still partial
+- running the next real Pi 4 retry on the refreshed fallback image
+- capturing UART and LED in parallel again
+- classifying whether stage `30` and then trampoline UART `TR0..TR3` appear
 
 Out of scope:
 
-- further image-format changes before the new real-device evidence arrives
+- unrelated UART-host tool redesign
 - network-boot lab setup
 - unrelated Pi 4 driver work
 
@@ -47,13 +43,13 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- a real Pi 4 UART log is captured on the refreshed image
-- the log is classified with the canonical helper without ignoring warnings
-- the retry proves one of:
-  - the board reaches `TR0..TR3` and then later Phoenix code
-  - the board reaches only a proper prefix of `TR0..TR3`
-  - the board still never reaches the trampoline
-- the next code step is chosen from that UART evidence, not from LED-only guesswork
+- a real Pi 4 retry is captured on image
+  `4d9daf70168d6990e7525d0c0accda4a8a1ffed0a5fe62432aab4dcff8e70217`
+- the new evidence proves one of:
+  - `TR0` now appears
+  - the new fallback stage `30` appears and then `TR0..TR3` appear
+  - the board still fails before `TR0`, which would keep suspicion on the
+    remaining armstub DTB / branch contract
 
 ## Validation Plan
 
@@ -69,16 +65,18 @@ Out of scope:
 ## Rollback / Baseline
 
 - latest implementation manifest:
-  `/Users/witoldbolt/phoenix-rpi/manifests/2026-04-11-pi4-kernel8-reloc-trampoline.md`
+  `/Users/witoldbolt/phoenix-rpi/manifests/2026-04-11-pi4-armstub-kernel-entry-fallback.md`
 
 ## Notes
 
-- the last decisive UART log proved:
-  - `Loaded 'kernel8.img' to 0x40080000`
-  - `Kernel relocated to 0x80000`
-- the new image is the direct response to that evidence:
-  - `kernel8.img` is now a relocatable trampoline with `TR0..TR3`
-  - the embedded high-linked `plo` payload is copied to `0x40080000`
-  - the copied region now gets explicit cache maintenance before branch
+- the last real retry showed:
+  - firmware now loads `loader.disk` to `0x08000000`
+  - firmware now loads `kernel8.img` to `0x00200000`
+  - firmware still relocates `kernel8.img` to `0x80000`
+  - LED decode reaches the special `31` path, proving the armstub still saw an
+    empty `kernel_entry32`
+- the refreshed image now keeps the firmware-slot path when present, but falls
+  back to the observed real-firmware relocation target:
+  - `0x00080000`
 - current exported SD-image SHA-256:
-  `610dbbfd0192760f061395f7e85573261b85b18857bea426e6adab4930468698`
+  `4d9daf70168d6990e7525d0c0accda4a8a1ffed0a5fe62432aab4dcff8e70217`

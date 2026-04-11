@@ -8,6 +8,73 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-12`, the latest real Pi 4 retry finally proved that Phoenix now
+  reaches the `plo` HDMI progress panel and the `kernel jump` milestone on real
+  hardware:
+  - live UART results from
+    `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260412-000322.log`:
+    - firmware boot still reads the SD card and staged files successfully
+    - the low-memory image layout remains active on hardware:
+      - `Loaded 'loader.disk' to 0x8000000 size 0x311cd0`
+      - `initramfs (loader.disk) loaded to 0x8000000 (size 0x311cd0)`
+      - `Loaded 'kernel8.img' to 0x200000 size 0xe0d8`
+      - `Kernel relocated to 0x80000`
+      - `Device tree loaded to 0x2eff5600 (size 0xa9d0)`
+    - the firmware still reprograms PL011 and the current host capture still
+      becomes blind at:
+      - `uart: Set PL011 baud rate to 103448.300000 Hz`
+      - `uart: Baud rate change done...`
+  - live HDMI result from the attached screenshot
+    `/var/folders/jt/_gyk57f575q5gl68ltg0_y6w0000gn/T/TemporaryItems/NSIRD_screencaptureui_nweyRG/Screenshot 2026-04-12 at 00.08.55.png`:
+    - brown framebuffer background matches the current `plo` HDMI path
+    - the top-left panel shows all three stage boxes lit
+    - source confirmation:
+      - `video_stageFramebufferReady = 0`
+      - `video_stageHalReady = 1`
+      - `video_stageKernelJump = 2`
+      - `video_stageCount = 3`
+      in
+      `/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/video.c`
+    - `hal_cpuJump()` calls `video_markKernelJump()` immediately before
+      `hal_exitToEL1()` in
+      `/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/hal.c`
+  - implication:
+    - the board is no longer failing in the old armstub seam
+    - the custom armstub, relocatable `kernel8` trampoline, low-memory `plo`
+      placement, mailbox framebuffer path, and `plo` kernel-handoff path all
+      execute on real hardware
+    - the active live failure boundary has moved to the post-`plo` band:
+      after `video_markKernelJump()` and around or after the EL1 handoff into
+      the kernel
+  - LED decode status from `/Users/witoldbolt/Downloads/IMG_0017.mov`:
+    - the current ACT decoder produced a noisy mixed result, including a
+      decoded stage `8` and a special terminal `0`
+    - that decode is now considered lower-confidence than the HDMI evidence for
+      this retry, because the screenshot proves the board reached a much later
+      `plo` milestone than the decoded run suggests
+  - warning status surfaced from the same UART run:
+    - firmware messages like:
+      - `[sdcard] vl805.bin not found`
+      - `[sdcard] pieeprom.upd not found`
+      - `Failed to open command line file 'cmdline.txt'`
+      - repeated `dterror: no symbols found`
+      - HDMI EDID read failures
+    - these remain real warnings and are not ignored, but they do not match the
+      current blocker because the board now demonstrably reaches the `plo`
+      kernel-jump panel
+  - strongest new process conclusion:
+    - absence of trampoline UART `TR0..TR3` can no longer be used as proof that
+      the board never reached the trampoline, because real HDMI output proves
+      later Phoenix execution after the same capture cutoff
+    - the UART-host lane now needs a post-firmware strategy that stays readable
+      after the firmware baud switch, or a kernel-side visible breadcrumb path
+      must be added in parallel
+  - next strongest engineering step:
+    - stop spending time on armstub-only telemetry
+    - diagnose the post-`plo` EL1 / kernel-entry band
+    - improve post-firmware UART observability and/or add the earliest possible
+      kernel-side breadcrumb on the already-working HDMI path
+
 - on `2026-04-11`, the second UART-assisted Pi 4 retry plus the matching LED
   video finally exposed the real armstub contract bug directly:
   - live UART results from

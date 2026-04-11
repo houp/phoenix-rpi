@@ -8,6 +8,54 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-11`, the active Pi 4 boot fix stopped treating the late custom
+  armstub seam as a probe target and restored the firmware handoff contract
+  used by the known-working `rpi4-bare-metal` reference:
+  - boot fix:
+    - the Pi 4 custom armstub no longer dereferences the target image before
+      branching
+    - it now loads `dtb_ptr32`
+    - it now loads `kernel_entry32`
+    - it halts only if `kernel_entry32 == 0`
+    - it then restores `x0`, executes
+      `dsb sy; ic iallu; dsb sy; isb`, and branches through the firmware entry
+      slot
+  - earliest `plo` follow-up:
+    - the firmware DTB pointer is now preserved through the first generic
+      AArch64 `plo` instructions instead of being clobbered immediately
+    - it is stored in `hal_firmwareDtb` at `start_common`
+  - Pi 4 firmware config change:
+    - `boot_load_flags=0x1` was removed from the active Pi 4 `config.txt`
+    - `kernel_address=0x40080000` remains in place because the current Phoenix
+      `plo` image is still linked for the high-DDR load model
+  - warning surfaced and fixed in the same step:
+    - the fast copied-buildroot lane emitted
+      `fatal: not a git repository (or any of the parent directories): .git`
+    - root cause:
+      [plo/Makefile](/Users/witoldbolt/phoenix-rpi/sources/plo/Makefile)
+      computed `VERSION` with an unconditional `git rev-parse`
+    - fix:
+      that lookup is now guarded so copied buildroots without `.git` no longer
+      emit a fake-fatal on every rebuild
+  - validation:
+    - `./scripts/rebuild-rpi4b-fast.sh --scope project --qemu-sanity`: pass
+    - direct Pi 4 QEMU serial sanity still reaches:
+      - `call: exec go!`
+      - `go: enter`
+      - `hal: jump exit el1`
+      - `A3`
+      - `KLMconsole: pl011 init done`
+      - later known `Exception #37: Data Abort (EL1)`
+    - canonical SD-image export: pass
+    - FAT-aware host verify: pass
+  - refreshed exported image:
+    - path:
+      `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+    - SHA-256:
+      `7ba2d0773a60451691a45083d376cd6ccc3293dd800ffe14a8c741ec064db61c`
+  - manifest:
+    `manifests/2026-04-11-pi4-firmware-handoff-contract-fix.md`
+
 - on `2026-04-11`, the canonical Pi 4 macOS-host UART helper was promoted from
   a `picocom`-only assumption to a `tio`-first workflow:
   - current host tool baseline:

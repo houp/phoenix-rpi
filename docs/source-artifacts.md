@@ -1511,18 +1511,22 @@ Current Pi 4 xHCI fast-path reference note:
     - green on later and then steady on
     - blank screen
     - no keyboard-visible reaction
-  - that changed sequence shows the fixed-address handoff changed the earliest
-    hardware-visible behavior, but still did not prove `plo` entry
+  - that changed sequence showed the fixed-address handoff changed the earliest
+    hardware-visible behavior, but it still did not prove the current late
+    armstub contract was correct
   - the current active bounded response is therefore:
-    - keep the current GPIO42 split
-    - keep the current fixed-address armstub handoff
-    - move the next split into the very top of generic AArch64 `plo` `_start`
+    - stop dereferencing the target image before the branch
+    - restore the Raspberry Pi firmware handoff contract used by the working
+      `rpi4-bare-metal` armstub:
+      - load `dtb_ptr32`
+      - load `kernel_entry32`
+      - branch through `kernel_entry32`
+    - preserve the firmware DTB pointer into earliest generic `plo`
   - `plo/ld/aarch64a72-generic.ldt` is restored to the coherent high-placement
     model
   - `phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/config.txt`
-    again uses:
+    currently uses:
     - `kernel_address=0x40080000`
-    - `boot_load_flags=0x1`
     - `armstub=phoenix-armstub8-rpi4.bin`
   - `phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/phoenix-armstub8-rpi4.S`
     now provides a Pi-4-specific firmware handoff stub derived from the
@@ -1546,6 +1550,13 @@ Current Pi 4 xHCI fast-path reference note:
   - `/Users/witoldbolt/phoenix-rpi/scripts/interpret-rpi4-actled-analysis.py`
     now maps the analyzer JSON onto the current probe layout and reports the
     highest completed stage plus the next missing stage
+  - decisive current external armstub clue:
+    - `external/rpi4-bare-metal/armstub/src/armstub8.S`
+    - its primary CPU path does:
+      - `ldr w4, kernel_entry32`
+      - `ldr w0, dtb_ptr32`
+      - `br x4`
+    - that is now the active reference for the repaired Phoenix late handoff
 - the next concrete real-hardware MMIO clue is now also resolved in the image:
   - Raspberry Pi Linux DTS uses bus-visible GIC addresses
     `0x40041000` / `0x40042000`

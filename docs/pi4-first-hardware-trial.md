@@ -24,7 +24,7 @@ Use this image:
 
 Current SHA-256:
 
-- `6932d3a31fc0fee1494295c4e9d0587c689b7cde20a6fb1907d86164e9815883`
+- `7ba2d0773a60451691a45083d376cd6ccc3293dd800ffe14a8c741ec064db61c`
 
 This image supersedes the earlier Pi 4 trial images that used the temporary
 firmware-default low-placement experiment:
@@ -35,7 +35,6 @@ firmware-default low-placement experiment:
 This image now intentionally uses:
 
 - `kernel_address=0x40080000`
-- `boot_load_flags=0x1`
 - `armstub=phoenix-armstub8-rpi4.bin`
 - firmware UART options:
   - `enable_uart=1`
@@ -44,30 +43,20 @@ This image now intentionally uses:
   - local timer control / prescaler
   - `CNTFRQ_EL0 = 54000000`
   - GIC group-1 setup through the ARM-visible aliases
-- handoff hardening at the stage-`3 -> 4` seam:
-  - the primary armstub path no longer clears `x0..x3` before the fixed-address
-    branch
-  - the armstub now inserts `dsb sy; ic iallu; dsb sy; isb` immediately before
-    the branch to `0x40080000`
-  - the armstub now also verifies a deliberate `plo` entry signature at
-    `0x40080000 + 0x4` before branching
-    - stage `4`: signature verified
-    - stage `31`: signature mismatch, halt before branch
-  - the armstub now also carries a dense late seam ladder:
-    - stage `23`: late seam entered after stage `3`
-    - stage `24`: fixed target address loaded
-    - stage `21`: immediately before the first signature-word read
-    - stage `25`: first signature word read
-    - stage `22`: immediately before the second signature-word read
-    - stage `26`: second signature word read
-    - stage `27`: first expected signature constant loaded
-    - stage `28`: first compare passed
-    - stage `29`: second expected signature constant loaded
-    - stage `30`: second compare passed
-    - stage `0`: EL2 exception trap during the seam
-  - the seam-stage codes are now emitted twice with an extra long gap to make
-    the next phone-video decode less ambiguous
-  - fixed-address Pi 4 entry now uses:
+- handoff hardening at the stage-`3 -> 5` seam:
+  - the late custom armstub path now restores the Raspberry Pi firmware
+    contract instead of dereferencing the target image before the branch
+  - the armstub now reads:
+    - `dtb_ptr32` into the temporary DTB handoff register
+    - `kernel_entry32` into the branch target register
+  - the armstub now halts with a dedicated code only if `kernel_entry32 == 0`
+  - the armstub still executes `dsb sy; ic iallu; dsb sy; isb` immediately
+    before the final branch
+  - the firmware DTB pointer is now preserved into earliest generic `plo` and
+    stored in `hal_firmwareDtb` at `start_common`
+  - the seam-stage codes are still emitted twice with an extra long gap to
+    make the next phone-video decode less ambiguous
+  - earliest `plo` entry still uses:
     - stage `5` inline in tiny veneer at raw branch target
     - stage `6` inline at first instruction of old generic `_start` body
 - compact GPIO42 telemetry protocol:
@@ -84,19 +73,13 @@ This image now intentionally uses:
   - the current checkpoint map is:
     - `1` / `00001`: armstub primary-core entry
     - `2` / `00010`: armstub after early timer / GIC preparation
-    - `3` / `00011`: armstub just before the fixed-address jump to `plo`
+    - `3` / `00011`: armstub just before the firmware-slot jump to `plo`
     - `23` / `10111`: late seam entered
-    - `24` / `11000`: fixed target address loaded
-    - `21` / `10101`: immediately before the first signature-word read
-    - `25` / `11001`: first signature word read
-    - `22` / `10110`: immediately before the second signature-word read
-    - `26` / `11010`: second signature word read
-    - `27` / `11011`: first expected signature constant loaded
-    - `28` / `11100`: first compare passed
-    - `29` / `11101`: second expected signature constant loaded
-    - `30` / `11110`: second compare passed
-    - `4` / `00100`: armstub verified `plo` signature at `0x40080000`
-    - `5` / `00101`: fixed-address Pi 4 entry veneer at branch target
+    - `24` / `11000`: `dtb_ptr32` loaded
+    - `25` / `11001`: `kernel_entry32` loaded
+    - `26` / `11010`: `kernel_entry32` was nonzero
+    - `4` / `00100`: armstub branch imminent after firmware-slot handoff prep
+    - `5` / `00101`: earliest Pi 4 entry veneer at branch target
     - `6` / `00110`: first instruction of old generic `_start` body
     - `7` / `00111`: after clearing `x0..x7`
     - `8` / `01000`: after clearing `x8..x15`
@@ -112,7 +95,7 @@ This image now intentionally uses:
     - `18` / `10010`: EL1 path complete, before `start_common`
     - `19` / `10011`: `start_common`
     - `20` / `10100`: after stack initialization
-    - `31` / `11111`: armstub signature mismatch before branch, hard halt
+    - `31` / `11111`: armstub found `kernel_entry32 == 0`, hard halt
     - `0` / `00000`: EL2 exception trap during the seam
   - the goal of the next board trial is to identify the highest completed
     stage code, not to count approximate pulse envelopes
@@ -163,7 +146,8 @@ Current UART wiring:
 7. Power on the board.
 8. Start a high-framerate close-up video before power-on and keep both LEDs in
    frame for at least 60 seconds.
-   If convenient, record 90 seconds so the full compact `1..21` sequence still
+   If convenient, record 90 seconds so the full compact `1..26` seam plus the
+   later `plo` stages still
    fits even if the board progresses farther than expected.
    The current host-side decode workflow is:
    - [scripts/analyze-rpi4-actled-video.py](/Users/witoldbolt/phoenix-rpi/scripts/analyze-rpi4-actled-video.py)
@@ -178,7 +162,7 @@ Current UART wiring:
    - ignore that preamble unless it becomes part of a later valid contiguous
      Phoenix stage run
 9. Wait at least 90 seconds before classifying a silent result on the current
-   first-read focus image.
+   firmware-entry-contract image.
 10. After the trial, summarize the UART log if one was captured:
    - [summarize-rpi4b-uart-log.py](/Users/witoldbolt/phoenix-rpi/scripts/summarize-rpi4b-uart-log.py) `/path/to/log`
 11. If text or prompt appears, try:
@@ -227,7 +211,7 @@ Copy this block into the next report or chat message:
 ```text
 Pi 4 first hardware trial
 Image: artifacts/rpi4b/rpi4b-sd.img
-SHA256: 6932d3a31fc0fee1494295c4e9d0587c689b7cde20a6fb1907d86164e9815883
+SHA256: 7ba2d0773a60451691a45083d376cd6ccc3293dd800ffe14a8c741ec064db61c
 Board revision:
 Display:
 Keyboard:
@@ -285,25 +269,25 @@ Current stage meanings:
 - highest completed `1`, `2`, or `3`:
   still in the custom armstub path before generic `plo` runs
 - highest completed `4`:
-  armstub verified the expected `plo` signature before branching
-- highest completed `23`, `24`, `21`, `25`, `22`, `26`, `27`, `28`, `29`, or `30`:
-  use the dense late armstub seam map to pinpoint the exact failing
-  instruction band before the branch
-- highest completed `21`:
-  the armstub reached the pre-first-read marker, so the next live boundary is
-  the first fixed-target signature-word read itself
+  armstub completed the firmware-slot handoff prep and is about to branch
+- highest completed `23`, `24`, `25`, or `26`:
+  use the firmware-slot seam map to pinpoint the exact failing instruction
+  band before the branch
+- highest completed `24`:
+  the armstub loaded `dtb_ptr32`, so the next live boundary is the
+  `kernel_entry32` read itself
 - highest completed `25`:
-  the first fixed-target signature-word read completed
-- highest completed `22`:
-  the armstub reached the pre-second-read marker, so the next live boundary is
-  the second fixed-target signature-word read itself
+  the armstub loaded `kernel_entry32`, so the next live boundary is the
+  zero-check or the pre-branch path
+- highest completed `26`:
+  the armstub saw a nonzero `kernel_entry32`, so the next live boundary is the
+  final branch-preparation path into `plo`
 - highest completed `31`:
-  armstub did not find the expected signature at `0x40080000` and halted
-  before the branch
+  armstub found `kernel_entry32 == 0` and halted before the branch
 - highest completed `0`:
   the armstub took an EL2 exception during the dense late seam
 - highest completed `5`:
-  fixed-address Pi 4 entry veneer at raw branch target was entered
+  earliest Pi 4 `plo` entry veneer at the branch target was entered
 - highest completed `6`:
   first instruction of old generic `plo _start` body was reached
 - highest completed `7`, `8`, `9`, or `10`:

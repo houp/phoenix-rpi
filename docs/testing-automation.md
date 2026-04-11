@@ -223,48 +223,30 @@ Current practical note for the first Pi 4 hardware attempt without USB-TTL:
   - example:
     - `scripts/analyze-rpi4-actled-video.py --pretty /path/to/IMG_xxxx.mov > /tmp/pi4-led.json`
     - `scripts/interpret-rpi4-actled-analysis.py /tmp/pi4-led.json`
-- current validated `IMG_7137.mov` result from that toolchain:
-  - best contiguous decoded run reaches stage `3`
-  - no later valid stage `4` is seen
-  - so the active real-hardware failure band is still the stage-`3 -> 4`
-    fixed-address handoff seam
-- current validated `IMG_7138.mov` result from that toolchain:
-  - best contiguous decoded run still reaches only stage `3`
-  - no later valid stage `4`
-  - no later valid stage `31`
-  - unmatched stage `16` and stage `26` groups exist, but the interpreter
-    correctly treats them as noise rather than the main contiguous Phoenix run
-  - the active real-hardware failure band is therefore now the tiny armstub
-    seam after stage `3` and before the first successful signature-check
-    outcome
+- current validated pre-fix LED result:
+  - the last trustworthy fixed-target image analysis still bounded the real
+    hardware failure to the tiny armstub seam immediately after stage `3`
+  - that is why the active image now replaces the fixed-target signature-read
+    ladder with a firmware-slot handoff probe
 - important interpretation rule:
   - the initial ACT LED chatter seen while Raspberry Pi firmware reads the
     SD card is not Phoenix telemetry
   - treat that early activity as preamble noise unless it decodes into a later
     valid contiguous Phoenix stage run
-- current fixed-target-signature split:
+- current firmware-entry-contract split:
   - current layout name:
-    - `pi4_dense_firstread_focus_map_2026_04_10`
+    - `pi4_firmware_entry_contract_map_2026_04_11`
   - current focus-image note:
     - seam stages of interest are emitted twice with an extra long gap
-    - the current `21` and `22` meanings are temporarily overloaded for the
-      armstub first-read micro-split
   - stage `23`: late armstub seam entered
-  - stage `24`: fixed target address loaded
-  - stage `21`: immediately before the first signature-word read
-  - stage `25`: first signature word read
-  - stage `22`: immediately before the second signature-word read
-  - stage `26`: second signature word read
-  - stage `27`: first expected signature constant loaded
-  - stage `28`: first compare passed
-  - stage `29`: second expected signature constant loaded
-  - stage `30`: second compare passed
-  - stage `4`: armstub verified the expected `plo` signature at
-    `0x40080000 + 0x4`
-  - stage `31`: armstub did not find that signature and halted before branch
+  - stage `24`: `dtb_ptr32` loaded
+  - stage `25`: `kernel_entry32` loaded
+  - stage `26`: `kernel_entry32` was nonzero
+  - stage `4`: armstub branch imminent after firmware-slot handoff prep
+  - stage `31`: armstub found `kernel_entry32 == 0` and halted before branch
   - stage `0`: EL2 exception trap during the dense armstub seam
   - later stages are now:
-    - `5`: fixed-address Pi 4 entry veneer at branch target
+    - `5`: earliest `plo` entry veneer at branch target
     - `6`: first instruction of old generic `_start` body (`_start_real`)
     - `7`: after clearing `x0..x7`
     - `8`: after clearing `x8..x15`
@@ -280,27 +262,8 @@ Current practical note for the first Pi 4 hardware attempt without USB-TTL:
     - `18`: EL1 path complete, before `start_common`
     - `19`: `start_common`
     - `20`: after stack setup
-- current post-`IMG_0009.mov` telemetry split:
-  - the previous video most strongly mapped to completion through stage `6`
-  - the current image therefore splits the `currentEL` seam and the next few
-    steps while also increasing protocol density
-  - the current early `plo` map is now:
-    - `5`: after clearing `x0..x7`
-    - `6`: after clearing `x8..x15`
-    - `7`: after clearing `x16..x23`
-    - `8`: after clearing `x24..x30`
-    - `9`: after `dsb sy` / `isb`
-    - `10`: after `mrs currentEL`
-    - `11`: `start_el3`
-    - `12`: `start_el2`
-    - `13`: `start_el1`
-    - `14`: EL3 path complete, before `start_common`
-    - `15`: EL2 path complete, before `start_common`
-    - `16`: EL1 path complete, before `start_common`
-    - `17`: `start_common`
-    - `18`: after stack setup
-    - `19`: core-0 branch to `_startc`
-    - `20`: unexpected-EL trap path
+    - `21`: core-0 branch to `_startc`
+    - `22`: unexpected-EL trap path
 
 ## 4. QEMU Strategy
 

@@ -2,85 +2,83 @@
 
 ## Metadata
 
-- Step ID: `STEP-0464`
-- Title: Restore the Pi 4 firmware handoff contract in armstub and early plo
+- Step ID: `STEP-0466`
+- Title: Await the first real Pi 4 retry on the relocatable kernel8 trampoline image
 - Status: `in_progress`
 - Date: `2026-04-11`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- replace the current Pi 4 custom armstub hardcoded fixed-target branch with a
-  firmware-contract handoff based on `kernel_entry32` and `dtb_ptr32`
-- preserve the firmware DTB pointer into the earliest `plo` path instead of
-  clobbering it before it can be used
-- reduce the current armstub seam complexity so the next hardware retry tests a
-  real boot fix, not another increasingly fragile probe ladder
+- validate the new relocatable `kernel8.img` trampoline on real Pi 4 hardware
+- confirm through UART whether the live board now reaches:
+  - `TR0`
+  - `TR1`
+  - `TR2`
+  - `TR3`
+- determine whether the previous relocation mismatch was the remaining blocker
 
 ## Scope
 
 In scope:
 
-- replacing the hardcoded `0x40080000` late armstub branch contract
-- switching the late armstub handoff to firmware-populated entry/DTB slots
-- preserving `x0` through the first generic `plo` instructions
-- keeping enough LED telemetry to verify that the new handoff path executes on
-  real hardware
+- running the next real Pi 4 board retry on the refreshed SD image
+- capturing UART plus LED video in parallel
+- classifying the highest reached phase from the UART log first
+- using LED only as a secondary cross-check if the UART path is still partial
 
 Out of scope:
 
+- further image-format changes before the new real-device evidence arrives
 - network-boot lab setup
 - unrelated Pi 4 driver work
-- UART capture itself, until the cable is physically available
 
 ## Expected Repositories
 
 - coordination repo
-- `phoenix-rtos-project`
-- `plo`
 
 ## Expected Files Or Subsystems
 
-- `/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/phoenix-armstub8-rpi4.S`
-- `/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/config.txt`
-- `/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S`
-- `/Users/witoldbolt/phoenix-rpi/scripts/rpi4_actled_probe_layout.py`
+- `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+- `/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh`
+- `/Users/witoldbolt/phoenix-rpi/scripts/summarize-rpi4b-uart-log.py`
+- `/Users/witoldbolt/phoenix-rpi/docs/pi4-first-hardware-trial.md`
 - `/Users/witoldbolt/phoenix-rpi/docs/status.md`
 
 ## Acceptance Criteria
 
-- the Pi 4 armstub late handoff now follows the firmware-populated entry/DTB
-  slots instead of a hardcoded fixed target
-- the earliest `plo` path preserves the firmware DTB pointer
-- a refreshed SD image is built, exported, and verified without warnings being
-  ignored
-- the next real-device retry can specifically confirm whether the firmware
-  handoff-contract fix moved the boot farther than the current LED-only result
+- a real Pi 4 UART log is captured on the refreshed image
+- the log is classified with the canonical helper without ignoring warnings
+- the retry proves one of:
+  - the board reaches `TR0..TR3` and then later Phoenix code
+  - the board reaches only a proper prefix of `TR0..TR3`
+  - the board still never reaches the trampoline
+- the next code step is chosen from that UART evidence, not from LED-only guesswork
 
 ## Validation Plan
 
-- [rebuild-rpi4b-fast.sh](/Users/witoldbolt/phoenix-rpi/scripts/rebuild-rpi4b-fast.sh) `--scope project`
-- [export-rpi4b-sdimg.sh](/Users/witoldbolt/phoenix-rpi/scripts/export-rpi4b-sdimg.sh)
-- [verify-rpi4b-sdimg.sh](/Users/witoldbolt/phoenix-rpi/scripts/verify-rpi4b-sdimg.sh)
-- direct Pi 4 QEMU serial sanity after the rebuild
+- flash:
+  [verify-rpi4b-sdimg.sh](/Users/witoldbolt/phoenix-rpi/scripts/verify-rpi4b-sdimg.sh)
+- capture:
+  [capture-rpi4b-uart.sh](/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh)
+- summarize:
+  [summarize-rpi4b-uart-log.py](/Users/witoldbolt/phoenix-rpi/scripts/summarize-rpi4b-uart-log.py)
+- optional secondary signal:
+  LED video plus the existing analysis toolchain
 
 ## Rollback / Baseline
 
-- latest pre-fix LED-only boundary manifests around the dense seam:
-  `/Users/witoldbolt/phoenix-rpi/manifests/2026-04-10-pi4-img0012-dense-signature-analysis.md`
-  `/Users/witoldbolt/phoenix-rpi/manifests/2026-04-10-pi4-fixed-target-signature-check.md`
+- latest implementation manifest:
+  `/Users/witoldbolt/phoenix-rpi/manifests/2026-04-11-pi4-kernel8-reloc-trampoline.md`
 
 ## Notes
 
-- strongest current fix hypothesis comes from the known-working
-  `rpi4-bare-metal` armstub: branch via `kernel_entry32` and forward `dtb_ptr32`
-- the earlier fixed-address plus target-dereference seam is now treated as the
-  likely real bug on hardware; this step replaces it with a firmware-slot
-  handoff and removes `boot_load_flags=0x1` from the active Pi 4 config
-- current rebuilt test image:
-  - `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
-  - SHA-256:
-    `7ba2d0773a60451691a45083d376cd6ccc3293dd800ffe14a8c741ec064db61c`
-- current known residual runtime warning after the fix:
-  - direct Pi 4 QEMU serial sanity still ends in the later known
-    `Exception #37: Data Abort (EL1)`
+- the last decisive UART log proved:
+  - `Loaded 'kernel8.img' to 0x40080000`
+  - `Kernel relocated to 0x80000`
+- the new image is the direct response to that evidence:
+  - `kernel8.img` is now a relocatable trampoline with `TR0..TR3`
+  - the embedded high-linked `plo` payload is copied to `0x40080000`
+  - the copied region now gets explicit cache maintenance before branch
+- current exported SD-image SHA-256:
+  `610dbbfd0192760f061395f7e85573261b85b18857bea426e6adab4930468698`

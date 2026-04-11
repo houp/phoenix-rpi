@@ -14,6 +14,15 @@ ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 
 PHASE_PATTERNS = [
     (
+        "phoenix_trampoline",
+        [
+            r"\bTR0\b",
+            r"\bTR1\b",
+            r"\bTR2\b",
+            r"\bTR3\b",
+        ],
+    ),
+    (
         "eeprom_bootloader",
         [
             r"\bBOOT_UART\b",
@@ -101,6 +110,8 @@ def classify(matches: list[dict[str, object]]) -> str:
         return "kernel-boot"
     if "phoenix_plo" in phases:
         return "plo-boot"
+    if "phoenix_trampoline" in phases:
+        return "trampoline-copy"
     if "firmware_second_stage" in phases or "eeprom_bootloader" in phases:
         return "firmware-load"
     return "unknown"
@@ -155,6 +166,7 @@ def print_text(summary: dict[str, object]) -> None:
         print("- none")
     else:
         for phase in [
+            "phoenix_trampoline",
             "eeprom_bootloader",
             "firmware_second_stage",
             "phoenix_plo",

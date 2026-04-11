@@ -174,6 +174,8 @@ Important current UART facts from the official documentation:
 - `phoenix-rtos-project/_projects/aarch64a53-generic-qemu/build.project`
 - `phoenix-rtos-project/_projects/aarch64a53-generic-qemu/user.plo.yaml`
 - `phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/build.project`
+- `phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/phoenix-kernel8-reloc.S`
+- `phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/phoenix-kernel8-reloc.lds`
 - `phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/user.plo.yaml`
 - `phoenix-rtos-project/_targets/aarch64a53/zynqmp/build.project`
 - `phoenix-rtos-project/_targets/aarch64a53/zynqmp/preinit.plo.yaml`
@@ -1528,6 +1530,22 @@ Current Pi 4 xHCI fast-path reference note:
     currently uses:
     - `kernel_address=0x40080000`
     - `armstub=phoenix-armstub8-rpi4.bin`
+  - the live Pi 4 UART result from `2026-04-11` showed:
+    - `Loaded 'kernel8.img' to 0x40080000`
+    - `Kernel relocated to 0x80000`
+    which disproved the earlier assumption that matching `kernel_address` and
+    `ADDR_PLO` was sufficient for the real firmware path
+  - `phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/build.project`
+    now builds `kernel8.img` as:
+    - a relocatable AArch64 trampoline
+    - plus an embedded high-linked `plo` payload object
+  - `phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/phoenix-kernel8-reloc.S`
+    is now the first post-firmware runtime stage on real Pi 4:
+    - preserves the DTB pointer in `x0`
+    - emits `TR0..TR3` on PL011
+    - copies the embedded payload to `0x40080000`
+    - performs cache maintenance on the copied region
+    - branches to the real high-linked `plo`
   - `phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/phoenix-armstub8-rpi4.S`
     now provides a Pi-4-specific firmware handoff stub derived from the
     Raspberry Pi/Circle `armstub8-rpi4` lineage

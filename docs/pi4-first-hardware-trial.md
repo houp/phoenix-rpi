@@ -24,7 +24,7 @@ Use this image:
 
 Current SHA-256:
 
-- `7ba2d0773a60451691a45083d376cd6ccc3293dd800ffe14a8c741ec064db61c`
+- `610dbbfd0192760f061395f7e85573261b85b18857bea426e6adab4930468698`
 
 This image supersedes the earlier Pi 4 trial images that used the temporary
 firmware-default low-placement experiment:
@@ -36,6 +36,8 @@ This image now intentionally uses:
 
 - `kernel_address=0x40080000`
 - `armstub=phoenix-armstub8-rpi4.bin`
+- a relocatable `kernel8.img` trampoline instead of a raw direct copy of the
+  high-linked `plo` image
 - firmware UART options:
   - `enable_uart=1`
   - `uart_2ndstage=1`
@@ -50,6 +52,14 @@ This image now intentionally uses:
     - `dtb_ptr32` into the temporary DTB handoff register
     - `kernel_entry32` into the branch target register
   - the armstub now halts with a dedicated code only if `kernel_entry32 == 0`
+  - after firmware jumps to `kernel_entry32`, the new trampoline now emits:
+    - `TR0`
+    - `TR1`
+    - `TR2`
+    - `TR3`
+  - that trampoline now copies the embedded `plo` payload to `0x40080000`,
+    preserves the DTB pointer in `x0`, and only then branches to the real
+    high-linked `plo`
   - the armstub still executes `dsb sy; ic iallu; dsb sy; isb` immediately
     before the final branch
   - the firmware DTB pointer is now preserved into earliest generic `plo` and
@@ -178,6 +188,7 @@ Any of these are useful:
 - early EEPROM bootloader UART output
 - firmware second-stage UART output
 - later Phoenix `plo`, kernel, or shell UART output
+- trampoline UART breadcrumbs `TR0..TR3`
 - clearly separated ACT-LED stage-code bursts
 - a highest completed checkpoint code that can be decoded from the video
 - visible top-left early panel from `plo`
@@ -211,7 +222,7 @@ Copy this block into the next report or chat message:
 ```text
 Pi 4 first hardware trial
 Image: artifacts/rpi4b/rpi4b-sd.img
-SHA256: 7ba2d0773a60451691a45083d376cd6ccc3293dd800ffe14a8c741ec064db61c
+SHA256: 610dbbfd0192760f061395f7e85573261b85b18857bea426e6adab4930468698
 Board revision:
 Display:
 Keyboard:

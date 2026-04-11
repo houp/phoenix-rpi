@@ -8,6 +8,77 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-11`, the first real Pi 4 UART capture produced the decisive boot
+  fact the earlier LED-only loop could not prove:
+  - firmware-side UART reached:
+    - `Loaded 'kernel8.img' to 0x40080000 size 0x0`
+    - `Kernel relocated to 0x80000`
+    - `Device tree loaded to 0x2eff5600 (size 0xa988)`
+  - implication:
+    - the current Phoenix Pi 4 image was still packaging `kernel8.img` as a raw
+      direct copy of the high-linked `plo` image
+    - even after the armstub handoff contract repair, real firmware was still
+      executing a relocated copy of a payload linked for `0x40080000`
+    - that relocation mismatch is now the strongest confirmed real-hardware
+      boot blocker
+  - surfaced firmware warnings in the same live log:
+    - `[sdcard] vl805.bin not found`
+    - `[sdcard] pieeprom.upd not found`
+    - `[sdcard] recover4.elf not found`
+    - `Failed to open command line file 'cmdline.txt'`
+    - repeated `dterror: no symbols found`
+  - current classification of those warnings:
+    - the missing recovery/update files are expected for the current Phoenix
+      SD-card layout and are not the blocker
+    - missing `cmdline.txt` is expected for the current image and is not the
+      blocker
+    - `dterror: no symbols found` comes from the stripped final DTB blob and is
+      now explicitly surfaced, but it does not match the current pre-Phoenix
+      failure signature
+  - active fix implemented from that UART evidence:
+    - `kernel8.img` is no longer a raw copy of `plo-*.img`
+    - it is now a small relocatable AArch64 trampoline plus embedded high-linked
+      `plo` payload
+    - the trampoline:
+      - preserves the firmware DTB pointer in `x0`
+      - emits direct PL011 breadcrumbs:
+        - `TR0`: trampoline entry
+        - `TR1`: payload copy start
+        - `TR2`: payload copied and cache maintenance complete
+        - `TR3`: branch to real `plo`
+      - copies the embedded `plo` image to `0x40080000`
+      - cleans the copied destination with `dc cvau`
+      - executes `ic iallu` plus barriers
+      - branches to the real high-linked `plo`
+  - build/image integration change:
+    - `phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/build.project`
+      now builds `kernel8.img` from:
+      - `phoenix-kernel8-reloc.S`
+      - `phoenix-kernel8-reloc.lds`
+      - an objcopy-wrapped embedded `plo` payload section
+  - validation:
+    - `./scripts/rebuild-rpi4b-fast.sh --scope project --qemu-sanity`: pass
+    - the rebuild completed without new compiler or linker warnings
+    - direct Pi 4 QEMU serial sanity still reaches:
+      - `call: exec go!`
+      - `go: enter`
+      - `hal: jump exit el1`
+      - `A3`
+      - `KLMconsole: pl011 init done`
+      - later known `Exception #37: Data Abort (EL1)`
+    - canonical SD-image export: pass
+    - FAT-aware host verify: pass
+  - refreshed exported image:
+    - path:
+      `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+    - SHA-256:
+      `610dbbfd0192760f061395f7e85573261b85b18857bea426e6adab4930468698`
+  - next strongest real-device question:
+    - whether UART now reaches `TR0`, `TR1`, `TR2`, `TR3`, and then Phoenix
+      `plo`
+  - manifest:
+    `manifests/2026-04-11-pi4-kernel8-reloc-trampoline.md`
+
 - on `2026-04-11`, the active Pi 4 boot fix stopped treating the late custom
   armstub seam as a probe target and restored the firmware handoff contract
   used by the known-working `rpi4-bare-metal` reference:
@@ -1809,7 +1880,15 @@ Start-gate status:
   register path before changing any timer or interrupt policy
 - the next concrete Pi 4 boot blocker is now loader MMIO addressing: `sources/plo/hal/aarch64/generic/config.h` still hardcodes QEMU `virt` UART and GIC base addresses, so the current Pi 4 `kernel8.img` would still talk to the wrong MMIO blocks on real hardware until those addresses are made board-overridable.
 - generic `plo` now accepts project-local MMIO base overrides for UART0 and GICv2 while preserving the current QEMU `virt` defaults, and the generic `virt` smoke lane still boots after that change.
-- the current Pi 4 firmware handoff no longer appears to have a raw loader placement mismatch: `kernel_address=0x40080000` in the Pi 4 `config.txt` matches `ADDR_PLO 0x40080000` in `plo/ld/aarch64a53-generic.ldt`.
+- historical note:
+  an earlier assumption in this bring-up log was that matching
+  `kernel_address=0x40080000` and `ADDR_PLO 0x40080000` would be sufficient to
+  avoid a raw placement mismatch; the live Pi 4 UART result from `2026-04-11`
+  disproved that assumption by showing:
+  - `Loaded 'kernel8.img' to 0x40080000`
+  - `Kernel relocated to 0x80000`
+  so the current active design now uses a relocatable trampoline `kernel8.img`
+  instead of a raw direct copy of the high-linked `plo` image.
 - the next Pi 4 deployment blocker is now firmware-file completeness rather than loader placement: the staged `_boot/.../rpi4b/` tree still lacks Raspberry Pi firmware files, so it is not yet a self-contained first-partition boot bundle.
 - the Pi 4 project now accepts an operator-supplied Raspberry Pi firmware directory through `RPI4B_FIRMWARE_DIR` or `_projects/aarch64a53-generic-rpi4b/firmware` and stages required firmware files such as `start4.elf` and `fixup4.dat` into `_boot/.../rpi4b/` while keeping default no-firmware builds green.
 - future agents are explicitly allowed to source Pi 4 firmware files and the board DTB from the Raspberry Pi firmware repository boot tree at `https://github.com/raspberrypi/firmware/tree/master/boot` when that is the most direct path to a testable boot bundle; the exact required file set should still be re-verified against the active Pi 4 firmware baseline.

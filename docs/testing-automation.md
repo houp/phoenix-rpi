@@ -86,6 +86,11 @@
     - `uart_2ndstage=1`
   - if earlier bootloader output is needed, enable Raspberry Pi EEPROM:
     - `BOOT_UART=1`
+- current trampoline UART breadcrumbs to look for on the latest image:
+  - `TR0`: relocatable `kernel8.img` entry
+  - `TR1`: embedded `plo` copy started
+  - `TR2`: copy plus cache maintenance complete
+  - `TR3`: branch to the real high-linked `plo`
 
 Current recommended command sequence:
 
@@ -98,6 +103,8 @@ Current recommended command sequence:
   - [scripts/capture-rpi4b-uart.sh](/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh) `--tool picocom ...`
 - summarize:
   - [scripts/summarize-rpi4b-uart-log.py](/Users/witoldbolt/phoenix-rpi/scripts/summarize-rpi4b-uart-log.py) `/path/to/log`
+  - current summary helper now classifies `TR0..TR3` as `phoenix_trampoline`
+    and a `trampoline-copy` failure class
 
 ## 1. Goals
 

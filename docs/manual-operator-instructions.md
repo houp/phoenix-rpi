@@ -396,7 +396,7 @@ Current payload rule:
 - by default it exports that disk image into the host workspace at:
   - `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
 - current validated exported full-image SHA-256:
-  - `7ba2d0773a60451691a45083d376cd6ccc3293dd800ffe14a8c741ec064db61c`
+  - `610dbbfd0192760f061395f7e85573261b85b18857bea426e6adab4930468698`
 - the current exported full-disk artifact includes the latest firmware-stage
   early handoff state:
   - Pi 4 A72 `plo` restored to the last coherent high-DDR placement used by
@@ -413,7 +413,7 @@ Current payload rule:
   - that custom Pi 4 armstub plus earliest generic AArch64 `plo` path now use
     a compact GPIO42 stage-code protocol instead of one-off probes or
     count-based pulse groups
-  - the current stage-`3 -> 5` firmware-handoff repair is now in place:
+  - the current stage-`3 -> 5` firmware-handoff repair is still in place:
     - the late custom armstub path no longer dereferences the target image
       before branching
     - it now restores the Raspberry Pi firmware handoff contract by loading:
@@ -429,6 +429,15 @@ Current payload rule:
       instruction
     - earliest generic `plo` now preserves the firmware DTB pointer and stores
       it in `hal_firmwareDtb` at `start_common`
+  - the new UART-proven boot blocker fix is now also in place:
+    - `kernel8.img` is no longer a raw direct copy of `plo`
+    - it is now a relocatable trampoline with direct PL011 breadcrumbs:
+      - `TR0`
+      - `TR1`
+      - `TR2`
+      - `TR3`
+    - it copies the embedded high-linked `plo` payload to `0x40080000`
+    - it performs cache maintenance on that copied region before branching
   - each stage burst is:
     - one sync pulse
     - then `5` fixed-width bits, MSB first
@@ -493,7 +502,7 @@ Recommended manual sequence on macOS:
 2. verify the exported artifact before flashing:
    - [scripts/verify-rpi4b-sdimg.sh](/Users/witoldbolt/phoenix-rpi/scripts/verify-rpi4b-sdimg.sh)
    - current expected SHA-256:
-     `7ba2d0773a60451691a45083d376cd6ccc3293dd800ffe14a8c741ec064db61c`
+     `610dbbfd0192760f061395f7e85573261b85b18857bea426e6adab4930468698`
 3. if you want the exact commands printed for a chosen disk identifier:
    - [scripts/print-rpi4b-macos-flash-commands.sh](/Users/witoldbolt/phoenix-rpi/scripts/print-rpi4b-macos-flash-commands.sh) `diskN`
 4. if you want a prefilled first-trial report file before you start:
@@ -693,6 +702,13 @@ Current UART-output expectations:
   - `uart_2ndstage=1`
 - so a working cable should help even without EEPROM debug, because the
   firmware second stage and any later Phoenix serial path can become visible
+- on the current image, the first Phoenix-owned UART breadcrumbs should now be:
+  - `TR0`
+  - `TR1`
+  - `TR2`
+  - `TR3`
+- if only firmware lines appear and none of `TR0..TR3` appear, the current
+  failure is still before the relocatable trampoline entry
 - if the board still emits no early firmware text, enable bootloader UART in
   EEPROM on a known-good Raspberry Pi OS card first:
   - `sudo -E rpi-eeprom-config --edit`
@@ -739,7 +755,7 @@ For the current lab shape, the first practical manual trial is:
    - current exported artifact:
      [artifacts/rpi4b/rpi4b-sd.img](/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img)
    - current SHA-256:
-     `7ba2d0773a60451691a45083d376cd6ccc3293dd800ffe14a8c741ec064db61c`
+     `610dbbfd0192760f061395f7e85573261b85b18857bea426e6adab4930468698`
    - focused trial checklist:
      [pi4-first-hardware-trial.md](/Users/witoldbolt/phoenix-rpi/docs/pi4-first-hardware-trial.md)
 2. flash the image to microSD using the workflow above

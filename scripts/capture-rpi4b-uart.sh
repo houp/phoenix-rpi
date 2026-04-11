@@ -12,6 +12,7 @@ label=""
 list_only=0
 log_path=""
 output_dir="$default_output_dir"
+tool="${RPI4B_UART_TOOL:-auto}"
 
 usage() {
 	cat <<'EOF'
@@ -20,6 +21,8 @@ Usage: capture-rpi4b-uart.sh [options]
 Options:
   --device PATH
       explicit serial device, for example /dev/cu.usbserial-0001
+  --tool auto|tio|picocom
+      serial tool selection, default auto
   --baud N
       baud rate, default 115200
   --log PATH
@@ -31,13 +34,16 @@ Options:
   --list
       list candidate macOS USB serial devices and exit
   --exit-after MSEC
-      pass picocom --exit-after for dry runs or tests
+      pass picocom --exit-after for dry runs or tests;
+      if auto mode would choose tio, the helper falls back to picocom
   --help
       show this help
 
 Notes:
   - current Raspberry Pi UART lane expects 115200 8N1
   - preferred device path form on macOS is /dev/cu.*
+  - auto mode prefers tio if it is installed, else picocom
+  - exit tio with Ctrl-T Q
   - exit picocom with Ctrl-A Ctrl-X
 EOF
 }
@@ -91,10 +97,53 @@ safe_label() {
 	printf '%s' "$1" | tr ' /' '__' | tr -cd '[:alnum:]_.-'
 }
 
+have_tool() {
+	command -v "$1" >/dev/null 2>&1
+}
+
+select_tool() {
+	case "$tool" in
+		auto)
+			if have_tool tio; then
+				tool="tio"
+			elif have_tool picocom; then
+				tool="picocom"
+			else
+				printf 'missing serial tool: neither tio nor picocom is installed\n' >&2
+				exit 1
+			fi
+			;;
+		tio|picocom)
+			if ! have_tool "$tool"; then
+				printf 'requested serial tool is not installed: %s\n' "$tool" >&2
+				exit 1
+			fi
+			;;
+		*)
+			printf 'unknown --tool value: %s\n' "$tool" >&2
+			exit 1
+			;;
+	esac
+
+	if [ -n "$exit_after" ] && [ "$tool" = "tio" ]; then
+		if have_tool picocom; then
+			printf 'warning: tio does not support --exit-after; falling back to picocom for this invocation\n' >&2
+			tool="picocom"
+		else
+			printf 'warning: tio does not support --exit-after and picocom is unavailable\n' >&2
+			exit 1
+		fi
+	fi
+}
+
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--device)
 			device="$2"
+			shift 2
+			;;
+		--tool)
+			tool="$2"
 			shift 2
 			;;
 		--baud)
@@ -134,9 +183,20 @@ while [ $# -gt 0 ]; do
 done
 
 if [ "$list_only" -eq 1 ]; then
-	list_candidates
+	candidates="$(list_candidates)"
+	if [ -n "$candidates" ]; then
+		printf '%s\n' "$candidates"
+	else
+		printf 'warning: no candidate USB serial devices found\n' >&2
+		if have_tool tio; then
+			printf 'info: full tio device list follows\n' >&2
+			tio --list
+		fi
+	fi
 	exit 0
 fi
+
+select_tool
 
 if [ -z "$device" ]; then
 	autodetect_device
@@ -168,34 +228,56 @@ fi
 cat > "$meta_path" <<EOF
 timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 serial_device: $device
+serial_tool: $tool
 baud: $baud
 image_path: $default_image_path
 image_sha256: $image_sha256
-note: use Ctrl-A Ctrl-X to exit picocom cleanly
+note: use Ctrl-T Q for tio or Ctrl-A Ctrl-X for picocom
 EOF
 
 printf 'UART device: %s\n' "$device"
+printf 'UART tool:   %s\n' "$tool"
 printf 'UART baud:   %s\n' "$baud"
 printf 'UART log:    %s\n' "$log_path"
 printf 'UART meta:   %s\n' "$meta_path"
-printf 'Exit:        Ctrl-A Ctrl-X\n'
-
-cmd=(
-	picocom
-	--baud "$baud"
-	--flow n
-	--parity n
-	--databits 8
-	--stopbits 1
-	--noinit
-	--noreset
-	--logfile "$log_path"
-)
-
-if [ -n "$exit_after" ]; then
-	cmd+=(--exit-after "$exit_after")
+if [ "$tool" = "tio" ]; then
+	printf 'Exit:        Ctrl-T Q\n'
+else
+	printf 'Exit:        Ctrl-A Ctrl-X\n'
 fi
 
-cmd+=("$device")
+if [ "$tool" = "tio" ]; then
+	cmd=(
+		tio
+		--baudrate "$baud"
+		--databits 8
+		--flow none
+		--parity none
+		--stopbits 1
+		--no-reconnect
+		--color none
+		--log
+		--log-file "$log_path"
+		"$device"
+	)
+else
+	cmd=(
+		picocom
+		--baud "$baud"
+		--flow n
+		--parity n
+		--databits 8
+		--stopbits 1
+		--noinit
+		--noreset
+		--logfile "$log_path"
+	)
+
+	if [ -n "$exit_after" ]; then
+		cmd+=(--exit-after "$exit_after")
+	fi
+
+	cmd+=("$device")
+fi
 
 exec "${cmd[@]}"

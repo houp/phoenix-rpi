@@ -81,7 +81,9 @@ For each substantial task:
     `scripts/capture-rpi4b-uart.sh`
     plus
     `scripts/summarize-rpi4b-uart-log.py`
-    instead of ad hoc serial commands
+    instead of ad hoc serial commands; the canonical helper now prefers `tio`
+    automatically when it is installed and falls back to `picocom` only when
+    needed
 10c. if a build, packaging, DTB, download, or helper step emits warnings or
     recoverable errors, surface them, classify them, and tighten the process so
     later sessions do not keep reproducing them silently

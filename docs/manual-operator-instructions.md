@@ -684,6 +684,11 @@ Current practical rules:
 - preserve the raw log file; summarize it after capture instead of trimming it
 - keep the LED-video workflow in parallel because the current live failure may
   still be before the first Phoenix UART line
+- the canonical helper now prefers `tio` automatically when it is installed
+- the helper keeps `picocom` as a fallback when explicitly requested or when
+  `--exit-after` is used for local dry runs
+- if `--list` finds no likely USB serial adapter, it now says so explicitly and
+  also prints the broader `tio --list` inventory when `tio` is present
 
 Recommended operator flow:
 
@@ -691,8 +696,9 @@ Recommended operator flow:
    - [capture-rpi4b-uart.sh](/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh) `--list`
 2. start capture before power-on:
    - [capture-rpi4b-uart.sh](/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh) `--device /dev/cu.usbserial-XXXX --label pi4-boot`
-3. exit `picocom` after the trial with:
-   - `Ctrl-A` then `Ctrl-X`
+3. exit the terminal tool after the trial with:
+   - `Ctrl-T` then `Q` when the helper selected `tio`
+   - `Ctrl-A` then `Ctrl-X` when the helper selected `picocom`
 4. summarize the raw log:
    - [summarize-rpi4b-uart-log.py](/Users/witoldbolt/phoenix-rpi/scripts/summarize-rpi4b-uart-log.py) `/path/to/log`
 

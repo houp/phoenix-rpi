@@ -2,100 +2,72 @@
 
 ## Metadata
 
-- Step ID: `STEP-0461`
-- Title: Await the next Pi 4 board retry on the first-read focus image
+- Step ID: `STEP-0463`
+- Title: Await the first Pi 4 UART-assisted board retry
 - Status: `in_progress`
-- Date: `2026-04-10`
+- Date: `2026-04-11`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- collect the next board retry on the rebuilt first-read focus image, which
-  now duplicates the seam stages, inserts extra gap time, and temporarily
-  micro-splits the first and second signature reads with stages `21` and `22`
-- as soon as the USB-TTL cable is available, shift the strongest next boundary
-  source from LED-only inference to UART-plus-LED
+- capture the first real Pi 4 boot attempt with the USB-TTL adapter connected
+- treat UART as the primary runtime boundary signal and LED video as the
+  secondary earliest-entry signal
+- use the combined evidence to replace the current ambiguous LED-only boundary
+  with a direct boot-stage classification
 
 ## Scope
 
 In scope:
 
-- decode the next board video against the first-read focus map
-- classify whether the live fault is:
-  - before the first read
-  - on the first read itself
-  - between the first and second reads
-  - on the second read itself
-  - later in the signature-compare band
+- one UART log captured through the canonical host helper
+- one matching LED video in parallel if practical
+- log summary and failure classification
+- deciding the next smallest real boot fix from the combined UART-plus-LED data
 
 Out of scope:
 
-- unrelated EL-path, framebuffer, DTB, or USB work
-- redesigning the whole Pi 4 boot model before the dense armstub map is tested
+- network-boot lab setup
+- unrelated Pi 4 driver work
+- speculative armstub or `plo` instrumentation before the first UART-equipped
+  retry is actually captured
 
 ## Expected Repositories
 
-- `phoenix-rtos-project`
-- `plo`
 - coordination repo
+- potentially `phoenix-rtos-project`
+- potentially `plo`
 
 ## Expected Files Or Subsystems
 
-- `/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/phoenix-armstub8-rpi4.S`
-- `/Users/witoldbolt/phoenix-rpi/scripts/rpi4_actled_probe_layout.py`
-- `/Users/witoldbolt/phoenix-rpi/scripts/verify-rpi4b-sdimg.sh`
+- `/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh`
+- `/Users/witoldbolt/phoenix-rpi/scripts/summarize-rpi4b-uart-log.py`
+- `/Users/witoldbolt/phoenix-rpi/docs/manual-operator-instructions.md`
+- `/Users/witoldbolt/phoenix-rpi/docs/testing-automation.md`
 - `/Users/witoldbolt/phoenix-rpi/docs/status.md`
-- `/Users/witoldbolt/phoenix-rpi/tracking/current-step.md`
 
 ## Acceptance Criteria
 
-- the refreshed first-read focus image is rebuilt, exported, and FAT-verified
-- the next board video can distinguish whether the live fault is:
-  - before the first fixed-target read
-  - on the first fixed-target read
-  - between the first and second fixed-target reads
-  - on the second fixed-target read
-  - or later in the compare / branch band
+- a raw UART log is captured through the canonical helper
+- the log is summarized and classified
+- the next boot failure band is identified more directly than the current
+  LED-only ambiguity allows
 
 ## Validation Plan
 
-- board retry plus LED decode
-- use the new duplicated-focus protocol to reduce missed or ambiguous seam
-  stages
-- when the USB-TTL cable is available:
-  - host UART capture
-  - UART log summary
-  - LED video in parallel
+- [capture-rpi4b-uart.sh](/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh) `--list`
+- [capture-rpi4b-uart.sh](/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh) `--device /dev/cu.usbserial-XXXX --label pi4-boot`
+- [summarize-rpi4b-uart-log.py](/Users/witoldbolt/phoenix-rpi/scripts/summarize-rpi4b-uart-log.py) `/path/to/log`
+- optional parallel ACT-LED video decode
 
 ## Rollback / Baseline
 
-- Known-good manifest or commit set:
-  `/Users/witoldbolt/phoenix-rpi/manifests/2026-04-10-pi4-led-analysis-toolchain.md`
+- latest UART host-lane manifest:
+  `/Users/witoldbolt/phoenix-rpi/manifests/2026-04-11-pi4-uart-tio-first-host-lane.md`
 
 ## Notes
 
-- the new first-read focus image now keeps the dense seam stages but adds:
-  - duplicated focus-stage emission with an extra long inter-stage gap
-  - `21`: immediately before the first signature-word read
-  - `22`: immediately before the second signature-word read
-  - barriers before both reads
-- the current exported SD-image SHA-256 is now:
-  - `6932d3a31fc0fee1494295c4e9d0587c689b7cde20a6fb1907d86164e9815883`
-- while awaiting the next hardware retry clip, a parallel host-side UART lane
-  is now prepared:
-  - [capture-rpi4b-uart.sh](/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh)
-  - [summarize-rpi4b-uart-log.py](/Users/witoldbolt/phoenix-rpi/scripts/summarize-rpi4b-uart-log.py)
-  - current Pi 4 `config.txt` already sets:
-    - `enable_uart=1`
-    - `uart_2ndstage=1`
-  - next board retry should use UART capture plus LED video together when the
-    USB-TTL cable arrives
-- latest LED-only retry note:
-  - `IMG_0014.mov` did not decode any valid Phoenix stage burst under the
-    current layout
-  - treat that clip as ambiguous and do not widen the LED-only loop from it
-- DTB process note:
-  - the strict `prepare-rpi4b-dtb.sh` run against the Raspberry Pi Linux DTS
-    source now surfaces multiple `dtc` warnings and fails by default
-  - prefer final DTB blobs over local DTS compilation for future Pi 4 DTB
-    preparation whenever possible
+- default helper behavior now prefers `tio`
+- `picocom` remains the explicit fallback path
+- if early bootloader text is still absent, the next manual board-side action
+  is to enable EEPROM `BOOT_UART=1` on a known-good Raspberry Pi OS card

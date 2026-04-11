@@ -36,6 +36,7 @@ Currently available host tools:
 - `yq`
 - `socat`
 - `picocom`
+- `tio`
 - `mtools`
 - `socket_vmnet`
 
@@ -46,7 +47,6 @@ Currently not present on the host:
 - `tart`
 - `podman`
 - `nerdctl`
-- `tio`
 - `minicom`
 - `dosfstools`-style FAT helpers
 

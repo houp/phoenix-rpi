@@ -67,7 +67,9 @@
   - [scripts/summarize-rpi4b-uart-log.py](/Users/witoldbolt/phoenix-rpi/scripts/summarize-rpi4b-uart-log.py)
 - current serial mode:
   - `115200 8N1`
-- current host tool:
+- current host tool preference:
+  - `tio`
+- current fallback host tool:
   - `picocom`
 - preferred host device path form:
   - `/dev/cu.*`
@@ -76,6 +78,8 @@
   - keep the raw log
   - summarize the log after the run instead of trimming it manually
   - keep ACT-LED video in parallel for current pre-console failures
+  - let the helper choose the tool in normal use; it now prefers `tio`
+    automatically and falls back to `picocom` only when needed
 - current Pi 4 firmware/config prerequisites:
   - the Phoenix Pi 4 `config.txt` already sets:
     - `enable_uart=1`
@@ -89,6 +93,9 @@ Current recommended command sequence:
   - [scripts/capture-rpi4b-uart.sh](/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh) `--list`
 - capture a trial:
   - [scripts/capture-rpi4b-uart.sh](/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh) `--device /dev/cu.usbserial-XXXX --label pi4-boot`
+- if you must force a specific tool:
+  - [scripts/capture-rpi4b-uart.sh](/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh) `--tool tio ...`
+  - [scripts/capture-rpi4b-uart.sh](/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh) `--tool picocom ...`
 - summarize:
   - [scripts/summarize-rpi4b-uart-log.py](/Users/witoldbolt/phoenix-rpi/scripts/summarize-rpi4b-uart-log.py) `/path/to/log`
 

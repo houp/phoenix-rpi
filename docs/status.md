@@ -8,6 +8,42 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-11`, the canonical Pi 4 macOS-host UART helper was promoted from
+  a `picocom`-only assumption to a `tio`-first workflow:
+  - current host tool baseline:
+    - `tio 3.9` present on macOS host
+    - `picocom` still present as fallback
+  - helper change:
+    - [capture-rpi4b-uart.sh](/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh)
+      now prefers `tio` automatically when it is installed
+    - it falls back to `picocom` automatically when `--exit-after` is used,
+      because `tio` has no equivalent option
+    - it now records the chosen serial tool in the `.meta.txt` file
+    - its `--list` mode now warns explicitly when no likely USB serial adapter
+      is found and, when `tio` is present, prints the broader `tio --list`
+      inventory instead of failing silently
+  - local validation:
+    - `bash -n scripts/capture-rpi4b-uart.sh`: pass
+    - `scripts/capture-rpi4b-uart.sh --help`: pass
+    - `scripts/capture-rpi4b-uart.sh --list`: pass
+    - `scripts/capture-rpi4b-uart.sh --tool auto --device /dev/does-not-exist --exit-after 1000`:
+      emits the intended warning about `tio` lacking `--exit-after`, then
+      falls back to `picocom` and reports the missing device cleanly
+  - warning and error surfaced during validation:
+    - a pseudo-TTY `tio` smoke inside the Codex sandbox failed with:
+      `Error: Could not open tty device (Operation not permitted)`
+    - classification:
+      sandbox limitation during synthetic PTY validation, not evidence of a
+      host-side `tio` problem with the real USB-TTL adapter path
+    - process consequence:
+      the helper no longer uses `tio --mute`, so real open/connect errors stay
+      visible instead of being hidden
+  - practical implication:
+    - tomorrow's first real USB-TTL session should use the canonical helper in
+      default `auto` mode and let it pick `tio`
+  - manifest:
+    `manifests/2026-04-11-pi4-uart-tio-first-host-lane.md`
+
 - on `2026-04-11`, the repository policy was tightened so warnings and
   recoverable tool errors must now be surfaced, classified, and either fixed or
   explicitly justified in the same session:
@@ -57,7 +93,7 @@ Latest rebuild and retest:
     `/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh`
   - canonical host log summarizer:
     `/Users/witoldbolt/phoenix-rpi/scripts/summarize-rpi4b-uart-log.py`
-  - current host tool baseline:
+  - initial host tool baseline at that time:
     - `picocom` present on macOS host
     - `tio` absent on macOS host
   - current Pi 4 config already enables the firmware-facing UART path:

@@ -8,33 +8,30 @@
 
 Latest rebuild and retest:
 
-- on `2026-04-12`, Phoenix RTOS successfully reached userspace on real Raspberry
-  Pi 4 hardware, evidenced by the "Phoenix-RTOS HDMI console" banner:
-  - the "Heartbeat" LED change in the kernel confirmed successful entry
-  - the HDMI output proved that `pl011-tty` driver started and initialized the
-    framebuffer
-  - the UART remains unreadable at 115200 due to the firmware's choice of
-    `103448.3` baud, which persisted despite `init_uart_baud=115200`
-  - the following diagnostics were added to unblock full visibility:
-    - **HDMI Mirroring**: `pl011-tty` now mirrors all its internal raw UART
-      logs to the HDMI console
-    - **libklog Instrumentation**: added progress messages to `libklog` to see
-      if the kernel log pump is failing to open `/dev/kmsg`
-    - **Userspace Heartbeat**: `pl011-tty` now blinks the ACT LED 10 times
-      from userspace using a dedicated GPIO mapping
-    - **Clock Fixes**: added `force_turbo=1` and `core_freq=250` to
-      `config.txt` to further stabilize the UART clock
+- on `2026-04-12`, Phoenix RTOS confirmed a timeout in `pl011-tty` while
+  waiting for `devfs` registration:
+  - the HDMI output showed `pl011-tty: tty0 lookup failed` after multiple
+    retries, proving that `dummyfs -N devfs` is either hanging or failing
+  - the following diagnostics were added to pinpoint the `devfs` failure:
+    - **dummyfs HDMI Tracing**: `dummyfs` now mirrors its initialization
+      milestones (start, daemonization, root/devfs init) to the HDMI console
+    - **pl011-tty Stabilization**: increased thread stacks to 4KB and removed
+      all `usleep` calls from the driver's main path to prevent potential
+      timer-related hangs
+    - **ACT LED Signal**: added a "Stage 5" (5-blink) ACT LED signal to the
+      `dummyfs` child process after successful port registration
   - validation:
-    - full rebuild with `devices` and `libklog` changes: pass
+    - `dummyfs` cross-repo build issues resolved: pass
+    - full rebuild with `filesystems` diagnostics: pass
     - image export and verify: pass
   - refreshed exported Pi 4 image:
     - path: `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
-    - SHA-256: `07a81008c414f2c5f67743bf8a6bd27b9f857e40a0237cea0faa8b66735ff799`
+    - SHA-256: `b9b61d486e51269587be66ec868552d8c9c2378f203a4989662704d324b86a0e`
   - next strongest step:
-    - run the next real-device trial with image `07a81008`
-    - watch HDMI for the extended log (`libklog` status, `tty0` registration)
-    - watch for the 10-blink userspace heartbeat
-    - use `--profile postswitch` (103448 baud) for UART if 115200 is still broken
+    - run the next real-device trial with image `b9b61d48`
+    - watch HDMI for `dummyfs` progress (white rectangles for milestones)
+    - watch for the 5-blink "Stage 5" LED signal from the `devfs` instance
+    - capture UART at 103448 baud to see if any late-boot messages appear
 
 - on `2026-04-12`, the Pi 4 boot process was successfully analyzed and hardened
   following the first real-hardware proof of reaching the kernel-handoff

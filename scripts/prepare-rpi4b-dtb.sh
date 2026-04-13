@@ -30,57 +30,57 @@ stderr_log=\"\$(mktemp)\"
 mode=''
 cleanup()
 {
-	rm -f \"\$stderr_log\"
+        rm -f \"\$stderr_log\"
 }
 trap cleanup EXIT
 
 if [ -n \"\$source_dtb\" ] && [ -f \"\$source_dtb\" ]; then
-	printf 'Using final DTB source: %s\n' \"\$source_dtb\"
-	cp \"\$source_dtb\" \"\$out_dtb\"
-	mode='copy'
+        printf 'Using final DTB source: %s\n' \"\$source_dtb\"
+        cp \"\$source_dtb\" \"\$out_dtb\"
+        mode='copy'
 elif [ -f \"\$firmware_dtb\" ]; then
-	printf 'Using official firmware DTB source: %s\n' \"\$firmware_dtb\"
-	cp \"\$firmware_dtb\" \"\$out_dtb\"
-	mode='copy'
+        printf 'Using official firmware DTB source: %s\n' \"\$firmware_dtb\"
+        cp \"\$firmware_dtb\" \"\$out_dtb\"
+        mode='copy'
 elif [ -f \"\$project_dtb\" ]; then
-	printf 'Using project-local DTB source: %s\n' \"\$project_dtb\"
-	cp \"\$project_dtb\" \"\$out_dtb\"
-	mode='copy'
+        printf 'Using project-local DTB source: %s\n' \"\$project_dtb\"
+        cp \"\$project_dtb\" \"\$out_dtb\"
+        mode='copy'
 elif [ -f \"\$source_dts\" ]; then
-	printf 'Compiling Pi 4 DTS source: %s\n' \"\$source_dts\"
-	cd \"\$linux_tree\"
-	cpp -nostdinc \
-		-I arch/arm/boot/dts \
-		-I arch/arm/boot/dts/broadcom \
-		-I include \
-		-undef \
-		-x assembler-with-cpp \
-		\"\$source_dts\" | dtc -I dts -O dtb -o \"\$out_dtb\" 2>\"\$stderr_log\"
-	mode='compile'
+        printf 'Compiling Pi 4 DTS source: %s\n' \"\$source_dts\"
+        cd \"\$linux_tree\"
+        cpp -nostdinc \
+                -I arch/arm/boot/dts \
+                -I arch/arm/boot/dts/broadcom \
+                -I include \
+                -undef \
+                -x assembler-with-cpp \
+                \"\$source_dts\" | dtc -I dts -O dtb -o \"\$out_dtb\" 2>\"\$stderr_log\"
+        mode='compile'
 else
-	printf 'missing Pi 4 DT source: no final DTB, no firmware DTB and no DTS found\n' >&2
-	printf 'To fix this, you can clone the official firmware repo:\n' >&2
-	printf '  mkdir -p external && git clone --depth 1 https://github.com/raspberrypi/firmware external/raspberrypi-firmware\n' >&2
-	printf 'checked DTB: %s\n' \"\$source_dtb\" >&2
-	printf 'checked firmware DTB: %s\n' \"\$firmware_dtb\" >&2
-	printf 'checked project DTB: %s\n' \"\$project_dtb\" >&2
-	printf 'checked DTS: %s\n' \"\$source_dts\" >&2
-	exit 1
+        printf 'missing Pi 4 DT source: no final DTB, no firmware DTB and no DTS found\n' >&2
+        printf 'To fix this, you can clone the official firmware repo:\n' >&2
+        printf '  mkdir -p external && git clone --depth 1 https://github.com/raspberrypi/firmware external/raspberrypi-firmware\n' >&2
+        printf 'checked DTB: %s\n' \"\$source_dtb\" >&2
+        printf 'checked firmware DTB: %s\n' \"\$firmware_dtb\" >&2
+        printf 'checked project DTB: %s\n' \"\$project_dtb\" >&2
+        printf 'checked DTS: %s\n' \"\$source_dts\" >&2
+        exit 1
 fi
-",old_string:
+
 if [ \"\$mode\" = 'copy' ]; then
-	dtc -I dtb -O dts -o /dev/null \"\$out_dtb\" 2>>\"\$stderr_log\"
+        dtc -I dtb -O dts -o /dev/null \"\$out_dtb\" 2>>\"\$stderr_log\"
 fi
 
 if [ -s \"\$stderr_log\" ]; then
-	printf 'DTB preparation warnings or errors:\n' >&2
-	cat \"\$stderr_log\" >&2
-	if [ \"\$allow_warnings\" != \"1\" ]; then
-		printf 'DTB preparation aborted because warnings are treated as significant.\\n' >&2
-		printf 'If this warning is understood and temporarily tolerated, rerun with RPI4B_DTB_ALLOW_WARNINGS=1 and document why.\\n' >&2
-		exit 1
-	fi
-	printf 'Continuing because RPI4B_DTB_ALLOW_WARNINGS=1\\n' >&2
+        printf 'DTB preparation warnings or errors:\n' >&2
+        cat \"\$stderr_log\" >&2
+        if [ \"\$allow_warnings\" != \"1\" ]; then
+                printf 'DTB preparation aborted because warnings are treated as significant.\\n' >&2
+                printf 'If this warning is understood and temporarily tolerated, rerun with RPI4B_DTB_ALLOW_WARNINGS=1 and document why.\\n' >&2
+                exit 1
+        fi
+        printf 'Continuing because RPI4B_DTB_ALLOW_WARNINGS=1\\n' >&2
 fi
 
 printf 'Prepared: %s\n' \"\$out_dtb\"

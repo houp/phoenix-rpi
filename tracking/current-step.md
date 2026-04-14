@@ -2,48 +2,48 @@
 
 ## Metadata
 
-- Step ID: `STEP-0479`
-- Title: Await the next Pi 4 board retry with dummyfs tracing
+- Step ID: `STEP-0481`
+- Title: Await the next Pi 4 board retry with fixed UART and PCIe
 - Status: `in_progress`
 - Date: `2026-04-12`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- verify if `dummyfs` starts and reaches the daemonization point (HDMI white rectangles)
-- confirm if the `devfs` instance successfully registers its port (HDMI status)
-- observe the "Stage 5" (5-blink) LED signal from the `dummyfs` child process
-- determine if the `pl011-tty` driver still times out or if it finally finds `devfs`
+- verify that the UART lane is now stable at 115200 baud from kernel entry onward
+- confirm that the PCIe `SError` is resolved and the VL805 firmware notify succeeds
+- observe the Phoenix shell (psh) prompt on the UART console
+- verify if `libklog` messages correctly appear on both HDMI and UART
 
 ## Scope
 
 In scope:
 - analysis of the next real-device trial results
-- verification of `dummyfs` HDMI-mirrored initialization milestones
-- verification of the 5-blink "Stage 5" LED signal
+- verification of fixed UART baud rate
+- verification of PCIe/XHCI initialization success
 
 Out of scope:
-- broad kernel or driver changes before seeing the next feedback
+- broad driver changes before seeing the next log
 
 ## Acceptance Criteria
 
-- `dummyfs` progress is visible on HDMI via white rectangles
-- the ACT LED blinks 5 times (signaling successful `devfs` port registration)
-- the bottleneck between `dummyfs` registration and `pl011-tty` lookup is identified
+- a readable 115200 baud UART log is captured through kernel entry and userspace
+- the `SError` exception no longer appears in the `pcie` or `usb` threads
+- the `psh` prompt is reachable on the UART
 
 ## Validation Plan
 
 - analyze the next log and video/screenshot
-- use the results to choose between timer-driver refinement, signal-handling fixes, or `devfs` mount ordering adjustments
+- use the results to choose between USB driver debugging, network integration, or filesystem hardening
 
 ## Rollback / Baseline
 
-- latest diagnostic image:
+- latest fixed image:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
-  (SHA-256: `b9b61d486e51269587be66ec868552d8c9c2378f203a4989662704d324b86a0e`)
+  (SHA-256: `5a251b167f6d6bbfc299bfb8ce1f022c89bb06a171fe44afd1075e1a587327cf`)
 
 ## Notes
 
-- `pl011-tty` confirmed reaching userspace but failing on `devfs` lookup
-- `dummyfs` diagnostics provide the missing link in the userspace boot chain
-- the 103448 baud rate remains the primary capture target for UART
+- the firmware choice of 103448 baud is now overridden by the kernel to 115200
+- PCIe `SError` was traced to invalid `va2pa` usage in mailbox communication
+- HDMI remains active as a secondary diagnostic channel

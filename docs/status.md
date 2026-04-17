@@ -5,10 +5,52 @@
 - Repository purpose: coordination repo plus durable knowledge base for the
   live multi-repo Phoenix RTOS Raspberry Pi port effort
 - Implementation state: active Phase 1 Pi 4 bring-up with the live blocker in
-  late boot / userspace startup, not the old pre-`plo` handoff path
+  early kernel virtual-memory bring-up, not the old pre-`plo` handoff path
 - Documentation baseline prepared: 2026-03-19
 
 Latest rebuild and retest:
+
+- on `2026-04-17`, the next real-board UART log
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260417-215745.log`
+  disproved the previous syspage-tail hypothesis:
+  - the raw tail still reaches:
+    - `A2`
+    - `KLM`
+    - `X1`
+    - `X2`
+    - `X3`
+    - `NO`
+  - and still does not reach:
+    - `P`
+    - `Q`
+    - `R`
+    - `S`
+  - meaning:
+    - the board survives MMU setup and reaches `_core_0_virtual`
+    - the byte-tail syspage copy fix did not move the real-hardware boundary
+    - the more fragile design is the whole post-MMU syspage-copy phase itself
+  - stronger fix applied:
+    - moved the syspage copy and `hal_syspage` / `relOffs` initialization to
+      the pre-MMU physical phase in
+      `/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-kernel/hal/aarch64/_init.S`
+    - enlarged `_hal_syspageCopied` from `SIZE_PAGE` to `16 * SIZE_PAGE`
+      so the copied syspage is no longer constrained to one 4 KB page
+  - why this is stronger:
+    - it removes the fragile copy/store work from the already-proven live seam
+      after `_core_0_virtual`
+    - it matches the simpler pattern already used by the older ARM and RISC-V
+      ports, which copy or materialize the syspage before the virtual jump
+  - validation:
+    - `./scripts/rebuild-rpi4b-fast.sh --scope core --qemu-sanity`: pass
+    - canonical export: pass
+    - FAT-aware verify: pass
+  - refreshed exported Pi 4 image:
+    - path: `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+    - SHA-256: `5d6f4bba3786543db10132cf2febf1ebdd37d819e780d795e611bdc141bb422e`
+  - next strongest step:
+    - flash image `5d6f4bba...`
+    - capture UART with the canonical helper
+    - verify whether the tail now moves past `NO` into at least `P`
 
 - on `2026-04-17`, the next real-board UART log
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260417-213826.log`

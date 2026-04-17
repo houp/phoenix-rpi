@@ -2,19 +2,20 @@
 
 ## Metadata
 
-- Step ID: `STEP-0501`
-- Title: `Retry Pi 4 on the syspage-tail-copy fix image`
+- Step ID: `STEP-0502`
+- Title: `Retry Pi 4 on the pre-MMU syspage-copy image`
 - Status: `ready`
 - Date: `2026-04-17`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- retry the Pi 4 with the refreshed image that fixes the likely syspage tail
-  overread inside `_core_0_virtual`
+- retry the Pi 4 with the refreshed image that moves the syspage copy before
+  the MMU-backed `_core_0_virtual` handoff and enlarges the syspage backing
+  buffer
 - verify whether the active boundary moves past:
-  - `_core_0_virtual`
-  - syspage copy
+  - the old `... NO` seam
+  - pre-MMU syspage relocation
   - `_set_up_vbar_and_stacks`
   - earliest `main()`
 
@@ -67,37 +68,31 @@ Out of scope:
 
 - current exported image to test:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
-  (SHA-256: `77164588645c65f09773165afd19eef3b7709c00fd1fc804b5dd0571003baf29`)
+  (SHA-256: `5d6f4bba3786543db10132cf2febf1ebdd37d819e780d795e611bdc141bb422e`)
 
 ## Notes
 
 - the latest real-board UART log
-  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260417-211048.log`
-  already proves:
-  - firmware handoff is working
-  - custom armstub UART recovery is working
-  - reloc trampoline UART recovery is working
-  - `plo` reaches and exits via:
-    - `hal: jump entry`
-    - `hal: jump irq off`
-    - `hal: jump exit el1`
-  - kernel `_start` reaches:
-    - `K`
-    - `L`
-    - `M`
-- the follow-up real-board UART log
-  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260417-213033.log`
-  proved that the first post-MMU split was still too late, because the raw
-  tail remained exactly `A2` then `KLM`
-- the active blocker is now between `M` and the first safe post-MMU UART
-  breadcrumb
-- the current image therefore adds three earlier physical-UART checkpoints
-  `X1/X2/X3` before the MMU enable, while keeping the later fixed-virtual-UART
-  `N..S` checkpoints in place
-- the next real-board UART log
-  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260417-213826.log`
-  narrowed the live boundary again to the syspage copy block itself:
-  the raw tail reached `A2`, `KLM`, `X1`, `X2`, `X3`, and `NO`
-- the current image therefore fixes the most plausible concrete defect there:
-  the old syspage copy loop could overread the tail when `syspage->size` was
-  not 8-byte aligned
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260417-215745.log`
+  disproved the previous tail-copy hypothesis:
+  - the raw tail still reaches:
+    - `A2`
+    - `KLM`
+    - `X1`
+    - `X2`
+    - `X3`
+    - `NO`
+  - and still does not reach:
+    - `P`
+    - `Q`
+    - `R`
+    - `S`
+- that means:
+  - the board survives MMU enable and reaches `_core_0_virtual`
+  - the byte-tail copy fix did not move the live hardware boundary
+  - the more fragile design is the whole post-MMU syspage-copy step itself
+- the refreshed image therefore applies a semantic simplification:
+  - copy the syspage to its kernel backing before the MMU-backed virtual jump,
+    matching the simpler pattern used by the older ARM and RISC-V ports
+  - enlarge `_hal_syspageCopied` from one page to `16 * SIZE_PAGE` so the
+    copied syspage is not constrained to a 4 KB buffer

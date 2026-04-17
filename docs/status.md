@@ -11,6 +11,56 @@
 Latest rebuild and retest:
 
 - on `2026-04-17`, the next real-board UART log
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260417-213033.log`
+  proved that the first post-MMU split was still too late:
+  - the raw tail remains exactly:
+    - `A2`
+    - `KLM`
+  - there is still no sign of:
+    - `N`
+    - `O`
+    - `P`
+    - `Q`
+    - `R`
+    - `S`
+    - `main: hal init done`
+    - `Phoenix-RTOS microkernel`
+  - important correction:
+    - earlier quick substring checks over-counted letters like `N` and `S`
+      from normal words in the log; the raw byte tail disproved that false
+      positive and confirmed the real boundary is still exactly `A2` then `KLM`
+  - strongest conclusion:
+    - the current fault is still before the first safe post-MMU UART point
+    - the active band is now narrowed to:
+      - after kernel breadcrumb `M`
+      - before or during MMU/page-table enable
+  - bounded follow-up fix applied:
+    - added three earlier physical-UART breadcrumbs in
+      `phoenix-rtos-kernel/hal/aarch64/_init.S`:
+      - `X1` before MMU setup begins
+      - `X2` after `ttbr0_el1` programming
+      - `X3` immediately before `msr sctlr_el1, x0`
+    - kept the later `N..S` split in place for the case where the boundary
+      moves forward on the next run
+  - validation:
+    - `./scripts/rebuild-rpi4b-fast.sh --scope core --qemu-sanity`: pass
+    - canonical export: pass
+    - FAT-aware verify: pass
+  - refreshed exported Pi 4 image:
+    - path: `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+    - SHA-256: `fe9d163ab5d23aa88bbaea35c5df790f48b76dea58d1cd843b8cd56990c74273`
+  - next strongest step:
+    - flash image `fe9d163a...`
+    - capture UART with the canonical helper
+    - classify the next real-board boundary from:
+      - `KLM`
+      - `KLM + X1`
+      - `KLM + X1 + X2`
+      - `KLM + X1 + X2 + X3`
+      - `X3` plus no `N`
+      - or a later `N..S` continuation
+
+- on `2026-04-17`, the next real-board UART log
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260417-211048.log`
   proved that the no-LED cleanup moved the active boundary again:
   - the live log now reaches:

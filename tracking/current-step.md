@@ -2,22 +2,22 @@
 
 ## Metadata
 
-- Step ID: `STEP-0499`
-- Title: `Retry Pi 4 on the post-MMU UART split image`
+- Step ID: `STEP-0500`
+- Title: `Retry Pi 4 on the pre-MMU UART split image`
 - Status: `ready`
 - Date: `2026-04-17`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- retry the Pi 4 with the refreshed image that adds safe post-MMU kernel UART
-  breadcrumbs
+- retry the Pi 4 with the refreshed image that adds both pre-MMU and post-MMU
+  kernel UART breadcrumbs
 - classify the remaining real-hardware boundary between:
-  - `ttbr1`-backed post-MMU UART enable
-  - `_core_0_virtual`
-  - syspage copy
-  - `_set_up_vbar_and_stacks`
-  - earliest `main()`
+  - early MMU setup before `ttbr0_el1`
+  - `ttbr0_el1` programming
+  - actual MMU enable at `msr sctlr_el1, x0`
+  - first safe post-MMU UART point
+  - later `_core_0_virtual` / `main()` path if the boundary moves
 
 ## Scope
 
@@ -40,12 +40,11 @@ Out of scope:
 - the retry captures at least one raw UART log
 - the retry shows the highest completed kernel breadcrumb among:
   - `KLM`
-  - `KLMN`
-  - `KLMNO`
-  - `KLMNOP`
-  - `KLMNOPQ`
-  - `KLMNOPQR`
-  - `KLMNOPQRS`
+  - `KLM + X1`
+  - `KLM + X1 + X2`
+  - `KLM + X1 + X2 + X3`
+  - `X3` plus no `N`
+  - or a later `N..S` continuation
 - the next engineering change can target one precise sub-band of the kernel
   MMU-to-`main()` path
 
@@ -60,6 +59,9 @@ Out of scope:
   - `TR0..TR3`
   - `hal: jump exit el1`
   - `KLM`
+  - `X1`
+  - `X2`
+  - `X3`
   - `N`
   - `O`
   - `P`
@@ -71,7 +73,7 @@ Out of scope:
 
 - current exported image to test:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
-  (SHA-256: `6638e81ec8052beb23bb83a02340b1a1cc3a1e4914ce2c0779b949c04d275c9a`)
+  (SHA-256: `fe9d163ab5d23aa88bbaea35c5df790f48b76dea58d1cd843b8cd56990c74273`)
 
 ## Notes
 
@@ -89,7 +91,12 @@ Out of scope:
     - `K`
     - `L`
     - `M`
-- the active blocker is now after `M` and before `main()`
-- raw physical PL011 writes are no longer trustworthy after the MMU/TTBR1
-  transition, so the current image now uses a fixed temporary PL011 virtual
-  mapping for post-MMU breadcrumbs
+- the follow-up real-board UART log
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260417-213033.log`
+  proved that the first post-MMU split was still too late, because the raw
+  tail remained exactly `A2` then `KLM`
+- the active blocker is now between `M` and the first safe post-MMU UART
+  breadcrumb
+- the current image therefore adds three earlier physical-UART checkpoints
+  `X1/X2/X3` before the MMU enable, while keeping the later fixed-virtual-UART
+  `N..S` checkpoints in place

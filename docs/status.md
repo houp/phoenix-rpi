@@ -10,6 +10,45 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-18`, the externally added kernel fixes were reviewed from the
+  committed tree:
+  - `phoenix-rtos-kernel f13f766c`
+    `hal/aarch64: fix Pi 4 kernel hang after MMU-on`
+  - coordination repo `1ddf1d4`
+    `pi4: document MMU identity and GIC parsing fixes`
+- current technical assessment of those fixes:
+  - **`PMAP_COMMON_SCRATCH_TT` zeroing in `hal/aarch64/_init.S` is a strong and
+    plausible fix**, because that table is used as the live TTBR0 identity map
+    and previously relied on uninitialized memory.
+  - **the GIC `reg` parsing cleanup in `hal/aarch64/dtb.c` is directionally
+    correct**, because the older code mixed hardcoded tuple widths with Pi 4
+    `/soc` cell-width assumptions.
+  - **the moved TLB invalidation in `hal/aarch64/pmap.c` is plausible but not
+    yet proven on hardware**; it is low-risk and consistent with the stated
+    intent.
+- validation executed on the current committed tree:
+  - `./scripts/qemu-shell-smoke.sh rpi4b`: pass
+  - `/bin/bash /Users/witoldbolt/phoenix-rpi/scripts/qemu-rpi4b-hdmi-smoke.sh`:
+    pass
+  - `./scripts/qemu-shell-smoke.sh generic`: inconclusive helper run; no final
+    success output or retained log was produced
+  - `./scripts/rebuild-rpi4b-fast.sh --scope core --qemu-sanity`: pass
+  - canonical export: pass
+  - FAT-aware verify: pass
+- warning surfaced in this validation session:
+  - the generic shell-smoke helper again behaved inconsistently; unlike the Pi 4
+    shell and HDMI smokes, it produced neither a success transcript nor a saved
+    `/tmp/generic-shell-smoke.log`
+  - treat that helper as flaky until tightened; do not let it outweigh the
+    explicit Pi 4 smoke lanes
+- refreshed exported Pi 4 image from the current committed tree:
+  - path: `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+  - SHA-256: `01bd6720f4f4a20fe97387fa4d5c29c26a9f67bbe0ccf3455c542a00143c5327`
+- next strongest step:
+  - flash image `01bd6720...`
+  - capture a real-board UART log
+  - verify whether the board now proceeds beyond `3C` into the kernel banner
+
 - on `2026-04-17`, the latest real-board UART log
   `artifacts/rpi4b-uart/rpi4b-uart-20260417-235201.log`
   showed a persistent hang at `3C` immediately after MMU-on.

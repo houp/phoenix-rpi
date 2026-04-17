@@ -50,7 +50,7 @@ Out of scope:
 
 - current exported image to test:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
-  (SHA-256: `4e873f294f07e6d636390816aac318b51f3ceb55ed85ab4ea9ac594e0fc06204`)
+  (SHA-256: `01bd6720f4f4a20fe97387fa4d5c29c26a9f67bbe0ccf3455c542a00143c5327`)
 - previous image before this strategy change:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
   (SHA-256: `bc08128b86c3d7b22cbd1160b81281d0ef5849c34c88f962b3cadfad29aa559d`)
@@ -69,5 +69,11 @@ Out of scope:
 - earlier real-board logs on the same day genuinely reached `...X3NO`, so the
   project is not stuck on an imaginary or stale-image boundary; it lost
   observability after the post-MMU UART path was removed
-- the next move is therefore to catch the first real exception at the seam,
-  not to add more late-stage progress markers
+- the current committed tree now also includes:
+  - TTBR0 identity-table zeroing in `_init.S`
+  - GIC `reg` parsing cleanup in `dtb.c`
+  - earlier TLB invalidation before `_dtb_init()` in `pmap.c`
+- QEMU validation on that refreshed tree:
+  - Pi 4 shell smoke: pass
+  - Pi 4 HDMI smoke: pass
+  - generic shell smoke helper: inconclusive/flaky

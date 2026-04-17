@@ -82,8 +82,7 @@ PHASE_PATTERNS = [
             r"tty0 ready",
             r"console ready",
             r"Available commands:",
-            r"psh:",
-            r"pl011-tty",
+            r"^psh:",
         ],
     ),
     (

@@ -13,10 +13,12 @@ not instead of it.
 
 Current strong recommendation:
 
-- when a USB-TTL cable is available, use UART as the primary observability lane
-- the old structured GPIO42 Phoenix telemetry is no longer part of the current
-  stabilized image
-- LED video is now optional auxiliary evidence, not the primary decode channel
+- for the current bounded diagnostic image, use GPIO42 / ACT LED pulses plus
+  HDMI as the primary observability lane
+- keep UART capture in parallel if any output remains visible
+- the old compact stage-code telemetry is not the active image anymore; the
+  current image uses a simpler bounded `1..10` pulse map around the HDMI panel
+  and earliest kernel path
 
 ## Current Artifact
 
@@ -26,10 +28,11 @@ Use this image:
 
 Current SHA-256:
 
-- `eff8ca6193da33baeeb5af6c7fee3deefbd6a6243388b5cc708544bab2dd210e`
+- `06c3756584acd2a06f9143caece9fc29b93a61b6fcab84a439e19b0fc3e16868`
 
-This image supersedes the earlier Pi 4 trial images that still halted in the
-late custom armstub seam on an empty `kernel_entry32` slot.
+This image supersedes the earlier restored-clock retry image
+`60e0aac62028e25c6f409839103e9cc500231855b8542eb579ea29db4f7e2fd7`
+for one bounded regression-classification step.
 
 This image now intentionally uses:
 
@@ -44,18 +47,16 @@ This image now intentionally uses:
   - `uart_2ndstage=1`
   - `init_uart_baud=115200`
 - kernel PL011 hardcoding at `115200`
-- no legacy Phoenix GPIO42 stage-code telemetry in:
-  - `armstub`
-  - earliest `plo`
+- bounded Pi 4 GPIO42 pulse checkpoints only in:
+  - `plo` video path
   - kernel `_start`
-  - `dummyfs`
+  - kernel `_hal_init()`
+  - kernel `main()` immediately after `_hal_init()`
 
 Historical note:
 
-- the detailed GPIO42 stage-code map and the dual-profile `firmware` /
-  `postswitch` serial workflow described later in this file are preserved as
-  historical context from earlier diagnostic images
-- they are not the primary expectation for the current stabilized image
+- the older compact GPIO42 stage-code map remains historical context only
+- it is not the active decode layout for this image
 - custom Pi 4 armstub EL3 preparation:
   - local timer control / prescaler
   - `CNTFRQ_EL0 = 54000000`
@@ -135,6 +136,19 @@ Historical note:
   - `0xff841000`
   - `0xff842000`
 
+Current bounded pulse map:
+
+- `1`: `video_init()` entry
+- `2`: framebuffer allocation complete
+- `3`: initial brown-panel draw complete
+- `4`: `video_markHalReady()` entry
+- `5`: `video_markHalReady()` draw complete
+- `6`: `video_markKernelJump()` entry
+- `7`: `video_markKernelJump()` draw complete
+- `8`: kernel `_start`
+- `9`: kernel `_hal_init()` entry
+- `10`: kernel `main()` immediately after `_hal_init()`
+
 Do not reuse older on-card `config.txt` edits. Reflash the whole image instead.
 
 ## Hardware Setup
@@ -178,12 +192,10 @@ Current UART wiring:
    - if you want earlier EEPROM messages than `uart_2ndstage`, enable
      `BOOT_UART=1` in the Raspberry Pi EEPROM on a known-good Raspberry Pi OS
      card first
-7. Power on the board.
-8. Start a high-framerate close-up video before power-on and keep both LEDs in
-   frame for at least 60 seconds.
-   If convenient, record 90 seconds so the full compact `1..26` seam plus the
-   later `plo` stages still
-   fits even if the board progresses farther than expected.
+7. Start a close ACT-LED video before power-on and keep the LED visible for at
+   least 60 seconds.
+8. Power on the board.
+9. Keep the video running until the pulse sequence clearly stops.
    The current host-side decode workflow is:
    - [scripts/analyze-rpi4-actled-video.py](/Users/witoldbolt/phoenix-rpi/scripts/analyze-rpi4-actled-video.py)
    - [scripts/interpret-rpi4-actled-analysis.py](/Users/witoldbolt/phoenix-rpi/scripts/interpret-rpi4-actled-analysis.py)
@@ -192,21 +204,20 @@ Current UART wiring:
    - `scripts/analyze-rpi4-actled-video.py --pretty /path/to/IMG_xxxx.mov > /tmp/pi4-led.json`
    - `scripts/interpret-rpi4-actled-analysis.py /tmp/pi4-led.json`
    Interpretation rule:
-   - the initial ACT LED chatter during firmware SD-card reads is not Phoenix
-     telemetry
-   - ignore that preamble unless it becomes part of a later valid contiguous
-     Phoenix stage run
-9. Wait at least 90 seconds before classifying a silent result on the current
-   firmware-entry-contract image.
-10. After the trial, summarize the UART log if one was captured:
+   - on this image, treat the pulses as simple count groups, not compact
+     stage-code bursts
+   - count the highest clearly completed pulse group after power-on
+10. Wait at least 90 seconds before classifying a silent result on the current
+   image.
+11. After the trial, summarize the UART log if one was captured:
    - [summarize-rpi4b-uart-log.py](/Users/witoldbolt/phoenix-rpi/scripts/summarize-rpi4b-uart-log.py) `/path/to/log`
    - if a firmware-profile log stops at the PL011 baud-switch line, the helper
      now tells you to rerun with `--profile postswitch`
-11. If text or prompt appears, try:
+12. If text or prompt appears, try:
    - `help`
    - `ps`
    - `ls /`
-12. Record the outcome using the template below.
+13. Record the outcome using the template below.
 
 ## Expected Positive Signs
 
@@ -216,8 +227,8 @@ Any of these are useful:
 - firmware second-stage UART output
 - later Phoenix `plo`, kernel, or shell UART output
 - trampoline UART breadcrumbs `TR0..TR3`
-- clearly separated ACT-LED stage-code bursts
-- a highest completed checkpoint code that can be decoded from the video
+- clearly separated GPIO42 pulse groups
+- a highest completed checkpoint count from `1..10`
 - visible top-left early panel from `plo`
 - black background with white text
 - readable Phoenix boot output
@@ -238,6 +249,20 @@ Use one primary class:
 - `runtime-shell`
   prompt appears and at least one command works
 - `reboot-loop`
+
+## Current Pulse Interpretation Rule
+
+- highest `1`, `2`, or `3` only:
+  failure is still inside the early HDMI panel path
+- reaches `7` but not `8`:
+  failure is between `video_markKernelJump()` and kernel entry
+- reaches `8` but not `9`:
+  kernel dies before `_hal_init()`
+- reaches `9` but not `10`:
+  kernel dies inside `_hal_init()`
+- reaches `10`:
+  failure is later than early HAL init and the next step should move deeper
+  into kernel or userspace startup
   repeated visible restart pattern
 - `unknown`
   ambiguous result

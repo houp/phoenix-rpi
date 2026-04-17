@@ -10,6 +10,69 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-17`, a new bounded Pi 4-only LED diagnostic image was built to
+  reclassify the current late-boot regression boundary after the restored-clock
+  image still produced no useful later UART:
+  - git-history review of the recent April 13-17 series showed that the
+    earlier "HDMI text" period coincided with temporary observability and
+    stabilization changes, not a clearly deeper committed boot boundary:
+    - `phoenix-rtos-project b6dab61`
+      `project/rpi4b: stabilize UART clock in config.txt`
+    - `phoenix-rtos-devices 993a8b6`
+      `rpi4b: add HDMI mirroring and userspace heartbeat LED`
+    - `phoenix-rtos-filesystems f3f90bb`
+      `dummyfs: add HDMI tracing for initialization milestones`
+    - later cleanup removed or reverted those visibility aids:
+      - `phoenix-rtos-project 06144ef`
+      - `phoenix-rtos-devices 540e25b`
+      - `phoenix-rtos-filesystems 4ad91e3`
+      - `phoenix-rtos-filesystems 1ae1cbf`
+  - current strongest interpretation:
+    - the April 17 board result is not a regression back to pre-`plo`
+    - the brown three-square panel still proves `plo` reaches
+      `video_markKernelJump()` before `hal_exitToEL1()`
+    - the next useful split is now between the early HDMI panel path and the
+      earliest kernel initialization path, not back in the armstub seam
+  - implemented bounded Pi 4 GPIO42 pulses only around the current late visible
+    boundary:
+    - `phoenix-rtos-project`:
+      - `_projects/aarch64a72-generic-rpi4b/board_config.h`
+    - `plo`:
+      - `hal/aarch64/generic/video.c`
+    - `phoenix-rtos-kernel`:
+      - `hal/aarch64/_init.S`
+      - `hal/aarch64/hal.c`
+      - `main.c`
+  - current checkpoint map on the new image:
+    - `1`: `video_init()` entry
+    - `2`: framebuffer allocation complete
+    - `3`: initial brown-panel draw complete
+    - `4`: `video_markHalReady()` entry
+    - `5`: `video_markHalReady()` draw complete
+    - `6`: `video_markKernelJump()` entry
+    - `7`: `video_markKernelJump()` draw complete
+    - `8`: kernel `_start`
+    - `9`: kernel `_hal_init()` entry
+    - `10`: kernel `main()` immediately after `_hal_init()`
+  - validation:
+    - `./scripts/rebuild-rpi4b-fast.sh --scope core --qemu-sanity`: pass
+    - Pi 4 shell smoke: pass
+    - Pi 4 HDMI smoke: pass
+    - canonical export: pass
+    - FAT-aware verify: pass
+  - refreshed exported Pi 4 image:
+    - path: `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+    - SHA-256: `06c3756584acd2a06f9143caece9fc29b93a61b6fcab84a439e19b0fc3e16868`
+  - next strongest step:
+    - flash image `06c37565...`
+    - observe the highest completed GPIO42 pulse group
+    - use that result to localize the failure to one of:
+      - before the brown panel is fully drawn
+      - between `video_markKernelJump()` and kernel `_start`
+      - before `_hal_init()`
+      - inside `_hal_init()`
+      - or after `_hal_init()`
+
 - on `2026-04-17`, the next reproducible Pi 4 image was rebuilt with the
   temporary firmware clock-stabilization settings restored:
   - restored in

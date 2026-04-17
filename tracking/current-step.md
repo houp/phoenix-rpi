@@ -2,74 +2,72 @@
 
 ## Metadata
 
-- Step ID: `STEP-0490`
-- Title: Await the next Pi 4 retry on the restored clock-stabilization image
+- Step ID: `STEP-0492`
+- Title: Await the next Pi 4 retry on the bounded post-panel LED diagnostic image
 - Status: `ready`
 - Date: `2026-04-17`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- verify whether restoring the temporary Pi 4 firmware clock settings recovers
-  the lost late-boot observability on real hardware
-- check whether the April 17 cleanup-image regression was primarily a serial /
-  visibility regression rather than a deeper pre-userspace boot regression
-- gather the next real evidence before making broader userspace or DTB changes
+- run one new real-device retry on the bounded post-panel diagnostic image
+- classify the current regression boundary from the new Pi 4-only GPIO42 pulse
+  map around the HDMI panel and earliest kernel path
+- use that result to choose the first real fix instead of widening back into
+  blind userspace tracing
 
 ## Scope
 
 In scope:
-- one new real-device Pi 4 retry on the restored-clock image
+- one new real-device Pi 4 retry on the refreshed image
 - HDMI observation
-- UART capture
-- fallback `postswitch` capture if the firmware still overrides the restored
-  configuration
+- LED pulse observation or recording
+- UART capture if any output remains visible
 
 Out of scope:
-- reintroducing legacy GPIO42 stage telemetry
-- broad manual HDMI tracing rollback before the next real result
-- unrelated pre-`plo` boot changes
+- broad userspace HDMI mirroring rollback before seeing the new boundary
+- unrelated pre-`plo` boot-model changes
 
 ## Acceptance Criteria
 
-- the restored-clock image is flashed and tried on real hardware
-- the retry clearly answers one of:
-  - `115200` UART becomes readable past the old firmware cut-off
-  - the firmware still switches baud and a `postswitch` capture is required
-  - HDMI regains the earlier text visibility
-  - the board still stops at the same brown three-square panel
-- the next blocker is classified from that real evidence instead of from stale
-  cleanup-image assumptions
+- the refreshed image is tried on real hardware
+- the retry identifies the highest completed checkpoint among the documented
+  pulse groups
+- the next engineering step can target one narrow seam instead of the whole
+  post-`plo` band
 
 ## Validation Plan
 
 - flash `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
-- capture UART first with:
-  - `./scripts/capture-rpi4b-uart.sh --profile firmware --device /dev/cu.usbserial-XXXX --label pi4-firmware`
-- if the log still ends at the firmware baud-switch line, rerun with:
-  - `./scripts/capture-rpi4b-uart.sh --profile postswitch --device /dev/cu.usbserial-XXXX --label pi4-postswitch`
-- summarize with:
-  - `./scripts/summarize-rpi4b-uart-log.py /path/to/log`
-- capture an HDMI screenshot or photo if the screen changes
+- observe:
+  - HDMI output
+  - GPIO42 / ACT LED pulse groups
+  - any UART output
+- if possible, record a close LED video for later analysis
 
 ## Rollback / Baseline
 
-- restored-clock test image:
+- bounded diagnostic image:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
-  (SHA-256: `60e0aac62028e25c6f409839103e9cc500231855b8542eb579ea29db4f7e2fd7`)
-- prior cleaned-image baseline:
-  `eff8ca6193da33baeeb5af6c7fee3deefbd6a6243388b5cc708544bab2dd210e`
-- restoration step recorded in:
-  `manifests/2026-04-17-pi4-uart-clock-restoration.md`
+  (SHA-256: `06c3756584acd2a06f9143caece9fc29b93a61b6fcab84a439e19b0fc3e16868`)
+- prior restored-clock baseline:
+  `60e0aac62028e25c6f409839103e9cc500231855b8542eb579ea29db4f7e2fd7`
+- this step recorded in:
+  `manifests/2026-04-17-pi4-post-panel-led-diagnostics.md`
 
 ## Notes
 
-- the April 17 cleanup-image retry still reached the `plo` kernel-jump panel
-  but falsified the “plain `115200` primary lane” assumption
-- the restored test image now reintroduces:
-  - `force_turbo=1`
-  - `core_freq=250`
-  in the Pi 4 `config.txt`
-- QEMU remains non-regression green on the restored image:
+- current checkpoint map:
+  - `1` `video_init()` entry
+  - `2` framebuffer allocation complete
+  - `3` initial brown-panel draw complete
+  - `4` `video_markHalReady()` entry
+  - `5` `video_markHalReady()` draw complete
+  - `6` `video_markKernelJump()` entry
+  - `7` `video_markKernelJump()` draw complete
+  - `8` kernel `_start`
+  - `9` kernel `_hal_init()` entry
+  - `10` kernel `main()` after `_hal_init()`
+- QEMU remains non-regression green on this image:
   - Pi 4 shell smoke: pass
   - Pi 4 HDMI smoke: pass

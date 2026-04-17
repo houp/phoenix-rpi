@@ -80,12 +80,13 @@
   - summarize the log after the run instead of trimming it manually
   - let the helper choose the tool in normal use; it now prefers `tio`
     automatically and falls back to `picocom` only when needed
-  - for the current stabilized Pi 4 image, start with `--profile firmware`
-    because the intended current lane is now `115200` end-to-end
+  - for the current bounded late-boot diagnostic image, still start with
+    `--profile firmware`
   - use `--profile postswitch` only as a fallback if a new real-board run still
     proves the firmware is overriding the configured baud rate
-  - the old structured GPIO42 Phoenix stage telemetry is no longer part of the
-    current stabilized image
+  - the current active image again uses bounded GPIO42 pulse groups around the
+    HDMI panel and earliest kernel path, so LED video is again a primary
+    lane for the next retry
 - current Pi 4 firmware/config prerequisites:
   - the Phoenix Pi 4 `config.txt` already sets:
     - `enable_uart=1`

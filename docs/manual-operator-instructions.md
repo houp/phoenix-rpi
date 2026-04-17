@@ -686,8 +686,8 @@ Current practical rules:
 - current expected serial mode is `115200 8N1`
 - start UART capture before powering the board on
 - preserve the raw log file; summarize it after capture instead of trimming it
-- the old structured GPIO42 Phoenix stage telemetry is no longer part of the
-  current stabilized image
+- on the current bounded Pi 4 diagnostic image, GPIO42 / ACT LED pulses are
+  again part of the primary observability lane
 - the canonical helper now prefers `tio` automatically when it is installed
 - the helper keeps `picocom` as a fallback when explicitly requested or when
   `--exit-after` is used for local dry runs
@@ -707,6 +707,24 @@ Recommended operator flow:
    - `Ctrl-A` then `Ctrl-X` when the helper selected `picocom`
 5. summarize the raw log:
    - [summarize-rpi4b-uart-log.py](/Users/witoldbolt/phoenix-rpi/scripts/summarize-rpi4b-uart-log.py) `/path/to/log`
+
+Current late-boot bounded LED rule:
+
+- the current image does not use the older compact stage-code ACT protocol
+- it uses simple Pi 4-only pulse groups at:
+  - `1`: `video_init()` entry
+  - `2`: framebuffer allocation complete
+  - `3`: initial brown-panel draw complete
+  - `4`: `video_markHalReady()` entry
+  - `5`: `video_markHalReady()` draw complete
+  - `6`: `video_markKernelJump()` entry
+  - `7`: `video_markKernelJump()` draw complete
+  - `8`: kernel `_start`
+  - `9`: kernel `_hal_init()` entry
+  - `10`: kernel `main()` after `_hal_init()`
+- for the next retry, count the highest clearly completed pulse group
+- if UART remains silent, use that count plus the HDMI state as the primary
+  classification evidence
 
 Current UART-output expectations:
 

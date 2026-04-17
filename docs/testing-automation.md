@@ -85,8 +85,8 @@
   - use `--profile postswitch` only as a fallback if a new real-board run still
     proves the firmware is overriding the configured baud rate
   - the current active image again uses bounded GPIO42 pulse groups around the
-    HDMI panel and earliest kernel path, so LED video is again a primary
-    lane for the next retry
+    final `plo` -> kernel seam, so LED video is again a primary lane for the
+    next retry
 - current Pi 4 firmware/config prerequisites:
   - the Phoenix Pi 4 `config.txt` already sets:
     - `enable_uart=1`
@@ -254,10 +254,12 @@ Current practical note for the first Pi 4 hardware attempt without USB-TTL:
   - example:
     - `scripts/analyze-rpi4-actled-video.py --pretty /path/to/IMG_xxxx.mov > /tmp/pi4-led.json`
     - `scripts/interpret-rpi4-actled-analysis.py /tmp/pi4-led.json`
-- current validated pre-fix LED result:
-  - the last trustworthy fixed-target image analysis still bounded the real
-    hardware failure to the tiny armstub seam immediately after stage `3`
-  - that is why the active image now replaces the fixed-target signature-read
+- current validated late-seam LED result:
+  - after the LED interpreter was corrected for the current count-based map,
+    `IMG_7161.mov` from the broad post-panel image most strongly reaches only
+    stage `6`
+  - that is why the active image now narrows the GPIO42 map to `6..11` and
+    restores earliest kernel UART at `_start`
     ladder with a firmware-slot handoff probe
 - important interpretation rule:
   - the initial ACT LED chatter seen while Raspberry Pi firmware reads the

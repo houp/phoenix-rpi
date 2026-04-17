@@ -14,6 +14,8 @@ class StageDef:
     source_symbol: str
 
     def bits(self, code_bits: int) -> str:
+        if code_bits <= 0:
+            return ""
         return format(self.code, f"0{code_bits}b")
 
 
@@ -21,6 +23,7 @@ class StageDef:
 class LayoutDef:
     name: str
     description: str
+    mode: str
     code_bits: int
     sync_pulses: int
     stage_order: tuple[int, ...]
@@ -28,12 +31,14 @@ class LayoutDef:
     notes: tuple[str, ...]
 
 
-CURRENT_LAYOUT_NAME = "pi4_firmware_entry_contract_map_2026_04_11"
+CURRENT_LAYOUT_NAME = "pi4_post_panel_pulse_map_2026_04_17"
+LEGACY_LAYOUT_NAME = "pi4_firmware_entry_contract_map_2026_04_11"
 
 
-_CURRENT_LAYOUT = LayoutDef(
-    name=CURRENT_LAYOUT_NAME,
+_LEGACY_LAYOUT = LayoutDef(
+    name=LEGACY_LAYOUT_NAME,
     description="Pi 4 compact GPIO42 telemetry with duplicated focus-stage bursts around the restored firmware handoff contract: dtb_ptr32, kernel_entry32, kernel fallback to 0x80000, and branch into plo",
+    mode="bitcode",
     code_bits=5,
     sync_pulses=1,
     stage_order=(1, 2, 3, 23, 24, 25, 26, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22),
@@ -256,7 +261,68 @@ _CURRENT_LAYOUT = LayoutDef(
 )
 
 
+_CURRENT_LAYOUT = LayoutDef(
+    name=CURRENT_LAYOUT_NAME,
+    description="Pi 4 bounded late-handoff GPIO42 pulse-count diagnostics around the confirmed plo kernel-jump panel and earliest kernel path",
+    mode="pulse_count",
+    code_bits=0,
+    sync_pulses=0,
+    stage_order=(6, 7, 8, 9, 10, 11),
+    stages={
+        6: StageDef(
+            code=6,
+            label="video_markKernelJump entry",
+            meaning="PLO entered video_markKernelJump() before updating the final brown three-square panel stage.",
+            source_file="/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/video.c",
+            source_symbol="video_markKernelJump",
+        ),
+        7: StageDef(
+            code=7,
+            label="video_markKernelJump draw complete",
+            meaning="PLO finished drawing the final kernel-jump panel stage.",
+            source_file="/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/video.c",
+            source_symbol="video_markKernelJump",
+        ),
+        8: StageDef(
+            code=8,
+            label="pre-hal_exitToEL1 handoff",
+            meaning="PLO reached the final pre-EL1 handoff point immediately before hal_exitToEL1().",
+            source_file="/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/hal.c",
+            source_symbol="hal_cpuJump",
+        ),
+        9: StageDef(
+            code=9,
+            label="kernel _start",
+            meaning="Kernel _start was reached after the earliest PL011 115200 reinit.",
+            source_file="/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-kernel/hal/aarch64/_init.S",
+            source_symbol="_start",
+        ),
+        10: StageDef(
+            code=10,
+            label="kernel _hal_init entry",
+            meaning="Kernel entered _hal_init().",
+            source_file="/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-kernel/hal/aarch64/hal.c",
+            source_symbol="_hal_init",
+        ),
+        11: StageDef(
+            code=11,
+            label="kernel main after _hal_init",
+            meaning="Kernel main() ran after _hal_init() completed.",
+            source_file="/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-kernel/main.c",
+            source_symbol="main",
+        ),
+    },
+    notes=(
+        "Current image uses simple pulse-count groups, not the older compact bit-coded stage protocol.",
+        "Interpret groups by pulse_count rather than decode bits.",
+        "Ignore early Raspberry Pi firmware SD-card chatter before the first matched stage in the 6..11 map.",
+    ),
+)
+
+
 LAYOUTS: dict[str, LayoutDef] = {
+    LEGACY_LAYOUT_NAME: _LEGACY_LAYOUT,
+    "legacy_2026_04_11": _LEGACY_LAYOUT,
     CURRENT_LAYOUT_NAME: _CURRENT_LAYOUT,
     "current": _CURRENT_LAYOUT,
 }
@@ -274,6 +340,7 @@ def layout_to_dict(layout: LayoutDef) -> dict:
     return {
         "name": layout.name,
         "description": layout.description,
+        "mode": layout.mode,
         "code_bits": layout.code_bits,
         "sync_pulses": layout.sync_pulses,
         "stage_order": list(layout.stage_order),

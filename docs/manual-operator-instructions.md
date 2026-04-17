@@ -711,17 +711,13 @@ Recommended operator flow:
 Current late-boot bounded LED rule:
 
 - the current image does not use the older compact stage-code ACT protocol
-- it uses simple Pi 4-only pulse groups at:
-  - `1`: `video_init()` entry
-  - `2`: framebuffer allocation complete
-  - `3`: initial brown-panel draw complete
-  - `4`: `video_markHalReady()` entry
-  - `5`: `video_markHalReady()` draw complete
+- it uses simple Pi 4-only pulse groups only at the late handoff seam:
   - `6`: `video_markKernelJump()` entry
   - `7`: `video_markKernelJump()` draw complete
-  - `8`: kernel `_start`
-  - `9`: kernel `_hal_init()` entry
-  - `10`: kernel `main()` after `_hal_init()`
+  - `8`: final pre-`hal_exitToEL1()` handoff
+  - `9`: kernel `_start`
+  - `10`: kernel `_hal_init()` entry
+  - `11`: kernel `main()` after `_hal_init()`
 - for the next retry, count the highest clearly completed pulse group
 - if UART remains silent, use that count plus the HDMI state as the primary
   classification evidence

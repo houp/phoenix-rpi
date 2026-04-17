@@ -10,6 +10,69 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-17`, the long ACT-LED clip
+  `/Users/witoldbolt/Downloads/IMG_7161.mov` from the earlier broad
+  post-panel image was re-analyzed after the host-side LED interpreter was
+  corrected for the current count-based layout:
+  - the previous reusable LED toolchain had drifted and still assumed the old
+    compact bit-coded protocol, which made recent long clips partially manual
+    to interpret
+  - the toolchain now understands the current simple pulse-count map
+  - current result for `IMG_7161.mov`:
+    - best contiguous run reaches only stage `6`
+    - next expected stage `7` is not seen
+    - repeated later unmatched groups still collapse to `6`, which strongly
+      suggests repeated failure at or immediately after
+      `video_markKernelJump()`
+  - strongest inference:
+    - the broad `1..10` diagnostic image is both too perturbing and still too
+      noisy
+    - the live boundary is now tighter than before:
+      around `video_markKernelJump()` / final `plo` handoff, not inside later
+      kernel or userspace startup on that image
+- on `2026-04-17`, the next bounded Pi 4 image was rebuilt to reduce probe
+  perturbation and restore earliest kernel UART visibility:
+  - reduced GPIO42 pulse map:
+    - removed the early panel checkpoints in `video_init()` and
+      `video_markHalReady()`
+    - kept only the late seam:
+      - `6`: `video_markKernelJump()` entry
+      - `7`: `video_markKernelJump()` draw complete
+      - `8`: final pre-`hal_exitToEL1()` handoff point
+      - `9`: kernel `_start`
+      - `10`: kernel `_hal_init()` entry
+      - `11`: kernel `main()` immediately after `_hal_init()`
+  - restored earliest readable kernel UART in
+    `/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-kernel/hal/aarch64/_init.S`
+    by reprogramming PL011 back to `115200` at the first kernel instruction on
+    the Pi 4 `48 MHz` PL011 lane before the first kernel UART breadcrumbs
+  - touched repos:
+    - `plo`
+    - `phoenix-rtos-kernel`
+    - coordination repo LED tools/docs
+  - validation:
+    - `./scripts/rebuild-rpi4b-fast.sh --scope core --qemu-sanity`: pass
+    - direct Pi 4 QEMU serial sanity still reaches:
+      - `hal: jump exit el1`
+      - `A3`
+      - `KLMconsole: pl011 init done`
+    - canonical export: pass
+    - FAT-aware verify: pass
+    - `python3 -m py_compile` on the updated LED-toolchain scripts: pass
+  - refreshed exported Pi 4 image:
+    - path: `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+    - SHA-256: `405396dbd5328393223787288d832cea98ca28c417eacc8b1cbea72d316760a9`
+  - next strongest step:
+    - flash image `405396db...`
+    - capture UART
+    - observe only the late GPIO42 groups `6..11`
+    - classify whether the board dies:
+      - inside `video_markKernelJump()`
+      - between final `plo` handoff and kernel `_start`
+      - before `_hal_init()`
+      - inside `_hal_init()`
+      - or after `_hal_init()`
+
 - on `2026-04-17`, a new bounded Pi 4-only LED diagnostic image was built to
   reclassify the current late-boot regression boundary after the restored-clock
   image still produced no useful later UART:

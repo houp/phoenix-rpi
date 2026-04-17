@@ -16,9 +16,8 @@ Current strong recommendation:
 - for the current bounded diagnostic image, use GPIO42 / ACT LED pulses plus
   HDMI as the primary observability lane
 - keep UART capture in parallel if any output remains visible
-- the old compact stage-code telemetry is not the active image anymore; the
-  current image uses a simpler bounded `1..10` pulse map around the HDMI panel
-  and earliest kernel path
+- the active image now uses only the late handoff seam, not the earlier broad
+  `1..10` panel-path map
 
 ## Current Artifact
 
@@ -28,11 +27,10 @@ Use this image:
 
 Current SHA-256:
 
-- `06c3756584acd2a06f9143caece9fc29b93a61b6fcab84a439e19b0fc3e16868`
+- `405396dbd5328393223787288d832cea98ca28c417eacc8b1cbea72d316760a9`
 
-This image supersedes the earlier restored-clock retry image
-`60e0aac62028e25c6f409839103e9cc500231855b8542eb579ea29db4f7e2fd7`
-for one bounded regression-classification step.
+This image supersedes the earlier broad post-panel diagnostic image
+`06c3756584acd2a06f9143caece9fc29b93a61b6fcab84a439e19b0fc3e16868`.
 
 This image now intentionally uses:
 
@@ -47,8 +45,11 @@ This image now intentionally uses:
   - `uart_2ndstage=1`
   - `init_uart_baud=115200`
 - kernel PL011 hardcoding at `115200`
-- bounded Pi 4 GPIO42 pulse checkpoints only in:
-  - `plo` video path
+- earliest kernel `_start` now also reprograms PL011 back to `115200` on the
+  Pi 4 `48 MHz` PL011 lane before the first kernel UART breadcrumb
+- bounded Pi 4 GPIO42 pulse checkpoints only at the late seam:
+  - `video_markKernelJump()`
+  - final pre-`hal_exitToEL1()` handoff
   - kernel `_start`
   - kernel `_hal_init()`
   - kernel `main()` immediately after `_hal_init()`
@@ -138,16 +139,12 @@ Historical note:
 
 Current bounded pulse map:
 
-- `1`: `video_init()` entry
-- `2`: framebuffer allocation complete
-- `3`: initial brown-panel draw complete
-- `4`: `video_markHalReady()` entry
-- `5`: `video_markHalReady()` draw complete
 - `6`: `video_markKernelJump()` entry
 - `7`: `video_markKernelJump()` draw complete
-- `8`: kernel `_start`
-- `9`: kernel `_hal_init()` entry
-- `10`: kernel `main()` immediately after `_hal_init()`
+- `8`: final pre-`hal_exitToEL1()` handoff
+- `9`: kernel `_start`
+- `10`: kernel `_hal_init()` entry
+- `11`: kernel `main()` immediately after `_hal_init()`
 
 Do not reuse older on-card `config.txt` edits. Reflash the whole image instead.
 
@@ -206,6 +203,7 @@ Current UART wiring:
    Interpretation rule:
    - on this image, treat the pulses as simple count groups, not compact
      stage-code bursts
+   - the current host-side LED toolchain again understands the active count map
    - count the highest clearly completed pulse group after power-on
 10. Wait at least 90 seconds before classifying a silent result on the current
    image.
@@ -252,15 +250,17 @@ Use one primary class:
 
 ## Current Pulse Interpretation Rule
 
-- highest `1`, `2`, or `3` only:
-  failure is still inside the early HDMI panel path
+- reaches `6` but not `7`:
+  failure is inside or immediately after `video_markKernelJump()`
 - reaches `7` but not `8`:
   failure is between `video_markKernelJump()` and kernel entry
 - reaches `8` but not `9`:
-  kernel dies before `_hal_init()`
+  failure is between the final `plo` handoff and the first kernel instruction
 - reaches `9` but not `10`:
+  kernel dies before `_hal_init()`
+- reaches `10` but not `11`:
   kernel dies inside `_hal_init()`
-- reaches `10`:
+- reaches `11`:
   failure is later than early HAL init and the next step should move deeper
   into kernel or userspace startup
   repeated visible restart pattern

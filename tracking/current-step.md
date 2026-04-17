@@ -2,20 +2,22 @@
 
 ## Metadata
 
-- Step ID: `STEP-0502`
-- Title: `Retry Pi 4 on the pre-MMU syspage-copy image`
+- Step ID: `STEP-0503`
+- Title: `Retry Pi 4 on the post-MMU syspage split image`
 - Status: `ready`
 - Date: `2026-04-17`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- retry the Pi 4 with the refreshed image that moves the syspage copy before
-  the MMU-backed `_core_0_virtual` handoff and enlarges the syspage backing
-  buffer
+- retry the Pi 4 with the refreshed image that restores the original post-MMU
+  syspage copy, keeps the larger backing buffer, and splits the old `O -> P`
+  seam with finer UART breadcrumbs
 - verify whether the active boundary moves past:
   - the old `... NO` seam
-  - pre-MMU syspage relocation
+  - post-MMU syspage variable initialization
+  - size load
+  - first copy iteration
   - `_set_up_vbar_and_stacks`
   - earliest `main()`
 
@@ -38,8 +40,8 @@ Out of scope:
 
 - the refreshed image is tried on real hardware
 - the retry captures at least one raw UART log
-- the retry shows whether the raw tail still stops at `NO` or moves forward to
-  at least `P`
+- the retry shows whether the raw tail still stops before `P` or advances
+  through the narrower `OUVWZYP` seam
 - the next engineering change can target one precise sub-band of the kernel
   MMU-to-`main()` path
 
@@ -68,31 +70,38 @@ Out of scope:
 
 - current exported image to test:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
-  (SHA-256: `5d6f4bba3786543db10132cf2febf1ebdd37d819e780d795e611bdc141bb422e`)
+  (SHA-256: `4d3d4860eaba47566e0d7c190b2809dc477d80ae8d63fb43b9adee923c742583`)
 
 ## Notes
 
 - the latest real-board UART log
-  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260417-215745.log`
-  disproved the previous tail-copy hypothesis:
-  - the raw tail still reaches:
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260417-220842.log`
+  proved the previous semantic change was a regression:
+  - the raw tail regressed from:
     - `A2`
     - `KLM`
     - `X1`
     - `X2`
     - `X3`
     - `NO`
-  - and still does not reach:
-    - `P`
-    - `Q`
-    - `R`
-    - `S`
+  - back to only:
+    - `A2`
+    - `KLM`
+    - `X1`
+    - `X2`
+    - `X3`
 - that means:
-  - the board survives MMU enable and reaches `_core_0_virtual`
-  - the byte-tail copy fix did not move the live hardware boundary
-  - the more fragile design is the whole post-MMU syspage-copy step itself
-- the refreshed image therefore applies a semantic simplification:
-  - copy the syspage to its kernel backing before the MMU-backed virtual jump,
-    matching the simpler pattern used by the older ARM and RISC-V ports
-  - enlarge `_hal_syspageCopied` from one page to `16 * SIZE_PAGE` so the
-    copied syspage is not constrained to a 4 KB buffer
+  - moving the syspage copy before the MMU jump made the live hardware
+    boundary earlier
+  - the larger syspage backing buffer may still be useful, but the copy should
+    return to the original post-MMU seam
+- the refreshed image therefore:
+  - restores the post-MMU copy in `_core_0_virtual`
+  - keeps `_hal_syspageCopied = 16 * SIZE_PAGE`
+  - adds finer UART breadcrumbs:
+    - `U` after `relOffs` store
+    - `V` after `hal_syspage` store
+    - `W` after `syspage->size` load
+    - `Z` before the first copy iteration
+    - `Y` after the first 8-byte copy iteration
+    - `P` after full copy completion

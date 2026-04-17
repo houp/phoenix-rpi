@@ -11,6 +11,50 @@
 Latest rebuild and retest:
 
 - on `2026-04-17`, the next real-board UART log
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260417-220842.log`
+  proved that the previous semantic change was a regression:
+  - the raw tail regressed from:
+    - `A2`
+    - `KLM`
+    - `X1`
+    - `X2`
+    - `X3`
+    - `NO`
+  - back to only:
+    - `A2`
+    - `KLM`
+    - `X1`
+    - `X2`
+    - `X3`
+  - meaning:
+    - moving the syspage copy before the MMU jump made the live hardware
+      boundary earlier
+    - the `16 * SIZE_PAGE` syspage backing buffer may still be useful, but the
+      post-MMU copy seam remains the correct place to debug
+  - follow-up fix applied:
+    - restored the original post-MMU syspage copy in
+      `/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-kernel/hal/aarch64/_init.S`
+    - kept `_hal_syspageCopied = 16 * SIZE_PAGE`
+    - added fine UART breadcrumbs inside the old `O -> P` seam:
+      - `U` after `relOffs` store
+      - `V` after `hal_syspage` store
+      - `W` after `syspage->size` load
+      - `Z` before the first copy iteration
+      - `Y` after the first 8-byte copy iteration
+      - `P` after full copy completion
+  - validation:
+    - `./scripts/rebuild-rpi4b-fast.sh --scope core --qemu-sanity`: pass
+    - canonical export: pass
+    - FAT-aware verify: pass
+  - refreshed exported Pi 4 image:
+    - path: `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+    - SHA-256: `4d3d4860eaba47566e0d7c190b2809dc477d80ae8d63fb43b9adee923c742583`
+  - next strongest step:
+    - flash image `4d3d4860...`
+    - capture UART with the canonical helper
+    - classify the next boundary from the finer `OUVWZYP` seam
+
+- on `2026-04-17`, the next real-board UART log
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260417-215745.log`
   disproved the previous syspage-tail hypothesis:
   - the raw tail still reaches:

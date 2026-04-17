@@ -10,6 +10,52 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-17`, the next real-board UART log
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260417-233128.log`
+  still ended at:
+  - `A2`
+  - `KLM`
+  - `X1`
+  - `X2`
+  - `X3`
+  so the Linux-style pre-MMU page-table invalidation pass did not move the
+  hardware boundary
+- strongest resulting fix applied this session:
+  - remove the temporary post-MMU PL011 debug path entirely
+  - specifically:
+    - remove `uart_putc_virt`-based markers from
+      `/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-kernel/hal/aarch64/_init.S`
+    - remove the temporary `PL011_TTY_EARLY_VADDR` mapping from
+      `/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/board_config.h`
+    - remove the `main_earlyUartPutch('S')` path from
+      `/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-kernel/main.c`
+- why this is now the strongest live fix:
+  - the first post-MMU operations on the active hardware path were still
+    TTBR1-based PL011 MMIO writes that do not exist in Linux's early arm64
+    switch path
+  - the public-source cross-check did not justify that early high-half MMIO as
+    a required part of Pi 4 bring-up
+  - if the hardware-only fault is on that temporary MMIO seam, keeping it would
+    continue to block the real boot for the sake of observability
+- validation:
+  - `./scripts/rebuild-rpi4b-fast.sh --scope core --qemu-sanity`: pass
+  - `./scripts/qemu-shell-smoke.sh rpi4b`: pass
+  - canonical export: pass
+  - FAT-aware verify: pass
+- warning surfaced this session:
+  - the broad `--qemu-sanity` tail still only showed `A3 / KLM`
+  - the explicit Pi 4 shell smoke still reached `(psh)%`
+  - keep treating the explicit Pi 4 shell smoke as the stronger QEMU runtime
+    signal
+- refreshed exported Pi 4 image:
+  - path: `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+  - SHA-256: `358f4325dec6009e0b9441c052dad370b2fedeb81a6f93eb43db1eadd06f750a`
+- next strongest step:
+  - flash image `358f4325...`
+  - capture UART with the canonical helper
+  - verify whether removing the temporary high-half UART seam lets the board
+    progress into normal kernel console output
+
 - on `2026-04-17`, after the public MMU cross-check, the strongest next
   source-backed fix was applied in
   `/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-kernel/hal/aarch64/_init.S`:

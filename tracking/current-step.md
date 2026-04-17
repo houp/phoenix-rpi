@@ -2,18 +2,18 @@
 
 ## Metadata
 
-- Step ID: `STEP-0508`
-- Title: `Retry Pi 4 on the pre-MMU page-table invalidation image`
+- Step ID: `STEP-0509`
+- Title: `Retry Pi 4 without the temporary post-MMU PL011 debug path`
 - Status: `ready`
 - Date: `2026-04-17`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- retry the Pi 4 on the image that adds Linux-style pre-MMU cache maintenance
-  for the early TTBR0 / TTBR1 tables
-- verify whether the real hardware path finally moves beyond the longstanding
-  `A2 / KLM / X1 / X2 / X3` seam
+- retry the Pi 4 on the image that removes the temporary high-half PL011 debug
+  mapping and post-MMU UART breadcrumbs
+- verify whether the real hardware path can now continue into the normal kernel
+  console path without that probe seam
 
 ## Scope
 
@@ -40,13 +40,8 @@ Out of scope:
   - `X1`
   - `X2`
   - `X3`
-- the retry proves whether the restored post-MMU seam is reached:
-  - `N`
-  - `O`
-  - `P`
-  - `Q`
-  - `R`
-  - `S`
+- the retry proves whether the board finally reaches the normal kernel console
+  path beyond the old temporary `X1 / X2 / X3` seam
 
 ## Validation Plan
 
@@ -63,18 +58,15 @@ Out of scope:
   - `X1`
   - `X2`
   - `X3`
-  - `N`
-  - `O`
-  - `P`
-  - `Q`
-  - `R`
-  - `S`
+  - `console: pl011 init done`
+  - `main: hal init done`
+  - the kernel banner
 
 ## Rollback / Baseline
 
 - current exported image to test:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
-  (SHA-256: `14553eb250414b6b93e72cca44f280aac88d5162fdb57aa7f6ae9a659c3e68b5`)
+  (SHA-256: `358f4325dec6009e0b9441c052dad370b2fedeb81a6f93eb43db1eadd06f750a`)
 
 ## Notes
 
@@ -90,7 +82,7 @@ Out of scope:
   - `_set_up_vbar_and_stacks`
   - `main()`
   under emulation
-- the current image keeps the earlier `TTBR1`-from-start structure and adds the
-  strongest remaining Linux-style fix:
-  - invalidate the contiguous early page-table region with `dc ivac`
-    before MMU-on
+- the current image keeps the earlier `TTBR1`-from-start structure and the
+  pre-MMU page-table invalidation fix
+- the only removed piece is the temporary high-half PL011 debug path, because it
+  had become the strongest candidate for a self-inflicted hardware-only fault

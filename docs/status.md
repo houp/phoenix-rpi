@@ -11,6 +11,52 @@
 Latest rebuild and retest:
 
 - on `2026-04-17`, the next real-board UART log
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260417-222617.log`
+  still ended at:
+  - `A2`
+  - `KLM`
+  - `X1`
+  - `X2`
+  - `X3`
+  with no recovery to the older `NO` boundary
+- that confirmed two things at once:
+  - the earlier `NO` seen in the `213826` and `215745` logs was real output
+    after `X3`
+  - continuing to add or move raw post-`ttbr1` UART probes was no longer a
+    sound diagnostic strategy on this path
+- this session therefore pivoted from “more post-MMU probes” to a real MMU
+  bring-up fix:
+  - removed all raw post-`ttbr1` UART probes from
+    `/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-kernel/hal/aarch64/_init.S`
+  - removed the matching stale early-UART hook from
+    `/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-kernel/main.c`
+  - removed the now-unused `PL011_TTY_EARLY_VADDR` define from
+    `/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/board_config.h`
+  - added explicit TTBR1 page-table visibility maintenance in
+    `/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-kernel/hal/aarch64/_init.S`:
+    - clean D-cache over the freshly built TTBR1 tables
+    - `tlbi vmalle1is`
+    - then enable the `ttbr1` path
+- why this is the strongest current fix:
+  - the project docs already contained a negative result that post-`ttbr1` raw
+    UART probes are not valid on this path and regress the boot until reverted
+  - the live hardware behavior now matched that note
+  - cache/TLB visibility for newly written TTBR1 tables is a plausible
+    real-hardware-only failure that QEMU can mask
+- validation:
+  - `./scripts/rebuild-rpi4b-fast.sh --scope core --qemu-sanity`: pass
+  - canonical export: pass
+  - FAT-aware verify: pass
+- refreshed exported Pi 4 image:
+  - path: `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+  - SHA-256: `725744d23cbd7bf08080c52ec02230269f680cd554ffc8c3d23a27b31f30ec2c`
+- next strongest step:
+  - flash image `725744d2...`
+  - capture UART with the canonical helper
+  - check whether the long-standing `... X3` silent gap is gone and later
+    kernel output resumes
+
+- on `2026-04-17`, the next real-board UART log
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260417-221842.log`
   showed no recovery from the prior regression:
   - the raw tail still ends at:

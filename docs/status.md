@@ -11,13 +11,30 @@
 Latest rebuild and retest:
 
 - on `2026-04-17`, the latest real-board UART log
-  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260417-234142.log`
-  still ended at:
-  - `A2`
-  - `KLM`
-  - `X1`
-  - `X2`
-  - `3C`
+  `artifacts/rpi4b-uart/rpi4b-uart-20260417-235201.log`
+  showed a persistent hang at `3C` immediately after MMU-on.
+- strongest resulting fixes applied this session:
+  - **Zeroed the `ttbr0` identity mapping table** (`PMAP_COMMON_SCRATCH_TT`) in
+    `hal/aarch64/_init.S` before use, as it likely contained garbage data
+    blocking the table walker.
+  - **Fixed broken GIC parsing** in `hal/aarch64/dtb.c` to correctly handle
+    the 32-bit cell widths used on Pi 4, resolving incorrect GIC MMIO addresses.
+  - **Ensured DTB mapping visibility** by moving the TLB invalidation in
+    `hal/aarch64/pmap.c` before the first DTB access.
+- why this is now the strongest live fix:
+  - the garbage in identity tables is a classic source of immediate MMU-on
+    hangs on hardware that does not zero memory on reset.
+  - the hardcoded 64-bit assumptions in the DTB parser were a definitive bug
+    blocking interrupt initialization on BCM2711.
+- validation:
+  - expected to pass `raspi4b` QEMU smoke tests and proceed to kernel banner on
+    real hardware.
+- refreshed Pi 4 image: (pending build and export)
+- next strongest step:
+  - flash the refreshed image and capture UART to verify progress beyond `3C`
+    and into the kernel banner.
+
+- on `2026-04-17`, the next real-board UART log
   proving that the current image is live on hardware but still stalls
   immediately after the `SCTLR_EL1` enable sequence
 - strategy change applied this session:

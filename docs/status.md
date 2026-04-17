@@ -2,11 +2,51 @@
 
 ## Repository State
 
-- Repository purpose: documentation and agent scaffolding for a future Phoenix RTOS Raspberry Pi port
-- Implementation state: Phase 1 common AArch64 cleanup started; first upstream build-glue step completed
+- Repository purpose: coordination repo plus durable knowledge base for the
+  live multi-repo Phoenix RTOS Raspberry Pi port effort
+- Implementation state: active Phase 1 Pi 4 bring-up with the live blocker in
+  late boot / userspace startup, not the old pre-`plo` handoff path
 - Documentation baseline prepared: 2026-03-19
 
 Latest rebuild and retest:
+
+- on `2026-04-17`, the tracker and repo state were reconciled after several
+  April 14-16 updates landed through mixed AI-assisted sessions:
+  - the coordination repo had drifted ahead of the actual committed source
+    state:
+    - `tracking/current-step.md` claimed that legacy LED probes were gone
+    - `docs/status.md` still foregrounded older image SHAs such as
+      `b9b61d48...` and `19928dd6...`
+    - no manifest had been created for the April 14-16 stabilization steps
+  - the actual current committed repo heads are:
+    - `phoenix-rtos-project 67f280f`
+    - `phoenix-rtos-kernel 79fa82e8`
+    - `phoenix-rtos-devices f0f97ae`
+    - `phoenix-rtos-filesystems 1ae1cbf`
+    - `plo 1ae4d5d`
+  - the current host image sidecar points to:
+    - `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+    - SHA-256 `2f2be2e7bc97500e5202ee55f960a9b1423a79d611112d527fd35868bdec5527`
+  - important committed-state warning:
+    - the tree still contains active Pi 4 LED diagnostics:
+      - `PLO_RPI_ACTLED_DIAG 1` in
+        `/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/board_config.h`
+      - the Stage-5 GPIO42 signal in
+        `/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-filesystems/dummyfs/srv.c`
+    - the remaining `plo` ACT-LED cleanup exists only as a dirty local diff in
+      `/Users/witoldbolt/phoenix-rpi/sources/plo/hal/aarch64/generic/_init.S`
+      and is not part of the reproducible committed baseline
+  - current strongest interpretation:
+    - the project is no longer blocked in the old armstub seam
+    - the committed bring-up line has moved into late boot / userspace startup
+      around `dummyfs`, `devfs`, and `pl011-tty`
+    - but the next real-device retry should not proceed until the dirty `plo`
+      cleanup is either committed or dropped and a fresh image is rebuilt from
+      fully committed sources
+  - next strongest step:
+    - re-establish a reproducible committed Pi 4 baseline
+    - rebuild/export/verify a fresh image from that baseline
+    - then run the next real-device retry
 
 - on `2026-04-12`, Phoenix RTOS confirmed a timeout in `pl011-tty` while
   waiting for `devfs` registration:

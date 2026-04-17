@@ -88,6 +88,7 @@
     still never resumes with later Phoenix breadcrumbs
   - keep HDMI in parallel
   - use ACT-LED video only as fallback evidence on this image
+  - the active image no longer carries the late-seam LED delay path
 - current Pi 4 firmware/config prerequisites:
   - the Phoenix Pi 4 `config.txt` already sets:
     - `enable_uart=1`
@@ -105,6 +106,17 @@
   - `TR1`: embedded `plo` copy started
   - `TR2`: copy plus cache maintenance complete
   - `TR3`: branch to the real high-linked `plo`
+- current strongest real-board seam after the latest UART result:
+  - `TR0..TR3`
+  - `call: exec go!`
+  - `go: enter`
+  - `go: devs done`
+  - `go: hal done`
+  - `hal: jump entry`
+  were all proven on real hardware
+  - the previous image then stalled inside the remaining late `plo` LED-delay
+    path
+  - the active image removes that path entirely
 - current expected UART behavior on the stabilized Pi 4 lane:
   - firmware still retunes PL011 to about `103448.3`
   - the current fix path does not try to suppress that firmware change

@@ -10,6 +10,71 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-17`, the first real-board retry on the UART-continuity image
+  proved that the UART fix already paid back:
+  - live log:
+    `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260417-205209.log`
+  - the log now reaches all of these on real hardware:
+    - `AS0`
+    - `TR0`
+    - `TR1`
+    - `TR2`
+    - `TR3`
+    - `hal: entry EL2`
+    - `Phoenix-RTOS loader v. 1.21`
+    - `call: opened user.plo on ram0`
+    - `call: exec go!`
+    - `go: enter`
+    - `go: devs done`
+    - `go: hal done`
+    - `hal: jump entry`
+  - and then stops before:
+    - `hal: jump irq off`
+    - `hal: jump exit el1`
+  - source correlation made the active regression obvious:
+    - `plo/hal/aarch64/generic/hal.c` prints `hal: jump entry` and then calls
+      `video_markKernelJump()`
+    - the active `video_markKernelJump()` in
+      `plo/hal/aarch64/generic/video.c` still executed two LED pulse groups
+      with very large busy-wait delays
+    - the kernel still also carried more Pi 4 GPIO42 pulse delays in:
+      - `hal/aarch64/_init.S`
+      - `hal/aarch64/hal.c`
+      - `main.c`
+  - strongest conclusion:
+    - the active blocker was no longer the firmware handoff or UART continuity
+    - the current image was stalling inside the remaining late-seam LED
+      diagnostics themselves
+  - fix applied:
+    - removed `PLO_RPI_LED_DIAG` and the Pi 4 GPIO base LED hookup from
+      `board_config.h`
+    - removed the busy-wait GPIO42 pulse machinery from:
+      - `plo/hal/aarch64/generic/video.c`
+      - `phoenix-rtos-kernel/hal/aarch64/_init.S`
+      - `phoenix-rtos-kernel/hal/aarch64/hal.c`
+      - `phoenix-rtos-kernel/main.c`
+    - removed the no-longer-used `video_markKernelHandoff()` path from
+      `plo/hal/aarch64/generic/hal.c` and `video.c`
+  - validation:
+    - `./scripts/rebuild-rpi4b-fast.sh --scope core --qemu-sanity`: pass
+    - direct Pi 4 QEMU sanity again reaches:
+      - `hal: jump exit el1`
+      - `A3`
+      - `KLMconsole: pl011 init done`
+    - canonical export: pass
+    - FAT-aware verify: pass
+  - refreshed exported Pi 4 image:
+    - path: `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+    - SHA-256: `69fe152d093a4cd5d36d250034d7ce726b7e70f4520a4b8cec50bedc4faf74a2`
+  - next strongest step:
+    - flash image `6bbaad11...`
+    - capture UART with `--profile firmware`
+    - verify whether the real-board log now progresses past:
+      - `hal: jump entry`
+      - `hal: jump irq off`
+      - `hal: jump exit el1`
+      - earliest kernel output
+
 - on `2026-04-17`, the current Pi 4 focus shifted back from LED-heavy late
   seam probing to restoring usable UART continuity across the firmware handoff:
   - explicit external re-check confirmed the official Raspberry Pi guidance for

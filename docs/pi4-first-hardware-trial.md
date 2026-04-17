@@ -16,7 +16,8 @@ Current strong recommendation:
 - for the current UART-continuity image, use UART as the primary observability
   lane again
 - keep HDMI in parallel
-- use ACT LED only as fallback
+- do not expect the current image to emit structured Phoenix GPIO42 timing
+  anymore
 
 ## Current Artifact
 
@@ -26,10 +27,10 @@ Use this image:
 
 Current SHA-256:
 
-- `8d4770cdf96a6af16fb1a1c85c75cdd267aff839caf8998f523dd2dac4a9ee15`
+- `69fe152d093a4cd5d36d250034d7ce726b7e70f4520a4b8cec50bedc4faf74a2`
 
 This image supersedes the earlier late-seam LED image
-`405396dbd5328393223787288d832cea98ca28c417eacc8b1cbea72d316760a9`.
+`8d4770cdf96a6af16fb1a1c85c75cdd267aff839caf8998f523dd2dac4a9ee15`.
 
 This image now intentionally uses:
 
@@ -59,6 +60,8 @@ This image now intentionally uses:
   - `TR3`
 - earliest kernel `_start` still reprograms PL011 back to `115200` on the
   Pi 4 `48 MHz` PL011 lane before the first kernel UART breadcrumb
+- all remaining Pi 4 late-seam LED pulse delays have now been removed from the
+  active image
 
 Historical note:
 
@@ -187,8 +190,7 @@ Current UART wiring:
    - if you want earlier EEPROM messages than `uart_2ndstage`, enable
      `BOOT_UART=1` in the Raspberry Pi EEPROM on a known-good Raspberry Pi OS
      card first
-7. Optionally start a close ACT-LED video before power-on for fallback
-   evidence, but do not treat it as the primary lane for this image.
+7. ACT-LED video is optional only as incidental fallback evidence.
 8. Power on the board.
 9. Wait for either readable UART after the firmware handoff or a stable HDMI
    state. If the current image does not show new UART or HDMI changes within
@@ -246,8 +248,17 @@ Use one primary class:
   failure is between armstub handoff and trampoline entry
 - `TR0..TR3` appear:
   reloc trampoline is running and UART continuity is restored into Phoenix
-- `TR3` appears but no later Phoenix text:
-  failure is after the trampoline branch into `plo`
+- `TR3` appears and the log reaches:
+  - `go: enter`
+  - `go: devs done`
+  - `go: hal done`
+  - `hal: jump entry`
+  but not `hal: jump irq off`:
+  the old image was stalling in the late `plo` LED-debug path
+- on the current no-LED image, the next key boundary is:
+  - `hal: jump irq off`
+  - `hal: jump exit el1`
+  - earliest kernel output
 - reaches `10` but not `11`:
   kernel dies inside `_hal_init()`
 - reaches `11`:

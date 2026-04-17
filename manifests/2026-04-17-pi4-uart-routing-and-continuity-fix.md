@@ -66,6 +66,9 @@ For the active Phoenix lane we selected:
 
 ### Coordination Repo
 
+- commit:
+  - `727701d` `phase1: harden pi4 uart continuity workflow`
+
 - `scripts/assemble-rpi4b-bootfs.sh`
   - hardened so the canonical export path explicitly copies
     `overlays/miniuart-bt.dtbo` whenever `config.txt` requests

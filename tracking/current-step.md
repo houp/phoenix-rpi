@@ -2,22 +2,21 @@
 
 ## Metadata
 
-- Step ID: `STEP-0500`
-- Title: `Retry Pi 4 on the pre-MMU UART split image`
+- Step ID: `STEP-0501`
+- Title: `Retry Pi 4 on the syspage-tail-copy fix image`
 - Status: `ready`
 - Date: `2026-04-17`
 - Milestone / phase: `Phase 1`
 
 ## Objective
 
-- retry the Pi 4 with the refreshed image that adds both pre-MMU and post-MMU
-  kernel UART breadcrumbs
-- classify the remaining real-hardware boundary between:
-  - early MMU setup before `ttbr0_el1`
-  - `ttbr0_el1` programming
-  - actual MMU enable at `msr sctlr_el1, x0`
-  - first safe post-MMU UART point
-  - later `_core_0_virtual` / `main()` path if the boundary moves
+- retry the Pi 4 with the refreshed image that fixes the likely syspage tail
+  overread inside `_core_0_virtual`
+- verify whether the active boundary moves past:
+  - `_core_0_virtual`
+  - syspage copy
+  - `_set_up_vbar_and_stacks`
+  - earliest `main()`
 
 ## Scope
 
@@ -38,13 +37,8 @@ Out of scope:
 
 - the refreshed image is tried on real hardware
 - the retry captures at least one raw UART log
-- the retry shows the highest completed kernel breadcrumb among:
-  - `KLM`
-  - `KLM + X1`
-  - `KLM + X1 + X2`
-  - `KLM + X1 + X2 + X3`
-  - `X3` plus no `N`
-  - or a later `N..S` continuation
+- the retry shows whether the raw tail still stops at `NO` or moves forward to
+  at least `P`
 - the next engineering change can target one precise sub-band of the kernel
   MMU-to-`main()` path
 
@@ -73,7 +67,7 @@ Out of scope:
 
 - current exported image to test:
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
-  (SHA-256: `fe9d163ab5d23aa88bbaea35c5df790f48b76dea58d1cd843b8cd56990c74273`)
+  (SHA-256: `77164588645c65f09773165afd19eef3b7709c00fd1fc804b5dd0571003baf29`)
 
 ## Notes
 
@@ -100,3 +94,10 @@ Out of scope:
 - the current image therefore adds three earlier physical-UART checkpoints
   `X1/X2/X3` before the MMU enable, while keeping the later fixed-virtual-UART
   `N..S` checkpoints in place
+- the next real-board UART log
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260417-213826.log`
+  narrowed the live boundary again to the syspage copy block itself:
+  the raw tail reached `A2`, `KLM`, `X1`, `X2`, `X3`, and `NO`
+- the current image therefore fixes the most plausible concrete defect there:
+  the old syspage copy loop could overread the tail when `syspage->size` was
+  not 8-byte aligned

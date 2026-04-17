@@ -11,6 +11,45 @@
 Latest rebuild and retest:
 
 - on `2026-04-17`, the next real-board UART log
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260417-213826.log`
+  finally closed the kernel boundary enough to target a concrete copy bug:
+  - the raw tail reaches:
+    - `A2`
+    - `KLM`
+    - `X1`
+    - `X2`
+    - `X3`
+    - `NO`
+  - meaning:
+    - the board survives MMU setup through the new pre-MMU markers
+    - the board reaches `_core_0_virtual`
+    - but still does not reach post-copy marker `P`
+  - strongest conclusion:
+    - the active fault is inside the syspage copy block in
+      `phoenix-rtos-kernel/hal/aarch64/_init.S`
+  - most plausible concrete bug:
+    - the previous copy loop always performed 8-byte loads and stores until the
+      source pointer crossed the end, so if `syspage->size` was not 8-byte
+      aligned the final load could read past the end of the blob
+    - that can survive under QEMU and still fault on real hardware, which fits
+      the observed `... O` and no `P`
+  - fix applied:
+    - replaced the syspage copy loop with:
+      - an 8-byte loop while remaining size is `>= 8`
+      - a 1-byte tail loop for the final `0..7` bytes
+  - validation:
+    - `./scripts/rebuild-rpi4b-fast.sh --scope core --qemu-sanity`: pass
+    - canonical export: pass
+    - FAT-aware verify: pass
+  - refreshed exported Pi 4 image:
+    - path: `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+    - SHA-256: `77164588645c65f09773165afd19eef3b7709c00fd1fc804b5dd0571003baf29`
+  - next strongest step:
+    - flash image `77164588...`
+    - capture UART with the canonical helper
+    - check whether the tail now advances from `NO` to at least `P`
+
+- on `2026-04-17`, the next real-board UART log
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260417-213033.log`
   proved that the first post-MMU split was still too late:
   - the raw tail remains exactly:

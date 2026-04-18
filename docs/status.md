@@ -27,7 +27,9 @@ Latest rebuild and retest:
   - **Restored `SCRATCH_TT` zeroing** and the **early exception handler**.
   - **Switched `TCR_EL1` to Non-shareable** for early boot robustness.
 - validation:
-  - refreshed Pi 4 image: (pending build and export)
+  - refreshed Pi 4 image:
+    - path: `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+    - SHA-256: `b017311706f1bdc4ee0decf4a0532eb027dd001a2fdef16ea08a420bd91deff3`
   - next step: verify progress past `X3` and into `N`, `O`, `P` markers.
 
 - on `2026-04-18`, the fine `NO -> P` re-split image

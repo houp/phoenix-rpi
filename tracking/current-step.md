@@ -40,7 +40,8 @@ Out of scope:
 ## Validation Plan
 
 - rebuild and flash:
-  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+  - `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+  - SHA-256: `b017311706f1bdc4ee0decf4a0532eb027dd001a2fdef16ea08a420bd91deff3`
 - capture UART with:
   - `/Users/witoldbolt/phoenix-rpi/scripts/capture-rpi4b-uart.sh`
 - inspect for:

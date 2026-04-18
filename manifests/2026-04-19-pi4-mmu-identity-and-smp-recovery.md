@@ -42,6 +42,8 @@ faults occur.
 
 -   Requires real-board UART retry.
 -   Expected to reach at least marker `N` (78) and `O` (79) after MMU-on.
+-   Rebuilt image: `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+-   SHA-256: `b017311706f1bdc4ee0decf4a0532eb027dd001a2fdef16ea08a420bd91deff3`
 
 ## Source Commits
 

@@ -14,8 +14,11 @@
   - `./scripts/export-rpi4b-sdimg.sh`
   - `./scripts/verify-rpi4b-sdimg.sh`
 - Result:
-  - the restored `... X3NO` hardware baseline was preserved
-  - the `_core_0_virtual` band is now split more finely with `U V W Z Y P`
+  - the restored `... X3NO` hardware baseline was **not** preserved on the
+    first real-board retry
+  - the added `U V W Z Y P` split regressed the hardware seam back to `... X3`
+  - this step is therefore a negative result and should not be reused as the
+    active image
 
 ## Repositories
 
@@ -36,18 +39,18 @@
   - `./scripts/qemu-shell-smoke.sh rpi4b`: pass
   - `/bin/bash /Users/witoldbolt/phoenix-rpi/scripts/qemu-rpi4b-hdmi-smoke.sh`: pass
 - Hardware:
-  - restored baseline proof:
+  - restored baseline proof before the re-split:
     `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260418-222500.log`
-  - next expected proof should classify one of:
-    - `NO`
-    - `NOU`
-    - `NOUV`
-    - `NOUVW`
-    - `NOUVWZ`
-    - `NOUVWZY`
-    - `NOUVWZYP`
+  - disproving re-split proof:
+    `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260418-234332.log`
+  - observed regression tail:
+    - `A2`
+    - `KLM`
+    - `X1`
+    - `X2`
+    - `X3`
 - UART log location:
-  - next real-board proof should be captured after flashing the image below
+  - the re-split image should no longer be used as the active baseline
 - Image or boot-tree location:
   - `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
   - SHA-256 `ff1b0ca7b4bb89f4f8812537750487566160fc4e583368748976f80b4c200cb4`
@@ -63,20 +66,15 @@
     UART milestones
   - that means a deeper rollback would discard the strongest hardware-backed
     checkpoint instead of recovering a demonstrably better one
-- Marker meaning on this image:
-  - `N` after TTBR1 activation
-  - `O` at `_core_0_virtual`
-  - `U` after `relOffs` store
-  - `V` after `hal_syspage` store
-  - `W` after `syspage->size` load
-  - `Z` just before copy starts
-  - `Y` after first 8-byte copy
-  - `P` after full syspage copy
+  - adding fine post-MMU virtual-UART markers inside `_core_0_virtual` can
+    itself perturb the restored `X3NO` seam enough to drop the board back to
+    `X3`
 - Docs updated:
   - `/Users/witoldbolt/phoenix-rpi/docs/status.md`
   - `/Users/witoldbolt/phoenix-rpi/tracking/current-step.md`
   - `/Users/witoldbolt/phoenix-rpi/tracking/step-history.md`
 - Next smallest task:
-  - flash image `ff1b0ca7...`
-  - capture UART
-  - classify the restored `O -> P` seam from `NOUVWZYP`
+  - revert the re-split
+  - rebuild from the restored `X3NO` lineage
+  - verify that hardware returns to `... X3NO` before choosing a safer
+    diagnostic

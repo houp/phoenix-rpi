@@ -10,6 +10,46 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-18`, the fine `NO -> P` re-split image
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+  with SHA-256 `ff1b0ca7b4bb89f4f8812537750487566160fc4e583368748976f80b4c200cb4`
+  regressed on real hardware instead of refining the restored seam:
+  - UART log:
+    `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260418-234332.log`
+  - observed tail:
+    - `A2`
+    - `KLM`
+    - `X1`
+    - `X2`
+    - `X3`
+  - conclusion:
+    - the added `U / V / W / Z / Y / P` post-MMU virtual-UART split in
+      `phoenix-rtos-kernel 5f3bf75e` was itself a regression
+    - the strongest hardware-backed seam still remains the older
+      `... X3NO` baseline
+    - that re-split should not be reused as if it were still an open
+      hypothesis
+- on `2026-04-18`, the kernel `_init.S` path was restored again to the last
+  better `X3NO` lineage and rebuilt into a fresh rollback image:
+  - source baseline:
+    - `phoenix-rtos-kernel a4883d37` restoring the
+      `91f5f9d5` `_init.S` lineage
+    - `phoenix-rtos-project e8f794f`
+  - refreshed exported image:
+    - path: `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+    - SHA-256: `576bacf524d115f8f99361d0434eac32a92d0f1354f8169fb5c7fa24502f39d8`
+  - validation:
+    - `./scripts/rebuild-rpi4b-fast.sh --scope core --qemu-sanity`: pass
+    - `/bin/bash /Users/witoldbolt/phoenix-rpi/scripts/qemu-rpi4b-hdmi-smoke.sh`:
+      pass
+    - `./scripts/qemu-shell-smoke.sh rpi4b`: inconclusive, helper hung without
+      a final pass/fail transcript
+    - canonical export: pass
+    - FAT-aware verify: pass
+  - strongest next move:
+    - flash image `576bacf5...`
+    - verify that hardware returns to `... X3NO`
+    - only then choose a safer next diagnostic or fix from that restored seam
 - on `2026-04-18`, the rollback image
   `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
   with SHA-256 `be8c2773306870a5b66b75f64677d68d0a344f01ee348d2e1598aea969ca4fb1`
@@ -38,36 +78,9 @@ Latest rebuild and retest:
     best hardware-backed checkpoint we currently have
   - the right move is therefore not a deeper rollback, but a finer split of the
     restored `O -> P` seam
-- strongest resulting fix applied immediately after restoring `X3NO`:
-  - keep the rollback baseline
-  - add fine post-MMU UART breadcrumbs inside `_core_0_virtual` in
-    `/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-kernel/hal/aarch64/_init.S`
-  - new markers:
-    - `U` after `relOffs` store
-    - `V` after `hal_syspage` store
-    - `W` after `syspage->size` load
-    - `Z` just before the copy starts
-    - `Y` after the first 8-byte copy
-    - `P` after the full syspage copy
-- validation executed on the re-split restored-baseline image:
-  - `./scripts/rebuild-rpi4b-fast.sh --scope core --qemu-sanity`: pass
-  - `./scripts/qemu-shell-smoke.sh rpi4b`: pass
-  - `/bin/bash /Users/witoldbolt/phoenix-rpi/scripts/qemu-rpi4b-hdmi-smoke.sh`:
-    pass
-  - canonical export: pass
-  - FAT-aware verify: pass
-- warning surfaced in this validation session:
-  - the broad `./scripts/rebuild-rpi4b-fast.sh --scope core --qemu-sanity`
-    helper still only captured `A3 / KLM`
-  - the explicit Pi 4 shell and HDMI smoke lanes again passed and remain the
-    stronger local validation signals
-- refreshed exported Pi 4 image from the restored-`NO` re-split tree:
-  - path: `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
-  - SHA-256: `ff1b0ca7b4bb89f4f8812537750487566160fc4e583368748976f80b4c200cb4`
-- next strongest step:
-  - flash image `ff1b0ca7...`
-  - capture UART
-  - classify the restored `O -> P` seam from `NOUVWZYP`
+- the attempted finer `O -> P` split from `phoenix-rtos-kernel 5f3bf75e`
+  has now been ruled out by real hardware and should be treated as a negative
+  result, not as the current active image
 
 - on `2026-04-18`, the next real-board retry on the deterministic-TTBR0 image
   also failed to move the boundary:

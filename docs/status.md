@@ -10,6 +10,42 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-18`, the Pi 4 kernel early-MMU path was reworked to an
+  **identity-first bootstrap flow** in
+  `/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-kernel/hal/aarch64/_init.S`
+  (`phoenix-rtos-kernel 6cd294fd`)
+- why this is now the strongest current fix:
+  - the repeated real-board `A2 / KLM / X1 / X2 / 3C` tail proves the board is
+    already past firmware, armstub, trampoline, `plo`, and the kernel's
+    pre-MMU setup
+  - systematic comparison against Linux arm64, Circle, local `rpi4-bare-metal`,
+    and the local `rpi-os` mirror showed Phoenix was still the outlier because
+    it enabled `TTBR1` before MMU-on and immediately depended on higher-half
+    execution
+  - the new path keeps execution in the TTBR0 identity alias for the first
+    post-MMU continuation, then enables `TTBR1`, and only then branches into
+    `_core_0_virtual`
+- validation executed on the new identity-first image:
+  - `./scripts/rebuild-rpi4b-fast.sh --scope core --qemu-sanity`: pass
+  - `./scripts/qemu-shell-smoke.sh rpi4b`: pass
+  - `/bin/bash /Users/witoldbolt/phoenix-rpi/scripts/qemu-rpi4b-hdmi-smoke.sh`:
+    pass
+  - canonical export: pass
+  - FAT-aware verify: pass
+- warning surfaced in this validation session:
+  - the broad `./scripts/rebuild-rpi4b-fast.sh --scope core --qemu-sanity`
+    helper still only captured the short `A3 / KLM` tail
+  - the explicit Pi 4 shell and HDMI smoke lanes both passed and remain the
+    stronger QEMU validation signals for this step
+- refreshed exported Pi 4 image from the identity-first kernel tree:
+  - path: `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+  - SHA-256: `5ac0d1290867556a78fe19bad048b1cfe98e8c5328053c2d588ed0d8691006fe`
+- next strongest step:
+  - flash image `5ac0d129...`
+  - capture a real-board UART log
+  - verify whether the board finally proceeds beyond the long-standing `3C`
+    boundary into the restored post-MMU path and kernel banner
+
 - on `2026-04-18`, the externally added kernel fixes were reviewed from the
   committed tree:
   - `phoenix-rtos-kernel f13f766c`

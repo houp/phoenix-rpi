@@ -102,6 +102,23 @@ Important current UART facts from the official documentation:
   - Circle's published boot flow and required Pi 4 armstub reinforce that Pi 4
     early-boot sequencing differs enough from generic arm64 that source-backed
     comparisons are still worth doing before changing Phoenix
+  - the current local mirror used in recent MMU analysis is:
+    `/Users/witoldbolt/phoenix-rpi/external/circle/lib/startup64.S`
+    and
+    `/Users/witoldbolt/phoenix-rpi/external/circle/lib/memory64.cpp`
+
+- Local Pi 4 bare-metal references used for the 2026-04-18 MMU strategy reset:
+  - `/Users/witoldbolt/phoenix-rpi/external/rpi4-bare-metal/src/boot.S`
+  - `/Users/witoldbolt/phoenix-rpi/external/rpi4-bare-metal/src/mm.S`
+  - `/Users/witoldbolt/phoenix-rpi/external/rpi-os/src/boot.S`
+
+  Important current facts:
+
+  - these local references all use a simpler identity-first or TTBR0-first MMU
+    transition than the older Phoenix Pi 4 kernel path
+  - the active Phoenix fix on `2026-04-18` intentionally realigns with that
+    pattern: stay in the TTBR0 identity alias for the first MMU-on continuation,
+    then enable `TTBR1`, then branch to the higher-half path
 
 - NuttX BCM2711 support and porting notes:
   <https://nuttx.apache.org/docs/latest/platforms/arm64/bcm2711/index.html>

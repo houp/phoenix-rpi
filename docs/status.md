@@ -10,6 +10,65 @@
 
 Latest rebuild and retest:
 
+- on `2026-04-18`, the rollback image
+  `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+  with SHA-256 `be8c2773306870a5b66b75f64677d68d0a344f01ee348d2e1598aea969ca4fb1`
+  successfully restored the last objectively better real-board seam:
+  - UART log:
+    `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b-uart/rpi4b-uart-20260418-222500.log`
+  - observed tail:
+    - `A2`
+    - `KLM`
+    - `X1`
+    - `X2`
+    - `X3`
+    - `NO`
+- strongest conclusion from the full history review:
+  - `... X3NO` is the farthest **real-board UART-backed** kernel seam recorded
+    in this project so far
+  - later-looking states in the repo history such as:
+    - `KLMNOPQRSconsole: pl011 init done`
+    - `main: hal init done`
+    - kernel banner and later `Exception #37`
+    are QEMU-only progress markers, not proven later real-board milestones
+  - the brown three-square HDMI panel on hardware is also earlier than the
+    current `KLM/X3NO` kernel seam, not later
+- why this matters:
+  - rolling back further than the restored `X3NO` baseline would throw away the
+    best hardware-backed checkpoint we currently have
+  - the right move is therefore not a deeper rollback, but a finer split of the
+    restored `O -> P` seam
+- strongest resulting fix applied immediately after restoring `X3NO`:
+  - keep the rollback baseline
+  - add fine post-MMU UART breadcrumbs inside `_core_0_virtual` in
+    `/Users/witoldbolt/phoenix-rpi/sources/phoenix-rtos-kernel/hal/aarch64/_init.S`
+  - new markers:
+    - `U` after `relOffs` store
+    - `V` after `hal_syspage` store
+    - `W` after `syspage->size` load
+    - `Z` just before the copy starts
+    - `Y` after the first 8-byte copy
+    - `P` after the full syspage copy
+- validation executed on the re-split restored-baseline image:
+  - `./scripts/rebuild-rpi4b-fast.sh --scope core --qemu-sanity`: pass
+  - `./scripts/qemu-shell-smoke.sh rpi4b`: pass
+  - `/bin/bash /Users/witoldbolt/phoenix-rpi/scripts/qemu-rpi4b-hdmi-smoke.sh`:
+    pass
+  - canonical export: pass
+  - FAT-aware verify: pass
+- warning surfaced in this validation session:
+  - the broad `./scripts/rebuild-rpi4b-fast.sh --scope core --qemu-sanity`
+    helper still only captured `A3 / KLM`
+  - the explicit Pi 4 shell and HDMI smoke lanes again passed and remain the
+    stronger local validation signals
+- refreshed exported Pi 4 image from the restored-`NO` re-split tree:
+  - path: `/Users/witoldbolt/phoenix-rpi/artifacts/rpi4b/rpi4b-sd.img`
+  - SHA-256: `ff1b0ca7b4bb89f4f8812537750487566160fc4e583368748976f80b4c200cb4`
+- next strongest step:
+  - flash image `ff1b0ca7...`
+  - capture UART
+  - classify the restored `O -> P` seam from `NOUVWZYP`
+
 - on `2026-04-18`, the next real-board retry on the deterministic-TTBR0 image
   also failed to move the boundary:
   - UART log:

@@ -155,23 +155,79 @@ This document tracks all temporary fixes, workarounds, and technical debt introd
 - ✅ Support multiple board configurations
 - ✅ Add runtime DTB modification capability
 
+## Immediate Next Steps (Current Blocker)
+
+### Primary Objective: Diagnose Program Relocation Hang
+**Current State**: System hangs at marker `o` (starting program relocation)
+
+**Immediate Actions Required**:
+1. **Add strategic debug markers** around `hal_syspageRelocate(syspage_common.syspage->progs)` call
+2. **Check if `syspage_common.syspage->progs` is NULL before calling `hal_syspageRelocate`**
+3. **Add markers before and after the `hal_syspageRelocate` call**
+4. **Test with enhanced debugging to identify exact failure point**
+5. **Determine if circular list issue exists in program entries**
+
+**Expected Outcome**: Identify whether the hang is due to:
+- NULL pointer dereference
+- Infinite loop in `hal_syspageRelocate`
+- Circular linked list in program entries
+- Memory access violation
+- Other undefined behavior
+
 ## Future Cleanup Priorities
 
 ### High Priority (Blockers for Next Milestones)
 1. **Fix SMP enable** - Required for multi-core support
+   - Research proper Cortex-A72 SMP enable sequence
+   - Test with Circle OS and bare metal examples as reference
+   - Implement proper secondary core bring-up
+
 2. **Re-enable syspage copy** - Required for proper memory management
+   - Fix BSS mapping in early MMU setup
+   - Re-enable proper syspage copy to virtual memory
+   - Test syspage relocation with different memory configurations
+
 3. **Fix program loop** - Required for complete syspage initialization
+   - Diagnose circular list issue in program entries
+   - Implement proper program entry validation
+   - Re-enable program loop with proper termination
+
 4. **Proper cache management** - Required for system stability
+   - Research Cortex-A72-specific cache requirements
+   - Implement proper cache invalidation sequence
+   - Test with different cache configurations
 
 ### Medium Priority (Important but Not Blocking)
 1. **Consolidate debug infrastructure** - Improve maintainability
+   - Create configurable debug system with levels (ERROR, WARN, INFO, DEBUG, TRACE)
+   - Add compile-time debug level control
+   - Implement runtime debug enable/disable via sysctl or similar
+
 2. **Robust DTB handling** - Improve portability
+   - Implement robust DTB parsing with comprehensive error handling
+   - Add dynamic device tree support for different board configurations
+   - Implement DTB validation and sanity checks
+
 3. **Memory management cleanup** - Improve reliability
+   - Review all memory allocation patterns
+   - Add proper error handling for memory operations
+   - Implement memory leak detection for development builds
 
 ### Low Priority (Nice to Have)
 1. **Performance optimization** - Cache, UART, etc.
+   - Optimize cache management for Cortex-A72
+   - Improve UART output performance
+   - Review and optimize critical boot paths
+
 2. **Code documentation** - Add comments for temporary fixes
+   - Document all temporary fixes with clear markers
+   - Add explanations for non-obvious implementation choices
+   - Create architecture decision records (ADRs)
+
 3. **Test coverage** - Add regression tests for fixed issues
+   - Create unit tests for critical subsystems
+   - Add integration tests for boot sequence
+   - Implement automated testing for different configurations
 
 ## Tracking
 

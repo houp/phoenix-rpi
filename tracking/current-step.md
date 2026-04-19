@@ -33,9 +33,34 @@ The system now:
 The system hangs at marker `o` (starting program relocation). This is likely due to a circular linked list issue similar to what was encountered in entry relocation.
 
 ### Next Actions
-1. **Add strategic debugging**: Insert debug markers in program relocation to identify exact failure point
-2. **Consider temporary workaround**: Skip program loop if circular list issue is confirmed
-3. **Goal**: Reach marker `Y` (end of syspage_init()) and progress to HAL initialization
+
+#### Immediate (Current Blocker)
+1. **Add strategic debug markers** around `hal_syspageRelocate(syspage_common.syspage->progs)` call:
+   - Check if `syspage_common.syspage->progs` is NULL before calling `hal_syspageRelocate`
+   - Add markers before and after the `hal_syspageRelocate` call
+   - Test with enhanced debugging to identify exact failure point
+
+2. **Determine root cause** of the hang at marker `o`:
+   - NULL pointer dereference
+   - Infinite loop in `hal_syspageRelocate`
+   - Circular linked list in program entries
+   - Memory access violation
+
+3. **Implement targeted fix** based on diagnosis:
+   - If circular list: Implement proper validation and termination
+   - If NULL pointer: Add proper NULL check and error handling
+   - If memory issue: Fix memory mapping or access pattern
+
+#### Short-term (After Unblocking)
+1. **Reach marker `Y`**: Complete syspage_init() successfully
+2. **Reach marker `f`**: Enter _hal_init() successfully
+3. **Complete syspage initialization** and enter HAL initialization phase
+
+#### Medium-term (Next Milestones)
+1. **Fix SMP enable** for multi-core support
+2. **Re-enable syspage copy** with proper BSS mapping
+3. **Implement proper cache management** for Cortex-A72
+4. **Consolidate debug infrastructure** into configurable system
 
 ### Technical Details
 - **Current Image SHA256**: `fecdc6b78fc1d55e4198ad27e34eee53dd866be6497894a11b64c7184344ccab`

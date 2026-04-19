@@ -7,11 +7,13 @@
 **Date**: 2026-04-19
 
 **Commits**: 
-- 1bb7f806: Add debug markers and skip program loop to avoid circular list issue
-- 1c6a5267: Temporary workaround: skip entry relocation to avoid infinite loop
 - d1996d8f: Fix infinite loop in entry relocation by using original_entries for loop condition
 - aff01622: Add more detailed markers in entry loop to diagnose infinite loop
 - 2f0b391f: Add detailed debug markers in map relocation loop to pinpoint crash location
+- d609a196: Add Y marker at end of syspage_init() to confirm completion
+- b62fe368: Add W and X debug markers to syspage_init() to diagnose crash point
+
+**Note**: Broken commits (1bb7f806, 1c6a5267, 5e74c3c9) have been removed from history
 
 ### Major Achievement
 The system has successfully completed all map relocation in syspage initialization! This represents a massive milestone in the Raspberry Pi 4 bring-up process.
@@ -36,7 +38,7 @@ The system hangs at marker `o` (starting program relocation). This is likely due
 3. **Goal**: Reach marker `Y` (end of syspage_init()) and progress to HAL initialization
 
 ### Technical Details
-- **Current Image SHA256**: `bb7861c314ca675eeee1f98e7744df29c123efa0533f3d007bc0c49b5d469531`
+- **Current Image SHA256**: `fecdc6b78fc1d55e4198ad27e34eee53dd866be6497894a11b64c7184344ccab`
 - **UART Log**: `artifacts/rpi4b-uart/rpi4b-uart-20260419-104437.log`
 - **Test Command**: `./scripts/capture-rpi4b-uart.sh`
 

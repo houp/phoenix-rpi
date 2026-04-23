@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git branch:*)",
+      "Bash(git show:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git reflog:*)",
+      "Bash(git show-ref:*)",
+      "Bash(git tag -l:*)",
+      "Bash(git worktree list)",
+      "Bash(ls:*)",
+      "Bash(pwd)",
+      "Bash(find /Users/witoldbolt/phoenix-rpi:*)",
+      "Bash(wc:*)",
+      "Bash(diff:*)",
+      "Bash(file:*)",
+      "Bash(stat:*)",
+      "Bash(sha256sum:*)",
+      "Bash(shasum:*)",
+      "Bash(python3 scripts/summarize-rpi4b-uart-log.py:*)",
+      "Bash(./scripts/verify-rpi4b-sdimg.sh:*)"
+    ],
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(rm -rf /Users/witoldbolt/phoenix-rpi/sources/*)",
+      "Bash(rm -rf /Users/witoldbolt/phoenix-rpi/manifests/*)"
+    ]
+  }
+}

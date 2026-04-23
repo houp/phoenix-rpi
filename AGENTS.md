@@ -33,7 +33,7 @@ Read `skills/README.md` when choosing a local project skill.
 
 ## Local Skills
 
-This repository defines project-local skills under `skills/`. They are not part of Codex's global skill registry, so agents must open them manually when relevant.
+This repository defines project-local skills under `skills/`. They are not part of any global skill registry, so agents must open them manually when relevant.
 
 Use them as follows:
 

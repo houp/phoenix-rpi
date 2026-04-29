@@ -2,6 +2,57 @@
 
 ## Completed Steps
 
+### 2026-04-29: E2 probe + QEMU comparison reframes iter-7/8 as a class-of-problem ✅
+- **Coordination-repo commits**: this session (AGENTS.md probe-parity rule,
+  docs/testing-automation.md probe-parity workflow, TD-04 reframing,
+  tracking updates).
+- **Kernel sibling commit**: this session (E2 probe + reverted-flush
+  comment marker in `hal/aarch64/_init.S`).
+- **Result**: The corruption that was tracked for several sessions as
+  "iter-8 sub-loop hang inside `syspage_init`" is now understood as a
+  cache-coherency / boot-handoff anomaly *specific to the BCM2711
+  environment*, not a bug in the shared aarch64 kernel handoff code.
+  The same code runs correctly on QEMU 10.2.2 raspi4b and on ZynqMP.
+- **Method**:
+  1. Added asm probe markers in kernel `_init.S` that read 8 bytes at
+     offsets 0/0x100/0x200/0x310 from both source PA (saved x14) and
+     destination (low PA via adrp+lo12, high VA via literal pool).
+  2. Captured probe data on real Pi 4 (3 consecutive boots): copy is
+     correct at offsets 0/0x100/0x200, garbage at 0x310 with the
+     garbage value differing every boot. Mappings agree (l == v).
+  3. Captured probe data on QEMU same image: copy correct at every
+     offset including 0x310. Same compiled instruction stream,
+     divergent behaviour.
+  4. Tried a pre-copy `_clean_inval_dcache_range` over the dest range:
+     hangs the kernel on real hardware at marker `V` (line 247);
+     boots fine in QEMU. Reverted with a do-not-redo comment.
+  5. Verified plo's actual SCTLR state by reading source: plo runs
+     **cache-off the entire time** (SCTLR_EL3 = `0x30c50838`,
+     SCTLR_EL2 = `0x30c00838`, SCTLR_EL1 = 0). Earlier sessions'
+     mental model "plo writes are stuck in plo's cache" was wrong —
+     plo writes go directly to DDR.
+  6. Cross-referenced the ARM64 Linux Boot Protocol, the upstream
+     Pi 4 armstub8 source, and ZynqMP's plo + kernel code.
+- **What this rules out**: code bug in the copy logic, relOffs
+  arithmetic, TTBR0/TTBR1 mappings, or probe code itself (all proven
+  correct by QEMU). Plo's writes being stuck in plo's cache (proven
+  by SCTLR reading).
+- **What this points to**: an external coherent-master writing to the
+  `_hal_syspageCopied` PA on real Pi 4 between plo's stores and the
+  kernel's reads. Top candidate is the VideoCore VI GPU continuing
+  to DMA into firmware-reserved DRAM regions across the handoff;
+  secondary candidates are stale L2 lines from the bootcode →
+  start4.elf → armstub firmware chain, or in-flight DMA that hasn't
+  drained when plo takes over.
+- **Side-effect output**: a hard-won project rule, now codified —
+  every new probe must be tested in QEMU first, then on real HW,
+  with both outputs diffed in the active step's tracker file.
+  Recorded in `AGENTS.md` and `docs/testing-automation.md`.
+- **Markers reached**: kernel boots through the full asm sequence
+  (Z, K, [, L, S, T, U, M, V, X1, X2, X3, N, Y, O, P) and into the
+  syspage probes; iter trace runs to ~iter 8 with the same corruption
+  pattern as before, but now we know *why* it corrupts.
+
 ### 2026-04-28: Netboot test cycle infrastructure + UART picocom --noinit fix ✅
 - **Coordination-repo commit**: (this commit)
 - **Result**: Build → boot → log loop is now ~30 s, fully automated, with

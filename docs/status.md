@@ -1,8 +1,33 @@
 # Phoenix-RTOS Raspberry Pi 4 Port Status
 
-## Current Status: 2026-04-19
+## Current Status: 2026-04-29
 
-**🎉 MAJOR MILESTONE: Map Relocation Completed!**
+**Active blocker:** BCM2711-specific cache-coherency anomaly at the
+plo→kernel handoff. The kernel reaches `syspage_init()` and walks
+the map list, but the syspage destination buffer (`_hal_syspageCopied`)
+reads back per-boot-randomized garbage at offsets ≥ ~0x208 on real
+Pi 4 hardware. The same kernel image runs correctly in QEMU 10.2.2
+raspi4b, and the shared aarch64 handoff code runs correctly on
+ZynqMP. The bug is real-Cortex-A72-silicon-only.
+
+**Current step:** re-map `_hal_syspageCopied` as Normal Non-Cacheable
+in TTBR1 TTL3 so the syspage copy bypasses the A72 D-cache entirely
+and is therefore immune to any non-coherent external writer (top
+candidate: BCM2711 VideoCore VI continuing to DMA into firmware-
+reserved DRAM across the handoff; secondary candidate: stale L2
+lines from the bootcode → start4.elf → armstub firmware chain). Full
+plan, probe data, and references in `tracking/current-step.md`. The
+TD-04 entry in `docs/TEMPORARY-FIXES-AND-FUTURE-CLEANUP.md` carries
+the class-of-problem framing.
+
+**Project rule adopted this session:** every new diagnostic probe
+must be tested in QEMU first, then on real Pi 4, with both outputs
+diffed in the active step's tracker. Codified in `AGENTS.md` and
+`docs/testing-automation.md`. The QEMU comparison is what reframed
+"iter-8 hang in syspage_init" as a real-hardware-only cache-coherency
+problem rather than a code bug.
+
+## 2026-04-19 milestone (still valid): Map Relocation Completed
 
 The Raspberry Pi 4 port has achieved a massive breakthrough! The system now successfully completes all map relocation in syspage initialization and reaches the program relocation phase.
 

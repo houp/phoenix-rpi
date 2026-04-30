@@ -2,5 +2,18 @@
 sources/
 buildroots/
 
+# Build outputs and external clones (large, machine-local)
+artifacts/
+external/
+
+# Claude Code session state (worktrees, per-session settings)
+.claude/
+
 # macOS filesystem noise
 .DS_Store
+
+# Personal notes and incidental files
+gemini-findings.md
+*.mov
+Screenshot *.png
+/4

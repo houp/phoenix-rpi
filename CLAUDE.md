@@ -1,0 +1,45 @@
+# Claude Code Instructions
+
+This is the **Phoenix-RTOS Raspberry Pi port** coordination repository.
+
+The authoritative rules for this project live in [AGENTS.md](AGENTS.md) and the files it references. This file is only the thin boot sequence Claude Code needs on session start; do not duplicate policy here.
+
+## Session boot sequence
+
+Read these three, in order, before any code change:
+
+1. [AGENTS.md](AGENTS.md) — rules, conventions, mandatory reading list
+2. [docs/status.md](docs/status.md) — current boot progress and active focus
+3. [tracking/current-step.md](tracking/current-step.md) — the single active implementation step
+
+Everything else in AGENTS.md's "Mandatory Reading Order" is **conditional** — read it when the task touches that area. Do not read all 14 docs on every session; that burns context with no gain.
+
+## Project layout you should know
+
+- **Coordination repo** (this directory): docs, scripts, tracking, manifests — no Phoenix source code
+- **Sibling upstream repos**: `/Users/witoldbolt/phoenix-rpi/sources/<repo>/` — e.g. `phoenix-rtos-kernel`, `plo`. These are separate git repos, not submodules. Edit and commit there, then record the tested integration state in a new `manifests/*.md` here.
+- **Active kernel branch**: `agent/rpi4-program-reloc` in `sources/phoenix-rtos-kernel`. Known-good rollback tag: `known-good/2026-04-19-map-relocation-complete`.
+- **Build loop**: `./scripts/rebuild-rpi4b-fast.sh` → `./scripts/capture-rpi4b-uart.sh` → `python3 scripts/summarize-rpi4b-uart-log.py <log>`. Do not improvise alternate paths — fix the helper if broken.
+
+## Rollback discipline
+
+This project depends on **deterministic rollback** when a step regresses boot progress.
+
+- Every validated step should produce a manifest in `manifests/` recording all sibling SHAs.
+- `scripts/snapshot-integration-state.sh` generates a manifest from current sibling state.
+- `scripts/restore-integration-state.sh <manifest.md>` restores all siblings to the recorded SHAs.
+- Use these rather than ad-hoc `git checkout` across multiple repos.
+
+## Technical debt
+
+The Pi 4 bring-up is currently accepting known shortcuts to reach a first full boot. Each shortcut has an ID (e.g. `TD-01`) in [docs/TEMPORARY-FIXES-AND-FUTURE-CLEANUP.md](docs/TEMPORARY-FIXES-AND-FUTURE-CLEANUP.md) and a matching `TODO(TD-xx):` comment in source code. When touching transitional code, keep those markers; when resolving a debt item, remove both the marker and its entry.
+
+The code will be **published publicly**. Optimize for readability and upstreamability (see [docs/code-quality-and-upstreaming.md](docs/code-quality-and-upstreaming.md)). Remove diagnostic-only code whose hypothesis was disproved before closing a step.
+
+## Working-style defaults
+
+- One active step at a time. Do not widen scope mid-step.
+- Prefer small, reviewable commits in the touched upstream repo, then a coordination-repo commit that records the integration state.
+- For any runtime question answerable by QEMU gdbstub, try that before adding source-level probes.
+- Surface warnings from builds, DTB tooling, or scripts rather than letting them scroll past.
+- You are running in a git worktree under `.claude/worktrees/`. Coordination-repo commits you make here land on the worktree branch; sibling repos are outside the worktree and are committed in place.

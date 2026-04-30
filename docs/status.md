@@ -6,6 +6,31 @@
 the `_hal_init` assembly wrapper, resets the early kernel stack, and then takes
 an exception immediately after marker `R`.
 
+Follow-up testing after the USB-C NIC was replugged confirmed the automated
+netboot lane is functional after scripted bridge recovery. The baseline image
+was rebuilt from the restored source tree after two failed experiments:
+
+- Keeping the bootstrap `TTBR0_EL1` identity map instead of replacing it with
+  the scratch table regressed the board to `A2 ... X1 X2 X3`.
+- Installing `_vector_table` through its linked high VA in `VBAR_EL1` also
+  regressed the board to `A2 ... X1 X2 X3`.
+
+Both experiments were reverted. They are still useful evidence: the current
+Pi 4 path remains sensitive to the low-PC/TTBR0 transition, and high
+instruction/vector fetch through the TTBR1 kernel mapping is not yet reliable
+on real hardware. This is consistent with the external arm64 bring-up rule
+already recorded in `docs/source-artifacts.md`: keep a valid identity path
+across MMU enable, then deliberately branch to the higher-half address only
+after the higher-half mapping is proven executable.
+
+The fixed QEMU smoke helper now fails correctly instead of hiding this class of
+problem. Current Pi 4 QEMU stops at `STUZb!e{86000005}`:
+`ESR_EL1=0x86000005` is an instruction abort from the same exception level with
+a level-1 translation fault. QEMU therefore exposes the invalid low-PC fetch
+path immediately after the branch to `main`; real hardware appears to continue
+further only because stale translations or cached instruction state mask the
+same bug until `_hal_init`.
+
 Latest real-device marker boundary:
 
 ```text
@@ -14,8 +39,8 @@ Latest real-device marker boundary:
 
 Latest verified image:
 
-- SHA256: `cf46e5277d6b9bd7e24875b37b034c948911d5cf0624e2faa717f3d9c362115e`
-- UART log: `artifacts/rpi4b-uart/rpi4b-uart-20260430-064643-netboot-exception-esr-halt-rerun.log`
+- SHA256: `07d40d5e1a197f4c3e763ac3368f475d774a7f1596cb9452073133673a970032`
+- UART log: `artifacts/rpi4b-uart/rpi4b-uart-20260430-150524-netboot-nic-refresh-baseline.log`
 
 Interpretation:
 

@@ -22,6 +22,10 @@
   - `(psh)% help`
   - `Available commands:`
   - returned `(psh)%`
+- current helper behavior:
+  - `expect` timeout or EOF before these markers is a nonzero failure
+  - this was tightened after a Pi 4 smoke run timed out before the shell but
+    still returned success
 
 ## Current Pi 4 HDMI Smoke
 

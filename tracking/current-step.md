@@ -28,8 +28,8 @@ current diagnostic loop:
 
 Latest verified image in this step:
 
-- SHA256: `cf46e5277d6b9bd7e24875b37b034c948911d5cf0624e2faa717f3d9c362115e`
-- UART log: `artifacts/rpi4b-uart/rpi4b-uart-20260430-064643-netboot-exception-esr-halt-rerun.log`
+- SHA256: `07d40d5e1a197f4c3e763ac3368f475d774a7f1596cb9452073133673a970032`
+- UART log: `artifacts/rpi4b-uart/rpi4b-uart-20260430-150524-netboot-nic-refresh-baseline.log`
 
 Current marker boundary:
 
@@ -60,9 +60,36 @@ Tool/process warnings observed during this step:
   back to `picocom`.
 - `picocom` can briefly leave `/dev/cu.usbserial-201310` locked after a capture;
   verify with `lsof /dev/cu.usbserial-201310` before rerunning if capture fails.
+- `picocom --exit-after` did not terminate cleanly when the DUT emitted a very
+  large stream of blank lines during failed `X3` experiments; the stuck capture
+  had to be killed so the test-cycle trap could power the Pi off.
+- The QEMU smoke helper previously returned success after timing out before a
+  shell prompt; it has been tightened so `expect` timeout/eof paths exit
+  nonzero.
+- After that fix, `./scripts/qemu-shell-smoke.sh rpi4b` correctly exits `124`.
+  The QEMU log reaches `STUZb!e{86000005}`. Decoding `ESR_EL1=0x86000005`
+  gives an instruction abort from the same exception level with a level-1
+  translation fault. That is strong evidence that QEMU is exposing the
+  low-PC/invalid-TTBR0 problem immediately after the branch to `main`, while
+  real Pi 4 hardware continues further only because stale translations or
+  cached instruction state mask the bug for longer.
 - Firmware HDMI1 EDID warnings are expected when only HDMI0 is connected.
 - `prepare-rpi4b-dtb.sh` now defaults to copying the final-form upstream DTB
   without decompiling/linting it; set `RPI4B_DTB_LINT=1` for explicit DTB audits.
+
+Failed experiments on 2026-04-30, both reverted before the baseline rebuild:
+
+- Keeping the bootstrap `TTBR0_EL1` identity map active in the primary path
+  regressed real hardware from `...YfhR` to `A2 ... X1 X2 X3`.
+- Loading the normal exception vector base through the linked high VA also
+  regressed real hardware from `...YfhR` to `A2 ... X1 X2 X3`.
+
+Current conclusion: the real board still cannot reliably fetch instructions or
+exception vectors through the TTBR1 higher-half kernel mapping. The next useful
+work item is not more local `_hal_init` probing, but a focused rebuild of the
+MMU transition so it matches the Linux/bare-metal pattern: keep identity fetch
+valid, prove the higher-half executable mapping, branch once to the linked high
+VA, then retire the identity path.
 
 ### Major Achievement
 The system has successfully completed all map relocation in syspage initialization! This represents a massive milestone in the Raspberry Pi 4 bring-up process.

@@ -38,8 +38,7 @@ Options:
   --list
       list candidate macOS USB serial devices and exit
   --exit-after MSEC
-      pass picocom --exit-after for dry runs or tests;
-      if auto mode would choose tio, the helper falls back to picocom
+      stop capture after this many milliseconds using the helper watchdog
   --help
       show this help
 
@@ -127,8 +126,13 @@ have_tool() {
 
 select_tool() {
 	case "$tool" in
-		auto)
-			if have_tool tio; then
+	auto)
+			if [ -n "$exit_after" ] && have_tool picocom; then
+				# tio exits immediately when this helper runs without an
+				# interactive stdin. For timed lab captures use picocom, but
+				# keep timing in this wrapper instead of picocom --exit-after.
+				tool="picocom"
+			elif have_tool tio; then
 				tool="tio"
 			elif have_tool picocom; then
 				tool="picocom"
@@ -149,15 +153,6 @@ select_tool() {
 			;;
 	esac
 
-	if [ -n "$exit_after" ] && [ "$tool" = "tio" ]; then
-		if have_tool picocom; then
-			printf 'warning: tio does not support --exit-after; falling back to picocom for this invocation\n' >&2
-			tool="picocom"
-		else
-			printf 'warning: tio does not support --exit-after and picocom is unavailable\n' >&2
-			exit 1
-		fi
-	fi
 }
 
 while [ $# -gt 0 ]; do
@@ -277,6 +272,9 @@ if [ "$tool" = "tio" ]; then
 else
 	printf 'Exit:        Ctrl-A Ctrl-X\n'
 fi
+if [ -n "$exit_after" ]; then
+	printf 'Watchdog:    stop after %s ms\n' "$exit_after"
+fi
 
 if [ "$tool" = "tio" ]; then
 	cmd=(
@@ -312,11 +310,52 @@ else
 		--logfile "$log_path"
 	)
 
-	if [ -n "$exit_after" ]; then
-		cmd+=(--exit-after "$exit_after")
-	fi
-
 	cmd+=("$device")
 fi
 
-exec "${cmd[@]}"
+if [ -z "$exit_after" ]; then
+	exec "${cmd[@]}"
+fi
+
+case "$exit_after" in
+	''|*[!0-9]*)
+		printf 'invalid --exit-after value: %s\n' "$exit_after" >&2
+		exit 1
+		;;
+esac
+
+watchdog_secs=$(( (exit_after + 999) / 1000 ))
+[ "$watchdog_secs" -gt 0 ] || watchdog_secs=1
+
+stdin_dir="$(mktemp -d "${TMPDIR:-/tmp}/rpi4b-uart-stdin.XXXXXX")"
+stdin_fifo="$stdin_dir/stdin"
+mkfifo "$stdin_fifo"
+exec 3<>"$stdin_fifo"
+
+"${cmd[@]}" <"$stdin_fifo" &
+capture_pid=$!
+
+(
+	sleep "$watchdog_secs"
+	if kill -0 "$capture_pid" 2>/dev/null; then
+		kill "$capture_pid" 2>/dev/null || true
+	fi
+) &
+watchdog_pid=$!
+
+set +e
+wait "$capture_pid"
+capture_rc=$?
+set -e
+
+kill "$watchdog_pid" 2>/dev/null || true
+wait "$watchdog_pid" 2>/dev/null || true
+exec 3>&-
+rm -rf "$stdin_dir"
+
+if [ "$capture_rc" -ne 0 ]; then
+	printf 'UART capture stopped after %ss (capture rc=%s)\n' "$watchdog_secs" "$capture_rc" >&2
+	exit 0
+fi
+
+exit 0

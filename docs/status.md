@@ -2,68 +2,67 @@
 
 ## Current Status: 2026-04-30
 
-**Current blocker**: Pi 4 reaches `main()`, completes `syspage_init()`, enters
-the `_hal_init` assembly wrapper, resets the early kernel stack, and then takes
-an exception immediately after marker `R`.
-
-Follow-up testing after the USB-C NIC was replugged confirmed the automated
-netboot lane is functional after scripted bridge recovery. The baseline image
-was rebuilt from the restored source tree after two failed experiments:
-
-- Keeping the bootstrap `TTBR0_EL1` identity map instead of replacing it with
-  the scratch table regressed the board to `A2 ... X1 X2 X3`.
-- Installing `_vector_table` through its linked high VA in `VBAR_EL1` also
-  regressed the board to `A2 ... X1 X2 X3`.
-
-Both experiments were reverted. They are still useful evidence: the current
-Pi 4 path remains sensitive to the low-PC/TTBR0 transition, and high
-instruction/vector fetch through the TTBR1 kernel mapping is not yet reliable
-on real hardware. This is consistent with the external arm64 bring-up rule
-already recorded in `docs/source-artifacts.md`: keep a valid identity path
-across MMU enable, then deliberately branch to the higher-half address only
-after the higher-half mapping is proven executable.
-
-The fixed QEMU smoke helper now fails correctly instead of hiding this class of
-problem. Current Pi 4 QEMU stops at `STUZb!e{86000005}`:
-`ESR_EL1=0x86000005` is an instruction abort from the same exception level with
-a level-1 translation fault. QEMU therefore exposes the invalid low-PC fetch
-path immediately after the branch to `main`; real hardware appears to continue
-further only because stale translations or cached instruction state mask the
-same bug until `_hal_init`.
-
-Latest real-device marker boundary:
-
-```text
-... kllmnPYfhR
-```
+**Current blocker**: Pi 4 now reaches user-space process creation and spawns
+all syspage programs through `psh`, then stays silent before a shell prompt.
 
 Latest verified image:
 
-- SHA256: `07d40d5e1a197f4c3e763ac3368f475d774a7f1596cb9452073133673a970032`
-- UART log: `artifacts/rpi4b-uart/rpi4b-uart-20260430-150524-netboot-nic-refresh-baseline.log`
+- SHA256: `3dc62d31c1469955ee462f7a0279cc4f570e7fcb57d71fc50ceb2686e1aec447`
+- UART log: `artifacts/rpi4b-uart/rpi4b-uart-20260430-214456-netboot-spawn-names.log`
+- QEMU smoke: `./scripts/qemu-shell-smoke.sh rpi4b` reaches `psh help`
 
-Interpretation:
+Latest real-device boundary:
 
-- `Y`: `syspage_init()` completed.
-- `f`: `main()` is about to call `_hal_init()`.
-- `h`: assembly `_hal_init` wrapper entered.
-- `R`: wrapper reset `SP` to `PMAP_COMMON_STACK + SIZE_INITIAL_KSTACK`.
-- No later diagnostic marker appears; the first direct store after `R` does not
-  complete.
+```text
+main: spawned dummyfs-root (2)
+main: spawned dummyfs (3)
+main: spawned pl011-tty (4)
+main: spawned mkdir (5)
+main: spawned bind (6)
+main: spawned pcie (7)
+main: spawned usb (8)
+main: spawned psh (9)
+```
 
-An exception-vector marker proved that the CPU is taking an exception after
-`R`. The current exception reporting is still diagnostic and not clean final
-code; the next task is to decode the fault reliably or fix the underlying early
-stack/high-VA data-store mapping issue.
+The latest hardware log contains no `Exception`, no `SError`, and no
+instruction abort. This closes the previous `_hal_init`, scheduler entry, and
+SError-flood blockers.
 
-Netboot/power/UART automation is active. Known lab-process warnings:
+Validated fixes in this step:
 
-- Initial DHCP frequently times out and bridge recovery restarts Lima/socket_vmnet.
-- `tio` lacks timed capture, so the UART helper falls back to `picocom`.
-- `picocom` can briefly leave the UART device locked after capture.
-- HDMI1 EDID warnings are expected when only HDMI0 is connected.
-- Final-form Raspberry Pi firmware DTB is copied without default decompile lint;
-  run with `RPI4B_DTB_LINT=1` when an explicit DTB audit is needed.
+- AArch64 single-core spinlocks use DAIF save/IRQ-FIQ mask/restore instead of
+  exclusive byte atomics when `NUM_CPUS == 1`.
+- SError remains masked in synthetic thread contexts, syscall/exception C
+  dispatch, IRQ dispatch, and direct `hal_jmp()` userspace entry.
+- `main()` enters the first scheduled context before enabling timer IRQs in the
+  bootstrap context.
+
+Next target:
+
+- Diagnose post-spawn user-service execution and console/TTY handoff. Confirm
+  whether `psh` is scheduled on hardware, whether `pl011-tty` registers the
+  expected device, and whether shell output is blocked waiting on `/dev`.
+
+Memory/GPU note:
+
+- The target board is physically 4GB, but current firmware/boot config reports
+  `MEM GPU: 76 ARM: 948 TOTAL: 1024`; PLO also clamps usable DDR to about
+  948MiB. This lowers immediate GPU-overlap risk but is temporary.
+- Final memory support must derive usable RAM and reserved regions from the
+  firmware-mutated DTB (`/memory`, `/reserved-memory`, `/memreserve/`,
+  `dma-ranges`) instead of hardcoding either 1GB or 4GB.
+
+Tool/process warnings observed:
+
+- Firmware logs still show expected missing `recover4.elf`/`recovery.elf`,
+  HDMI1 EDID failures, `DISPLAY_DSI_PORT` warnings, and missing `cmdline.txt`.
+  HDMI1 EDID is safe because HDMI0 is used; the others are firmware/boot-media
+  noise unless correlated with a Phoenix failure.
+- One test attempt failed before boot because `picocom` could not lock
+  `/dev/cu.usbserial-201310`. `test-cycle-netboot.sh` now aborts if UART
+  capture exits before Pi power-on.
+- A VM restart removed `/tmp/rpi4b-dtb`; rebuild restored it by copying the
+  official final-form Raspberry Pi firmware DTB without dtc decompile lint.
 
 ## Previous Status: 2026-04-19
 

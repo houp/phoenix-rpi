@@ -2,6 +2,44 @@
 
 This document tracks all temporary fixes, workarounds, and technical debt introduced during the Raspberry Pi 4 bring-up process. These changes enabled progress but will need to be revisited for proper implementation.
 
+## 2026-04-30 Pi 4 Bring-Up Temporaries
+
+### SError Masking Policy
+- **Location**: `hal/aarch64/_exceptions.S`, `hal/aarch64/cpu.c`
+- **Reason**: Real Pi 4 delivered asynchronous SError during early IRQ,
+  syscall, and user-entry paths before Phoenix had a platform policy/handler.
+- **Current State**: SError is kept masked in created contexts, syscall and
+  exception C dispatch, IRQ dispatch, and `hal_jmp()` user entry.
+- **Cleanup**: Replace with an explicit AArch64 SError policy and handler once
+  the system reaches stable shell/user-space operation.
+
+### Single-Core AArch64 Spinlock Path
+- **Location**: `hal/aarch64/spinlock.c`
+- **Reason**: On the current `NUM_CPUS == 1` Pi 4 target, real hardware hung
+  when switching from early spinlock bypass to exclusive-byte spinlocks.
+- **Current State**: Single-core builds use DAIF save/IRQ-FIQ mask/restore for
+  spinlocks; SMP builds retain the exclusive-byte implementation.
+- **Cleanup**: Revisit before enabling secondary Cortex-A72 cores. SMP bring-up
+  must validate exclusive monitors, memory attributes, and cache/shareability.
+
+### UART Diagnostics
+- **Location**: `_init.S`, `main.c`, `syspage.c`, `vm/vm.c`, `proc/threads.c`
+- **Reason**: Needed to pinpoint hardware-only boot boundaries.
+- **Current State**: Latest useful boundary is `main: spawned psh (9)` with no
+  SError/abort.
+- **Cleanup**: Remove or gate diagnostics once the post-spawn console handoff is
+  fixed.
+
+### Memory Size Clamp
+- **Location**: boot configuration/PLO memory assumptions
+- **Reason**: Current firmware reports `MEM GPU: 76 ARM: 948 TOTAL: 1024` on a
+  physical 4GB board; PLO also clamps DDR to about 948MiB.
+- **Current State**: This avoids immediate high-memory/GPU overlap risk but is
+  not final.
+- **Cleanup**: Derive usable RAM and reserved regions from the firmware-mutated
+  DTB (`/memory`, `/reserved-memory`, `/memreserve/`, `dma-ranges`) and support
+  different Pi 4 RAM sizes.
+
 ## Table of Contents
 - [SMP and CPU Initialization](#smp-and-cpu-initialization)
 - [Cache and TLB Management](#cache-and-tlb-management)

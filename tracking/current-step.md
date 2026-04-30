@@ -1,13 +1,13 @@
 # Current Implementation Step
 
-## Step: Diagnose `_hal_init` Stack/Data-Store Exception on Pi 4
+## Step: Diagnose Post-Spawn User-Space/Console Handoff on Pi 4
 
 **Status**: IN PROGRESS
 
 **Date**: 2026-04-30
 
-**Commits**: 
-- pending: Pi 4 netboot/UART diagnostics around `_hal_init` stack/data-store exception
+**Commits**:
+- pending: Pi 4 SError masking, single-core spinlock fix, and post-spawn diagnostics
 - d1996d8f: Fix infinite loop in entry relocation by using original_entries for loop condition
 - aff01622: Add more detailed markers in entry loop to diagnose infinite loop
 - 2f0b391f: Add detailed debug markers in map relocation loop to pinpoint crash location
@@ -17,6 +17,39 @@
 **Note**: Broken commits (1bb7f806, 1c6a5267, 5e74c3c9) have been removed from history
 
 ## 2026-04-30 Update
+
+Latest hardware result:
+
+- Image SHA256: `3dc62d31c1469955ee462f7a0279cc4f570e7fcb57d71fc50ceb2686e1aec447`
+- UART log: `artifacts/rpi4b-uart/rpi4b-uart-20260430-214456-netboot-spawn-names.log`
+- QEMU smoke reaches `psh help`
+- Real Pi reaches `main: spawned psh (9)`
+- No `Exception`, `SError`, or instruction abort appears in the latest real-device log
+
+Confirmed fixes:
+
+- Single-core AArch64 spinlocks no longer depend on exclusive byte atomics.
+- SError is kept masked across thread creation, IRQ dispatch, syscall/exception
+  C dispatch, and direct `hal_jmp()` user entry.
+- First scheduling happens before timer IRQs are enabled in the bootstrap
+  context.
+
+Current boundary:
+
+```text
+main: spawned dummyfs-root (2)
+main: spawned dummyfs (3)
+main: spawned pl011-tty (4)
+main: spawned mkdir (5)
+main: spawned bind (6)
+main: spawned pcie (7)
+main: spawned usb (8)
+main: spawned psh (9)
+```
+
+Next action: instrument or debug post-spawn scheduling and console handoff.
+The immediate question is whether `psh` is scheduled on hardware and whether
+the shell is blocked waiting for `pl011-tty`/`devfs`/`/dev`.
 
 Automated netboot/power/UART testing is now available and was used for the
 current diagnostic loop:

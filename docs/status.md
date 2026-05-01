@@ -1,8 +1,24 @@
 # Phoenix-RTOS Raspberry Pi 4 Port Status
 
-## Current Status: 2026-05-01
+## Current Status: 2026-05-02
 
-**Current blocker**: TD-13 `proc_mutexCreate` hang was fixed by avoiding
+**TD-13 closed. New active blocker is TD-14 (`/dev/console` open hang in
+`resolve_path`).** On real Pi 4 the kernel + libphoenix + psh now run cleanly
+through `main: spawned psh (10)` → `threads: psh user scheduled` → libc init
+→ psh `main` → `pshapp: tty loop enter` → `pshapp: ttyopen attempt` →
+`open: console enter` → `open: console stat skipped` →
+`open: console resolve enter`, then the UART falls silent. The wall is
+inside libphoenix `resolve_path("/dev/console", NULL, 1, 1)`, which makes
+sys_lookup IPC round-trips to the namespace servers (bind / devfs / pl011-
+tty). One of those round-trips hangs on hardware. QEMU still reaches
+`(psh)% help`, so the path works in software.
+
+Reference log:
+`artifacts/rpi4b-uart/rpi4b-uart-20260501-220933-netboot-console-open-skip-stat.log`
+
+## Previous Status: 2026-05-01
+
+**Previous blocker**: TD-13 `proc_mutexCreate` hang was fixed by avoiding
 exclusive-access atomics on the current single-core AArch64 target. The noisy
 TD-13 syscall/mutex/EL0 probes have now been removed and
 `syscalls_phMutexCreate()` again validates both user pointers with

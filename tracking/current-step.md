@@ -1,21 +1,111 @@
 # Current Implementation Step
 
-## Step: Diagnose `proc_mutexCreate` Hang on Pi 4 (TD-13)
+## Step: Diagnose `/dev/console` `resolve_path` Hang on Pi 4 (TD-14)
 
 **Status**: IN PROGRESS
 
-**Date**: 2026-05-01
+**Date**: 2026-05-02
 
-**Manifest**: `manifests/2026-05-01-td13-clean-probes.md`
+**Manifest**: `manifests/2026-05-02-td13-resolve-path-boundary.md`
 
 **Sibling commits at this checkpoint**:
-- kernel `agent/rpi4-program-reloc` @ `39c81236` — TD-13 syscall + phMutexCreate instrumentation (s16 trace, M/1/2/3/E/K markers, TD-13-mtxbypass)
-- kernel `agent/rpi4-program-reloc` @ `c5c21c6e` — `>` pre-eret marker, EC probe, spawn-cap (TD-13-spawn-cap)
-- devices `master` @ `8984455` — pl011-tty TD13_DBG progress markers via `debug()`
-- kernel `agent/rpi4-program-reloc` @ `23b9a127` — single-core AArch64
-  atomic fallback plus `proc_mutexCreate` substep probes
-- kernel `agent/rpi4-program-reloc` @ `37fcc58e` — removed TD-13 syscall/mutex/EL0
-  probe bytes and restored `phMutexCreate` `vm_mapBelongs()` validation
+- kernel `agent/rpi4-program-reloc` @ `37fcc58e` — TD-13 mutex/atomic wall
+  fixed (DAIF-masked plain atomics for `__aarch64__ && NUM_CPUS == 1`),
+  byte probes removed, `vm_mapBelongs()` validation restored.
+- devices `master` @ `7929591` — `pl011_fbcon_init()` deferred from
+  `pl011_init()` to `main()` *after* kbd/pool threads start; lets
+  `/dev/ttyUL0` register before fbcon touches the GPU mailbox.
+- libphoenix `master` @ `fd8d243` — `crt0/_libc_init/open` debug() trace
+  (skips `stat()` pre-check on `/dev/console` while debugging ttyopen).
+- utils `master` @ `c787d3b` — psh main/ttyopen/run debug() trace.
+
+## 2026-05-02 Update — TD-13 closed, TD-14 active
+
+**TD-13 RESOLVED.** All fixes for the post-spawn user-mode silence
+have landed and validated:
+
+1. `_hal_syspageCopied` mapped Normal Non-Cacheable (kernel
+   `cff18d49`, the original TD-04 NC-dest fix).
+2. Hard cap on the spawn loop in `main()` (kernel `c5c21c6e`,
+   TD-13-spawn-cap, ~32 iterations).
+3. **Single-core AArch64 atomic fallback** (kernel `23b9a127`).
+   `lib_atomicIncrement/Decrement` use DAIF-masked plain updates
+   when `defined(__aarch64__) && NUM_CPUS == 1`. Mirrors the TD-11
+   spinlock approach. The exact wall was inside
+   `proc_mutexCreate -> resource_put -> lib_atomicDecrement(&r->refs)`,
+   which expanded to `__atomic_fetch_sub` (LDXR/STXR exclusives) and
+   never returned on real BCM2711 silicon.
+4. Probe cleanup (kernel `37fcc58e`) — removed M/1/2/3/E/K, sNN,
+   a..f, `*15`, and `>` byte probes; restored `vm_mapBelongs()` in
+   `syscalls_phMutexCreate`.
+5. `pl011_fbcon_init` deferred (devices `7929591`).
+
+**TD-14 (NEW ACTIVE BLOCKER).** With those landed, real Pi 4 boot
+now reaches:
+
+```text
+main: spawned psh (10)
+threads: psh user scheduled
+psh: main enter
+psh: keepidle done
+psh: root lookup done
+psh: tcgetpgrp done
+psh: basename done
+psh: findapp enter
+psh: app run enter
+pshapp: run enter
+pshapp: sleep done
+pshapp: tty loop enter
+pshapp: ttyopen attempt
+psh: ttyopen open enter
+open: console enter
+open: console stat skipped
+open: console resolve enter
+[silence]
+```
+
+Reference log:
+`artifacts/rpi4b-uart/rpi4b-uart-20260501-220933-netboot-console-open-skip-stat.log`
+
+**The wall is libphoenix `resolve_path("/dev/console", NULL, 1, 1)`**
+inside `psh_ttyopen()`. `resolve_path` walks the path component-by-
+component via namespace-server IPC (sys_lookup → bind/devfs). One
+of those IPC round-trips is hanging.
+
+QEMU smoke still reaches `(psh)% help` interactively, so the QEMU
+namespace path works. Difference is BCM2711-only: candidates are
+(a) bind/devfs IPC port not actually serving on hardware,
+(b) IPC blocked because `pl011-tty` registered late or under wrong
+parent oid (deferred fbcon side-effect?),
+(c) another TD-04-class cache-coherency issue on a message-queue or
+oid table backing memory.
+
+## Next action
+
+One short netboot test cycle with one targeted instrumentation:
+add a debug() print inside libphoenix `resolve_path` per
+component (and in `sys_lookup` shim) to see which path component
+the lookup hangs on. Decision tree:
+
+- Hangs on `/` → root oid resolution (init thread / posix port).
+- Hangs on `dev` → bind didn't bind devfs at `/dev`, or bind itself
+  is unresponsive.
+- Hangs on `console` → devfs is up but the `console` entry was
+  never registered (pl011-tty hasn't bound /dev/console yet).
+
+Independently verify on the same log whether `pl011-tty:
+fbcon init deferred ok/unavailable` and `pl011-tty: console ready`
+print — they tell us whether pl011-tty's main thread reached the
+post-init phase at all.
+
+## Build/test commands
+
+```bash
+./scripts/rebuild-rpi4b-fast.sh
+./scripts/qemu-shell-smoke.sh rpi4b
+./scripts/test-cycle-netboot.sh --label td14-resolve-path-trace --capture-secs 120 --dhcp-wait-secs 120
+python3 scripts/summarize-rpi4b-uart-log.py artifacts/rpi4b-uart/<latest>.log
+```
 
 ## 2026-05-01 Update — TD-13 probe cleanup validated
 

@@ -601,15 +601,117 @@ mandatory cleanup. Until then, progress on the boot path takes priority.
   - Restore the natural circular-list terminator and remove the cap.
 - **Marker grep:** `grep -n "TD-13-spawn-cap" sources/phoenix-rtos-kernel/main.c`
 
+### TD-13 status update 2026-05-02 — RESOLVED at the runtime layer
+
+The TD-13 user-mode silence is closed. Real Pi 4 now reaches
+`pshapp: ttyopen attempt` with all libc / libphoenix / posix init
+running successfully. The post-mutex boundary is a separate problem
+tracked under **TD-14** below. The remaining TD-13 cleanup items
+(probe strip, restore TD-13-spawn-cap natural terminator) are listed
+under TD-13-spawn-cap and the priority ladder.
+
+## TD-14: `/dev/console` `resolve_path` hang on Pi 4
+
+- **Status:** PENDING (CURRENT ACTIVE BLOCKER, since 2026-05-02)
+- **First observed:** 2026-05-01 evening, after TD-13 atomic wall lifted.
+- **Where:** `sources/libphoenix/unistd/file.c` `open()` →
+  `resolve_path("/dev/console", NULL, 1, 1)`. Last observed marker on
+  real Pi 4 is `open: console resolve enter`; no `resolve done` /
+  `resolve failed` follows.
+- **What was observed:** psh runs cleanly through libc init,
+  `psh: main`, `keepidle`, `root lookup`, `tcgetpgrp`, `basename`,
+  `findapp`, `app run`, `pshapp: run`, the klog-flush sleep, the
+  retry loop entry, and into `psh_ttyopen("/dev/console")`. `open()`
+  starts (because `O_RDWR` set + traceConsole flag), the
+  `stat()` pre-check is skipped (TD-14-stat-skip workaround), then
+  enters `resolve_path` and never returns. UART silence past that
+  point.
+- **Why this is a separate item from TD-13:** TD-13's `proc_mutexCreate`
+  atomic wall is fixed and `_errno_init`'s `mutexCreate` succeeds for
+  every user process. Every spawned process reaches its own `main()`.
+  The new wall is in libphoenix namespace lookup, not kernel mutex.
+- **Candidate failure modes:**
+  1. `bind` server not actually serving on hardware — `/dev` is
+     never resolvable. Easy to discriminate: instrument resolve_path
+     per component and watch which fails.
+  2. `pl011-tty` registers `/dev/console` (or its own oid) too late
+     or under the wrong parent oid because `pl011_fbcon_init` was
+     deferred (devices `7929591`). Side effect: psh races ahead of
+     pl011-tty's `console ready` and looks up a `/dev/console` that
+     hasn't been created yet. The `PSH_TTYOPEN_RETRIES` loop should
+     paper over this — verify how many times the retry actually runs
+     on Pi 4.
+  3. Another TD-04-class cache-coherency issue, this time on the IPC
+     port table or message queues backing the lookup IPC. The fact
+     that TD-13 was a TD-04-class issue inside the kernel raises
+     priors here.
+- **Resolution path:**
+  1. Add per-component `debug()` traces inside `resolve_path` (and
+     in the `sys_lookup` shim it calls). Identify which path
+     component hangs (`/`, `dev`, or `console`).
+  2. Cross-reference with `pl011-tty: fbcon init deferred ok` and
+     `pl011-tty: console ready` markers — if neither prints, candidate
+     2 is likely.
+  3. If lookup hangs even before pl011-tty progresses, escalate to
+     candidate 1 / 3 (bind / cache).
+- **Reference log:**
+  `artifacts/rpi4b-uart/rpi4b-uart-20260501-220933-netboot-console-open-skip-stat.log`
+- **Manifest:** `manifests/2026-05-02-td13-resolve-path-boundary.md`
+- **Marker grep:** `grep -n "open: console" sources/libphoenix/unistd/file.c`
+
+### TD-14-stat-skip: skip `stat()` pre-check for `/dev/console`
+
+- **Status:** ACTIVE HACK (libphoenix `fd8d243`)
+- **Where:** `sources/libphoenix/unistd/file.c` `open()`. When
+  filename is `/dev/console`, the `O_WRONLY|O_RDWR` `stat()`
+  pre-check is bypassed; everything else proceeds normally.
+- **Why:** Two reasons during TD-14 bring-up: (a) keep the failure
+  isolated to `resolve_path` rather than entangled with `stat`,
+  (b) `stat()` would itself call `resolve_path` so the test was
+  redundant.
+- **Risk accepted:** None at runtime (open still calls
+  `resolve_path` + `sys_open`); only `stat`-specific error paths
+  (`EISDIR` on a directory, `ENOENT` early-out) are skipped — for
+  `/dev/console` they don't apply.
+- **Resolution requirements:** Remove the `traceConsole` branch
+  once TD-14 is fixed, or replace it with the canonical
+  fast-path that doesn't double-lookup.
+- **Marker grep:** `grep -n "traceConsole\|stat skipped" sources/libphoenix/unistd/file.c`
+
+### TD-14-deferred-fbcon: pl011-tty defers fbcon init to main thread
+
+- **Status:** ACTIVE WORKAROUND (devices `7929591`)
+- **Where:** `sources/phoenix-rtos-devices/tty/pl011-tty/pl011-tty.c`.
+  `pl011_fbcon_init()` was previously called inline at the end of
+  `pl011_init()`; it's now invoked from `main()` *after*
+  `beginthread(pl011_kbdthr, ...)` and `beginthread(poolthr, ...)`.
+- **Why:** fbcon init touches the GPU mailbox via `pcie/mailbox`.
+  If it runs before pl011-tty's pool/kbd threads exist, the early
+  bring-up stalls on real Pi 4. Deferring lets `/dev/ttyUL0` start
+  serving messages first.
+- **Risk accepted:** Side effect on TD-14 — `/dev/console` may now
+  be registered later than expected (pl011-tty's `pl011_writeRaw`
+  banner runs before fbcon, but downstream `console ready` print
+  is ordered with the deferred path). May contribute to TD-14
+  candidate 2.
+- **Resolution requirements:**
+  - Once GPU mailbox handshake order is correct, move fbcon back
+    into `pl011_init()` or split it into a discrete service that
+    waits on a mailbox-ready event.
+  - Confirm `/dev/console` registration ordering w.r.t. psh's
+    ttyopen retries.
+- **Marker grep:** `grep -n "fbcon init deferred" sources/phoenix-rtos-devices/tty/pl011-tty/pl011-tty.c`
+
 ## Priority Ladder
 
 **Blocks "first Pi 4 boots to userspace" milestone (current):**
-- TD-13 (post-spawn user-mode handoff — `proc_mutexCreate` atomic wall fixed;
-  current residual boundary is after `threads: psh user scheduled`, with
-  active probes making the console stream hard to interpret). Wired to TD-10
-  because lifting SError mask may still be part of later diagnostics.
+- TD-14 (`/dev/console` `resolve_path` hang in psh ttyopen — the
+  actual current blocker). Wired to TD-14-deferred-fbcon (may be the
+  underlying ordering cause).
+- TD-13 (RESOLVED at the runtime layer; residual cleanup items
+  remain — probe strip, TD-13-spawn-cap proper resolution).
 - TD-10 (SError masked across all early kernel paths — partly hides
-  the TD-13 root cause; needs a real handler)
+  later kernel-fault diagnostics; needs a real handler)
 
 **Blocks effective debugging:**
 - TD-09 (netboot loop reliability — bottleneck for fast iteration on
@@ -655,7 +757,10 @@ mandatory cleanup. Until then, progress on the boot path takes priority.
 | TD-10 | PENDING | partly hides TD-13 |
 | TD-11 | PENDING | revisit before TD-01 |
 | TD-12 | PENDING | DRAM utilization |
-| TD-13 | IN-PROGRESS | post-psh prompt boundary |
+| TD-13 | RESOLVED at runtime layer (mutex/atomic wall fixed) | residual probe-strip + spawn-cap cleanup |
+| TD-14 | PENDING | **current active blocker** — `/dev/console` resolve_path hang |
+| TD-14-stat-skip | PENDING | open() skips stat for /dev/console |
+| TD-14-deferred-fbcon | PENDING | pl011-tty defers fbcon to main thread |
 
 When resolving an item:
 

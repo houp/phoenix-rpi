@@ -6,12 +6,56 @@
 
 **Date**: 2026-05-01
 
-**Manifest**: `manifests/2026-05-01-td13-mtxbypass-checkpoint.md`
+**Manifest**: `manifests/2026-05-01-td13-atomic-fallback.md`
 
 **Sibling commits at this checkpoint**:
 - kernel `agent/rpi4-program-reloc` @ `39c81236` — TD-13 syscall + phMutexCreate instrumentation (s16 trace, M/1/2/3/E/K markers, TD-13-mtxbypass)
 - kernel `agent/rpi4-program-reloc` @ `c5c21c6e` — `>` pre-eret marker, EC probe, spawn-cap (TD-13-spawn-cap)
 - devices `master` @ `8984455` — pl011-tty TD13_DBG progress markers via `debug()`
+- kernel `agent/rpi4-program-reloc` @ `23b9a127` — single-core AArch64
+  atomic fallback plus `proc_mutexCreate` substep probes
+
+## 2026-05-01 Update — TD-13 atomic wall fixed
+
+The planned `a..f` probes were added to `proc_mutexCreate` and validated on
+real Pi 4:
+
+```text
+pre-fix:  M12abcde       (hang before f/3)
+post-fix: M12abcdef3K    (resource_put returns, phMutexCreate succeeds)
+```
+
+The exact wall was `resource_put(p, &mutex->resource)`, which reduces to
+`lib_atomicDecrement(&r->refs)`. Kernel commit `23b9a127` changes
+`lib_atomicIncrement/Decrement` only for `defined(__aarch64__) &&
+NUM_CPUS == 1` to use DAIF-masked plain updates instead of GCC
+`__atomic_*` builtins. This mirrors the already validated single-core AArch64
+spinlock path and leaves multicore/other-architecture builds unchanged.
+
+Validation evidence:
+
+- Build/export/verify: OK, image SHA256
+  `3e89b7c2c738892b5d71f03460e2fe026e0f0099cdb0cdec0b9749182e2e588b`
+- QEMU: `./scripts/qemu-shell-smoke.sh rpi4b` reaches `(psh)% help`
+- Real Pi:
+  `artifacts/rpi4b-uart/rpi4b-uart-20260501-191724-netboot-td13-atomic-fallback.log`
+  reaches `dummyfs: root initialized`, `pl011-tty: init: libtty_init ok`,
+  `main: spawned psh (10)`, and `threads: psh user scheduled`
+
+Current remaining boundary:
+
+- No clean `(psh)%` prompt appears yet on real hardware.
+- The active TD-13 single-byte probes now heavily interleave with useful
+  console output, so the next step should clean or gate them before drawing
+  conclusions about shell/console behavior.
+
+Warnings observed:
+
+- Firmware-side USB probing emitted repeated `xHC-CMD err: 19/36 type: 11`
+  before netboot. This is pre-Phoenix and did not block the run.
+- Timed `picocom` captures end with watchdog SIGTERM/exit 143, expected.
+- A first validation attempt used too short a capture window and ended before
+  DHCP; use 100+ second capture windows for netboot runs.
 
 ## 2026-05-01 Update — TD-13 narrowed
 
@@ -51,24 +95,23 @@ spinlock — see TD-11 single-core spinlock).
 
 ## Next action
 
-Add `a/b/c/d` UART markers between the four calls in
-`proc_mutexCreate` (same single-byte-PL011-write idiom as the
-existing TD-13 ladder), self-cap to ~32 events, run a single
-netboot test cycle (~60s wait + 30s capture). Decision tree:
+Clean or gate the TD-13 probe stream before the next hardware conclusion:
 
-- See `Ma` only → `vm_kmalloc` is the wall.
-- See `Mab` only → `resource_alloc` is the wall.
-- See `Mabc` only → `proc_lockInit` is the wall.
-- See `Mabcd` → returns from `proc_mutexCreate` but something
-  later in `syscalls_phMutexCreate` (or the path back through
-  `syscalls_dispatch` / exception return) hangs — distinct
-  problem, fall back to context dump.
+- Remove or compile-gate `sNN`, `M/1/2/3/E/K`, and `a..f` probe bytes now
+  that the atomic wall is fixed and documented.
+- Keep only normal console/log output plus any targeted post-`psh` probe.
+- Rebuild with `./scripts/rebuild-rpi4b-fast.sh`, run
+  `./scripts/qemu-shell-smoke.sh rpi4b`, then run a real netboot capture with
+  at least `--capture-secs 100`.
+- If no prompt appears in the clean log, instrument the next smallest boundary:
+  `psh` startup, fd/devfs lookup, tty open, or first blocking read/write.
 
 ## Build/test commands
 
 ```bash
 ./scripts/rebuild-rpi4b-fast.sh
-./scripts/test-cycle-netboot.sh --label td13-mutex-substep --capture-secs 30 --dhcp-wait-secs 60
+./scripts/qemu-shell-smoke.sh rpi4b
+./scripts/test-cycle-netboot.sh --label td13-clean-console --capture-secs 100 --dhcp-wait-secs 120
 python3 scripts/summarize-rpi4b-uart-log.py artifacts/rpi4b-uart/<latest>.log
 ```
 

@@ -2,58 +2,69 @@
 
 ## Current Status: 2026-05-01
 
-**Current blocker**: TD-13 narrowed to `proc_mutexCreate` hang. Every user
-process makes exactly one syscall (`s16` = `phMutexCreate`, called from
-libphoenix `_errno_init`'s `mutexCreate(&errno_common.lock)`) and then
-hangs inside `proc_mutexCreate(attr)` (kernel-side, between markers `'2'`
-and `'3'`). The `vm_mapBelongs()` user-pointer validation is bypassed
-(TD-13-mtxbypass) and the hang persists past it — i.e. it is in one of
-`vm_kmalloc` / `resource_alloc` / `proc_lockInit` / `resource_put`.
+**Current blocker**: TD-13 `proc_mutexCreate` hang was fixed by avoiding
+exclusive-access atomics on the current single-core AArch64 target, but the
+real Pi still does not show a clean shell prompt. The latest hardware log now
+reaches `threads: psh user scheduled`, so the next boundary is post-`psh`
+console/stdin/stdout or a later syscall, not initial process creation.
 
 Latest verified image:
 
-- Integration manifest: `manifests/2026-05-01-td13-mtxbypass-checkpoint.md`
-- Kernel: `agent/rpi4-program-reloc` @ `39c81236` (TD-13 syscall +
-  phMutexCreate instrumentation)
+- Integration manifest: `manifests/2026-05-01-td13-atomic-fallback.md`
+- Kernel: `agent/rpi4-program-reloc` @ `23b9a127` (single-core AArch64
+  atomic fallback plus TD-13 mutex substep probes)
 - Devices: `master` @ `8984455` (TD-13 pl011-tty progress markers)
-- UART log: `artifacts/rpi4b-uart/rpi4b-uart-20260501-184309-netboot-mtxbypass.log`
+- UART log: `artifacts/rpi4b-uart/rpi4b-uart-20260501-191724-netboot-td13-atomic-fallback.log`
 - QEMU smoke: still reaches `(psh)% help` interactively.
+- Image SHA256: `3e89b7c2c738892b5d71f03460e2fe026e0f0099cdb0cdec0b9749182e2e588b`
 
-Real-device boundary on `mtxbypass.log`:
+Real-device boundary on `td13-atomic-fallback.log`:
 
 ```text
-main: spawn dummyfs-root → >*15s16 M12main: spawned dummyfs-root (2)
-main: spawn dummyfs       → main: spawned dummyfs (3)        [no SVC trace]
-main: spawn pl011-tty     → >*15s16 M12main: spawned pl011-tty (4)
-main: spawn mkdir         → >*15s16 M12main: spawned mkdir (5)
-main: spawn bind          → >*15s16 M12main: spawned bind (6)
-main: spawn pcie          → >*15s16 M12main: spawned pcie (7)
-main: spawn usb           → >*15s16 M12main: spawned usb (8)
-main: spawn psh           → >*15s16 M12main: spawned psh (9)
-main: spawn loop done, entering proc_reap idle
+first phMutexCreate       → >*15s16 M12abcdef3K
+dummyfs-root              → main: spawned dummyfs-root (2)
+dummyfs                   → dummyfs: root initialized
+pl011-tty                 → pl011-tty: init: libtty_init ok
+bind/devfs                → name: devfs cache hit
+usb                       → threads: timer irq
+psh                       → main: spawned psh (10)
+post-spawn                → threads: psh user scheduled
 [silence]
 ```
 
-Probe-marker counts in that log (`MESS:` substring noise excluded):
+Key result:
 
-- `>` (eret to EL0): 7
-- `*15` (EC=0x15 AArch64 SVC): 7
-- `s16` (syscall #16 = phMutexCreate): 7  (only ever this number)
-- `M12` (entry → past validation): 7
-- `M123` (post `proc_mutexCreate` return): **0**
-- `M123K` (success), real `ME` (error): 0 each
-
-The 52 `ME` substrings counted earlier were noise from firmware
-`MESS:00:00:...` boot lines, not probe output.
+- The added `a..f` probes proved the pre-fix wall was inside
+  `resource_put(p, &mutex->resource)`, which is just
+  `lib_atomicDecrement(&r->refs)`.
+- `lib_atomicIncrement/Decrement` now use a DAIF-masked plain update only for
+  `defined(__aarch64__) && NUM_CPUS == 1`, matching the already validated
+  single-core spinlock strategy. Multicore AArch64 and other architectures
+  keep the existing `__atomic_*` builtins.
+- With that fix, real hardware progresses through `M12abcdef3K`, initializes
+  `dummyfs` and `pl011-tty`, spawns through `psh`, and schedules `psh`.
 
 Next target:
 
-- Add granular markers `a..d` between each call inside `proc_mutexCreate`
-  (`vm_kmalloc`, `resource_alloc`, `proc_lockInit`, `resource_put`) to
-  pinpoint which step blocks. One additional cycle with the existing
-  spawn-cap and capture infrastructure should be enough to isolate the
-  step. Risk is low (one-file edit in `proc/mutex.c`, same probe idiom
-  as M/1/2/3/E/K).
+- Clean or gate the TD-13 single-byte probes (`sNN`, `M123K`, `a..f`) and
+  rerun QEMU plus real Pi. They now heavily interleave with real console
+  output, making the post-`psh` boundary hard to read.
+- Then diagnose why no clean `(psh)%` prompt appears on real hardware despite
+  QEMU reaching the prompt.
+
+Tool/process warnings observed in this session:
+
+- One first netboot attempt used too short a `--capture-secs=35` window and
+  ended before firmware reached DHCP; use 100+ seconds for netboot captures.
+- After a day of unplug/replug, the first DHCP attempt failed and bridge
+  recovery restarted the Lima VM/socket_vmnet path. A subsequent cold cycle
+  DHCPed successfully.
+- The latest real run emitted many firmware `xHC-CMD err: 19/36 type: 11`
+  lines while probing USB before falling through to network boot. This happens
+  before Phoenix loads and did not block netboot, but it should not be ignored
+  if USB boot/probing behavior becomes relevant.
+- The capture helper used `picocom` and ended with watchdog `SIGTERM`
+  (`exit 143`), expected for timed captures.
 
 ## Previous Status: 2026-04-30
 

@@ -2,6 +2,15 @@
 
 ## Completed Steps
 
+### 2026-05-01: Fix TD-13 `proc_mutexCreate` atomic hang ✅
+- **Kernel commit**: `23b9a127` (`aarch64: avoid exclusive atomics on single-core bringup`)
+- **Manifest**: `manifests/2026-05-01-td13-atomic-fallback.md`
+- **Image**: `3e89b7c2c738892b5d71f03460e2fe026e0f0099cdb0cdec0b9749182e2e588b`
+- **UART log**: `artifacts/rpi4b-uart/rpi4b-uart-20260501-191724-netboot-td13-atomic-fallback.log`
+- **Result**: The `proc_mutexCreate` wall was narrowed to `resource_put()` / `lib_atomicDecrement()` and fixed for the current single-core AArch64 target by replacing GCC exclusive-access atomics with DAIF-masked plain updates when `NUM_CPUS == 1`.
+- **Validation**: QEMU Pi 4 smoke reaches `(psh)% help`; real Pi reaches `M12abcdef3K`, initializes `dummyfs` and `pl011-tty`, spawns `psh`, and logs `threads: psh user scheduled`.
+- **Next recommended step**: Clean or gate TD-13 UART probes and rerun QEMU + real Pi to diagnose why the real board still does not show a clean `(psh)%` prompt.
+
 ### 2026-04-19: Complete Map Relocation in Syspage Initialization ✅
 - **Commits**: 1bb7f806, 1c6a5267, d1996d8f, aff01622, 2f0b391f
 - **Result**: Kernel completes all map relocation and reaches program relocation phase

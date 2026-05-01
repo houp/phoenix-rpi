@@ -523,6 +523,35 @@ mandatory cleanup. Until then, progress on the boot path takes priority.
 - **Manifest at this checkpoint**: `manifests/2026-05-01-td13-mtxbypass-checkpoint.md`
 - **Marker grep:** `grep -n "TD-13-mtxbypass\|td13_syscall\|TD-13:" sources/phoenix-rtos-kernel/syscalls.c`
 
+### TD-13 update 2026-05-01 — `resource_put` / atomic wall fixed
+
+- Added `a..f` markers inside `proc_mutexCreate`:
+  - `a`: function entry before reading user `attr`
+  - `b`: attr validation passed
+  - `c`: `vm_kmalloc` returned
+  - `d`: `resource_alloc` returned
+  - `e`: `proc_lockInit` returned
+  - `f`: `resource_put` returned
+- Pre-fix hardware log:
+  `artifacts/rpi4b-uart/rpi4b-uart-20260501-191345-netboot-td13-mutex-substep.log`
+  repeatedly showed `M12abcde`, so the wall was `resource_put(p,
+  &mutex->resource)`.
+- `resource_put()` is only `lib_atomicDecrement(&r->refs)`. Kernel commit
+  `23b9a127` changes `lib_atomicIncrement/Decrement` for the current
+  single-core AArch64 case (`defined(__aarch64__) && NUM_CPUS == 1`) to use a
+  DAIF-masked plain increment/decrement instead of GCC `__atomic_*` builtins.
+  This mirrors TD-11's validated single-core spinlock path.
+- Post-fix hardware log:
+  `artifacts/rpi4b-uart/rpi4b-uart-20260501-191724-netboot-td13-atomic-fallback.log`
+  shows `M12abcdef3K`, `dummyfs: root initialized`, `pl011-tty: init:
+  libtty_init ok`, `main: spawned psh (10)`, and `threads: psh user scheduled`.
+- **Current residual blocker:** no clean `(psh)%` prompt on real hardware yet.
+  Because the TD-13 probes now heavily corrupt/interleave with normal console
+  output, clean or gate them before diagnosing the post-`psh` boundary.
+- **Cleanup requirement:** When Cortex-A72 SMP/coherency is re-enabled, revisit
+  both TD-11 and this `lib_atomic*` fallback. Multicore builds still need real
+  atomics, not interrupt-masked plain updates.
+
 ### TD-13-mtxbypass: skip `vm_mapBelongs` in `syscalls_phMutexCreate`
 
 - **Status:** ACTIVE HACK (added 2026-05-01)
@@ -578,9 +607,10 @@ mandatory cleanup. Until then, progress on the boot path takes priority.
 ## Priority Ladder
 
 **Blocks "first Pi 4 boots to userspace" milestone (current):**
-- TD-13 (post-spawn user-mode handoff — the actual current blocker;
-  kernel reaches `main: spawned psh (9)` and then nothing). Wired
-  to TD-10 because lifting SError mask is part of the diagnostic.
+- TD-13 (post-spawn user-mode handoff — `proc_mutexCreate` atomic wall fixed;
+  current residual boundary is after `threads: psh user scheduled`, with
+  active probes making the console stream hard to interpret). Wired to TD-10
+  because lifting SError mask may still be part of later diagnostics.
 - TD-10 (SError masked across all early kernel paths — partly hides
   the TD-13 root cause; needs a real handler)
 
@@ -628,7 +658,7 @@ mandatory cleanup. Until then, progress on the boot path takes priority.
 | TD-10 | PENDING | partly hides TD-13 |
 | TD-11 | PENDING | revisit before TD-01 |
 | TD-12 | PENDING | DRAM utilization |
-| TD-13 | PENDING | **current active blocker** |
+| TD-13 | IN-PROGRESS | post-psh prompt boundary |
 
 When resolving an item:
 

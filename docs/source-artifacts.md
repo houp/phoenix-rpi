@@ -229,6 +229,11 @@ Important current UART facts from the official documentation:
 - `phoenix-rtos-kernel/posix/posix.c`
 - `phoenix-rtos-kernel/syscalls.c`
 - `phoenix-rtos-kernel/proc/threads.c`
+- `phoenix-rtos-kernel/lib/lib.h`
+  Important because the current Pi 4 single-core AArch64 lane uses
+  DAIF-masked plain updates for `lib_atomicIncrement/Decrement`, avoiding the
+  exclusive-access atomics emitted by GCC `__atomic_*` builtins until A72
+  SMP/coherency is properly enabled.
 
 ### Loader
 

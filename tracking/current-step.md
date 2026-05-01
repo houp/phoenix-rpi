@@ -6,7 +6,7 @@
 
 **Date**: 2026-05-01
 
-**Manifest**: `manifests/2026-05-01-td13-atomic-fallback.md`
+**Manifest**: `manifests/2026-05-01-td13-clean-probes.md`
 
 **Sibling commits at this checkpoint**:
 - kernel `agent/rpi4-program-reloc` @ `39c81236` — TD-13 syscall + phMutexCreate instrumentation (s16 trace, M/1/2/3/E/K markers, TD-13-mtxbypass)
@@ -14,6 +14,49 @@
 - devices `master` @ `8984455` — pl011-tty TD13_DBG progress markers via `debug()`
 - kernel `agent/rpi4-program-reloc` @ `23b9a127` — single-core AArch64
   atomic fallback plus `proc_mutexCreate` substep probes
+- kernel `agent/rpi4-program-reloc` @ `37fcc58e` — removed TD-13 syscall/mutex/EL0
+  probe bytes and restored `phMutexCreate` `vm_mapBelongs()` validation
+
+## 2026-05-01 Update — TD-13 probe cleanup validated
+
+The TD-13 single-byte probes were removed from:
+
+- `syscalls_dispatch()` (`sNN` syscall-number stream)
+- `syscalls_phMutexCreate()` (`M/1/2/3/E/K` stream)
+- `proc_mutexCreate()` (`a..f` stream)
+- AArch64 exception/user-entry assembly (`*15` EC stream and `>` pre-`eret`)
+
+The temporary `TD-13-mtxbypass` in `syscalls_phMutexCreate()` was removed and
+both user pointers are again validated with `vm_mapBelongs()`.
+
+Validation evidence:
+
+- Build/export/verify: OK, image SHA256
+  `03e1988da8390512df2737d8efaa9b994725cd9873e465f318910af5e1ea6f0d`
+- QEMU: `./scripts/qemu-shell-smoke.sh rpi4b` reaches `(psh)% help`
+- Real Pi:
+  `artifacts/rpi4b-uart/rpi4b-uart-20260501-214225-netboot-td13-clean-probes.log`
+  reaches `dummyfs: root initialized`, `pl011-tty: init: libtty_init ok`,
+  `main: spawned psh (10)`, and `threads: psh user scheduled`
+
+Result:
+
+- Restoring `vm_mapBelongs()` did **not** reintroduce the mutex wall. The
+  single-core AArch64 atomic fallback is enough for this path.
+- The remaining blocker is no clean `(psh)%` prompt on real hardware after
+  `psh` is scheduled.
+
+Warnings observed:
+
+- The first DHCP wait failed after the laptop/NIC reconnect. The canonical
+  helper restarted the Lima/socket_vmnet bridge, then DHCP/TFTP succeeded.
+- Timed `picocom` capture ended with watchdog SIGTERM/exit 143, expected.
+
+Next action:
+
+- Instrument the next smallest post-`psh` boundary with readable logs:
+  `psh` startup, fd/devfs lookup, tty open, and first blocking read/write.
+  Prefer normal console logs or existing debug helpers over raw byte probes.
 
 ## 2026-05-01 Update — TD-13 atomic wall fixed
 
@@ -93,25 +136,12 @@ free-list traversal touching uncached/stale memory after the
 syspage handoff). `proc_lockInit` is a close second (initializes a
 spinlock — see TD-11 single-core spinlock).
 
-## Next action
-
-Clean or gate the TD-13 probe stream before the next hardware conclusion:
-
-- Remove or compile-gate `sNN`, `M/1/2/3/E/K`, and `a..f` probe bytes now
-  that the atomic wall is fixed and documented.
-- Keep only normal console/log output plus any targeted post-`psh` probe.
-- Rebuild with `./scripts/rebuild-rpi4b-fast.sh`, run
-  `./scripts/qemu-shell-smoke.sh rpi4b`, then run a real netboot capture with
-  at least `--capture-secs 100`.
-- If no prompt appears in the clean log, instrument the next smallest boundary:
-  `psh` startup, fd/devfs lookup, tty open, or first blocking read/write.
-
 ## Build/test commands
 
 ```bash
 ./scripts/rebuild-rpi4b-fast.sh
 ./scripts/qemu-shell-smoke.sh rpi4b
-./scripts/test-cycle-netboot.sh --label td13-clean-console --capture-secs 100 --dhcp-wait-secs 120
+./scripts/test-cycle-netboot.sh --label psh-console-boundary --capture-secs 120 --dhcp-wait-secs 120
 python3 scripts/summarize-rpi4b-uart-log.py artifacts/rpi4b-uart/<latest>.log
 ```
 

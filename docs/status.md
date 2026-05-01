@@ -3,28 +3,31 @@
 ## Current Status: 2026-05-01
 
 **Current blocker**: TD-13 `proc_mutexCreate` hang was fixed by avoiding
-exclusive-access atomics on the current single-core AArch64 target, but the
-real Pi still does not show a clean shell prompt. The latest hardware log now
-reaches `threads: psh user scheduled`, so the next boundary is post-`psh`
-console/stdin/stdout or a later syscall, not initial process creation.
+exclusive-access atomics on the current single-core AArch64 target. The noisy
+TD-13 syscall/mutex/EL0 probes have now been removed and
+`syscalls_phMutexCreate()` again validates both user pointers with
+`vm_mapBelongs()`. The real Pi still does not show a clean shell prompt; the
+latest hardware log reaches `threads: psh user scheduled`, so the next
+boundary is post-`psh` startup, console/stdin/stdout, devfs/tty open, or a
+later syscall.
 
 Latest verified image:
 
-- Integration manifest: `manifests/2026-05-01-td13-atomic-fallback.md`
-- Kernel: `agent/rpi4-program-reloc` @ `23b9a127` (single-core AArch64
-  atomic fallback plus TD-13 mutex substep probes)
+- Integration manifest: `manifests/2026-05-01-td13-clean-probes.md`
+- Kernel: `agent/rpi4-program-reloc` @ `37fcc58e` (TD-13 probe cleanup plus
+  restored `phMutexCreate` validation on top of single-core AArch64 atomic
+  fallback)
 - Devices: `master` @ `8984455` (TD-13 pl011-tty progress markers)
-- UART log: `artifacts/rpi4b-uart/rpi4b-uart-20260501-191724-netboot-td13-atomic-fallback.log`
+- UART log: `artifacts/rpi4b-uart/rpi4b-uart-20260501-214225-netboot-td13-clean-probes.log`
 - QEMU smoke: still reaches `(psh)% help` interactively.
-- Image SHA256: `3e89b7c2c738892b5d71f03460e2fe026e0f0099cdb0cdec0b9749182e2e588b`
+- Image SHA256: `03e1988da8390512df2737d8efaa9b994725cd9873e465f318910af5e1ea6f0d`
 
-Real-device boundary on `td13-atomic-fallback.log`:
+Real-device boundary on `td13-clean-probes.log`:
 
 ```text
-first phMutexCreate       → >*15s16 M12abcdef3K
 dummyfs-root              → main: spawned dummyfs-root (2)
 dummyfs                   → dummyfs: root initialized
-pl011-tty                 → pl011-tty: init: libtty_init ok
+pl011-tty                 → pl011-tty: init: libtty_init ok / pl011_configure done
 bind/devfs                → name: devfs cache hit
 usb                       → threads: timer irq
 psh                       → main: spawned psh (10)
@@ -43,14 +46,16 @@ Key result:
   keep the existing `__atomic_*` builtins.
 - With that fix, real hardware progresses through `M12abcdef3K`, initializes
   `dummyfs` and `pl011-tty`, spawns through `psh`, and schedules `psh`.
+- Cleanup validation on 2026-05-01 removed `sNN`, `M123EK`, `a..f`, `*15`,
+  and `>` probes and restored `vm_mapBelongs()` in `phMutexCreate`; QEMU still
+  reaches `(psh)% help`, and real Pi still reaches `threads: psh user scheduled`.
 
 Next target:
 
-- Clean or gate the TD-13 single-byte probes (`sNN`, `M123K`, `a..f`) and
-  rerun QEMU plus real Pi. They now heavily interleave with real console
-  output, making the post-`psh` boundary hard to read.
-- Then diagnose why no clean `(psh)%` prompt appears on real hardware despite
-  QEMU reaching the prompt.
+- Instrument the next smallest post-`psh` boundary with readable console logs:
+  `psh` startup, fd/devfs lookup, tty open, and first blocking read/write.
+  Avoid broad single-byte probes unless GDB/QEMU or normal console logs cannot
+  answer the question.
 
 Tool/process warnings observed in this session:
 
@@ -65,6 +70,8 @@ Tool/process warnings observed in this session:
   if USB boot/probing behavior becomes relevant.
 - The capture helper used `picocom` and ended with watchdog `SIGTERM`
   (`exit 143`), expected for timed captures.
+- On the latest run, the first DHCP attempt again required the documented
+  Lima/socket_vmnet bridge recovery. After recovery, DHCP/TFTP/netboot worked.
 
 ## Previous Status: 2026-04-30
 

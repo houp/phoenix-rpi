@@ -554,23 +554,20 @@ mandatory cleanup. Until then, progress on the boot path takes priority.
 
 ### TD-13-mtxbypass: skip `vm_mapBelongs` in `syscalls_phMutexCreate`
 
-- **Status:** ACTIVE HACK (added 2026-05-01)
+- **Status:** RESOLVED/REMOVED (added and removed 2026-05-01)
 - **Where:** `sources/phoenix-rtos-kernel/syscalls.c`
-  `syscalls_phMutexCreate` — both `vm_mapBelongs(proc, h, ...)` and
-  `vm_mapBelongs(proc, attr, ...)` calls commented out.
+  `syscalls_phMutexCreate`.
 - **Why:** Originally suspected the `proc->mapp->lock` acquired
   inside `vm_mapBelongs` was the wall (TD-04-class lock state). With
   the bypass we now reach `proc_mutexCreate(attr)`, which proves the
-  hang is deeper. Bypass kept in place as a stepping stone so the
-  deeper investigation is not blocked by re-introducing the lock.
-- **Risk accepted:** Kernel will fault on bad user pointers passed
-  to `phMutexCreate`. Acceptable during bring-up where the only
-  callers are the 9 trusted syspage progs.
-- **Resolution requirements:**
-  - Fix the deeper TD-13 root cause (`proc_mutexCreate` hang).
-  - Re-enable both `vm_mapBelongs` validations.
-  - Verify QEMU smoke and real Pi 4 boot still reach `(psh)% help`.
+  hang is deeper.
+- **Resolution:** After fixing the `resource_put()` /
+  `lib_atomicDecrement()` wall, both `vm_mapBelongs()` validations were
+  restored. QEMU still reaches `(psh)% help`; real Pi still reaches
+  `threads: psh user scheduled`.
+- **Validation log:** `artifacts/rpi4b-uart/rpi4b-uart-20260501-214225-netboot-td13-clean-probes.log`
 - **Marker grep:** `grep -n "TD-13-mtxbypass" sources/phoenix-rtos-kernel/syscalls.c`
+  should now return no matches.
 
 ### TD-13-spawn-cap: hard cap on the spawn loop in `main()`
 

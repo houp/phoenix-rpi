@@ -2,6 +2,15 @@
 
 ## Completed Steps
 
+### 2026-05-01: Clean TD-13 probes and restore mutex validation ✅
+- **Kernel commit**: `37fcc58e` (`aarch64: clean td13 mutex syscall probes`)
+- **Manifest**: `manifests/2026-05-01-td13-clean-probes.md`
+- **Image**: `03e1988da8390512df2737d8efaa9b994725cd9873e465f318910af5e1ea6f0d`
+- **UART log**: `artifacts/rpi4b-uart/rpi4b-uart-20260501-214225-netboot-td13-clean-probes.log`
+- **Result**: Removed `sNN`, `M123EK`, `a..f`, `*15`, and `>` raw probe streams. Removed the temporary `TD-13-mtxbypass` and restored both `vm_mapBelongs()` validations in `syscalls_phMutexCreate()`.
+- **Validation**: QEMU Pi 4 smoke reaches `(psh)% help`; real Pi still reaches `dummyfs: root initialized`, `pl011-tty: init: libtty_init ok`, `main: spawned psh (10)`, and `threads: psh user scheduled`.
+- **Next recommended step**: Instrument the post-`psh` console boundary: `psh` startup, fd/devfs lookup, tty open, and first blocking read/write.
+
 ### 2026-05-01: Fix TD-13 `proc_mutexCreate` atomic hang ✅
 - **Kernel commit**: `23b9a127` (`aarch64: avoid exclusive atomics on single-core bringup`)
 - **Manifest**: `manifests/2026-05-01-td13-atomic-fallback.md`

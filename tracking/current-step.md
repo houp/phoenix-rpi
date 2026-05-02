@@ -65,6 +65,40 @@ Then run:
 python3 scripts/summarize-rpi4b-uart-log.py artifacts/rpi4b-uart/<latest>.log
 ```
 
+## 2026-05-03 reframe — TD-15 (VC6 hygiene + 4 GiB) is the next investment
+
+User direction 2026-05-03: handle Pi 4 VideoCore VI memory access
+correctly even if it doesn't end up explaining the residual TD-14
+IPC slowness. Reasoning: VC6 memory hygiene is on the critical path
+to **(a)** unlocking the full 4 GiB DRAM and **(b)** ensuring kernel
+and user-space allocations are safe from VC6 / firmware DMA
+interference. It's also the single most plausible TD-04 root-cause
+candidate we have not yet eliminated.
+
+TD-15 has a complete phased plan in
+`docs/TEMPORARY-FIXES-AND-FUTURE-CLEANUP.md`:
+
+  1. VC4 / firmware audit + cheap probes (no source changes; just
+     read back `PLO_RPI_MAILBOX_BUFFER_ADDRESS` post-handoff and
+     confirm whether VC4 keeps writing).
+  2. Move VC4 mailbox buffer out of ARM-usable RAM (`0x02000000`
+     is currently inside plo's `map ddr 0x00400000 0x3b400000`).
+  3. Quiesce VC4 background tasks via mailbox before plo's `eret`.
+     Keep HDMI scanout alive. If TD-04-class corruption disappears,
+     we have a causal answer.
+  4. DTB-driven memory layout (`/memory@0` consistency check,
+     `/reserved-memory` parsing, `/soc/dma-ranges` parsing). Drop
+     hardcoded `SIZE_DDR`. Provide `arm_to_bus_addr()` helper.
+  5. Unlock 4 GiB: `total_mem=4096` + `gpu_mem=64` in `config.txt`,
+     validate end-to-end. Watch for TTBR1 map sizing regressions.
+  6. Tighten DMA correctness across drivers (pcie, xhci, future).
+
+The rest of this document — Gates 1-5 toward HDMI text console +
+USB keyboard — is still valid and will resume after TD-15 phases
+1-3 land. In particular Gate 2 (HDMI text console) becomes much
+easier once we know the framebuffer region is the only place VC4
+writes.
+
 ## 2026-05-03 forward plan — toward HDMI text console + USB keyboard
 
 The user's near-term milestone is **fully booted Phoenix-RTOS on Pi 4

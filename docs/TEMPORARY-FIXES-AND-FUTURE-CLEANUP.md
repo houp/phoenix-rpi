@@ -900,6 +900,133 @@ under TD-13-spawn-cap and the priority ladder.
   understand. **Original spawn order + no startup sleep is the
   only known-good QEMU baseline.**
 
+## TD-15: Pi 4 VideoCore VI memory hygiene + 4 GiB DRAM enablement
+
+- **Status:** PENDING (planned 2026-05-03; supersedes the open
+  question in TD-12 about how to safely unlock the full 4 GiB).
+- **First framed:** 2026-05-03 after the 2026-05-02 Pi 4 `(psh)%`
+  prompt landed and the user asked us to handle VideoCore VI
+  memory access correctly regardless of whether it also unblocks
+  the residual TD-14 IPC slowness.
+- **Where:**
+  - `sources/plo/hal/aarch64/generic/video.c` — VC4 mailbox
+    framebuffer setup; uses `PLO_RPI_MAILBOX_BUFFER_ADDRESS` at
+    ARM PA `0x02000000`, *inside* the kernel-usable region
+    `0x00400000…0x3b400000` declared in
+    `_projects/aarch64a72-generic-rpi4b/preinit.plo.yaml`.
+  - `sources/plo/ld/aarch64a72-generic.ldt` — hardcodes
+    `SIZE_DDR = 0x3b400000`. plo never asks firmware or the DTB
+    what RAM is actually present.
+  - `sources/phoenix-rtos-project/_projects/aarch64a72-generic-rpi4b/config.txt`
+    — does not set `total_mem` / `gpu_mem`; firmware therefore
+    treats the board as ≤1 GiB and reserves 76 MiB for VC4 by
+    default. End result: Phoenix sees `MEM ARM: 948 / TOTAL: 1024`
+    even on a physical 4 GiB Pi 4B.
+  - `sources/phoenix-rtos-kernel/hal/aarch64/dtb.c` — parses
+    `/memory@0` but does NOT parse `/reserved-memory` or
+    `dma-ranges`. Kernel does not know which DRAM ranges firmware
+    reserved for the VPU or where the ARM↔VC4 BUS PA translation
+    lives.
+- **Why it matters even if it does not fix TD-14 IPC slowness:**
+  - **Correctness.** Without `/reserved-memory` parsing, any
+    enlargement of usable RAM risks placing kernel/user
+    allocations in regions the firmware (or VC4) is using behind
+    our back. TD-04 already proved that *something* on real
+    BCM2711 silicon writes to ARM-visible DRAM during ARM boot;
+    the mitigated symptom (NC-mapped `_hal_syspageCopied`) is
+    consistent with VC4 traffic but we have not actually pinned
+    the cause.
+  - **Capacity.** Without `total_mem=4096` and DTB-driven memory
+    layout, Pi 4 runs Phoenix on ~24 % of its DRAM. Larger
+    (8 GiB) variants get worse.
+  - **DMA safety.** xHCI / GENET / SD all DMA. On Pi 4 the VC4
+    SoC fabric uses bus addresses (legacy `0xc0000000` alias or
+    Pi 4's `0x40000000` alias) that are NOT identical to ARM
+    PAs. Linux uses `/soc/dma-ranges` to translate. Phoenix does
+    not. So far we have hand-crafted MMIO addresses for our
+    drivers; the moment we want a USB or PCIe device to DMA into
+    a buffer ARM allocated, we need this translation.
+- **Verified facts and evidence base:**
+  - plo's mailbox buffer (`PLO_RPI_MAILBOX_BUFFER_ADDRESS =
+    0x02000000`) is inside the kernel-usable map. After plo's
+    last mailbox call the buffer is just RAM; if VC4 background
+    activity later touches the same physical bytes, ARM will see
+    corruption.
+  - plo masks the framebuffer pointer with `& 0x3fffffffu`
+    (`hal/aarch64/generic/video.c:183`), correctly stripping the
+    `0xc0000000` VC4 BUS alias to recover an ARM PA. So the
+    HDMI framebuffer ARM PA is correct; ARM mmaps it
+    `MAP_DEVICE | MAP_UNCACHED`.
+  - `dtb.c` already understands FDT structure and walks
+    `/memory@0`. Adding new node parsers (`/reserved-memory/*`,
+    `/soc/dma-ranges`) is incremental work, not new
+    infrastructure.
+  - `config.txt` currently has no `gpu_mem` or `total_mem`.
+    Firmware default for a 1 GiB-aware build is `gpu_mem=76`
+    which exactly matches what we observe at runtime.
+- **Resolution requirements (phased):**
+  1. **VC4 / firmware audit + cheap probes.**
+     - Document where each VC4-shared region currently sits:
+       mailbox buffer, framebuffer, VC4-reserved DRAM (top of
+       firmware memory), ATAGs/DTB fragment, armstub spin
+       table.
+     - Add a one-line probe in plo *after* the last mailbox
+       call that re-reads a byte at `PLO_RPI_MAILBOX_BUFFER_ADDRESS`
+       to confirm VC4 is no longer writing there.
+     - Add a kernel-side probe: ~1 s after handoff, hash the
+       mailbox-buffer page and compare to the post-mailbox-call
+       hash. Drift = VC4 still writing.
+  2. **Move VC4 mailbox buffer out of ARM-usable RAM.**
+     Choose an address inside firmware-reserved (top 76 MiB)
+     space, e.g. `0x3b400000 + offset`, or use a static buffer
+     in plo's own ROM-style region. Update
+     `PLO_RPI_MAILBOX_BUFFER_ADDRESS` and re-validate.
+  3. **Quiesce VC4 explicitly before plo→kernel handoff.**
+     Send a final mailbox sequence that sets all VC4 clocks
+     except HDMI scanout to off (Linux uses
+     `mbox_set_clock_state` / similar); follow with `dsb sy ;
+     isb`. If TD-04-class corruption disappears, we have
+     causal evidence that VC4 was the writer.
+  4. **DTB-driven memory layout.**
+     - Implement `/reserved-memory` parsing in `dtb.c`. Treat
+       every `reg` range as off-limits to kernel allocators.
+     - Implement `/soc/dma-ranges` parsing. Expose an
+       `arm_to_bus_addr(arm_pa) → bus_addr` helper for drivers
+       that build DMA descriptors.
+     - Have plo (or kernel) build the syspage memory entries
+       from DTB instead of from the hardcoded
+       `0x00400000…0x3b400000` LDT range.
+     - Drop `SIZE_DDR` from `aarch64a72-generic.ldt` once plo
+       can derive it.
+  5. **Unlock 4 GiB.**
+     - Set `total_mem=4096` and a small fixed `gpu_mem` (e.g.
+       64 MiB; 76 only matters on 1 GiB-mode firmware) in
+       `config.txt`. Document the choice.
+     - Verify firmware reports `MEM ARM: ~3968 MiB` after
+       reboot.
+     - Validate boot end-to-end at full DRAM. Watch for
+       early-MMU regressions because the kernel's TTBR1 map
+       coverage may be exhausted.
+  6. **Tighten DMA correctness across drivers.**
+     - Audit `pcie/server/pcie.c`, `usb/xhci/xhci.c` and
+       follow-ons for any DMA descriptor population. Replace
+       any implicit identity mapping with the ARM↔BUS helper
+       from step 4.
+- **Risk register:**
+  - Step 3 (VC4 quiesce) might disable HDMI scanout if we are
+    too aggressive. Keep the HDMI clock alive; only quiesce
+    background tasks.
+  - Step 4 (DTB-driven layout) interacts with TD-06 and TD-12.
+    Sequencing matters: do `/memory@0` consistency check first,
+    then `/reserved-memory`, then `dma-ranges`.
+  - Step 5 (4 GiB unlock) likely surfaces TTBR1 map sizing
+    regressions and the existing TD-04-class corruption may
+    re-emerge in regions newly added to the kernel map. Stage
+    cautiously; a 4 GiB build that hangs is a test-cycle setback.
+- **Marker grep:** `grep -n "TD-15" docs/ sources/` (no in-source
+  marker yet — add `TODO(TD-15-...)` comments at each touch
+  point as the work lands).
+
 ## Priority Ladder
 
 **Blocks "first Pi 4 boots to userspace" milestone (current):**
@@ -931,7 +1058,11 @@ under TD-13-spawn-cap and the priority ladder.
 - TD-03 (proper virtual syspage / BSS mapping; TD-04 closed the
   symptom but the underlying mapping shortcut is still in place)
 - TD-06 (DTB robustness, portability)
-- TD-12 (memory size clamp; tied to TD-06 + firmware config)
+- TD-12 (memory size clamp; subsumed by TD-15 phases 4 and 5)
+- TD-15 (Pi 4 VC6 memory hygiene + 4 GiB DRAM enablement —
+  prerequisite for any work beyond ~948 MiB on real Pi 4 and
+  the most likely root cause for residual TD-04/TD-14 IPC
+  fragility)
 
 **Closed (kept for history):**
 - TD-04 (BCM2711 syspage corruption at handoff — closed at the
@@ -970,6 +1101,7 @@ under TD-13-spawn-cap and the priority ladder.
 | TD-14-console-open-fastpath | PENDING | narrow `/dev/console` open fast path |
 | TD-14-tiocspgrp-pgrp | PENDING | TIOCSPGRP uses pgrp value directly |
 | TD-14-psh-debug-probes | PENDING | psh early probes use debug syscall |
+| TD-15 | PENDING | **VC6 memory hygiene + 4 GiB unlock; phased plan** |
 
 When resolving an item:
 

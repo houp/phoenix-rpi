@@ -661,7 +661,7 @@ under TD-13-spawn-cap and the priority ladder.
 
 ### TD-14-stat-skip: skip `stat()` pre-check for `/dev/console`
 
-- **Status:** ACTIVE HACK (libphoenix `fd8d243`)
+- **Status:** RESOLVED 2026-05-02 (removed by libphoenix `43e050d`)
 - **Where:** `sources/libphoenix/unistd/file.c` `open()`. When
   filename is `/dev/console`, the `O_WRONLY|O_RDWR` `stat()`
   pre-check is bypassed; everything else proceeds normally.
@@ -673,10 +673,8 @@ under TD-13-spawn-cap and the priority ladder.
   `resolve_path` + `sys_open`); only `stat`-specific error paths
   (`EISDIR` on a directory, `ENOENT` early-out) are skipped — for
   `/dev/console` they don't apply.
-- **Resolution requirements:** Remove the `traceConsole` branch
-  once TD-14 is fixed, or replace it with the canonical
-  fast-path that doesn't double-lookup.
-- **Marker grep:** `grep -n "traceConsole\|stat skipped" sources/libphoenix/unistd/file.c`
+- **Resolution:** Removed during TD-14 probe-strip cleanup. Current
+  source has no `traceConsole` / `stat skipped` branch.
 
 ### TD-14-deferred-fbcon: pl011-tty defers fbcon init to main thread
 
@@ -774,6 +772,51 @@ under TD-13-spawn-cap and the priority ladder.
   stdin from a terminal. The shell prompt prints but interactive
   input doesn't work.
 - **Marker grep:** `grep -n "TD-14-ttyopen-nonfatal" sources/phoenix-rtos-utils/psh/pshapp/pshapp.c`
+
+### TD-14-devfs-direct: kernel stores the `devfs` namespace OID directly
+
+- **Status:** ACTIVE WORKAROUND (kernel `60703368`, 2026-05-02)
+- **Where:** `sources/phoenix-rtos-kernel/proc/name.c`.
+- **Why:** Real Pi logs showed `name: register devfs` followed by later
+  `lookup("devfs")` dcache misses and root dummyfs queries. Those root
+  queries are semantically wrong for the non-filesystem `devfs` namespace,
+  return `-ENOENT`, and on Pi 4 sometimes take 21-43 s. A direct stored
+  OID lets `lookup("devfs")` return immediately after registration.
+- **Risk accepted:** This special-cases a well-known namespace name instead
+  of fixing the generic dcache / namespace lookup semantics. It is narrow
+  and boot-critical, but should be revisited once the shell is usable.
+- **Resolution requirements:** Decide whether Phoenix should have first-class
+  non-filesystem namespace roots, then replace the special-case with the
+  canonical mechanism or prove the dcache path is reliable on Pi 4.
+- **Marker grep:** `grep -n "devfs_registered\\|devfs direct" sources/phoenix-rtos-kernel/proc/name.c`
+
+### TD-14-console-alias: PL011 registers a direct `/dev/console` alias
+
+- **Status:** ACTIVE WORKAROUND (devices `63f1d438`, 2026-05-02)
+- **Where:** `sources/phoenix-rtos-devices/tty/pl011-tty/pl011-tty.c`.
+- **Why:** The canonical `create_dev("/dev/console")` path creates the node
+  in devfs, but psh startup is still sensitive to bind/devfs lookup latency.
+  The direct alias preserves the old fast path through the kernel namespace.
+  PL011 also implements minimal `mtGetAttr`, `mtGetAttrAll`, and `mtStat`
+  so libc `stat()` and kernel stat/open preflights work through the alias.
+- **Risk accepted:** Two visible names can point at the same tty object.
+  Acceptable during bring-up; should be removed once `/dev` bind traversal
+  is reliable and fast.
+- **Resolution requirements:** Remove the alias after TD-14 is fixed; keep
+  the PL011 stat/attr support if direct device aliases remain supported.
+- **Marker grep:** `grep -n "TD-14-console-alias\\|pl011_attrAll" sources/phoenix-rtos-devices/tty/pl011-tty/pl011-tty.c`
+
+### TD-14-psh-ttyopen-errno: psh prints `ttyopen` errno
+
+- **Status:** ACTIVE DIAGNOSTIC (utils `50cf5605`, 2026-05-02)
+- **Where:** `sources/phoenix-rtos-utils/psh/psh.c`.
+- **Why:** During TD-14, `psh_ttyopen("/dev/console")` can fail for
+  materially different reasons (`ENOENT`, `ENOSYS`, `ENOTTY`). Printing the
+  errno keeps the next boundary visible in UART captures.
+- **Risk accepted:** Extra UART noise only on failure.
+- **Resolution requirements:** Remove after psh reliably opens
+  `/dev/console` on real Pi 4.
+- **Marker grep:** `grep -n "psh: tty open err" sources/phoenix-rtos-utils/psh/psh.c`
 
 ### TD-14-probe-strip: TD-13/TD-14 trace probes removed
 
@@ -874,12 +917,15 @@ under TD-13-spawn-cap and the priority ladder.
 | TD-12 | PENDING | DRAM utilization |
 | TD-13 | RESOLVED at runtime layer (mutex/atomic wall fixed) | residual probe-strip + spawn-cap cleanup |
 | TD-14 | PENDING | **current active blocker** — TD-04-class IPC fragility on pl011-tty / psh path |
-| TD-14-stat-skip | PENDING | open() skips stat for /dev/console |
+| TD-14-stat-skip | RESOLVED 2026-05-02 | open() stat skip removed |
 | TD-14-deferred-fbcon | PENDING | pl011-tty defers fbcon to main thread |
 | TD-14-tty0-nonfatal | PENDING | pl011_createTty0 failure is non-fatal |
 | TD-14-pl011-retry | PENDING | createTty0 lookup-devfs retries 50 → 30 |
 | TD-14-psh-retry | PENDING | PSH_TTYOPEN_RETRIES 20 → 200 |
 | TD-14-ttyopen-nonfatal | PENDING | psh_run continues if /dev/console open fails |
+| TD-14-devfs-direct | PENDING | kernel direct OID for `devfs` |
+| TD-14-console-alias | PENDING | PL011 direct `/dev/console` alias and stat support |
+| TD-14-psh-ttyopen-errno | PENDING | psh ttyopen errno diagnostic |
 | TD-14-probe-strip | RESOLVED 2026-05-02 | TD-13/TD-14 debug() probes removed |
 
 When resolving an item:

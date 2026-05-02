@@ -2,6 +2,17 @@
 
 ## Completed Steps
 
+### 2026-05-02: Bypass TD-14 `devfs` lookup wall ✅
+- **Kernel commit**: `60703368` (`rpi4b: stabilize devfs lookup during TD-14`)
+- **Devices commit**: `63f1d438` (`rpi4b: keep console alias usable during TD-14`)
+- **Utils commit**: `50cf5605` (`psh: trace ttyopen errno during TD-14`)
+- **Manifest**: `manifests/2026-05-02-td14-devfs-direct-checkpoint.md`
+- **Image**: `06071d7aac0de7d54b635d297cca9474ff4eacda13a6be3471f044ba454bb3a4`
+- **UART log**: `artifacts/rpi4b-uart/rpi4b-uart-20260502-211848-netboot-td14-devfs-direct.log`
+- **Result**: Fixed the relative `lookup("devfs")` query payload bug, added a direct stored OID for `devfs`, and kept `/dev/console` usable via a PL011 direct alias plus minimal stat support.
+- **Validation**: QEMU Pi 4 smoke reaches `(psh)% help`; real Pi reaches `name: devfs direct hit`, `pl011-tty: tty0 ready`, `pl011-tty: console ready`, and `threads: psh user scheduled`.
+- **Next recommended step**: Probe psh/libc after scheduling: root lookup, `/dev/console` stat/open, and first shell app entry.
+
 ### 2026-05-01: Clean TD-13 probes and restore mutex validation ✅
 - **Kernel commit**: `37fcc58e` (`aarch64: clean td13 mutex syscall probes`)
 - **Manifest**: `manifests/2026-05-01-td13-clean-probes.md`

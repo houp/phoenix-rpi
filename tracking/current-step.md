@@ -1,14 +1,14 @@
 # Current Implementation Step
 
-## Step: Root-cause post-console psh stall (TD-14, next boundary)
+## Step: Cleanup after first real Pi 4 psh prompt (TD-14)
 
-**Status**: ACTIVE — Pi 4 now reaches `pl011-tty: console ready`, but no
-`psh: root ready` or `(psh)%` appears within the latest 240 s hardware
-capture.
+**Status**: ACTIVE — Pi 4 reaches the UART shell prompt. The next task is
+to reduce diagnostic backlog and validate interactive shell commands on real
+hardware.
 
 **Date**: 2026-05-02 night
 
-**Manifest**: `manifests/2026-05-02-td14-devfs-direct-checkpoint.md`
+**Manifest**: `manifests/2026-05-02-td14-uart-shell-prompt.md`
 
 ## What just changed
 
@@ -18,50 +18,49 @@ Sibling commits:
   timing probe.
 - devices `63f1d438` — PL011 minimal stat/attr support plus direct
   `/dev/console` alias.
-- utils `50cf5605` — psh `ttyopen` errno diagnostics.
+- devices `3ee4702` — `TIOCSPGRP` now stores the requested foreground
+  process-group ID directly.
+- libphoenix `3c76bba` — temporary `/dev/console` open trace plus a narrow
+  fast path that skips the second `resolve_path()` walk for the direct console
+  alias.
+- utils `da2f541` — psh early probes use `debug()` and bracket tty open,
+  `isatty`, `tcsetpgrp`, and first `readcmd`.
 
 Validation:
 - QEMU Pi 4 smoke reaches `(psh)% help`.
 - Real Pi image SHA256:
-  `06071d7aac0de7d54b635d297cca9474ff4eacda13a6be3471f044ba454bb3a4`.
+  `d219efa27dd617ea171465f601742427ca1c96f3d505fb3979a1c7a27d0c520e`.
 - Real Pi log:
-  `artifacts/rpi4b-uart/rpi4b-uart-20260502-211848-netboot-td14-devfs-direct.log`.
+  `artifacts/rpi4b-uart/rpi4b-uart-20260502-220314-netboot-td14-readcmd-long.log`.
 
 ## New known boundary
 
-The old repeated `lookup("devfs")` root-query wall is cleared:
+The first real Pi 4 UART prompt is reached:
 
 ```text
-name: devfs direct hit
-pl011-tty: tty0 lookup ok
-pl011-tty: tty0 ready
-pl011-tty: register console
-name: devfs direct hit
-pl011-tty: console ready
-threads: psh user scheduled
+psh: tty ready
+psh: tcsetpgrp
+psh: tcsetpgrp done
+psh: readcmd
+(psh)%
 ```
-
-The log then stops before:
-- `psh: root ready`
-- `psh: app run`
-- `psh: tty open`
-- `(psh)%`
 
 ## Next action
 
-Instrument one narrow path only:
-- psh process entry / first user instruction if practical.
-- `psh_run()` before and after the `lookup("/")` loop.
-- `open("/dev/console")`: separate `stat`, `resolve_path`, and `sys_open`
-  outcomes.
-- Kernel `proc_lookup("/")` and `/dev/console` only if user-space prints do
-  not establish the boundary.
+Run a cleanup-focused iteration:
+- Strip or gate the highest-volume TD-04/TD-14 boot probes that are no longer
+  needed for the prompt boundary.
+- Keep the functional fixes: `devfs` direct OID, PL011 stat/attr support,
+  `TIOCSPGRP` semantics, and the temporary direct console alias/fast path.
+- Rebuild and run QEMU smoke.
+- Run real Pi netboot long enough to verify `(psh)%`, then run an interactive
+  UART smoke if the current helper supports sending commands.
 
 Then run:
 
 ```bash
 ./scripts/rebuild-rpi4b-fast.sh
 ./scripts/qemu-shell-smoke.sh rpi4b
-./scripts/test-cycle-netboot.sh --label td14-psh-boundary --capture-secs 300 --dhcp-wait-secs 90
+./scripts/test-cycle-netboot.sh --label td14-clean-prompt --capture-secs 240 --dhcp-wait-secs 90
 python3 scripts/summarize-rpi4b-uart-log.py artifacts/rpi4b-uart/<latest>.log
 ```

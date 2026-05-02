@@ -2,9 +2,10 @@
 
 ## Current Status: 2026-05-02 night
 
-**TD-14 moved forward. The `lookup("devfs")` wall is bypassed, and the
-current blocker is now after `psh` is scheduled and after PL011 registers
-`/dev/console`.**
+**TD-14 now reaches the real Pi 4 UART shell prompt.** The latest tested
+netboot image reaches `psh: readcmd` and prints `(psh)%` on UART. The
+remaining near-term work is cleanup and interactive command validation, not
+another early-boot wall.
 
 Landed sibling commits:
 - kernel `60703368` — fixes relative `proc_portLookup("devfs")` payload
@@ -13,39 +14,46 @@ Landed sibling commits:
 - devices `63f1d438` — PL011 tty now supports minimal char-device
   stat/attr messages and registers a direct `/dev/console` namespace alias
   while TD-14 bind/devfs lookup latency is unresolved.
-- utils `50cf5605` — psh `ttyopen` reports `errno` during TD-14 failures.
+- devices `3ee4702` — `TIOCSPGRP` now stores the requested foreground
+  process-group ID directly instead of treating it as a PID and calling
+  `getpgid()` inside the tty server.
+- libphoenix `3c76bba` — temporary `/dev/console` open tracing and a narrow
+  TD-14 fast path that avoids a second full `resolve_path()` walk.
+- utils `da2f541` — psh early TD-14 probes use the `debug()` syscall, not
+  inherited stdio that can block before `/dev/console` is open.
 
 Validation:
 - QEMU Pi 4 smoke reaches `(psh)% help`.
 - Real Pi netboot image SHA256:
-  `06071d7aac0de7d54b635d297cca9474ff4eacda13a6be3471f044ba454bb3a4`.
+  `d219efa27dd617ea171465f601742427ca1c96f3d505fb3979a1c7a27d0c520e`.
 - Real Pi UART log:
-  `artifacts/rpi4b-uart/rpi4b-uart-20260502-211848-netboot-td14-devfs-direct.log`.
+  `artifacts/rpi4b-uart/rpi4b-uart-20260502-220314-netboot-td14-readcmd-long.log`.
 
 Key hardware evidence:
 
 ```text
-name: devfs direct hit
-pl011-tty: tty0 lookup ok
-pl011-tty: tty0 ready
-pl011-tty: register console
-name: devfs direct hit
-pl011-tty: console ready
-threads: psh user scheduled
-[no psh: root ready / no (psh)% within 240 s]
+open: console sys_open done
+psh: tty isatty
+psh: tty isatty done
+psh: tty ready
+psh: tcsetpgrp
+psh: tcsetpgrp done
+psh: readcmd
+(psh)%
 ```
 
 The previous run without the direct `devfs` OID showed `proc_send("devfs")`
 round trips varying from ~1 ms to ~43 s while root dummyfs returned
 `-ENOENT`. That proved the repeated root-query path was both wrong and
-expensive on Pi 4. The latest run confirms the direct OID removes that
-wall. The remaining hang is now later: psh is scheduled, PL011 console is
-registered, and then runtime progress stops before psh reports root-ready.
+expensive on Pi 4. The direct OID removes that wall. The later shell path
+then exposed two issues: `TIOCSPGRP` used the wrong semantic argument in
+libtty, and duplicated `/dev/console` canonicalization made startup extremely
+slow under the debug-heavy image.
 
-Next step: add a narrow psh/libc/kernel boundary probe after
-`threads: psh user scheduled`: psh entry, `lookup("/")`, first `open()`,
-`stat("/dev/console")`, and `sys_open("/dev/console")`. Prefer normal UART
-prints or syscall-boundary probes; do not reintroduce broad LED/debug spam.
+Next step: strip or gate the remaining TD-04/TD-14 boot probes enough to
+reduce UART backlog, then run an interactive UART smoke (`help`, `ps`, `ls
+/dev`, `dmesg`) on the real Pi. Keep the direct `devfs` and console-alias
+workarounds documented until the canonical namespace path is fast and stable.
 
 ## Current Status: 2026-05-02 late-evening
 

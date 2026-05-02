@@ -114,3 +114,16 @@
 - Need to restore syspage copy operation
 
 Last updated: 2026-04-19
+### 2026-05-02: Reach Real Pi 4 UART Shell Prompt ✅
+- **Commits**: kernel `60703368`, devices `63f1d438` and `3ee4702`,
+  libphoenix `3c76bba`, utils `da2f541`
+- **Result**: Real Raspberry Pi 4 netboot reaches `(psh)%` on UART.
+- **Image**: `d219efa27dd617ea171465f601742427ca1c96f3d505fb3979a1c7a27d0c520e`
+- **Log**: `artifacts/rpi4b-uart/rpi4b-uart-20260502-220314-netboot-td14-readcmd-long.log`
+- **Details**: Bypassed the stale `lookup("devfs")` root-query wall with a
+  direct namespace OID, kept PL011 `/dev/console` usable via direct alias and
+  stat/attr support, fixed `TIOCSPGRP` to use the requested foreground
+  process-group ID, and avoided duplicate `/dev/console` canonicalization in
+  the TD-14 fast path.
+- **Next**: Remove or gate excessive diagnostic output, then run interactive
+  shell smoke commands on real hardware.

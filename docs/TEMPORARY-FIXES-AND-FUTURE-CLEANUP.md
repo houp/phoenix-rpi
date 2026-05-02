@@ -612,7 +612,7 @@ under TD-13-spawn-cap and the priority ladder.
 
 ## TD-14: `/dev/console` `resolve_path` hang on Pi 4
 
-- **Status:** PENDING (CURRENT ACTIVE BLOCKER, since 2026-05-02)
+- **Status:** RESOLVED AS BOOT BLOCKER 2026-05-02; cleanup still pending
 - **First observed:** 2026-05-01 evening, after TD-13 atomic wall lifted.
 - **Where:** `sources/libphoenix/unistd/file.c` `open()` →
   `resolve_path("/dev/console", NULL, 1, 1)`. Last observed marker on
@@ -658,6 +658,46 @@ under TD-13-spawn-cap and the priority ladder.
   `artifacts/rpi4b-uart/rpi4b-uart-20260501-220933-netboot-console-open-skip-stat.log`
 - **Manifest:** `manifests/2026-05-02-td13-resolve-path-boundary.md`
 - **Marker grep:** `grep -n "open: console" sources/libphoenix/unistd/file.c`
+
+### TD-14-console-open-fastpath: skip duplicate `/dev/console` canonicalization
+
+- **Status:** ACTIVE WORKAROUND (libphoenix `3c76bba`, 2026-05-02)
+- **Where:** `sources/libphoenix/unistd/file.c` `open()`.
+- **Why:** Real Pi logs showed `open("/dev/console", O_RDWR)` spending most
+  of the capture in the second `resolve_path()` pass. The earlier `stat()`
+  had already resolved the direct `/dev/console` alias and proved the object
+  was not a directory. During TD-14 the direct alias is intentional, so the
+  second canonicalization is skipped only for `/dev/console`.
+- **Risk accepted:** This relies on `/dev/console` being a direct alias, not
+  a symlink that needs final resolution. Remove it together with
+  TD-14-console-alias once canonical `/dev` traversal is fast.
+- **Marker grep:** `grep -n "TD-14-console-open-fastpath" sources/libphoenix/unistd/file.c`
+
+### TD-14-tiocspgrp-pgrp: TIOCSPGRP stores pgrp directly
+
+- **Status:** ACTIVE FIX (devices `3ee4702`, 2026-05-02)
+- **Where:** `sources/phoenix-rtos-devices/tty/libtty/libtty.c`.
+- **Why:** POSIX `tcsetpgrp(fd, pgrp)` passes a foreground process-group ID.
+  `libtty` treated that value as a PID and called `getpgid(*pid)` inside the
+  tty server. On Pi 4 this became the next shell-startup boundary. The tty
+  layer now records the requested process-group ID directly.
+- **Risk accepted:** None known; this is the expected semantic behavior.
+- **Resolution requirements:** Keep unless upstream review finds a missing
+  permission/session check that should be added around the direct assignment.
+- **Marker grep:** `grep -n "TIOCSPGRP" sources/phoenix-rtos-devices/tty/libtty/libtty.c`
+
+### TD-14-psh-debug-probes: psh early probes use debug syscall
+
+- **Status:** ACTIVE DIAGNOSTIC (utils `da2f541`, 2026-05-02)
+- **Where:** `sources/phoenix-rtos-utils/psh/psh.c` and
+  `sources/phoenix-rtos-utils/psh/pshapp/pshapp.c`.
+- **Why:** Using `psh_write()` before `/dev/console` is open can block on
+  inherited stdio. The probes were moved to `debug()` and bracket psh entry,
+  root readiness, tty open, `isatty`, `tcsetpgrp`, and first `readcmd`.
+- **Risk accepted:** Extra UART/klog noise and slower prompt visibility.
+- **Resolution requirements:** Remove or gate after interactive shell smoke
+  passes on real Pi 4.
+- **Marker grep:** `grep -n "psh: tty isatty\\|psh: tcsetpgrp done\\|psh: readcmd" sources/phoenix-rtos-utils/psh`
 
 ### TD-14-stat-skip: skip `stat()` pre-check for `/dev/console`
 
@@ -916,7 +956,7 @@ under TD-13-spawn-cap and the priority ladder.
 | TD-11 | PENDING | revisit before TD-01 |
 | TD-12 | PENDING | DRAM utilization |
 | TD-13 | RESOLVED at runtime layer (mutex/atomic wall fixed) | residual probe-strip + spawn-cap cleanup |
-| TD-14 | PENDING | **current active blocker** — TD-04-class IPC fragility on pl011-tty / psh path |
+| TD-14 | RESOLVED 2026-05-02 | first Pi 4 UART `(psh)%` prompt reached; cleanup remains |
 | TD-14-stat-skip | RESOLVED 2026-05-02 | open() stat skip removed |
 | TD-14-deferred-fbcon | PENDING | pl011-tty defers fbcon to main thread |
 | TD-14-tty0-nonfatal | PENDING | pl011_createTty0 failure is non-fatal |
@@ -927,6 +967,9 @@ under TD-13-spawn-cap and the priority ladder.
 | TD-14-console-alias | PENDING | PL011 direct `/dev/console` alias and stat support |
 | TD-14-psh-ttyopen-errno | PENDING | psh ttyopen errno diagnostic |
 | TD-14-probe-strip | RESOLVED 2026-05-02 | TD-13/TD-14 debug() probes removed |
+| TD-14-console-open-fastpath | PENDING | narrow `/dev/console` open fast path |
+| TD-14-tiocspgrp-pgrp | PENDING | TIOCSPGRP uses pgrp value directly |
+| TD-14-psh-debug-probes | PENDING | psh early probes use debug syscall |
 
 When resolving an item:
 

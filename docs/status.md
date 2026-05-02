@@ -1,6 +1,47 @@
 # Phoenix-RTOS Raspberry Pi 4 Port Status
 
-## Current Status: 2026-05-02
+## Current Status: 2026-05-02 evening
+
+**TD-13 closed. TD-14 reframed: not a single hang point but a
+constellation of TD-04-class IPC fragility on Pi 4.** Each cycle the
+wall moves to a different point along the pl011-tty / psh path:
+sometimes psh's `resolve_path("/dev/console")` takes 100+ s but
+completes; sometimes pl011-tty's `lookup("devfs")` retry loop iterates
+~10 times then hits capture cutoff; sometimes pl011-tty hangs even
+earlier between `pl011_configure done` and the next bare
+`pl011_writeRaw`. Same kernel image, same namespace logic — the
+silicon-only difference is materially slower IPC, occasionally
+indefinite stalls.
+
+QEMU still reaches `(psh)% help` interactively in every smoke run.
+
+Latest verified images:
+
+- Integration manifest: `manifests/2026-05-02-td14-tty0-nonfatal-checkpoint.md`
+- devices `master` @ `8b80f4c` — TD-14-tty0-nonfatal (createTty0 non-fatal,
+  retries 50→30 so we fall through to create_dev's portRegister fallback)
+- utils `master` @ `0cafa08` — TD-14-psh-retry (PSH_TTYOPEN_RETRIES 20→200)
+- libphoenix `master` @ `47034f8` — TD-14 resolve_path trace + oid port/id
+- kernel `agent/rpi4-program-reloc` @ `37fcc58e` — TD-13 fixes (unchanged)
+- QEMU image SHA256: `1124cb2876d3ce0d09dd5ec3645450c13fbbdb83a244ae90c316e0a8cc1e3a5f`
+
+Reference logs:
+- Worked once on Pi 4 (resolve completes, `oid port=3 id=2` printed,
+  `abspath_ok` reached): `artifacts/rpi4b-uart/rpi4b-uart-20260501-225856-netboot-td14-oid-trace2.log`
+- Most recent Pi 4 run hung early in pl011-tty:
+  `artifacts/rpi4b-uart/rpi4b-uart-20260502-195556-netboot-td14-tty0-nonfatal-clean.log`
+
+Things that did NOT work (recorded so we don't try them again):
+- Reordering the syspage list to put pl011-tty after `bind devfs /dev`
+  → bind caches /dev state at mount time and never refreshes; lookups
+  for /dev/console miss for every later consumer. Reverted.
+- A 2 s `usleep` at the top of pl011-tty `main()` to let dummyfs settle
+  → same QEMU breakage as the reorder. Reverted.
+- Adding raw-byte register/lookup name traces in kernel `proc/name.c`
+  → broke QEMU (probe in `name_traceRegister` re-entered through a held
+  spinlock). Stashed in the kernel repo, not part of HEAD.
+
+## Previous Status: 2026-05-02 (morning)
 
 **TD-13 closed. New active blocker is TD-14 (`/dev/console` open hang in
 `resolve_path`).** On real Pi 4 the kernel + libphoenix + psh now run cleanly
@@ -13,7 +54,7 @@ sys_lookup IPC round-trips to the namespace servers (bind / devfs / pl011-
 tty). One of those round-trips hangs on hardware. QEMU still reaches
 `(psh)% help`, so the path works in software.
 
-Reference log:
+Reference log (morning):
 `artifacts/rpi4b-uart/rpi4b-uart-20260501-220933-netboot-console-open-skip-stat.log`
 
 ## Previous Status: 2026-05-01

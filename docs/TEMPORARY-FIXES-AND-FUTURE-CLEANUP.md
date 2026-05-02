@@ -702,6 +702,75 @@ under TD-13-spawn-cap and the priority ladder.
     ttyopen retries.
 - **Marker grep:** `grep -n "fbcon init deferred" sources/phoenix-rtos-devices/tty/pl011-tty/pl011-tty.c`
 
+### TD-14-tty0-nonfatal: pl011_createTty0() failure non-fatal
+
+- **Status:** ACTIVE WORKAROUND (devices `8b80f4c`, 2026-05-02)
+- **Where:** `sources/phoenix-rtos-devices/tty/pl011-tty/pl011-tty.c`
+  in `main()`. `pl011_createTty0()`'s return value used to be fatal;
+  now its failure is logged ("tty0 failed (non-fatal)") and `main()`
+  proceeds to `create_dev("/dev/console")` regardless.
+- **Why:** pl011_createTty0 calls `lookup("devfs")` in a retry loop
+  that has no fallback. On real Pi 4 (TD-04-class slow IPC) the
+  loop sometimes makes no forward progress within the test cycle
+  window. Without a fallback, pl011-tty exits and `/dev/console`
+  is never registered. The libphoenix `create_dev()` helper *does*
+  have a 3-retry-then-portRegister fallback, so making createTty0
+  non-fatal lets `/dev/console` register via the direct
+  `portRegister` path even when devfs is unresponsive.
+- **Risk accepted:** `/dev/tty0` may not be registered, breaking
+  applications that open `/dev/tty0` directly. psh and basic
+  console traffic don't need it.
+- **Resolution requirements:**
+  - Replace the busy-poll `lookup("devfs")` retry loop with a
+    notification-based wait (TD-14-startup-settle below).
+  - Restore the fatal path once IPC fragility is rooted out and
+    pl011_createTty0 always succeeds.
+- **Marker grep:** `grep -n "TD-14-tty0-nonfatal" sources/phoenix-rtos-devices/tty/pl011-tty/pl011-tty.c`
+
+### TD-14-pl011-retry: reduced lookup-devfs retries inside createTty0
+
+- **Status:** ACTIVE TUNING (devices `8b80f4c`, 2026-05-02)
+- **Where:** `pl011_createTty0()`. The retry count was 50 (5 s wall);
+  reduced to 30 (3 s wall) so the loop falls through to the
+  TD-14-tty0-nonfatal path more quickly when devfs is unresponsive.
+- **Risk accepted:** If devfs becomes responsive between 3 s and 5 s
+  on a hardware variant we haven't tested, we'd give up too early
+  and miss /dev/tty0 registration. Acceptable while createTty0 is
+  non-fatal.
+- **Resolution requirements:** Restore to 50 (or remove entirely)
+  alongside reverting TD-14-tty0-nonfatal.
+- **Marker grep:** `grep -n "TD-14-pl011-retry" sources/phoenix-rtos-devices/tty/pl011-tty/pl011-tty.c`
+
+### TD-14-psh-retry: PSH_TTYOPEN_RETRIES bumped 20 → 200
+
+- **Status:** ACTIVE TUNING (utils `0cafa08`, 2026-05-02)
+- **Where:** `sources/phoenix-rtos-utils/psh/pshapp/pshapp.c` macro
+  default. 20 retries × 100 ms = 2 s wall; 200 retries × 100 ms = 20 s.
+- **Why:** On real Pi 4 the `/dev/console` registration path
+  (pl011-tty + devfs) takes materially longer than QEMU. 2 s isn't
+  enough; 20 s lets psh ride out the slow registration and still
+  bail eventually.
+- **Risk accepted:** Slow shell startup on broken images (psh sleeps
+  20 s before reporting "ttyopen failed"). Trivial.
+- **Resolution requirements:** Restore to 20 once the underlying IPC
+  slowness is rooted out.
+- **Marker grep:** `grep -n "TD-14-psh-retry" sources/phoenix-rtos-utils/psh/pshapp/pshapp.c`
+
+### TD-14-startup-settle (NOT TAKEN): initial sleep in pl011-tty `main()`
+
+- **Status:** REJECTED 2026-05-02 — broke QEMU. Recorded so we don't
+  retry it without understanding the failure mode.
+- **What was tried:** `usleep(2000000)` at the top of pl011-tty
+  `main()` to let dummyfs (-N devfs) finish registering before our
+  first `lookup("devfs")`.
+- **Why it failed:** Even on QEMU the timing shift caused
+  `/dev/console` to not be findable by psh — psh's resolve_path
+  returned -ENOENT for `/dev/console` despite pl011-tty's
+  `console ready` print. Suggests the timing of `bind devfs /dev`
+  vs pl011-tty's `create_dev` is fragile in a way we don't fully
+  understand. **Original spawn order + no startup sleep is the
+  only known-good QEMU baseline.**
+
 ## Priority Ladder
 
 **Blocks "first Pi 4 boots to userspace" milestone (current):**
@@ -758,9 +827,12 @@ under TD-13-spawn-cap and the priority ladder.
 | TD-11 | PENDING | revisit before TD-01 |
 | TD-12 | PENDING | DRAM utilization |
 | TD-13 | RESOLVED at runtime layer (mutex/atomic wall fixed) | residual probe-strip + spawn-cap cleanup |
-| TD-14 | PENDING | **current active blocker** — `/dev/console` resolve_path hang |
+| TD-14 | PENDING | **current active blocker** — TD-04-class IPC fragility on pl011-tty / psh path |
 | TD-14-stat-skip | PENDING | open() skips stat for /dev/console |
 | TD-14-deferred-fbcon | PENDING | pl011-tty defers fbcon to main thread |
+| TD-14-tty0-nonfatal | PENDING | pl011_createTty0 failure is non-fatal |
+| TD-14-pl011-retry | PENDING | createTty0 lookup-devfs retries 50 → 30 |
+| TD-14-psh-retry | PENDING | PSH_TTYOPEN_RETRIES 20 → 200 |
 
 When resolving an item:
 

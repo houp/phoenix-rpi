@@ -1,12 +1,114 @@
 # Current Implementation Step
 
-## Step: Diagnose `/dev/console` `resolve_path` Hang on Pi 4 (TD-14)
+## Step: Stabilize Pi 4 user-space IPC race in pl011-tty / psh path (TD-14)
 
-**Status**: IN PROGRESS
+**Status**: IN PROGRESS — incremental fixes landed, intermittent on Pi 4
 
 **Date**: 2026-05-02
 
-**Manifest**: `manifests/2026-05-02-td13-resolve-path-boundary.md`
+**Manifest**: `manifests/2026-05-02-td14-tty0-nonfatal-checkpoint.md`
+
+## 2026-05-02 evening update — checkpoint after TD-14 investigation
+
+What we now know with hard evidence:
+
+1. **TD-14 was *not* a single hang point.** It is a constellation of
+   TD-04-class IPC fragility on real Pi 4. `resolve_path("/dev/console")`
+   itself completes (we logged `oid port=3 id=2` for `/dev/console`,
+   matching QEMU). The wall keeps moving each cycle:
+   - one cycle: psh's resolve_path takes 100+ s but does complete;
+   - another: pl011-tty's `lookup("devfs")` retry loop visibly iterates
+     ~10 times before hitting capture cutoff;
+   - another: pl011-tty hangs between `pl011_configure done` and the
+     next `pl011_writeRaw("started")` (i.e. before any IPC at all).
+2. **Each individual `lookup("devfs")` round-trip is materially slower
+   on Pi 4 than QEMU.** QEMU resolves a fresh devfs lookup in <100 ms;
+   Pi 4 sometimes takes seconds, sometimes 10s+ seconds, sometimes
+   never returns within the test cycle window. Same kernel image, same
+   namespace logic — the difference is silicon-only.
+3. **HDMI klog mirror works when fbcon init succeeds.** It is racy on
+   Pi 4 because `pl011_fbcon_init` is deferred (TD-14-deferred-fbcon)
+   and depends on the GPU mailbox via PCIe. When it succeeds we see
+   kernel `threads:` lines on screen; when it stalls we get the orange
+   firmware splash with no text. Tracked separately; not blocking
+   shell bring-up.
+
+What landed this round (siblings):
+
+- devices `master` @ `8b80f4c` (TD-14-tty0-nonfatal) — make
+  `pl011_createTty0()` failure non-fatal so pl011-tty proceeds to
+  `create_dev("/dev/console")` whose libphoenix helper has a
+  3-retry-then-portRegister fallback. Reduced its inner devfs-lookup
+  retry from 50 to 30 (3 s wall) so we fall through faster.
+- utils `master` @ `0cafa08` (TD-14-psh-retry) — bump
+  `PSH_TTYOPEN_RETRIES` from 20 (2 s) to 200 (20 s) so psh tolerates
+  the slow `/dev/console` registration on Pi 4.
+- libphoenix `master` @ `47034f8` (TD-14 resolve trace) — already
+  committed; per-component lookup/getattr trace + oid port/id dump
+  used to localise the boundary above.
+- devices `master` @ `94cace1` (TD-14 poolthr marker) — already
+  committed; one-shot `poolthr enter` debug print.
+
+QEMU validation each step: still reaches `(psh)% help`
+interactively.
+
+What did NOT work (kept here for next-time avoidance):
+
+- Reordering the syspage spawn list to put `pl011-tty` after
+  `bind devfs /dev`. Broke QEMU: `bind` apparently caches `/dev`
+  state at mount time, and pl011-tty's later `create_dev` doesn't
+  refresh that cache, so `lookup("/dev/console")` returns -ENOENT
+  for every consumer. **Original spawn order is correct.**
+- Adding a 2 s `usleep` at the top of pl011-tty `main()` to let
+  dummyfs finish registering. Same QEMU breakage as the spawn
+  reorder — the timing shift moves pl011-tty's `create_dev` past
+  whatever cache window the rest of the pipeline expects. Reverted.
+- Adding raw-byte register/lookup name traces inside the kernel
+  `proc/name.c`. Probe code (small stack buffer + `hal_consolePrint`)
+  broke QEMU as well, in a way that is interesting in its own right
+  (likely re-entrancy through `name_traceRegister` from inside the
+  proc spinlock). **Stashed in the kernel repo, not part of HEAD.**
+
+## Strategy options for next session
+
+The intermittence we observe is the same symptom class as TD-04 —
+each cycle is a different state. Possible directions, in roughly
+increasing order of effort and decreasing order of pragmatism:
+
+A. **Strip the TD-13/TD-14 trace probes** and see if the cleaner
+   image is more reliable (probes themselves cost real-time IPC
+   on every lookup/register/eret).
+
+B. **Bypass `/dev/console` for psh on Pi 4.** Have pshapp fall
+   back to `STDIN/STDOUT/STDERR` inherited from `posix_clone(-1)`
+   (which already wires fd 0/1/2 to the kernel klog port) when
+   `psh_ttyopen()` exhausts its retries. We lose interactive
+   input but get a one-way `(psh)%` banner on UART (proof of life).
+
+C. **Synchronise pl011-tty with dummyfs registration via a
+   notification primitive** instead of busy-polling `lookup()`.
+   Phoenix-RTOS has condvars; one option is a small wait-for-name
+   helper in the kernel that returns immediately when the name
+   appears in dcache. Cleaner; non-trivial.
+
+D. **Root-cause the TD-04-class IPC slowness on Pi 4.** Likely
+   the same VideoCore VI / GPU mailbox interference we hit at
+   syspage handoff. Would need bounded GPU init, or moving the
+   IPC-touched memory regions to the same NC (Normal Non-
+   Cacheable) mapping we used for `_hal_syspageCopied`. This is
+   the right long-term fix.
+
+## Build/test commands
+
+```bash
+./scripts/rebuild-rpi4b-fast.sh --scope full-clean
+./scripts/qemu-shell-smoke.sh rpi4b
+./scripts/test-cycle-netboot.sh --label <label> --capture-secs 240 --dhcp-wait-secs 90 --skip-server-up
+python3 scripts/summarize-rpi4b-uart-log.py artifacts/rpi4b-uart/<latest>.log
+```
+
+## Previous step framing (2026-05-02 morning)
+
 
 **Sibling commits at this checkpoint**:
 - kernel `agent/rpi4-program-reloc` @ `37fcc58e` — TD-13 mutex/atomic wall

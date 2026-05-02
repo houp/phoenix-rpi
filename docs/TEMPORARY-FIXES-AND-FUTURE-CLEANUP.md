@@ -1027,6 +1027,127 @@ under TD-13-spawn-cap and the priority ladder.
   marker yet — add `TODO(TD-15-...)` comments at each touch
   point as the work lands).
 
+## TD-16: Pi 4 system runs ~1000× slower than expected (timer-driven slowdown)
+
+- **Status:** OPEN INVESTIGATION (logged 2026-05-03 from a TD-15
+  phase 1 cycle and a user-supplied HDMI photograph showing kernel
+  `threads:` output gaining only ~12 visible characters per minute
+  on the framebuffer).
+- **First observed:** 2026-05-02 night. Made the leap from
+  "intermittent" to "definitively timer-driven" with the
+  TD-15 phase 1 cycle on 2026-05-03.
+- **Where:** anywhere a kernel/userspace operation depends on
+  wall-clock or timer ticks. Concretely:
+  - libphoenix `usleep()` → `proc_threadSleep()` → kernel sets a
+    CNTP_TVAL_EL0 wakeup; thread is woken on the IRQ.
+  - `proc_threadWait*()` timeouts.
+  - pl011-tty's `pl011_thr` poll loop calls
+    `usleep(PL011_TTY_POLL_US = 1000)` between TX-FIFO drains, so
+    if `usleep` is wrong the per-character output rate to UART/HDMI
+    drops accordingly.
+  - psh's `while (lookup("/", ...) < 0) usleep(10000)` and pl011-tty
+    createTty0's `for (i=0;i<30;++i) usleep(100000)` both visibly
+    iterate at multiple-seconds-per-iteration on real Pi 4.
+- **Quantitative evidence:**
+  - QEMU reaches `(psh)% help` at log line ~290 (~30 s of Phoenix
+    runtime).
+  - Real Pi 4 reaches `(psh)% help` only with capture window 420 s
+    or longer (TD-14 manifest 2026-05-02-td14-uart-shell-prompt.md).
+  - HDMI text grows ~12 chars / minute (user photograph 2026-05-03)
+    where QEMU produces hundreds of chars per second.
+  - TD-14 timing probe (kernel commit 60703368) measured single
+    `proc_send("devfs")` round trips of **1 ms to 43 s** on the same
+    image. The 60 000× spread is consistent with mostly-broken timed
+    waits.
+- **Verified facts:**
+  - The Phoenix armstub
+    (`_projects/aarch64a72-generic-rpi4b/phoenix-armstub8-rpi4.S`)
+    sets `CNTFRQ_EL0 = 54000000` (line 153, `OSC_FREQ`). That value
+    is correct for BCM2711.
+  - Kernel reads `cntfrq_el0` at boot via `hal_gtimerGetFrequency()`
+    in `hal/aarch64/aarch64.h` and stores it in `state->frequency`.
+  - tick→us conversion math in
+    `hal/aarch64/gtimer_backend.c::hal_gtimerStateCyc2us` and
+    `hal_gtimerStateUs2Ticks` is straightforward: `us = cyc * 1e6 /
+    freq` and `ticks = us * freq / 1e6`. Math checks out for
+    `freq = 54e6`.
+  - TD-15 phase 1 confirmed VC4 is **not** writing to the mailbox
+    buffer page during the handoff window (kernel reads
+    `td15:OK`). So the slowdown is *not* an external-writer trampling
+    on kernel timer state.
+- **Top suspects (ranked):**
+  1. **CNTPCT_EL0 ticks at a different rate than CNTFRQ_EL0
+     advertises.** If the actual hardware tick rate is e.g. 54 kHz
+     while CNTFRQ says 54 MHz, every conversion is 1000× off — and
+     pl011-tty's char-per-iteration math directly produces the
+     observed slowdown. Pi 4 generic timer typically ticks at the
+     54 MHz crystal directly, but a misconfigured prescaler /
+     `cnthctl_el2` / EL2→EL1 trap could change the EL1 view.
+  2. **Timer interrupt is delivered late.** TD-11's single-core
+     spinlock implementation masks DAIF across critical sections.
+     If we mask IRQs for substantially longer than `usleep` argument,
+     timer-driven wakeups pile up. But this should only stretch
+     short waits; it does not naturally produce 60 000× factors.
+  3. **`cntp_tval_el0` is being written with stale state from EL2
+     boot.** Armstub sets `cnthctl_el2 = 0x3` (allow EL1 access to
+     phys+virt timer) and `cntvoff_el2 = 0`. If our kernel
+     accidentally reads `cntvct_el0` (virtual count, with possibly
+     non-zero offset) instead of `cntpct_el0`, that could produce
+     skewed math.
+  4. **Compiler-induced UB in timing math.** `time_t` is signed; if
+     somewhere we compute `cycles * 1e6` and overflow before dividing
+     by `freq`, we get garbage. With `freq = 54e6`, `cycles * 1e6`
+     overflows i64 at `cycles ≈ 18e12`, which after 5 minutes of
+     uptime is nowhere near. Unlikely but worth a glance.
+- **Resolution path:**
+  1. **Direct measurement probe (cheap).** Add a kernel probe at
+     boot that:
+     - reads `CNTFRQ_EL0` and prints it.
+     - reads `CNTPCT_EL0` once.
+     - busy-waits for some count of `nop`s (~10 million).
+     - reads `CNTPCT_EL0` again.
+     - prints the delta.
+     If the delta divided by CNTFRQ tells us "1 ms" but `pl011_writeRaw`-loop wall time is ~1 s, then CNTFRQ does
+     not match actual hardware tick rate.
+  2. **Compare CNTPCT vs CNTVCT.** If they advance at different
+     rates, one of them is wrong; pick the right one for kernel use.
+  3. **Confirm cnthctl_el2 + cntkctl_el1.** Linux on Pi 4 sets
+     specific bits to allow EL1 unprivileged read access; ours may
+     differ.
+  4. **If CNTFRQ matches CNTPCT but timer IRQ is late:** the issue
+     is in the IRQ-mask / scheduler path, not the timer itself.
+     Different fix: shorten DAIF-masked sections or use WFI / IRQ
+     in spinlock.
+- **Why this is on the critical path for HDMI + USB keyboard
+  goals:** every gate after UART (psh)% relies on user-process
+  timing (pl011-tty fbcon poll, pcie/usb retry, HID enumeration,
+  psh interactive read). At current speeds an interactive smoke
+  takes hours; HDMI mirror appears at 12 chars per minute. Fixing
+  TD-16 likely makes Gates 2-5 trivially observable.
+- **Marker grep:** none in source yet (probe code to be added in
+  Phase 16-1 below).
+
+## TD-16-1: planned timer measurement probe
+
+- **Status:** PLANNED (not yet implemented).
+- **Where:** kernel `main.c` — alongside the TD-15 phase 1 probe
+  and the existing pre-`syspage_init` early markers, since both
+  the PL011 alias (`0xffffffffffe00000`) and the mailbox alias
+  (`0xffffffffffe01000`) are already mapped at this point.
+- **What to measure:**
+  ```
+  cntfrq = CNTFRQ_EL0
+  t0 = CNTPCT_EL0
+  for (i = 0; i < 0x10_0000; i++) asm("nop");  // ~64 K nops
+  t1 = CNTPCT_EL0
+  print "td16: cntfrq=<hex> dt=<hex>"
+  ```
+- **Decision tree:**
+  - QEMU baseline (~54e6 cntfrq, dt ~ a few hundred): math correct.
+  - Pi 4 cntfrq=54e6 but dt is e.g. 600 → ticks slow by ~1000×.
+  - Pi 4 cntfrq=54000 → CNTFRQ misread; armstub didn't actually
+    write OSC_FREQ.
+
 ## Priority Ladder
 
 **Blocks "first Pi 4 boots to userspace" milestone (current):**
@@ -1102,6 +1223,9 @@ under TD-13-spawn-cap and the priority ladder.
 | TD-14-tiocspgrp-pgrp | PENDING | TIOCSPGRP uses pgrp value directly |
 | TD-14-psh-debug-probes | PENDING | psh early probes use debug syscall |
 | TD-15 | PENDING | **VC6 memory hygiene + 4 GiB unlock; phased plan** |
+| TD-15-mboxprobe | PENDING (phase 1 evidence captured: NO drift) | mailbox-buffer drift probe |
+| TD-16 | OPEN INVESTIGATION | **Pi 4 ~1000× slowdown — timer-driven; suspect CNTFRQ ≠ CNTPCT** |
+| TD-16-1 | PLANNED | direct CNTFRQ + CNTPCT measurement probe |
 
 When resolving an item:
 

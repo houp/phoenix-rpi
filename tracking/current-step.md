@@ -65,6 +65,42 @@ Then run:
 python3 scripts/summarize-rpi4b-uart-log.py artifacts/rpi4b-uart/<latest>.log
 ```
 
+## 2026-05-03 update — TD-15 phase 1 done, TD-16 opened
+
+The TD-15 phase 1 mailbox-buffer drift probe ran on real Pi 4. Result:
+**`td15:OK`** — the 64-byte pattern plo wrote at PA `0x02000000` was
+intact when the kernel read it through the NC alias. So **VC4 is
+NOT writing to the mailbox-buffer page during the plo→kernel
+handoff window.** That eliminates one of the top suspects for
+TD-04-class corruption.
+
+In the same cycle the user provided HDMI photographs taken ~1 minute
+apart showing only ~12 visible characters of new kernel output across
+that whole minute. Combined with the TD-14 timing probe data (a
+single `proc_send("devfs")` round trip took anywhere from 1 ms to
+43 s on the same hardware), this confirms the system is running
+**~1000–60 000× slower than expected**, which is timer-driven and
+silicon-specific.
+
+This finding is now tracked as **TD-16** with a planned **TD-16-1**
+probe (read CNTFRQ_EL0 + CNTPCT_EL0 deltas at boot to confirm whether
+the architectural timer ticks at the rate `cntfrq_el0` advertises).
+The Phoenix armstub at
+`_projects/aarch64a72-generic-rpi4b/phoenix-armstub8-rpi4.S:153`
+sets `CNTFRQ_EL0 = 54000000` (`OSC_FREQ`) which is correct for
+BCM2711, so either the cntfrq value is being silently overwritten
+later, or the actual hardware tick rate doesn't match it on real
+silicon, or the timer IRQ is delivered late due to long DAIF-masked
+sections.
+
+**Sequencing implication:** TD-16 jumps the queue ahead of the rest
+of TD-15. If the actual root cause of every "slow user-space" symptom
+on Pi 4 is timer ticks running at the wrong rate, then fixing TD-16
+likely makes Gate 2 (HDMI text console) and Gate 3 (PCIe + USB +
+keyboard) trivially observable because they'll run at full speed.
+TD-15 phases 2-6 still need to land for correctness and the 4 GiB
+unlock, but the immediate next investment is TD-16-1.
+
 ## 2026-05-03 reframe — TD-15 (VC6 hygiene + 4 GiB) is the next investment
 
 User direction 2026-05-03: handle Pi 4 VideoCore VI memory access

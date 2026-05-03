@@ -1236,6 +1236,15 @@ under TD-13-spawn-cap and the priority ladder.
     `PMAP_COMMON_STACK` TTBR1 pages. Real Pi 4 still reaches `(psh)%`;
     artifact:
     `artifacts/rpi4b-uart/rpi4b-uart-20260503-213203-netboot-td16-ttbr0-nc-blocks.log`.
+  - 2026-05-03 step 2: kernel commit `d52f6c3a` drops `TTBR0_EL1` to the
+    scratch table immediately after the syspage copy and its post-copy
+    `_clean_inval_dcache_range`, instead of leaving the low identity map
+    active until near `main`. The obsolete E2 syspage byte-dump probe block
+    was removed at the same time. This still does not enable caches or speed
+    the system up, but it narrows the window where the same PA is reachable
+    through both low and high aliases. QEMU Pi 4, generic QEMU, and real Pi 4
+    still reach `(psh)%`; artifact:
+    `artifacts/rpi4b-uart/rpi4b-uart-20260503-214816-netboot-td16-early-ttbr0-drop.log`.
 - **External OS comparison (2026-05-03):**
   - Linux arm64 builds the initial idmap/swapper tables, performs cache
     maintenance for page tables populated with MMU off, runs CPU setup,
@@ -1356,7 +1365,7 @@ under TD-13-spawn-cap and the priority ladder.
 | TD-15 | PENDING | **VC6 memory hygiene + 4 GiB unlock; phased plan** |
 | TD-15-mboxprobe | PENDING (phase 1 evidence captured: NO drift) | mailbox-buffer drift probe |
 | TD-16 | OPEN INVESTIGATION | **Pi 4 ~1000× slowdown — timer-driven; suspect CNTFRQ ≠ CNTPCT** |
-| TD-16-1 | PLANNED | direct CNTFRQ + CNTPCT measurement probe |
+| TD-16-1 | LANDED 2026-05-03 | direct CNTFRQ + CNTPCT measurement probe |
 
 When resolving an item:
 

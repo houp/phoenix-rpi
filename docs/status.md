@@ -1,6 +1,38 @@
 # Phoenix-RTOS Raspberry Pi 4 Port Status
 
-## Current Status: 2026-05-02 night
+## Current Status: 2026-05-03 night
+
+**TD-16 alias cleanup progressed without regressing boot.** Kernel
+`d52f6c3a` drops the temporary TTBR0 low identity map immediately after the
+syspage copy and its post-copy cache maintenance, and removes the obsolete
+E2 source/destination syspage byte-dump probe block. The system still runs
+cache-disabled, so this is not a speed fix yet; it is a prerequisite for a
+safe later `SCTLR_EL1.M | C | I` transition.
+
+Validation:
+- Rebuild/export image SHA256:
+  `c82fa3be79c9a13f35c72a8717e97adfb6d5d7cb719ea31ebb1c7586bdae15b9`.
+- QEMU Pi 4 smoke reaches `(psh)% help`.
+- Generic AArch64 QEMU smoke reaches `(psh)% help`. First generic smoke
+  timed out once after the log had already reached `psh: tty open`; an
+  immediate rerun passed. Treat this as a timing warning, not a functional
+  regression, unless it repeats.
+- Real Pi 4 netboot reaches `(psh)%`; log:
+  `artifacts/rpi4b-uart/rpi4b-uart-20260503-214816-netboot-td16-early-ttbr0-drop.log`.
+
+Warnings observed:
+- Build/export: no compiler, linker, DTB, packaging, or image verification
+  warnings; helper reported verification OK.
+- Real Pi firmware: expected netboot-path messages only (`sdcard` misses
+  before network fallback, missing `cmdline.txt`, HDMI1 EDID/DSI messages
+  while HDMI0 is active). No new Phoenix runtime fault.
+
+Next TD-16 step: audit the remaining bootstrap alias boundary and page-table
+maintenance before attempting caches again. The target remains a
+Linux/FreeBSD-shaped early MMU transition that enables M, C, and I together,
+not another late I-cache-only placement.
+
+## Previous Current Status: 2026-05-02 night
 
 **TD-14 now reaches the real Pi 4 UART shell prompt.** The latest tested
 netboot image reaches `psh: readcmd` and prints `(psh)%` on UART. The

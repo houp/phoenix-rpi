@@ -2,9 +2,9 @@
 
 ## Step: Cleanup after first real Pi 4 psh prompt (TD-14)
 
-**Status**: ACTIVE — Pi 4 reaches the UART shell prompt. The next task is
-to reduce diagnostic backlog and validate interactive shell commands on real
-hardware.
+**Status**: ACTIVE — Pi 4 reaches the UART shell prompt. Current work is
+TD-16 cache bring-up: remove unsafe bootstrap aliases first, then retry a
+single early MMU/cache transition.
 
 **Date**: 2026-05-02 night
 
@@ -180,6 +180,40 @@ Next TD-16 step: shrink the TTBR0 identity map further or disable TTBR0
 earlier after the higher-half branch so the same PA is not reachable through
 low and high aliases when `SCTLR.C` is eventually enabled. Do not enable
 caches until that alias boundary is handled.
+
+## 2026-05-03 TD-16 step 2 — TTBR0 dropped after syspage copy
+
+Implemented the next alias-boundary cleanup in kernel commit `d52f6c3a`:
+after the boot code copies the syspage and runs the post-copy
+`_clean_inval_dcache_range`, it immediately switches `TTBR0_EL1` to the
+scratch translation table. That prevents later bootstrap and C code from
+accidentally touching the same physical syspage region through both the low
+identity map and the higher-half TTBR1 mapping. The obsolete E2 syspage
+source/destination byte-dump block was removed in the same commit.
+
+Validation:
+- `./scripts/rebuild-rpi4b-fast.sh` completed and exported image SHA256
+  `c82fa3be79c9a13f35c72a8717e97adfb6d5d7cb719ea31ebb1c7586bdae15b9`.
+- `./scripts/qemu-shell-smoke.sh rpi4b` reached `(psh)% help`.
+- `./scripts/qemu-shell-smoke.sh generic` reached `(psh)% help` on rerun.
+  The first generic run timed out once after the VM log had reached
+  `psh: tty open`; record this as a warning to watch for, but not as a
+  reproduced regression.
+- `./scripts/test-cycle-netboot.sh --label td16-early-ttbr0-drop
+  --capture-secs 600 --dhcp-wait-secs 90` reached `(psh)%` on real Pi 4.
+  Log:
+  `artifacts/rpi4b-uart/rpi4b-uart-20260503-214816-netboot-td16-early-ttbr0-drop.log`.
+
+Warnings observed:
+- Build/export: no compiler, linker, DTB, packaging, or image verification
+  warnings; helper reported `Verification: OK`.
+- Real Pi firmware: expected netboot-path messages only (`sdcard` open
+  failures before network fallback, missing `cmdline.txt`, HDMI1 EDID/DSI
+  messages while HDMI0 is active). No new Phoenix runtime fault.
+
+Next TD-16 step: inspect remaining early page-table/cache-maintenance
+differences against Linux/FreeBSD. Do not enable caches until the remaining
+bootstrap aliases and page-table visibility path are explicitly accounted for.
 
 ## Sequencing decision for the next session
 

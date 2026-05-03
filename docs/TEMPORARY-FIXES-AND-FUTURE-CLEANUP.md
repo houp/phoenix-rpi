@@ -1227,17 +1227,46 @@ under TD-13-spawn-cap and the priority ladder.
   enable. The TD-15 phase 1 + TD-16-1 probes remain. Boot is slow
   but correct in the last known-good cache-off image, reaching
   `(psh)%` in ~420 s capture window per the 2026-05-02 manifest.
+- **External OS comparison (2026-05-03):**
+  - Linux arm64 builds the initial idmap/swapper tables, performs cache
+    maintenance for page tables populated with MMU off, runs CPU setup,
+    then enables `SCTLR_EL1.M | SCTLR_EL1.C | SCTLR_EL1.I` as one MMU
+    transition. Linux does not treat I-cache or D-cache as a late C-level
+    performance switch after normal kernel init has already started.
+    Re-check:
+    `https://raw.githubusercontent.com/torvalds/linux/master/arch/arm64/kernel/head.S`
+    and
+    `https://raw.githubusercontent.com/torvalds/linux/master/arch/arm64/mm/proc.S`.
+  - FreeBSD arm64 follows the same shape in its early `start_mmu` path:
+    establish MAIR/TCR/TTBR state, invalidate stale translations, then
+    turn on MMU + caches before ordinary kernel execution. Re-check:
+    `https://cgit.freebsd.org/src/tree/sys/arm64/arm64/locore.S`.
+  - Circle's Pi-focused bare-metal code also treats MMU/cache enable as
+    early bring-up infrastructure tied to a consistent memory map, not as
+    a late optimization. Re-check:
+    `https://circle-rpi.readthedocs.io/en/49.0/basic-system-services/memory.html`
+    and local mirror paths listed in `docs/source-artifacts.md`.
+  - Practical conclusion for Phoenix Pi 4: the correct endpoint is to
+    enable both I-cache and D-cache during the MMU transition, after the
+    bootstrap mappings are made coherent and alias-safe. The rejected
+    late I-cache experiments above are expected to be fragile because
+    they change execution after Phoenix has already created mixed
+    cacheable/NC mappings and partially initialized kernel state.
 - **Next session options:**
   1. First remove the mixed cacheable/NC aliases in the bootstrap
      mappings. The same PA must not remain reachable through both
      cacheable TTBR0 identity entries and NC TTBR1 entries once
      SCTLR.C is enabled.
-  2. Then retry D-cache enable after the fixed
-     `hal_cpuInvalDataCacheAll()` path and with exact ESR/ELR/FAR
-     capture on any exception.
-  3. Only after D-cache is stable, re-enable I-cache. The two
-     real-hardware I-cache-only placements above prove I-cache alone
-     can speed a synthetic loop but is not a safe functional fix.
+  2. Restore early page-table cache maintenance in the same spirit as
+     Linux's MMU-off table-clean/invalidate step, using the fixed
+     `hal_cpuInvalDataCacheAll()` and/or narrower by-VA operations where
+     appropriate.
+  3. Retry a Linux/FreeBSD-shaped transition that enables
+     `SCTLR_EL1.M | SCTLR_EL1.C | SCTLR_EL1.I` together, with exact
+     ESR/ELR/FAR capture on any exception.
+  4. Do not spend more cycles on I-cache-only late placements unless
+     they are used as a bounded diagnostic. The two real-hardware
+     I-cache-only placements above prove it is not the functional fix.
 
 
 

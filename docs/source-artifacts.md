@@ -58,10 +58,16 @@ Important current UART facts from the official documentation:
 - Linux arm64 early boot:
   <https://github.com/torvalds/linux/blob/master/arch/arm64/kernel/head.S>
 
+- Linux arm64 CPU/MMU setup:
+  <https://github.com/torvalds/linux/blob/master/arch/arm64/mm/proc.S>
+
   Important current facts:
 
   - Linux prepares both TTBRs before the final virtual switch rather than
     toggling `TCR_EL1.EPD1` as a late runtime seam
+  - Linux enables MMU, D-cache, and I-cache as a single early transition
+    after page-table setup and cache/TLB maintenance; it does not enable
+    I-cache later as a standalone C-level optimization
   - Linux uses the post-`SCTLR_EL1` sequence:
     - `isb`
     - `ic iallu`
@@ -70,6 +76,18 @@ Important current UART facts from the official documentation:
   - Linux explicitly performs cache maintenance on page tables populated while
     the MMU is off because speculative cache lines can otherwise leave stale
     entries visible to the page-table walker
+
+- FreeBSD arm64 early MMU path:
+  <https://cgit.freebsd.org/src/tree/sys/arm64/arm64/locore.S>
+
+  Important current facts:
+
+  - FreeBSD's `start_mmu` path has the same high-level shape as Linux:
+    establish MAIR/TCR/TTBR state, invalidate stale translations, then enable
+    MMU + caches before normal kernel execution
+  - This supports the Phoenix Pi 4 TD-16 conclusion that cache enable belongs
+    in the early MMU transition after alias cleanup, not after `_hal_init()` or
+    `_hal_start()`
 
 - Raspberry Pi forum: TTBR1 / higher-half bring-up pitfalls:
   <https://forums.raspberrypi.com/viewtopic.php?t=322671>
@@ -95,6 +113,9 @@ Important current UART facts from the official documentation:
 - Circle Raspberry Pi bare-metal environment:
   <https://github.com/rsta2/circle>
 
+- Circle memory-management notes:
+  <https://circle-rpi.readthedocs.io/en/49.0/basic-system-services/memory.html>
+
   Important current facts:
 
   - Circle remains the strongest public Raspberry Pi bare-metal reference for
@@ -102,6 +123,9 @@ Important current UART facts from the official documentation:
   - Circle's published boot flow and required Pi 4 armstub reinforce that Pi 4
     early-boot sequencing differs enough from generic arm64 that source-backed
     comparisons are still worth doing before changing Phoenix
+  - Circle treats cache enable as part of an established memory-management
+    model; use it as a Pi-specific sanity check after comparing against Linux
+    and FreeBSD
   - the current local mirror used in recent MMU analysis is:
     `/Users/witoldbolt/phoenix-rpi/external/circle/lib/startup64.S`
     and

@@ -75,6 +75,12 @@ uses CLIDR/CCSIDR correctly, clean+invalidates by set/way, and adds the
 required barriers. Next TD-16 work should remove mixed cacheable/NC aliases
 in the bootstrap mappings before retrying D-cache enable.
 
+External OS comparison now makes the target sequence clear: Linux arm64,
+FreeBSD arm64, and Circle all turn caches on as part of the early MMU/memory
+map transition, not as a late C-level speed knob. Phoenix should converge on
+the same model: alias-safe bootstrap mappings, page-table cache maintenance,
+then `SCTLR_EL1.M | C | I` together before normal kernel execution.
+
 ## Current Status: 2026-05-02 late-evening
 
 **TD-13 closed. TD-14 narrowed to: kernel `proc_portLookup` IPC is

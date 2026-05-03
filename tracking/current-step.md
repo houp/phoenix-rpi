@@ -134,6 +134,22 @@ do not enable D-cache while `_hal_syspageCopied` and `PMAP_COMMON_STACK`
 are reachable through both TTBR0 cacheable identity entries and TTBR1 NC
 entries.
 
+External OS comparison changes the cache strategy:
+
+- Linux arm64 and FreeBSD arm64 both enable `SCTLR_EL1.M`, `C`, and `I` as
+  part of the early MMU transition after MAIR/TCR/TTBR setup and page-table
+  cache/TLB maintenance.
+- Circle's Pi-oriented bare-metal path likewise treats cache enable as early
+  memory-management infrastructure tied to a consistent map, not as a late
+  C-level performance optimization.
+- Therefore the Phoenix Pi 4 fix should not be another late I-cache-only
+  placement. It should make the early bootstrap maps alias-safe, restore
+  correct page-table cache maintenance, and then enable MMU + I-cache +
+  D-cache together in a Linux/FreeBSD-shaped transition.
+- Re-check upstream references before implementation:
+  `arch/arm64/kernel/head.S` and `arch/arm64/mm/proc.S` in Linux, FreeBSD
+  `sys/arm64/arm64/locore.S`, and Circle `startup64.S` / memory code.
+
 ## Sequencing decision for the next session
 
 The user's stated goal is **fully unlocking 4 GiB DRAM and

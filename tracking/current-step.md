@@ -215,6 +215,63 @@ Next TD-16 step: inspect remaining early page-table/cache-maintenance
 differences against Linux/FreeBSD. Do not enable caches until the remaining
 bootstrap aliases and page-table visibility path are explicitly accounted for.
 
+## 2026-05-04 TD-16 step 3 plan — restore early page-table invalidation
+
+Objective: restore the Linux-shaped page-table visibility step that Phoenix
+currently comments out before the first `SCTLR_EL1.M` write. This is still
+cache-disabled execution; it does not enable I-cache or D-cache yet.
+
+In scope:
+- Kernel `hal/aarch64/_init.S` only.
+- Restore `_inval_dcache_range` over the contiguous early page-table/scratch
+  region populated with the MMU off:
+  `PMAP_COMMON_KERNEL_TTL2 .. PMAP_COMMON_STACK`.
+- Keep the existing TTBR0 NC block descriptors and early TTBR0 drop.
+
+Out of scope:
+- Enabling `SCTLR_EL1.C` or `SCTLR_EL1.I`.
+- Changing normal runtime `pmap` attributes.
+- Removing TD-04/TD-14 runtime workarounds.
+
+Acceptance criteria:
+- Pi 4 fast rebuild/export completes with no compiler, linker, DTB,
+  packaging, or image-verification warnings.
+- QEMU Pi 4 shell smoke reaches `(psh)% help`.
+- Generic QEMU shell smoke reaches `(psh)% help`.
+- Real Pi 4 netboot reaches `(psh)%` or, if it regresses, the step is
+  reverted and documented as still unsafe on BCM2711.
+
+Rollback baseline:
+- Kernel `d52f6c3a`.
+- Coordination repo `9222cec`.
+
+Result: PASSED 2026-05-04 in kernel commit `5e727dcc`.
+
+Validation:
+- `./scripts/rebuild-rpi4b-fast.sh` completed with image SHA256
+  `0f6dc1a9e8254d9c42f41d6ee308eff074a9a6a2e0810cc1fa25044d9c260115`.
+- `./scripts/qemu-shell-smoke.sh rpi4b` reached `(psh)% help`.
+- `./scripts/qemu-shell-smoke.sh generic` reached `(psh)% help`.
+- `./scripts/test-cycle-netboot.sh --label td16-early-pt-inval
+  --capture-secs 600 --dhcp-wait-secs 90` reached `(psh)%` on real Pi 4.
+  Log:
+  `artifacts/rpi4b-uart/rpi4b-uart-20260503-221342-netboot-td16-early-pt-inval.log`.
+
+Warnings observed:
+- Build/export: no compiler, linker, DTB, packaging, or image verification
+  warnings; helper reported `Verification: OK`.
+- Real Pi firmware/netboot: expected SD/USB boot misses before network
+  fallback, expected missing per-MAC TFTP files before root `config.txt`,
+  expected missing `cmdline.txt`, and expected HDMI1 EDID/DSI messages while
+  HDMI0 is active.
+- UART helper used `picocom` and printed `STDIN is not a TTY`; capture was
+  still valid and completed cleanly.
+
+Key finding: the restored pre-MMU page-table invalidation is safe after the
+TD-16 alias cleanup, but it does not change performance. The TD-16 loops still
+report `dt≈0x883e**`, proving caches remain disabled and the next step must be
+the actual early `M|C|I` transition or better early fault capture around it.
+
 ## Sequencing decision for the next session
 
 The user's stated goal is **fully unlocking 4 GiB DRAM and

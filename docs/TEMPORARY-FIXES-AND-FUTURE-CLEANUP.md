@@ -1245,6 +1245,14 @@ under TD-13-spawn-cap and the priority ladder.
     through both low and high aliases. QEMU Pi 4, generic QEMU, and real Pi 4
     still reach `(psh)%`; artifact:
     `artifacts/rpi4b-uart/rpi4b-uart-20260503-214816-netboot-td16-early-ttbr0-drop.log`.
+  - 2026-05-04 step 3: kernel commit `5e727dcc` restores the early
+    `_inval_dcache_range` over
+    `PMAP_COMMON_KERNEL_TTL2 .. PMAP_COMMON_STACK` before the first
+    `SCTLR_EL1.M` write. This follows the Linux/FreeBSD rule that page tables
+    populated with the MMU off must be made visible to the table walker before
+    translation starts. QEMU Pi 4, generic QEMU, and real Pi 4 still reach
+    `(psh)%`; artifact:
+    `artifacts/rpi4b-uart/rpi4b-uart-20260503-221342-netboot-td16-early-pt-inval.log`.
 - **External OS comparison (2026-05-03):**
   - Linux arm64 builds the initial idmap/swapper tables, performs cache
     maintenance for page tables populated with MMU off, runs CPU setup,

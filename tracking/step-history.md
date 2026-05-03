@@ -2,6 +2,26 @@
 
 ## Completed Steps
 
+### 2026-05-04: Restore TD-16 early page-table invalidation ✅
+- **Kernel commit**: `5e727dcc` (`aarch64: restore early page-table invalidation`)
+- **Manifest**: `manifests/2026-05-04-td16-early-pt-inval.md`
+- **Image**: `0f6dc1a9e8254d9c42f41d6ee308eff074a9a6a2e0810cc1fa25044d9c260115`
+- **UART log**: `artifacts/rpi4b-uart/rpi4b-uart-20260503-221342-netboot-td16-early-pt-inval.log`
+- **Result**: Restored the early `_inval_dcache_range` over
+  `PMAP_COMMON_KERNEL_TTL2 .. PMAP_COMMON_STACK` before the first MMU enable.
+  This gives Phoenix the Linux/FreeBSD-shaped page-table visibility step while
+  keeping I-cache and D-cache disabled.
+- **Validation**: QEMU Pi 4 smoke reaches `(psh)% help`; generic QEMU smoke
+  reaches `(psh)% help`; real Pi 4 netboot reaches `(psh)%`.
+- **Warnings**: No build/export/DTB/image warnings. Real Pi firmware emitted
+  expected netboot-path misses and HDMI1 EDID/DSI messages. UART helper used
+  `picocom` and printed `STDIN is not a TTY`, but capture completed and the
+  log is valid.
+- **Next recommended step**: Attempt the real early `SCTLR_EL1.M|C|I`
+  transition in the Linux/FreeBSD shape, or first add a no-call early
+  ESR/ELR/FAR dump if the current exception path remains too fragile for
+  cache-enable fault diagnosis.
+
 ### 2026-05-02: Bypass TD-14 `devfs` lookup wall ✅
 - **Kernel commit**: `60703368` (`rpi4b: stabilize devfs lookup during TD-14`)
 - **Devices commit**: `63f1d438` (`rpi4b: keep console alias usable during TD-14`)

@@ -1,6 +1,40 @@
 # Phoenix-RTOS Raspberry Pi 4 Port Status
 
-## Current Status: 2026-05-03 night
+## Current Status: 2026-05-04
+
+**TD-16 page-table visibility step passed on QEMU and real Pi 4.** Kernel
+`5e727dcc` restores the early `_inval_dcache_range` over
+`PMAP_COMMON_KERNEL_TTL2 .. PMAP_COMMON_STACK` before the first
+`SCTLR_EL1.M` write. This follows the Linux/FreeBSD early-MMU shape for page
+tables populated with the MMU off. It still does not enable I-cache or
+D-cache, so the Pi remains slow; the TD-16 loop stayed at
+`dt≈0x883e**`.
+
+Validation:
+- Rebuild/export image SHA256:
+  `0f6dc1a9e8254d9c42f41d6ee308eff074a9a6a2e0810cc1fa25044d9c260115`.
+- QEMU Pi 4 smoke reaches `(psh)% help`.
+- Generic AArch64 QEMU smoke reaches `(psh)% help`.
+- Real Pi 4 netboot reaches `(psh)%`; log:
+  `artifacts/rpi4b-uart/rpi4b-uart-20260503-221342-netboot-td16-early-pt-inval.log`.
+
+Warnings observed:
+- Build/export: no compiler, linker, DTB, packaging, or image verification
+  warnings; helper reported verification OK.
+- Real Pi firmware/netboot: expected SD/USB boot misses before network
+  fallback, missing per-MAC TFTP files before root `config.txt`, missing
+  `cmdline.txt`, and HDMI1 EDID/DSI messages while HDMI0 is active.
+- UART helper selected `picocom` for this run and printed
+  `STDIN is not a TTY`; capture still completed and the log is valid.
+
+Next TD-16 step: with aliases narrowed and early page-table invalidation
+restored, compare the exact remaining `SCTLR_EL1` transition against Linux
+`__cpu_setup` / `__enable_mmu`. The next implementation attempt should either
+enable `M|C|I` together in the early transition with fault-register capture, or
+first add a no-call early exception dump if the current handler is still too
+fragile to diagnose cache-enable faults.
+
+## Previous Current Status: 2026-05-03 night
 
 **TD-16 alias cleanup progressed without regressing boot.** Kernel
 `d52f6c3a` drops the temporary TTBR0 low identity map immediately after the

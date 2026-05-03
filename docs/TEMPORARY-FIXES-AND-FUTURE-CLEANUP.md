@@ -1189,6 +1189,23 @@ under TD-13-spawn-cap and the priority ladder.
      `bl hal_cpuInvalDataCacheAll` set/way invalidate loop; never
      reached the SCTLR write. Did not get a chance to test on
      real Pi 4.
+  5. **I-cache only at the end of `_hal_init_c()`**: QEMU smoke
+     still reached `(psh)% help`, and real Pi 4 showed the expected
+     instruction-speed win in the second TD-16 loop
+     (`td16b:dt=0x126ee` vs pre-enable `dt≈0x89c82a`). But the
+     same real Pi run then stalled after `main: hal init done` and
+     marker `h`, before `_usrv_init()` returned. A 600 s capture
+     never reached the version banner. Artifact:
+     `artifacts/rpi4b-uart/rpi4b-uart-20260503-202432-netboot-td16-late-icache-long.log`.
+  6. **I-cache only in `_hal_start()`**: moved the enable later,
+     after `_usrv_init()`, VM, perf, proc, and syscall init. QEMU
+     still passed, but real Pi stalled immediately after
+     `main_initthr: enter` (inside `_hal_start()`), with no later
+     `main_initthr: hal started`. Artifact:
+     `artifacts/rpi4b-uart/rpi4b-uart-20260503-203723-netboot-td16-icache-hal-start.log`.
+     This confirms "just enable I-cache later" is not safe enough;
+     it changes the execution model in a way that exposes another
+     coherency/maintenance bug.
 - **Hypothesis space (for next session):**
   - The kernel's `_hal_syspageCopied` page (Normal Non-Cacheable)
     and `PMAP_COMMON_STACK` pages (also NC per TD-04 fix) coexist
@@ -1196,27 +1213,31 @@ under TD-13-spawn-cap and the priority ladder.
     Enabling D-cache may interact badly with this mixed-attr
     layout because A72 prefetcher may pull adjacent cacheable
     lines that aren't strictly mapped, faulting on translation.
-  - `hal_cpuInvalDataCacheAll` may need different parameters on
-    A72 (ccsidr_el1 read with cssselr_el1=0 should give L1, but
-    we may be reading L2).
+  - `hal_cpuInvalDataCacheAll` was too weak for D-cache experiments:
+    it selected L1 only, read `CCSIDR_EL1` immediately after writing
+    `CSSELR_EL1` without the required `isb`, used invalidate-only
+    (`dc isw`) rather than clean+invalidate, and had no final
+    barriers. Kernel commit `1a4eb297` replaces it with a CLIDR-driven
+    all data/unified-cache clean+invalidate loop using `dc cisw`.
+    That is a prerequisite, not yet proof that D-cache can be enabled.
   - The `b main` placement is too early — kernel C runtime
     initialization (BSS zeroing? GOT setup?) may not be ready
     for cached accesses yet.
-- **Working state restored:** The kernel _init.S has reverted to
-  the baseline (no cache enable). The TD-15 phase 1 + TD-16-1
-  probes remain. Boot is slow but correct, reaching `(psh)%` in
-  ~420 s capture window per the 2026-05-02 manifest.
+- **Working state restored:** The live kernel path has no SCTLR cache
+  enable. The TD-15 phase 1 + TD-16-1 probes remain. Boot is slow
+  but correct in the last known-good cache-off image, reaching
+  `(psh)%` in ~420 s capture window per the 2026-05-02 manifest.
 - **Next session options:**
-  1. Read Linux kernel's `arch/arm64/kernel/head.S` cache-enable
-     sequence for A72 / Pi 4 and replicate it precisely.
-  2. Trace where the recursive exception originates by adding
-     a slightly different early-exception handler that prints
-     ESR/ELR via direct PL011 mmio writes (no `bl` calls).
-  3. Bypass the slowdown investigation entirely and proceed with
-     TD-15 phases 2-6 in parallel — those address the **4 GiB
-     unlock** which is the user's primary near-term goal. The
-     Pi 4 slow-but-correct boot is acceptable for validation
-     work; the speedup is a quality-of-life improvement.
+  1. First remove the mixed cacheable/NC aliases in the bootstrap
+     mappings. The same PA must not remain reachable through both
+     cacheable TTBR0 identity entries and NC TTBR1 entries once
+     SCTLR.C is enabled.
+  2. Then retry D-cache enable after the fixed
+     `hal_cpuInvalDataCacheAll()` path and with exact ESR/ELR/FAR
+     capture on any exception.
+  3. Only after D-cache is stable, re-enable I-cache. The two
+     real-hardware I-cache-only placements above prove I-cache alone
+     can speed a synthetic loop but is not a safe functional fix.
 
 
 

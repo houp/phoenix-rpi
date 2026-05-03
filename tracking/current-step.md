@@ -101,6 +101,39 @@ capture per the 2026-05-02 manifest.
 The detailed findings + hypothesis space are in
 `docs/TEMPORARY-FIXES-AND-FUTURE-CLEANUP.md` under TD-16-cache-enable.
 
+## 2026-05-03 follow-up — I-cache-only late placements rejected; D-cache maintenance helper fixed
+
+Two additional I-cache-only placements were tested after reviewing the
+current logs and cache-enable history:
+
+- End of `_hal_init_c()`: QEMU reached `(psh)% help`; real Pi showed
+  the synthetic TD-16 speedup (`td16b:dt=0x126ee`) but then hung after
+  marker `h`, before `_usrv_init()` returned. Log:
+  `artifacts/rpi4b-uart/rpi4b-uart-20260503-202432-netboot-td16-late-icache-long.log`.
+- `_hal_start()`: QEMU reached `(psh)% help`; real Pi progressed through
+  VM/proc/syscall init but then hung immediately after
+  `main_initthr: enter`, before `_hal_start()` returned. Log:
+  `artifacts/rpi4b-uart/rpi4b-uart-20260503-203723-netboot-td16-icache-hal-start.log`.
+
+Conclusion: I-cache-only is not a safe functional fix. It can make a
+nop-loop fast, but on real Pi 4 it exposes another cache/coherency issue
+as soon as normal kernel initialization continues. The live boot path has
+no SCTLR cache enable.
+
+The useful source change kept from this investigation is kernel
+`1a4eb297`, the `hal_cpuInvalDataCacheAll()` rewrite: the old set/way
+loop selected only L1, missed the required `isb` after `csselr_el1`, used
+invalidate-only instead of clean+invalidate, and had no final barriers.
+The new helper is CLIDR-driven and uses `dc cisw` across every
+data/unified cache level. That is a prerequisite for the next D-cache
+attempt, not a complete cache enable fix.
+
+Next action for TD-16: remove the unsafe mixed cacheable/Normal-NC aliases
+from the bootstrap mappings before trying SCTLR.C again. In particular,
+do not enable D-cache while `_hal_syspageCopied` and `PMAP_COMMON_STACK`
+are reachable through both TTBR0 cacheable identity entries and TTBR1 NC
+entries.
+
 ## Sequencing decision for the next session
 
 The user's stated goal is **fully unlocking 4 GiB DRAM and

@@ -55,6 +55,26 @@ reduce UART backlog, then run an interactive UART smoke (`help`, `ps`, `ls
 /dev`, `dmesg`) on the real Pi. Keep the direct `devfs` and console-alias
 workarounds documented until the canonical namespace path is fast and stable.
 
+## 2026-05-03 TD-16 cache investigation update
+
+The current bottleneck is confirmed as cache-disabled execution, not CPU
+clocking: firmware reports ARM at 1.5 GHz and `CNTFRQ_EL0` is 54 MHz, but
+the kernel's pre-cache TD-16 nop loop takes `dt≈0x089xxxxx`.
+
+Two late I-cache-only placements were tested and rejected:
+
+- End of `_hal_init_c()` made the second TD-16 loop fast
+  (`td16b:dt=0x126ee`) but real Pi hung before `_usrv_init()` returned.
+- `_hal_start()` avoided that earlier boundary but hung immediately after
+  `main_initthr: enter`.
+
+Therefore no SCTLR cache-enable path is currently active. The only code
+change kept is kernel `1a4eb297`, a safer
+`hal_cpuInvalDataCacheAll()` implementation that
+uses CLIDR/CCSIDR correctly, clean+invalidates by set/way, and adds the
+required barriers. Next TD-16 work should remove mixed cacheable/NC aliases
+in the bootstrap mappings before retrying D-cache enable.
+
 ## Current Status: 2026-05-02 late-evening
 
 **TD-13 closed. TD-14 narrowed to: kernel `proc_portLookup` IPC is

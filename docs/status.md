@@ -81,6 +81,20 @@ map transition, not as a late C-level speed knob. Phoenix should converge on
 the same model: alias-safe bootstrap mappings, page-table cache maintenance,
 then `SCTLR_EL1.M | C | I` together before normal kernel execution.
 
+First alias-cleanup step landed in kernel `7f7684c4`: temporary TTBR0 RAM
+identity block descriptors now use Normal Non-Cacheable attributes instead
+of Normal cacheable. This does not enable caches and does not make the boot
+faster yet, but it removes one direct conflict with the existing NC
+`_hal_syspageCopied` and `PMAP_COMMON_STACK` TTBR1 mappings.
+
+Validation:
+- Rebuild/export image SHA256:
+  `f6e77484512867c68f880923687342ec510469b61b59d09d4fb22be935a9795c`.
+- QEMU Pi 4 smoke reaches `(psh)% help`.
+- Generic AArch64 QEMU smoke reaches `(psh)% help`.
+- Real Pi 4 netboot reaches `(psh)%`; log:
+  `artifacts/rpi4b-uart/rpi4b-uart-20260503-213203-netboot-td16-ttbr0-nc-blocks.log`.
+
 ## Current Status: 2026-05-02 late-evening
 
 **TD-13 closed. TD-14 narrowed to: kernel `proc_portLookup` IPC is

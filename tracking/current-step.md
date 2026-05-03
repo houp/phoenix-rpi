@@ -150,6 +150,37 @@ External OS comparison changes the cache strategy:
   `arch/arm64/kernel/head.S` and `arch/arm64/mm/proc.S` in Linux, FreeBSD
   `sys/arm64/arm64/locore.S`, and Circle `startup64.S` / memory code.
 
+## 2026-05-03 TD-16 step 1 — TTBR0 RAM identity blocks made Normal-NC
+
+Implemented the first alias-reduction step toward the Linux/FreeBSD cache
+plan: the temporary TTBR0 level-1 RAM identity block descriptors now use
+Normal Non-Cacheable attributes (`NC_BLOCK_ATTRS`) instead of Normal
+cacheable. This keeps the low identity aliases consistent with the existing
+TD-04 NC mappings for `_hal_syspageCopied` and `PMAP_COMMON_STACK` while
+the live path still has `SCTLR.C` disabled.
+
+Validation:
+- `./scripts/rebuild-rpi4b-fast.sh` completed and exported image SHA256
+  `f6e77484512867c68f880923687342ec510469b61b59d09d4fb22be935a9795c`.
+- `./scripts/qemu-shell-smoke.sh rpi4b` reached `(psh)% help`.
+- `./scripts/qemu-shell-smoke.sh generic` reached `(psh)% help`.
+- `./scripts/test-cycle-netboot.sh --label td16-ttbr0-nc-blocks
+  --capture-secs 600 --dhcp-wait-secs 90` reached `(psh)%` on real Pi 4.
+  Log:
+  `artifacts/rpi4b-uart/rpi4b-uart-20260503-213203-netboot-td16-ttbr0-nc-blocks.log`.
+
+Warnings observed:
+- Build/export: no compiler, linker, DTB, packaging, or image verification
+  warnings; helper reported `Verification: OK`.
+- Real Pi firmware: expected netboot-path messages only (`sdcard` open
+  failures before network fallback, missing `cmdline.txt`, HDMI1 EDID/DSI
+  messages while HDMI0 is active). No new Phoenix runtime fault.
+
+Next TD-16 step: shrink the TTBR0 identity map further or disable TTBR0
+earlier after the higher-half branch so the same PA is not reachable through
+low and high aliases when `SCTLR.C` is eventually enabled. Do not enable
+caches until that alias boundary is handled.
+
 ## Sequencing decision for the next session
 
 The user's stated goal is **fully unlocking 4 GiB DRAM and

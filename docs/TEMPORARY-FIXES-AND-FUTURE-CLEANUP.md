@@ -1227,6 +1227,15 @@ under TD-13-spawn-cap and the priority ladder.
   enable. The TD-15 phase 1 + TD-16-1 probes remain. Boot is slow
   but correct in the last known-good cache-off image, reaching
   `(psh)%` in ~420 s capture window per the 2026-05-02 manifest.
+- **Progress toward alias-safe bootstrap maps:**
+  - 2026-05-03 step 1: kernel commit `7f7684c4` changes the temporary TTBR0
+    RAM identity block descriptors from Normal cacheable to Normal
+    Non-Cacheable (`NC_BLOCK_ATTRS`). This does not enable caches and
+    does not speed up the system, but it removes one obvious mixed-attribute
+    conflict against the TD-04 NC `_hal_syspageCopied` and
+    `PMAP_COMMON_STACK` TTBR1 pages. Real Pi 4 still reaches `(psh)%`;
+    artifact:
+    `artifacts/rpi4b-uart/rpi4b-uart-20260503-213203-netboot-td16-ttbr0-nc-blocks.log`.
 - **External OS comparison (2026-05-03):**
   - Linux arm64 builds the initial idmap/swapper tables, performs cache
     maintenance for page tables populated with MMU off, runs CPU setup,

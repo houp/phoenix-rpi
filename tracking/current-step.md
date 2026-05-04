@@ -1,12 +1,71 @@
 # Current Implementation Step
 
-## Step: TD-16 cache bring-up — no-call exdump landed, fault decoded
+## Step: TD-16 cache bring-up — VA-range helpers + iteration log landed
 
-**Status**: ACTIVE — Pi 4 reaches `(psh)%` reliably; cache enable still
-not active. The latest M+C+I-together attempt produced a clean fault
-decode via the new no-call early exception dump. Next iteration needs a
-VA-range cache invalidation strategy over the kernel image to address
-the suspected A72 erratum #851672.
+**Status**: PARKED — Pi 4 reaches `(psh)%` reliably; cache enable
+investigation produced 5 decoded fault iterations. Hypothesis: A72
+speculatively fills cache lines for PAs while caches are "off" and
+those lines persist past `dc civac`. Real fix likely requires
+restructuring boot so all page-table writes happen BEFORE
+`SCTLR.M` flip (Linux `__enable_mmu` shape), not after.
+
+## 2026-05-04 update — TD-16 VA-range investigation captured
+
+Five iteration cycle on TD-16 cache enable, all decoded via the
+no-call early exception dump landed earlier:
+
+| # | Approach | Result |
+|---|---|---|
+| 1 | Set/way invalidation + M\|C\|I together | EC=0 unknown instruction (A72 #851672) |
+| 2 | VA-range invalidation pre-MMU enable | Silent hang Pi between X3/X4 |
+| 3 | VA-range post-MMU, kernel image only, C\|I (M already set), pre br x0 | ESR=0x96000003 level-3 fault, FAR=0xffffffffc0001890 |
+| 4 | Same + post-enable tlbi vmalle1 | ESR=0x96000001 level-1 fault, FAR=0xfe201018 |
+| 5 | Same + PT region invalidation | Same fault as #4 |
+
+Pattern: every attempt produces walk-time translation faults on
+real Pi 4 even though the page tables were written correctly with
+caches off. Most plausible remaining hypothesis: **Cortex-A72
+speculatively populates D-cache for PAs while D-cache is
+"disabled"**, and those lines persist past `dc civac`. Linux's
+`__enable_mmu` avoids this by completing all page-table writes
+**before** turning on the MMU, not after. Phoenix currently does
+the opposite (MMU on, then TTL3 setup, then cache enable). To
+match Linux's shape we'd need to restructure the post-MMU
+sequence, which is a larger refactor than fits in this session.
+
+What landed (kernel `49ca0c66`):
+- `_inval_icache_range` helper (VA-range I-cache via `ic ivau`,
+  matching Linux's `__inval_icache_area`).
+- Comment block at the cache-enable site capturing all 5
+  iteration decodes.
+- Cache-enable code itself reverted; baseline boot reaches
+  `(psh)%` reliably.
+
+What landed earlier (kernel `2a5b6a05`):
+- `_early_exception_common` rewritten to use direct PL011 MMIO
+  writes only (no `bl`). Survives recursive faults.
+
+## Sequencing decision for next session
+
+**Option A** (TD-16 cache enable continued): restructure boot to
+do all page-table setup BEFORE SCTLR.M, like Linux. Substantial
+refactor — touches `_init.S` significantly. Likely 1-2 sessions
+of work.
+
+**Option B** (TD-15 phases 2-6 for **4 GiB DRAM unlock**): the
+user's stated near-term goal. Pi is slow during validation
+(~420 s capture for `(psh)%`) but each phase produces visible
+progress on memory-layout work regardless of cache state.
+Phase 2 (move mailbox buffer out of ARM-usable RAM) is small,
+focused, low-risk work that doesn't depend on cache state.
+
+The slowdown is a quality-of-life issue and a deeper refactor;
+the 4 GiB unlock is the explicit user goal. Recommendation: pivot
+to Option B next session. Cache enable can resume after a clearer
+understanding of Pi-4 boot-time cache behavior.
+
+## Previous step framing
+
 
 ## 2026-05-04 update — exdump landed, M+C+I fault decoded
 

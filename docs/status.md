@@ -1,6 +1,32 @@
 # Phoenix-RTOS Raspberry Pi 4 Port Status
 
-## Current Status: 2026-05-04
+## Strategic trajectory (2026-05-04)
+
+The user named four crucial milestones for a working Pi 4 system:
+caches enabled, 4 GiB DRAM unlocked with correct GPU memory partitioning,
+SMP across all four Cortex-A72 cores, and HDMI text console + USB
+keyboard input. Dependency analysis put the four into a stage order:
+
+| Stage | Goal | Prereq |
+|---|---|---|
+| 1 | Caches via Linux `__enable_mmu` shape | none (architectural refactor) |
+| 2 | 4 GiB DRAM + GPU memory partition (TD-15 phases 2-6) | Stage 1 (fast iteration + meaningful DMA cacheability) |
+| 3 | SMP cores 1-3 | Stage 1 (LDXR/STXR exclusive monitor across cores requires IS-shareable cacheable memory) |
+| 4 | HDMI text console + USB keyboard input | Stages 1-3 |
+
+Single source of truth: **`docs/roadmap-cache-ram-smp.md`**.
+Active step: Stage 1, see `tracking/current-step.md`.
+
+The 5-iteration cache-enable investigation captured 2026-05-04 is
+conclusive: every late post-MMU cache enable produces a walk-time
+translation fault on real Pi 4 (most plausibly because A72
+speculatively populates D-cache lines while D-cache is "off" and
+those lines persist past `dc civac`). The architecturally-correct
+fix is to restructure boot so that *all* page-table and syspage
+writes happen with the MMU off, then a single atomic
+`SCTLR_EL1.M | C | I` flip, then no memory writes until `b main`.
+
+## Previous Current Status: 2026-05-04
 
 **TD-16 page-table visibility step passed on QEMU and real Pi 4.** Kernel
 `5e727dcc` restores the early `_inval_dcache_range` over

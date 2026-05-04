@@ -21,12 +21,24 @@ mandatory cleanup. Until then, progress on the boot path takes priority.
 - **Location snapshots may drift.** Line numbers in this file reflect state
   at the time the entry was written. Re-verify against current source before
   acting — the code changes faster than this doc.
+- **Stage tag** (added 2026-05-04): each TD that maps to the strategic
+  roadmap (`docs/roadmap-cache-ram-smp.md`) carries a `Stage:` field
+  pointing to one of the four trajectory stages
+  (Stage 1 — caches via Linux `__enable_mmu` shape;
+  Stage 2 — 4 GiB DRAM unlock + GPU memory;
+  Stage 3 — SMP cores 1-3;
+  Stage 4 — HDMI/USB-keyboard console).
+  TDs without a Stage tag are independent of the roadmap.
 
 ---
 
 ## TD-01: SMP enable disabled on Cortex-A72
 
 - **Status:** PENDING
+- **Stage:** 3 (SMP bring-up; see `docs/roadmap-cache-ram-smp.md`).
+  Cannot be tackled before Stage 1 (caches enabled, IS-shareable PT
+  attributes) lands — LDXR/STXR exclusive monitor's cross-core
+  semantics require Inner-Shareable Normal Cacheable memory.
 - **First observed:** 2026-04 bring-up
 - **Where:** `sources/phoenix-rtos-kernel/hal/aarch64/_init.S`, the
   `CPUECTLR_EL1` SMPEN block behind `__TARGET_AARCH64A72`.
@@ -48,6 +60,10 @@ mandatory cleanup. Until then, progress on the boot path takes priority.
 ## TD-02: Pre-MMU cache invalidation disabled
 
 - **Status:** PENDING
+- **Stage:** 1. Subsumed by the Linux `__enable_mmu` restructure: in
+  the new shape, the unified pre-MMU VA-range sweep over the kernel
+  image and PT region replaces this entry's intent. Resolution comes
+  for free with Stage 1.
 - **First observed:** 2026-04 bring-up
 - **Where:** `sources/phoenix-rtos-kernel/hal/aarch64/_init.S`, the
   `PMAP_COMMON_KERNEL_TTL2 … PMAP_COMMON_STACK` `_inval_dcache_range` call
@@ -69,6 +85,10 @@ mandatory cleanup. Until then, progress on the boot path takes priority.
 ## TD-03: Syspage copy / BSS mapping shortcut
 
 - **Status:** PENDING
+- **Stage:** 1. The Stage 1 restructure moves the syspage copy into
+  the caches-off pre-MMU window, copying directly to the destination
+  PA. The TD-04 NC-mapping workaround becomes redundant once the
+  copy happens with caches off. Resolves alongside Stage 1.
 - **First observed:** 2026-04 bring-up
 - **Where:** Interaction between `hal/aarch64/_init.S` (virtual syspage
   copy) and `syspage.c` (syspage access after MMU enable). BSS region is
@@ -392,6 +412,11 @@ mandatory cleanup. Until then, progress on the boot path takes priority.
 
 ## TD-11: Single-core AArch64 spinlock path uses DAIF mask, not exclusives
 
+- **Stage:** 3. Replaced by real LDXR/STXR atomics during SMP
+  bring-up. Cannot be removed before Stage 1 enables the IS-shareable
+  Normal Cacheable memory model that makes the exclusive monitor
+  work across cores.
+
 - **Status:** PENDING (revisit before TD-01 SMP enable)
 - **First observed:** 2026-04-30 bring-up.
 - **Where:** `sources/phoenix-rtos-kernel/hal/aarch64/spinlock.c`
@@ -417,6 +442,9 @@ mandatory cleanup. Until then, progress on the boot path takes priority.
     should remain (e.g. as a single-core build performance choice).
 
 ## TD-12: Plo memory clamp at ~948 MiB on real Pi 4
+
+- **Stage:** 2 (phases 4-5). Resolved by DTB-driven memory layout
+  and `total_mem=4096` config.txt change.
 
 - **Status:** PENDING
 - **First observed:** 2026-04-30 bring-up.
@@ -904,6 +932,10 @@ under TD-13-spawn-cap and the priority ladder.
 
 - **Status:** PENDING (planned 2026-05-03; supersedes the open
   question in TD-12 about how to safely unlock the full 4 GiB).
+- **Stage:** 2. Phase 1 (mailbox-buffer drift probe) already LANDED
+  with `td15:OK` evidence. Phases 2-6 are the entire Stage 2
+  workload. Will be tackled with caches enabled (per Stage 1) for
+  fast iteration and meaningful DMA-cacheability validation.
 - **First framed:** 2026-05-03 after the 2026-05-02 Pi 4 `(psh)%`
   prompt landed and the user asked us to handle VideoCore VI
   memory access correctly regardless of whether it also unblocks
@@ -1033,6 +1065,10 @@ under TD-13-spawn-cap and the priority ladder.
   phase 1 cycle and a user-supplied HDMI photograph showing kernel
   `threads:` output gaining only ~12 visible characters per minute
   on the framebuffer).
+- **Stage:** 1. Root cause is now confirmed (TD-16-1 evidence:
+  `dt = 0x872d51` for 1M nops at 1.5 GHz with caches off, ~62× off
+  from the cache-on `~144,000` ticks). Resolution is the Stage 1
+  Linux `__enable_mmu` restructure.
 - **First observed:** 2026-05-02 night. Made the leap from
   "intermittent" to "definitively timer-driven" with the
   TD-15 phase 1 cycle on 2026-05-03.
@@ -1160,8 +1196,13 @@ under TD-13-spawn-cap and the priority ladder.
 
 ## TD-16-cache-enable: attempted, regressed, reverted (2026-05-03)
 
-- **Status:** INVESTIGATION 2026-05-03; NOT MERGED. Documented for
-  the next session.
+- **Status:** PARKED 2026-05-04 after 5 decoded fault iterations.
+  Active Stage 1 step is the architectural restructure (Linux
+  `__enable_mmu` shape), not more invalidation tactics. Iteration
+  log preserved in this entry as evidence that the variation axis
+  is exhausted. See `tracking/current-step.md` "Stage 1 inventory"
+  for the concrete refactor plan.
+- **Stage:** 1.
 - **What was tried:** Several placements for enabling kernel
   I-cache and D-cache via `SCTLR_EL1.C` and `SCTLR_EL1.I` after
   the existing MMU-only enable. All were either harmful or
@@ -1297,6 +1338,41 @@ under TD-13-spawn-cap and the priority ladder.
 
 
 ## Priority Ladder
+
+**Strategic trajectory (2026-05-04):** see
+`docs/roadmap-cache-ram-smp.md`. Stage order is
+**1: caches → 2: 4 GiB DRAM → 3: SMP → 4: HDMI/USB**. The priority
+ladder below is preserved for historical context, but the active
+implementation step is governed by the roadmap.
+
+**Stage 1 (active) — caches enabled via Linux `__enable_mmu` shape:**
+- TD-16-cache-enable (architectural restructure of `_init.S`)
+- TD-16 (resolved by Stage 1)
+- TD-02 (subsumed by Stage 1's unified pre-MMU sweep)
+- TD-03 (resolved by Stage 1's pre-MMU syspage copy)
+
+**Stage 2 — 4 GiB DRAM unlock + GPU memory:**
+- TD-15 (phases 2-6)
+- TD-12 (subsumed by TD-15)
+- TD-06 (DTB robustness; aligns with Stage 2 phase 4)
+
+**Stage 3 — SMP cores 1-3:**
+- TD-01
+- TD-11
+- TD-13-residual atomic-fallback
+
+**Stage 4 — HDMI/USB-keyboard console:**
+- Gate 2 + Gate 3 from `tracking/current-step.md` history
+- TD-14-deferred-fbcon
+
+**Cross-cutting (any stage):**
+- TD-04-hack-2, TD-04-hack-3 (cleanup)
+- TD-05 (debug-marker strip)
+- TD-09 (netboot loop reliability)
+- TD-10 (SError handler)
+- TD-07 / TD-08 (QEMU+gdb tooling)
+
+---
 
 **Blocks "first Pi 4 boots to userspace" milestone (current):**
 - TD-14 (`/dev/console` `resolve_path` hang in psh ttyopen — the

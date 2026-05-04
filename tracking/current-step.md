@@ -1,13 +1,237 @@
 # Current Implementation Step
 
-## Step: TD-16 cache bring-up — VA-range helpers + iteration log landed
+## Active step (2026-05-04): Stage 1 — Linux `__enable_mmu` boot restructure
 
-**Status**: PARKED — Pi 4 reaches `(psh)%` reliably; cache enable
-investigation produced 5 decoded fault iterations. Hypothesis: A72
-speculatively fills cache lines for PAs while caches are "off" and
-those lines persist past `dc civac`. Real fix likely requires
-restructuring boot so all page-table writes happen BEFORE
-`SCTLR.M` flip (Linux `__enable_mmu` shape), not after.
+**Roadmap:** `docs/roadmap-cache-ram-smp.md` (single source of truth for
+the 4-stage trajectory: caches → 4 GiB DRAM → SMP → HDMI/USB).
+
+**Status:** OPEN — preceding 5-iteration cache-enable investigation is
+parked (see "2026-05-04 update — TD-16 VA-range investigation
+captured" below). The pattern is conclusive: every late post-MMU cache
+enable produces a walk-time translation fault on real Pi 4 silicon.
+The architecturally-correct fix is to match Linux arm64
+`__enable_mmu`: complete *all* page-table and syspage writes with the
+MMU off, then atomically flip `SCTLR_EL1.M | C | I` once, then no
+memory writes until `b main`.
+
+### Stage 1 success criteria
+
+- Real Pi 4 netboot reaches `(psh)%` in **under 30 s** capture window
+  (currently ~420 s with caches off).
+- TD-16-1 nop-loop probe reports `dt ≈ 0x23280` (≈144,000 ticks at
+  1.5 GHz with caches enabled), down from `0x872d51` (~62× off) today.
+- QEMU Pi 4 + generic AArch64 smoke both reach `(psh)% help`.
+- No exception markers in the UART log; no-call exception dump is in
+  place to catch any new fault.
+
+### Stage 1 plan
+
+1. **Inventory pass (this session, no code change):** read
+   `sources/phoenix-rtos-kernel/hal/aarch64/_init.S` end-to-end and
+   produce a written list of every memory store between the existing
+   `SCTLR_EL1.M` write and `b main`. Include syspage copy, TD-04 NC
+   mapping for `_hal_syspageCopied`, any TTL3 fixup, vector-table
+   install, post-copy `_clean_inval_dcache_range`, the `TTBR0_EL1`
+   drop to scratch table (kernel `d52f6c3a`), etc. Save the inventory
+   into this file under "Stage 1 inventory" so the next session has
+   the exact list.
+
+2. **Refactor pass (next session):** for each store identified in
+   step 1, either:
+   - Move it to *before* the SCTLR.M write (preferred), or
+   - Document why it cannot move (must run in high VA).
+   Stores that must remain in high VA force a smaller refactor: keep
+   them, but ensure their target regions are explicitly cleaned to
+   PoC before SCTLR.M and that no PT entry mutation happens between
+   the flip and `b main`.
+
+3. **Cache-maintenance unification:** replace `bl
+   hal_cpuInvalDataCacheAll` (set/way; A72 #851672 makes this
+   unreliable) with one VA-range pass over the union of:
+   - kernel image `[__init_start, __init_end]` and
+     `[_kernel_image_start, _kernel_image_end]`
+   - PT region `[PMAP_COMMON_KERNEL_TTL2 .. PMAP_COMMON_STACK]`
+   - syspage destination region (if it stays distinct from the kernel
+     image after step 2)
+   Reuse the existing `_clean_inval_dcache_range` and
+   `_inval_icache_range` helpers (kernel `49ca0c66`).
+
+4. **Single atomic SCTLR write:** combine M | C | I (and any clear
+   bits like nTLSMD as needed) into one MSR. Validate the encoding
+   matches Linux's `__cpu_setup` output for ARMv8.0-A.
+
+5. **Minimal post-flip path:** `isb` → `tlbi vmalle1is` → `dsb ish`
+   → `isb` → `br x0` to `_core_0_virtual` → register-only stack
+   pointer setup → `b main`. **No memory writes between the flip and
+   `b main`.**
+
+6. **Validation:** rebuild → QEMU Pi 4 smoke → generic smoke → real
+   Pi netboot. If real Pi reaches `(psh)%`, capture TD-16-1 numbers
+   and snapshot a manifest. If it faults, the no-call exception dump
+   prints ESR/ELR/FAR; iterate on whichever store didn't move
+   correctly.
+
+### Rollback baseline
+
+- Kernel `49ca0c66` on `agent/rpi4-program-reloc` (current head with
+  VA-range helpers + iteration log; cache enable code already removed).
+- Coordination repo `db05f7b` on `main`.
+- Manifest: `manifests/2026-05-04-td16-va-range-investigation.md`.
+
+### Risk + escalation
+
+If the refactor doesn't land within 1-2 focused sessions:
+
+- Re-read Linux `arch/arm64/kernel/head.S` and `arch/arm64/mm/proc.S`
+  for the exact bit pattern and ordering used at MMU enable.
+- Compare against Circle's Pi-specific `startup64.S`.
+- Consider an intermediate stage exit: I-cache only, with a tracked TD
+  for D-cache. This unblocks Stage 2 while preserving Stage 3
+  (SMP) as a known follow-up.
+- Do **not** continue iterating on "more VA-range invalidation
+  tactics"; the 5-iteration log is conclusive that this is the wrong
+  axis to vary.
+
+### Stage 1 inventory (populated 2026-05-04)
+
+Memory stores between the SCTLR.M flip
+(`_init.S:351-353`) and `b main` (`_init.S:726`). Read at kernel HEAD
+`49ca0c66`.
+
+**Two execution windows after the SCTLR.M flip:**
+- *Window A* (low-VA stream, lines 354-562): MMU on, TTBR0 identity
+  active, TTBR1 disabled until `tcr_el1.EPD1` clear at line 488. PC
+  still on low-PA stream.
+- *Window B* (high-VA stream, lines 564-726): after `br x0` to
+  `_core_0_virtual` at line 561-562. PC in TTBR1.
+
+**Stage 1 target shape:** all writes below either move into the
+caches-off pre-MMU window or are eliminated.
+
+| Line | Window | Store | Pre-MMU plan |
+|---|---|---|---|
+| 369-371 | A | `sp ← PMAP_COMMON_STACK + SIZE_INITIAL_KSTACK` | **REGISTER** — leave; no memory write. |
+| 374-375 | A | `_fill_page_zero(PMAP_COMMON_SCRATCH_PAGE)` | Move pre-MMU. Trivial — zeroes one page in pmap_common region. |
+| 382-391 | A | `nCpusStarted = 0` via LDAXR/STLXR flag dance | Move pre-MMU. Same logic, executed earlier. Note: uses exclusive monitor — pre-MMU exclusive monitor works on TTBR0-identity Normal Cacheable; verify this is still true after we go MMU-off for the inventory. Worst case: simple non-exclusive write since core 0 is alone here. |
+| 398-414 | A | `_fill_page_zero(PMAP_COMMON_KERNEL_TTL2)` + 2 TTL2 entry writes (kernel + devices) + `_fill_page_zero(PMAP_COMMON_DEVICES_TTL3)` | **Move pre-MMU.** This is the bulk of TTBR1 PT setup. |
+| 416-420 | A | PL011 early TTL3 entry (`PL011_TTY_BASE \| EARLY_UART_DEVICE_DESCR`) | Move pre-MMU. Static value. |
+| 422-433 | A | Optional VC4 mailbox TTL3 alias (TD-15-mboxprobe) | Move pre-MMU. |
+| 435-440 | A | `_fill_page_descr` over PMAP_COMMON_KERNEL_TTL3 with kernel-image pages, AttrIdx=DEFAULT | **Move pre-MMU.** ~512 entries, big write. |
+| 442-463 | A | TD-04 NC override of `_hal_syspageCopied` page | Move pre-MMU. Computes index into TTL3 from link-time symbol VA; works pre-MMU since `_hal_syspageCopied` resolves at link time. |
+| 465-479 | A | NC override of PMAP_COMMON_STACK page (2 entries) | Move pre-MMU. |
+| 482-493 | A | `tcr_el1` clear EPD1, `tlbi vmalle1is`, barriers | **SYSTEM REG / TLB OP.** Keep — these stay between PT build and SCTLR.M flip in the new shape. |
+| 561-562 | A | `br x0` to `_core_0_virtual` | **CONTROL FLOW.** In new shape, this is the *first thing* after the SCTLR.M flip. |
+| 565, 569, 572 | B | `uart_putc_virt` markers | Cosmetic — PL011 device write through high-VA mapping. Acceptable post-flip *if* PL011 device TTL3 entry was set up pre-MMU. |
+| 593-598 | B | Write `relOffs` and `hal_syspage` globals through high VA | **Move pre-MMU.** Compute PA = `pkernel + (sym_VA - VADDR_KERNEL)`, write directly with caches off. Both globals live in kernel BSS. |
+| 600-604 | B | `mov x14, x9` | **REGISTER.** Leave. |
+| 612-615 | B | `_clean_inval_dcache_range(x9, x9 + size)` over plo source | **CACHE OP.** Subsumed by the unified pre-MMU VA-range pass over the kernel image union. |
+| 643-658 | B | **Syspage copy** loop (low-PA src → high-VA NC dest) | **Move pre-MMU.** Compute dest PA directly (pkernel + offset of `_hal_syspageCopied` in the kernel image). Copy with caches off. The TD-04 NC mapping becomes redundant once we're caches-off for the whole copy. |
+| 675-679 | B | Post-copy `_clean_inval_dcache_range` over LOW-PA dest range | **CACHE OP.** Subsumed by the unified pre-MMU sweep. |
+| 685-688 | B | TTBR0 ← scratch table (drop low identity) | **SYSTEM REG.** Keep. Move it earlier in Window A (right before SCTLR.M flip) or fold into the same atomic transition. |
+| 692-694 | B | `vbar_el1 ← _vector_table` | **SYSTEM REG.** Keep — write before SCTLR.M flip. |
+| 700-705 | B | TTBR0 ← scratch (duplicate of 685-688) | Likely redundant — investigate; one of these can be removed. |
+| 711-717 | B | SP setup, register only | **REGISTER.** Leave. |
+| 720, 723 | B | `uart_putc_virt` markers Z, b | Cosmetic. Same constraint as the earlier markers. |
+| 726 | B | `b main` | **CONTROL FLOW.** Final destination. |
+
+**Summary by category:**
+- **REGISTER / SYSTEM REG / CACHE OP / CONTROL FLOW:** lines 369-371,
+  482-493, 561-562, 600-604, 612-615, 675-679, 685-688, 692-694,
+  700-705, 711-717, 726. Either stay where they are, become trivial,
+  or move to "before SCTLR.M" without semantic difficulty.
+- **MEMORY WRITES that must move pre-MMU:** lines 374-375, 382-391,
+  398-440, 442-479, 593-598, 643-658.
+
+**Architectural shape after refactor (target):**
+
+```
+[caches off, MMU off]
+  build TTBR0 identity (existing pre-MMU code at 279, 321)
+  build TTBR1 PT structures      ← new: moved from 398-479
+  zero scratch page              ← moved from 374
+  init nCpusStarted              ← moved from 382-391
+  copy syspage to dest PA        ← moved from 643-658
+  write relOffs / hal_syspage    ← moved from 593-598
+  set vbar_el1                   ← moved from 692-694
+  msr ttbr1_el1, x0              ← already at 322
+  msr ttbr0_el1, scratch         ← from 700-705 (or fold into 315)
+  VA-range dc civac over union(kernel image, PT region, syspage dest)
+  ic ivau over kernel image
+  dsb ish; isb
+  clear tcr_el1.EPD1
+  tlbi vmalle1; dsb ish; isb
+
+  [single atomic flip]
+  msr sctlr_el1, x0  /* M | C | I */
+  isb
+  tlbi vmalle1is; dsb ish; isb     /* belt-and-braces TLB sweep */
+  br x0  ; x0 = _core_0_virtual
+
+[caches on, MMU on, high VA]
+_core_0_virtual:
+  set sp                          ← register only (line 711-717)
+  b main                          ← no memory writes between flip and here
+```
+
+**Risks identified during inventory:**
+
+1. **Pre-MMU `nCpusStarted` flag dance uses LDAXR/STLXR.** With MMU
+   off, exclusive monitor behavior on Cortex-A72 is implementation-
+   defined. Either (a) the monitor still works because we're on Normal
+   Cacheable identity-mapped memory once we set up TTBR0 (but that's
+   *during* MMU-on already), or (b) we replace the dance with a plain
+   store since core 0 is the only writer at this point. **Decision:
+   replace with plain store; the `_initNCpusFlag` race is between core
+   0 and the other cores' wait loops, all of which are at MMU-off
+   waiting on the flag. Atomic semantics are not actually needed
+   here — just program order with `dsb sy`.** Verify by reading
+   `_other_core_trap` semantics.
+
+2. **Syspage source `x9` is plo's PA.** Plo wrote the syspage with
+   caches enabled then `eret`'d. The post-handoff `_clean_inval_dcache_range`
+   over the source is currently essential to flush plo's dirty
+   D-cache lines. In the new shape, with our caches off and plo's
+   caches still potentially holding the only correct copy, we need
+   to do the source flush *first* — but plo's TTBR1 is gone by the
+   time we run, and we're in TTBR0 identity. The flush over `[x9,
+   x9 + size)` works through identity mapping. Leave as the first
+   step in the pre-MMU caches-off block.
+
+3. **PL011 early UART writes (line 416-420 alias) require the
+   device TTL3 entry to be set up before any `uart_putc_virt`
+   call.** The current pre-MMU phase already does this; new shape
+   keeps it. Markers in window B (565, 572, etc.) need the device
+   alias intact through the SCTLR flip and `br x0`. Confirm: the
+   tlbi between the flip and `br x0` does not invalidate static
+   device entries (correct: tlbi invalidates TLB, not PT).
+
+4. **`_fill_page_descr` writes 512 TTL3 entries — large region.**
+   The pre-MMU VA-range sweep must cover the entire PT region
+   `[PMAP_COMMON_KERNEL_TTL2 .. PMAP_COMMON_STACK]`. Already
+   computed correctly in the existing code at line 338-340.
+
+5. **Window B markers (lines 565, 569, 572, 720, 723).** These are
+   diagnostic. With Stage 1 success we can keep them, but they're
+   not on the critical path — they print to PL011 through a
+   pre-established device mapping, so they're harmless.
+
+### Stage 1 next-session start point
+
+The first code-changing session should:
+
+1. Open `sources/phoenix-rtos-kernel/hal/aarch64/_init.S` at
+   line 351 (the SCTLR.M flip).
+2. Cut the block from line 354 through line 562 and stage it for
+   relocation into the pre-MMU window.
+3. Build the new shape per "Architectural shape after refactor"
+   above, in a single commit on `agent/rpi4-program-reloc`.
+4. Drop the `_clean_inval_dcache_range` calls in `_core_0_virtual`
+   (they become redundant) — but only after confirming the
+   pre-MMU sweep covers the same regions.
+5. Keep the no-call exception dump and VA-range helpers; they are
+   the safety net for the validation pass.
+
+---
 
 ## 2026-05-04 update — TD-16 VA-range investigation captured
 
@@ -45,24 +269,24 @@ What landed earlier (kernel `2a5b6a05`):
 - `_early_exception_common` rewritten to use direct PL011 MMIO
   writes only (no `bl`). Survives recursive faults.
 
-## Sequencing decision for next session
+## Sequencing decision (resolved 2026-05-04)
 
-**Option A** (TD-16 cache enable continued): restructure boot to
-do all page-table setup BEFORE SCTLR.M, like Linux. Substantial
-refactor — touches `_init.S` significantly. Likely 1-2 sessions
-of work.
+The earlier "Option A vs Option B" framing has been superseded by
+the four-stage roadmap in `docs/roadmap-cache-ram-smp.md`. User
+direction 2026-05-04: all four goals (caches, 4 GiB, SMP, HDMI/USB)
+are crucial; agent should choose the optimal trajectory. Dependency
+analysis put **Stage 1 (caches via Linux `__enable_mmu` shape)** at
+the top because:
 
-**Option B** (TD-15 phases 2-6 for **4 GiB DRAM unlock**): the
-user's stated near-term goal. Pi is slow during validation
-(~420 s capture for `(psh)%`) but each phase produces visible
-progress on memory-layout work regardless of cache state.
-Phase 2 (move mailbox buffer out of ARM-usable RAM) is small,
-focused, low-risk work that doesn't depend on cache state.
+- SMP cannot work correctly without IS-shareable cacheable memory
+  (LDXR/STXR exclusive monitor's cross-core semantics).
+- Iterating on 4 GiB unlock and DMA correctness at 1/62 speed
+  amortizes badly across many cycles.
+- The 5-iteration cache log is conclusive: more invalidation tactics
+  is the wrong axis. Only the structural fix remains.
 
-The slowdown is a quality-of-life issue and a deeper refactor;
-the 4 GiB unlock is the explicit user goal. Recommendation: pivot
-to Option B next session. Cache enable can resume after a clearer
-understanding of Pi-4 boot-time cache behavior.
+4 GiB unlock (former Option B) is now Stage 2. SMP (TD-01 + TD-11)
+is Stage 3. HDMI/USB-keyboard console is Stage 4.
 
 ## Previous step framing
 

@@ -168,17 +168,62 @@ master `e0a6624`:
   been flaky; user provided fallback at
   https://github.com/houp/simple-video-preview.
 
-**Stage 4 phase 2 (NEXT): USB keyboard input.** Validate xHCI
-bring-up + HID enumeration so `/dev/kbd0` is populated; pl011_kbdthr
-already opens that path and feeds keystrokes into the tty. Real-Pi
-test with a USB keyboard plugged in is the validation step.
+**Stage 4 phase 2 (NEXT): USB keyboard input — scoped 2026-05-05.**
+The pl011-tty kbdthr already opens `/dev/kbd0` and feeds keystrokes
+into the tty (`pl011-tty.c:888-939`). What's MISSING is a USB HID
+host-class driver that creates `/dev/kbd0` from an attached USB
+keyboard. The Phoenix codebase as of `e5b768fa` / `e0a6624` has:
+- `phoenix-rtos-usb/libusb/hid_client.c` — Phoenix as a HID *device*
+  (USB peripheral mode); wrong direction.
+- `phoenix-rtos-usb/usb/dev.c:428` — recognizes `USB_CLASS_HID = 0x3`
+  but only for fallback product naming; no class driver registration.
+
+**No HID host driver exists.** Stage 4 phase 2 needs:
+1. New file (e.g. `phoenix-rtos-usb/libusb/hid_kbd_host.c` or a
+   driver in `phoenix-rtos-devices/usb/hid-kbd/`).
+2. Class-driver hook into the usb daemon's enumeration so that
+   when an interface with `bInterfaceClass=0x03` (HID),
+   `bInterfaceSubClass=0x01` (boot interface), `bInterfaceProtocol=0x01`
+   (keyboard) is found, the driver claims it.
+3. Control transfer `SET_PROTOCOL(0)` (boot protocol).
+4. Periodic Interrupt-IN reads of 8-byte boot keyboard reports.
+5. Translation from HID usage IDs (0x04='a', 0x05='b', ..., plus
+   modifier byte for shift/ctrl/alt) to ASCII, with caps lock state.
+6. Character device publication at `/dev/kbd0` returning ASCII bytes
+   on `read()`.
+- Estimated ~500-1000 LOC. Multi-iteration project; not fits in a
+  single /loop iteration.
+
+**HDMI visual confirmation 2026-05-05: VALIDATED** —
+`artifacts/hdmi/2026-05-05-stage4-fbcon-ansi-fastclr-clean.png`
+captured by the user via `houp/simple-video-preview`'s
+`grab_frame.py` against the C3-1 USB3 Video device. The screenshot
+shows:
+- `Phoenix-RTOS HDMI console` banner cleanly rendered.
+- `fbcon: ok` instrumentation message also rendered.
+- **Entire framebuffer black** — the full-fbmemsz clearAll wiped
+  the firmware splash that previously left a brown rectangle in
+  the lower half of the screen.
+- **Zero literal `?[0J` garbage chars** — the VT100/ANSI parser
+  correctly intercepted psh's escape sequences instead of
+  rendering them as visible characters.
+
+Stage 4 phase 1b is fully validated end-to-end (UART evidence in
+the netboot log + visual evidence in the HDMI screenshot).
+
+(Note for future iterations: Claude Code's process is sandboxed and
+cannot grab HDMI directly via `grab_frame.py` — macOS TCC silently
+denies camera access. The user can grab manually with the same
+command. Direct grab from Claude Code would need either a TCC
+allowlist for the running process or a different capture mechanism.)
 
 **Stage 4 cosmetic follow-up still queued:**
-- HDMI screenshot to visually confirm `[0J(psh)%` garbage is gone.
+- HDMI screenshot to visually confirm `[0J(psh)%` garbage is gone
+  (blocked on TCC permission above).
 - Once Stage 1 cache enable is solved, switch the framebuffer fill
   to use `DC ZVA` (cache-line zero) for ~10× speedup over the current
-  64-bit-store loop. Until then, the line-by-line wipe the user
-  observed is intrinsic to caches-off DDR write throughput.
+  64-bit-store loop. Until then, the line-by-line wipe is intrinsic
+  to caches-off DDR write throughput.
 
 ### Previous step framing
 

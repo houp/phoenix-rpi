@@ -208,8 +208,60 @@ shows:
   correctly intercepted psh's escape sequences instead of
   rendering them as visible characters.
 
-Stage 4 phase 1b is fully validated end-to-end (UART evidence in
-the netboot log + visual evidence in the HDMI screenshot).
+Stage 4 phase 1b is **partially** validated end-to-end:
+- Parser correctness + clearAll fix are visually confirmed (no
+  brown rectangle, no `?[0J` literal garbage).
+- BUT the screenshot shows only the banner + `fbcon: ok` lines —
+  both written via direct `pl011_writeRaw` / `pl011_fbcon_write`
+  calls in `pl011_fbcon_init`. NO subsequent klog or psh output
+  is visible on HDMI even though the netboot log shows the boot
+  reached `Phoenix-RTOS microkernel v. 3.3.1` and `psh: readcmd`.
+
+**Phase 1c LANDED 2026-05-05** in `phoenix-rtos-devices` master
+`6c1d134`: declared `pl011_t.fbaddr` as `volatile uint32_t * volatile`
+(pointer slot itself volatile, not just pointed-to data). Real-Pi
+verification pending next iteration's netboot cycle + HDMI grab.
+
+**The `pl011_thr` TX-drain → fbcon mirror path is broken on real Pi 4.**
+User confirmed (2026-05-05): multiple HDMI grabs at different boot
+stages all show only the banner + `fbcon: ok` lines — NEVER any
+kernel klog or psh output, even after `psh: readcmd` has fired and
+the UART log shows the full klog stream including `Phoenix-RTOS
+microkernel v. 3.3.1`. Both lines on the HDMI screenshot were
+written via direct `pl011_writeRaw` / `pl011_fbcon_write` calls
+inside `pl011_fbcon_init` (the banner) and right after it (the
+instrumentation message). Anything that goes through the regular
+tty TX path (`pl011_klogClbk` → `libtty_write` → `pl011_thr` →
+`pl011_fbcon_write`) does not reach HDMI.
+
+UART output of the same boot reaches `(psh)%` ready, so the chars
+DID flow through `pl011_thr`'s drain loop (which writes them to
+UART). The mirror call at line 870 of `pl011-tty.c` checks
+`uart->fbaddr != NULL` and calls `pl011_fbcon_write` per popped
+byte — but those mirror writes are not surfacing on HDMI.
+
+**Diagnostic plan for next iteration:**
+1. Add a per-byte counter in `pl011_thr`'s fbcon mirror path; print
+   it via `pl011_writeRaw` (which works) every N bytes mirrored.
+2. If counter increments → fbcon_write is being called but the
+   draws aren't showing → ANSI parser or drawChar bug. Add per-char
+   diagnostic in `pl011_fbcon_putc` to print the byte being drawn.
+3. If counter stays at 0 → `uart->fbaddr` is somehow NULL when
+   `pl011_thr` reads it, or `pl011_thr` is blocked. Check whether
+   the main thread actually wrote `fbaddr` (and consider memory
+   ordering between the threads — `fbaddr` is `volatile uint32_t *`
+   but the pointer itself is not volatile).
+4. Ground truth: enable a short test where `pl011_thr` calls
+   `pl011_fbcon_write(uart, "X", 1)` once per loop iteration
+   regardless of whether anything was popped. If that shows on
+   HDMI, the mirror code path is alive — narrow to popchar being
+   the issue.
+
+Phase 1b is therefore a **partial win**: parser + clearAll
+correctness are visually proven, but the bigger goal of seeing the
+shell prompt on HDMI is not yet met. Phase 1c will diagnose the
+mirror gap and is the prerequisite for Stage 4 phase 2 (USB
+keyboard) to be a meaningful end-user demo.
 
 (Note for future iterations: Claude Code's process is sandboxed and
 cannot grab HDMI directly via `grab_frame.py` — macOS TCC silently

@@ -105,15 +105,59 @@ iteration:
   - Phase 4b allocator path doesn't orphan any page the kernel
     needs.
 
-**Phase 4c (NEXT): drop plo's hardcoded `SIZE_DDR = 0x3b400000` in
-`sources/plo/ld/aarch64a72-generic.ldt`; have plo build the syspage
-memory entries from the DTB instead of the LDT constant.** This is
-the last piece for the kernel to actually USE the larger ARM_MEM
-when firmware reports more.
+**Phase 4c finding (2026-05-05):** the kernel already calls
+`dtb_getMemory()` directly in `pmap.c` (line 848). It does not consume
+plo's syspage memory entries for the allocator's source-of-truth — only
+for diagnostics. Therefore plo's hardcoded `SIZE_DDR = 0x3b400000` in
+`sources/plo/ld/aarch64a72-generic.ldt` is plo-LOCAL (it bounds plo's
+own loader scope: where plo can place apps, mailbox buffer, etc.).
+The kernel is already DTB-driven for memory layout. The TRUE 4 GiB
+unlock blocker is **firmware-side**: this Pi 4's bundled firmware
+reports `Starting ARM with 960MB` regardless of `total_mem` in
+config.txt. Resolution requires a firmware update (newer start4.elf /
+fixup4.dat) or a different unlock mechanism — out of scope for the
+current iteration.
 
-**Phase 2, Phase 3, Phase 6:** queued behind phase 4c. Mailbox-buffer
-relocation (Stage 2 phase 2), VC4 quiesce (phase 3), DMA audit
-across pcie/xhci using `dtb_armToBus()` (phase 6).
+**Phase 2, Phase 3, Phase 6 (Stage 2 follow-ups):** queued. Mailbox-
+buffer relocation (phase 2), VC4 quiesce before plo eret (phase 3),
+DMA audit across pcie/xhci using `dtb_armToBus()` (phase 6).
+
+### Stage 4 progress (2026-05-05): HDMI text console FUNCTIONAL
+
+**Stage 4 phase 1 — fbcon instrumentation: LANDED 2026-05-05** in
+`phoenix-rtos-devices` master `dba824e`. Replaced the silent
+if-else around `pl011_fbcon_init()` with a four-way `pl011_writeRaw`
+result log so we can see whether fbcon initialized.
+
+**Real Pi 4 evidence (image `e79aa935`):**
+- UART log:
+  `artifacts/rpi4b-uart/rpi4b-uart-20260505-202900-netboot-stage4-fbcon-instrument.log`
+  reaches `(psh)%`.
+- HDMI screenshot (user-captured just before power-off): shows
+  `?[0J(psh)%` rendered on HDMI through fbcon. The `?[0J` is psh's
+  ANSI erase-to-EOS sequence (`\x1b[0J`) rendered literally because
+  fbcon has no ESC parser. The shell prompt text is live evidence
+  the framebuffer pipeline (plo VC4 mailbox → syspage graphmode →
+  kernel platformctl → pl011_fbcon_init → pl011_fbcon_write) is
+  end-to-end functional.
+- A brown rectangle in the lower half is the firmware splash that
+  fbcon_init's clear loop did not overpaint (likely a graphmode-
+  height vs actual-framebuffer-height mismatch; cosmetic, queued for
+  follow-up).
+
+**Stage 4 phase 2 (NEXT): USB keyboard input.** Validate xHCI
+bring-up + HID enumeration so `/dev/kbd0` is populated; pl011_kbdthr
+already opens that path and feeds keystrokes into the tty. Real-Pi
+test with a USB keyboard plugged in is the validation step.
+
+**Stage 4 cosmetic follow-ups (queued):**
+- ANSI ESC parser in `pl011_fbcon_putc` — interpret `\x1b[0J`,
+  `\x1b[2J`, `\x1b[H`, `\x1b[r;cH` instead of rendering literally.
+- Full-framebuffer clear in `fbcon_init` — verify graphmode height
+  matches firmware framebuffer dimensions; expand the clear loop if
+  not.
+
+### Previous step framing
 
 ### Previous step framing
 

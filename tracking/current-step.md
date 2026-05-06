@@ -284,17 +284,71 @@ both render. Firmware splash retreats only from cells the kernel
 or psh writes to (cosmetic; would be wiped by clearAll once Stage 1
 cache enable lands and DC ZVA becomes affordable).
 
-**Stage 4 phase 2 (USB keyboard) status: PARTIAL.** Driver registered
-into the `usb` binary. Real-Pi cycle with keyboard plugged in
-reached psh: readcmd. No Phoenix-side HID enumeration messages
-visible in UART log (the `HID register` lines all timestamped <100s
-are firmware-phase, not Phoenix). Either Phoenix's USB stack didn't
-re-enumerate the keyboard after firmware released the controller,
-or it did but silently (the existing usb daemon doesn't log
-enumeration verbosely). Need to either:
-- Add diagnostic prints to verify enumeration ran, OR
-- Try typing on the keyboard during a cycle and see if keystrokes
-  appear on UART/HDMI (definitive end-to-end test).
+**Stage 4 phase 2 (USB keyboard) status 2026-05-06: ROOT CAUSE
+PRECISELY IDENTIFIED, FIX REQUIRES SEPARATE WORK.**
+
+Diagnostic-driven narrowing across one /loop iteration:
+1. Added `debug()` to `usbkbd_handleInsertion` → message NEVER
+   appeared on UART. So Phoenix's USB stack never delivers
+   insertion events to the HID driver.
+2. Added milestones across `usb` daemon's `main()` startup
+   (sources/phoenix-rtos-usb/usb/usb.c) → `usb-daemon: hcd_init
+   fail` appeared. So the USB host-controller driver init returned
+   NULL.
+3. Added milestones across `hcd_init()` (sources/phoenix-rtos-usb/
+   usb/hcd.c) → `hcd_init: ops->init fail` appeared. So
+   `xhci_init()` itself returned non-zero.
+4. Added milestones across `xhci_init()` (sources/phoenix-rtos-
+   devices/usb/xhci/xhci.c) → `xhci_init: post-capProbe` then
+   `FAILED step` appeared. So `xhci_capProbe` returned -ENODEV.
+5. Added value-print to xhci_capProbe → **`xhci_capProbe: ver=dead`**.
+   The xHCI HCIVERSION register reads `0xdead`.
+
+`0xdead` is the BCM2711 PCIe bridge's default response when no
+device is present at the addressed PCIe location. The xHCI MMIO
+at `XHCI_BCM2711_MMIO_BASE = PCIE_BCM2711_OUTBOUND_CPU_BASE =
+0x600000000` is being read but the **VL805 xHCI controller is not
+BAR-programmed onto the PCIe bus.**
+
+Per `phoenix-rtos-devices/pcie/server/pcie.c` main():
+- pcie daemon runs `pcie_cfgInitBcm2711()` then `pcie_scanBus(0)`,
+  then exits.
+- pcie_scanBus is supposed to enumerate buses + assign BARs to
+  found devices. On Pi 4 the VL805 is at bus 1, slot 0, fn 0.
+- Either pcie_scanBus is failing to find/configure VL805, or the
+  scanBus's BAR assignment doesn't match what xhci.c expects at
+  `XHCI_BCM2711_MMIO_BASE`.
+
+Pi 4 firmware DOES set up VL805 (firmware boot menu reads the
+keyboard via VL805 — confirmed by user: "the keyboard works
+correctly in the boot menu"). After firmware hands off, the PCIe
+bridge state may need re-assertion that pcie daemon doesn't
+currently do.
+
+**Next session's actionable work for Stage 4 phase 2:**
+1. Read `pcie_scanBus` and `pcie_cfgInitBcm2711` end-to-end.
+   Understand the bridge config-write path on BCM2711.
+2. Add real-Pi `debug()` instrumentation into pcie daemon to log:
+   - bus/dev/fn enumeration results
+   - VL805 BAR0 read-back after assignment
+   - Any error returns
+3. If pcie daemon doesn't find VL805: investigate why. Is
+   `pcie_cfgInitBcm2711` getting the right config-space mapping?
+   Is the secondary-bus number being assigned correctly?
+4. If pcie daemon assigns BAR0 to a different address than
+   `XHCI_BCM2711_MMIO_BASE`: reconcile addresses (either change
+   the constant or align pcie's assignment).
+
+**All Phase 2 diagnostic instrumentation has been REVERTED** from
+phoenix-rtos-devices and phoenix-rtos-usb working trees per
+AGENTS.md "remove diagnostic code whose hypothesis was confirmed".
+The findings are preserved here; the diagnostic instrumentation
+can be reintroduced surgically when Stage 4 phase 2 work resumes.
+
+**Stage 4 phase 2 is blocked on PCIe + VL805 enumeration work,
+which is a substantial sub-project (probably 1-2 dedicated
+iterations).** Stage 4 phase 1 (HDMI text console) remains
+fully validated.
 
 **The `pl011_thr` TX-drain → fbcon mirror path was broken on real Pi 4.**
 User confirmed (2026-05-05): multiple HDMI grabs at different boot

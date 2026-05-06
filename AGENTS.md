@@ -115,6 +115,56 @@ Use them as follows:
 - Pi 4 is the first target because Pi 5 introduces RP1 behind PCIe and is materially more complex.
 - QEMU is useful for CPU/MMU/boot-path iteration but is not sufficient as the only validation target for Raspberry Pi peripherals.
 
+## Multi-Agent Working Architecture
+
+The bring-up effort runs as a **single orchestrating session that fans work out to background subagents in parallel**, then synthesizes results in one place. This section is the canonical layout. Agents must follow it.
+
+### Roles
+
+- **Orchestrator (the active session)** — the only entity that:
+  - decides what gets analyzed, by which agent, in what order;
+  - integrates findings from multiple agents into a single picture of project state;
+  - operates the hardware (build, power-cycle, UART capture, log analysis) — there is one Pi, so hardware tests are inherently serial;
+  - reads/writes the source tree, commits, and updates trackers.
+  Subagents do not run hardware tests directly. They prepare patches, predictions, and instrumentation plans; the orchestrator queues and runs the resulting test cycle.
+
+- **Analysis agents** (parallel, background, read-only or research) — fan out for any question that decomposes into independent sub-questions:
+  - source-tree dives (Phoenix, Linux, FreeBSD, ATF, U-Boot, seL4, Xen)
+  - documentation hunts (TRMs, errata sheets, peripheral datasheets, vendor advisories)
+  - hypothesis evaluation (each agent owns one hypothesis end-to-end and returns a confirm/refute with cited evidence)
+  - patch design (drafts a unified diff plus predicted UART-visible signature)
+
+- **Forward-research agents** (parallel, background, long-horizon) — produce primary-source-cited markdown notes under `docs/research/` for subsystems we have not yet started but will need: GPU/DRM, GENET Ethernet, BCM43455 WiFi, BCM43455 Bluetooth, GPIO/pinctrl, RTC, thermal, power. Each note is a self-contained brief: register map, kernel DT bindings, driver entry points, known quirks, an "open questions" list. The orchestrator does not block on these; they are pre-loaded knowledge for when their step becomes active.
+
+- **Hardware test runs** (sequential, orchestrator-only) — every test is one cycle through `scripts/rebuild-rpi4b-fast.sh` → `scripts/pi_power_off.sh` → `pi_power_on.sh` → `scripts/netboot-bridge-recover.sh` → `scripts/test-cycle-netboot.sh`. The orchestrator picks the **highest-information test** at any moment (one that falsifies the most hypotheses at once). Subagents must never invoke these scripts.
+
+### Operating principles
+
+1. **Fan out wide on independent questions.** If a problem decomposes into N independent sub-problems, spawn N agents in parallel in a single tool turn. Do not analyze sequentially what can be analyzed in parallel.
+2. **Single decision hub.** Patch selection, hardware queueing, and commit decisions live with the orchestrator. Subagents never push work to hardware.
+3. **Composite tests over serial tests.** Whenever multiple hypotheses share a fix block, build one image that mitigates all of them and run a single cycle. Each cycle is ~5–10 minutes; serial cycles are the limiting factor.
+4. **Knowledge propagation.** When an analysis agent returns findings that change another running agent's premise, the orchestrator uses `SendMessage` to update the affected agent rather than letting it complete on stale assumptions.
+5. **Forward research is always-on, never-blocking.** Background agents researching future subsystems run continuously in the background of any session. Their output is markdown under `docs/research/`. The orchestrator does not wait for them.
+6. **Evidence > speculation.** Every claim from a subagent must cite a primary source (file path + line, official doc URL, errata number). Speculation without citation is rejected.
+7. **Diagnostic instrumentation discipline.** When a hypothesis is confirmed or refuted, remove the instrumentation that proved it (per the existing project rule). Do not let `debug()` markers accumulate.
+
+### Forward-research log layout
+
+`docs/research/` is the durable home for forward-looking briefs. Each file is one subsystem:
+
+- `docs/research/gpu-vc6.md` — VideoCore VI 3D + display pipeline
+- `docs/research/ethernet-genet.md` — BCM2711 GENET MAC
+- `docs/research/wifi-bcm43455.md` — BCM43455 WiFi (SDIO)
+- `docs/research/bluetooth-bcm43455.md` — BCM43455 BT (UART-attached HCI)
+- `docs/research/gpio-pinctrl.md` — BCM2711 GPIO + pin muxing
+- `docs/research/rtc-thermal-power.md` — RTC, thermal, watchdog, power management
+
+Each file should answer, with citations: (a) what hardware blocks are involved, (b) where Linux's driver lives, (c) the minimum subset Phoenix needs to claim "working", (d) known quirks/errata, (e) open questions for the orchestrator to resolve when the corresponding step becomes active.
+
+### Reasonable parallelism upper bound
+
+Practical sweet spot is **3–8 concurrent background agents**. Beyond that, synthesis cost in the orchestrator outweighs analysis throughput. Forward-research agents count toward this budget but typically run long enough that they never queue against immediate-debug agents.
+
 ## Expected Future Repository Contents
 
 As implementation starts, expect future agents to add:

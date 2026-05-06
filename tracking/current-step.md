@@ -217,12 +217,49 @@ Stage 4 phase 1b is **partially** validated end-to-end:
   is visible on HDMI even though the netboot log shows the boot
   reached `Phoenix-RTOS microkernel v. 3.3.1` and `psh: readcmd`.
 
-**Phase 1c LANDED 2026-05-05** in `phoenix-rtos-devices` master
-`6c1d134`: declared `pl011_t.fbaddr` as `volatile uint32_t * volatile`
-(pointer slot itself volatile, not just pointed-to data). Real-Pi
-verification pending next iteration's netboot cycle + HDMI grab.
+**Phases 1c → 1g LANDED 2026-05-05/06** in `phoenix-rtos-devices`
+master, ending at `9505990`. Iterative narrowing of the
+"banner-only on HDMI" regression observed at the end of phase 1b.
+Each phase added or refined a fix and was tested on real Pi 4:
 
-**The `pl011_thr` TX-drain → fbcon mirror path is broken on real Pi 4.**
+- **Phase 1c (`6c1d134`)**: declare `pl011_t.fbaddr` as
+  `volatile uint32_t * volatile` so `pl011_thr`'s inner TX-drain
+  loop re-reads the pointer each iteration instead of caching the
+  pre-fbcon_init NULL value in a register.
+- **Phase 1d (`5f9e874` part 1)**: drop `MAP_DEVICE` from the
+  framebuffer mmap. `MAP_DEVICE | MAP_UNCACHED` resolved to MAIR
+  slot 3 (`MAIR_DEV_nGnRnE` Strongly-Ordered) where every store
+  fully serializes — too slow for any framebuffer-wide operation
+  on caches-off DRAM. With `MAP_UNCACHED` only, the FB is Normal
+  Non-Cacheable, allowing write combining.
+- **Phase 1e (`5f9e874` part 2)**: skip `pl011_fbcon_clearAll` in
+  `fbcon_init`. Even with Normal NC, full-fbmemsz clears took
+  >>10 minutes on real Pi 4 — longer than the entire 600s netboot
+  capture window. fbcon_init now only sets parser/cursor state
+  and writes the banner.
+- **Phase 1f**: temporary diagnostic `{Y}` / `{N}` per-byte
+  markers in `pl011_thr`'s drain loop to confirm whether the
+  fbcon mirror branch was being entered. Output `#[#0#J#` in
+  the UART log proved (a) `pl011_thr` IS draining libtty bytes,
+  (b) `fbaddr` is non-NULL at the read site, and (c) the bytes
+  are psh's `\x1b[0J` ANSI clear-to-EOS sequence. So the volatile
+  fix from phase 1c is working — the mirror path is alive.
+- **Phase 1g (`9505990`)**: the actual root cause of "no klog/psh
+  on HDMI" — psh emits `\x1b[0J` on every prompt redraw, and the
+  ANSI parser added in phase 1b implemented `[J` as a per-row
+  clear. With caches off, that clear took ~16ms per row × 46 rows
+  in dispatchCsi, blocking pl011_thr inside the parser long
+  enough that subsequent characters never rendered before the
+  capture ended. Fix: make `[J` and `[K` consume-only; let
+  drawChar overpaint individual cells naturally as text streams
+  in.
+
+**Validation in flight:** image SHA `6a6d828d`. QEMU clean. Real-Pi
+HDMI grab pending — expected to show banner, klog, and `(psh)% `
+prompt rendered cleanly with firmware splash retreating only from
+cells that received output.
+
+**The `pl011_thr` TX-drain → fbcon mirror path was broken on real Pi 4.**
 User confirmed (2026-05-05): multiple HDMI grabs at different boot
 stages all show only the banner + `fbcon: ok` lines — NEVER any
 kernel klog or psh output, even after `psh: readcmd` has fired and

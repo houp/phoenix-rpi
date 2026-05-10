@@ -350,6 +350,38 @@ which is a substantial sub-project (probably 1-2 dedicated
 iterations).** Stage 4 phase 1 (HDMI text console) remains
 fully validated.
 
+### 2026-05-10: Path A (plo MMU/cache EL-aware) landed; Step 3 still hangs
+
+After Steps 1+2 of canonical-idiom alignment landed (2026-05-08),
+Step 3 (plo runs with MMU+caches ON, matching zynqmp) was attempted
+and failed: plo's `mmu.c` writes `*_EL3` sysregs but rpi4b plo runs
+at EL2 (armstub does `eret` to `EL2h`), so the writes trap and the
+boot hangs silently at the relocator's `TR3` marker before plo's
+banner prints.
+
+**Path A** (designed in `docs/plans/plo-el2-mmu-fix.md`,
+recommended over Path B which would touch the armstub) generalises
+plo's `mmu.c` and `cache.c` to dispatch on `currentEL` at runtime.
+For zynqmp (`currentEL == 0xc`) the dispatch resolves to exactly
+the prior `*_EL3` sequence — no functional change. For rpi4b
+(`currentEL == 0x8`) the EL2 bank is now used.
+
+Committed: `plo codex/common-aarch64-platform-makefiles e90bdcd`.
+Validated on real Pi 4 (image `89645ec6`) — baseline boots through
+`fbcon: ok` and `psh: readcmd` cleanly. Step 3 (`hal_memoryInit`)
+re-tested on top of Path A still hangs plo before its banner —
+remaining suspects: TCR_EL2 field-layout edge cases, the
+`sctlr_el2` baseline left by the armstub, or another sysreg path
+not yet generalised.
+
+**Next session**: apply Step 7
+(`docs/plans/early-boot-diagnostic-instrumentation.md`) to add UART
+debug instrumentation throughout the early-boot path before
+re-attempting Step 3. Without observability we cannot localise the
+Step 3 trap.
+
+Manifest: `manifests/2026-05-10-pathA-plo-mmu-cache-el-aware.md`.
+
 ### 2026-05-08: Round-3 deep-research wave + Steps 1-2 of canonical-idiom alignment validated
 
 After Phase A and Phase B both failed in early May, the project ran

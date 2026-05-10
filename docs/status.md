@@ -1,5 +1,31 @@
 # Phoenix-RTOS Raspberry Pi 4 Port Status
 
+## Current Status: 2026-05-10 (Path A plo MMU/cache EL-aware landed; Step 3 still hangs pending diagnostic instrumentation)
+
+After Steps 1+2 landed on 2026-05-08, Step 3 (plo runs with
+MMU+caches ON) was attempted and revealed the structural blocker:
+plo's `mmu.c` writes `*_EL3` sysregs but rpi4b plo runs at EL2
+(armstub `eret`s to `EL2h`), so the writes trap. The
+`docs/plans/plo-el2-mmu-fix.md` plan recommended Path A: generalise
+`mmu.c` + `cache.c` to dispatch on `currentEL` at runtime.
+
+**Path A committed**: `plo codex/common-aarch64-platform-makefiles e90bdcd`.
+Validated on real Pi 4 (image `89645ec6`) — baseline boots through
+`fbcon: ok` cleanly. For zynqmp the new dispatch resolves to the
+prior `*_EL3` sequence (no functional change).
+
+Step 3 retested on top of Path A still hangs plo before its
+banner. Remaining suspects: TCR_EL2 layout edge cases, the
+`sctlr_el2` baseline from the armstub, or another sysreg access
+path not covered.
+
+**Next**: Step 7 (early-boot diagnostic instrumentation —
+`docs/plans/early-boot-diagnostic-instrumentation.md`) must land
+before Step 3 can be debugged. The instrumentation patch is
+already designed end-to-end with macros, header file, diffs.
+
+Manifest: `manifests/2026-05-10-pathA-plo-mmu-cache-el-aware.md`.
+
 ## Current Status: 2026-05-08 (Round-3 deep-research + Steps 1-2 of canonical-idiom alignment validated; cache enable still blocked on plo-side Step 3)
 
 After Phase A and Phase B both failed in early May, the project ran

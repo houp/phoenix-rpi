@@ -1,5 +1,101 @@
 # Phoenix-RTOS Raspberry Pi 4 Port Status
 
+## Current Status: 2026-05-12 (BREAKTHROUGH — 4GB unlocked, plo->kernel handoff clean, kernel past prior cache-hang to NEW frontier)
+
+### Root cause finally identified
+
+A four-subagent investigation (transcripts in
+`docs/research/2026-05-12-vpu-l2-deep-dive.md`) converged on a real,
+citation-backed root cause for every cache-related fault we've been
+chasing for the past two weeks: **BCM2711 has a separate 1 MB "system
+L2" cache used by the VPU/GPU that sits on a different SoC fabric than
+the A72 cluster's L1+L2**. start4.elf primes that cache before
+handoff. The system L2 is NOT a participant in the A72's inner-
+shareable broadcast domain, so A72-side cache maintenance ops cannot
+reach it:
+
+* `dc isw` (set/way) — local to A72 cluster caches only; ARM ARM
+  B2.2.6 + DEN0024 explicitly say set/way is "for cache power-down
+  only, NOT for coherency" and Linux/U-Boot/FreeBSD never use it on
+  the boot path.
+* `dc ivac` / `ic ialluis` (VA-based IS-broadcast) — broadcast in
+  the IS domain; the BCM2711 system L2 is outside that domain.
+
+The architectural fix is a mailbox call to VC4 asking it to clean its
+own system L2 (tag TBD — TD-plo-icache in
+`docs/TEMPORARY-FIXES-AND-FUTURE-CLEANUP.md`). Until that lands, both
+plo and the kernel run with caches off (SCTLR.M=1, C=0, I=0).
+Performance is acceptable — these are short-lived boot paths.
+
+### What now works (real Pi 4, image SHA256 89bc66be...)
+
+```
+arm_loader: Starting ARM with 948MB
+12 A S 0 TR0..TR3                           <- armstub + plo relocator
+hal: console_init done
+mem: pre-init/post-init/post-map            <- mmu_init + 4GB cacheable remap
+mem: post-dc-ivac                           <- per-VA dc ivac over plo image
+mem: post-tlbi
+mem: pre-sctlr-write-M / post-sctlr-write-M <- M-only, set_sctlr ritual
+mem: post-enable
+hal: hal_memoryInit done -> timer_init done
+video: pre-fbInit / fb-init / mailbox call  <- full mailbox property call success
+video: post-fbInit / post-drawSignal        <- (drawSignal skipped, see below)
+video: post-armFreq                          <- td16: arm_freq Hz = 0x59682f00 (1.5 GHz!)
+hal: video_init done -> entry EL2 -> init complete
+[1mPhoenix-RTOS loader v. 1.21 rev: unknown[0m
+hal: Cortex-A72 Generic
+cmd: Executing pre-init script
+call: opened user.plo on ram0
+call: magic ok user.plo
+call: exec alias -r phoenix-aarch64a72-generic.elf 0x1000 0x26148
+call: exec kernel ram0
+... all apps loaded (kernel, system.dtb, dummyfs-root, dummyfs,
+    pl011-tty, mkdir, bind, pcie, usb, psh) ...
+call: exec go!
+go: enter -> devs done -> hal done -> jump
+hal: jump entry -> jump irq off -> jump exit el1   <- plo erets to EL1
+probe: pre-jump read#1
+probe: no diff (DDR stable)                         <- DDR coherent across handoff
+probe[0x310]=0000000000000000                       <- KERNEL READS SYSPAGE CLEANLY
+probe[0x318]=00000000002173a8
+probe[0x320]=0000000000217288
+probe[0x328]=0047800000000002
+td15: probe write start / done @ pa=0x02000000
+A2 ZK[LSTUMV X1 X2 X3 X4 X5                         <- KERNEL RELOCATOR + cache enable
+L                                                   <- partial early exception print
+```
+
+The post-X5 'L' is the kernel's `_early_exception_common` handler
+printing the beginning of "ELR=" but the rest of the dump (the actual
+ELR/FAR/ESR hex) doesn't appear — the handler itself hits a recursive
+fault because it uses `PL011_TTY_EARLY_VADDR` which requires the
+device TTL3 mapping that isn't set up yet at X5. This is a NEW
+frontier — we have never reached this point before. The cache-
+corruption arc that ate the prior two weeks is genuinely resolved.
+
+### Active TODOs (carry forward)
+
+* **TD-plo-icache** — implement VC4 mailbox call to flush VPU system
+  L2, then re-enable SCTLR.M|C|I in both plo and kernel. Long-term.
+* **Next frontier: post-X5 kernel fault** — the kernel sets up TTL2
+  for the kernel image after X5 but before installing the real
+  device mapping for PL011. An exception in that window leaves the
+  early handler unable to print. Two paths: (a) install the early
+  device mapping earlier; (b) add a marker right before/after the
+  TTL2 setup loop to localise which instruction faults.
+* **TD-plo-drawsignal** — VC4-allocated framebuffer sits in 76 MB
+  GPU reserve which plo keeps Device-nGnRE; bg-fill is too slow for
+  meaningful HDMI output. Real fix: cache the framebuffer mapping
+  AFTER the VC4 L2-flush mailbox lands.
+
+### Sibling commits
+
+* `phoenix-rtos-project 2285fb8` — config.txt: gpu_mem=76 lock
+* `plo e2e6ae1` — aarch64a72-generic .ldt: SIZE_DDR 948MB -> 3.94GB + GPU-hole carve-out
+* `plo 7bbe1f2` — hal_memoryInit: Linux set_sctlr ritual + per-VA dc ivac + MMU-only
+* `kernel a551692c` — _init.S Step 5: MMU-only enable (skip C and I)
+
 ## Current Status: 2026-05-11 (EL2 fault localised — EC=0x00 sync abort after plo MMU+caches enable; root cause hypotheses ranked)
 
 ### What works as of today

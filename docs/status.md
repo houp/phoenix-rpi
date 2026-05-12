@@ -1,5 +1,80 @@
 # Phoenix-RTOS Raspberry Pi 4 Port Status
 
+## Current Status: 2026-05-12 (BIGGEST BREAKTHROUGH — kernel boots to userspace; Phoenix-RTOS microkernel + fbcon + PCIe + USB + psh tty)
+
+### What just landed
+
+Three commits, all driven by the multi-subagent finding that Circle, rust-raspberrypi-OS-tutorials, and NetBSD evbarm all follow the same canonical AArch64 boot recipe: drop to EL1 BEFORE enabling MMU, do zero pre-MMU cache maintenance, single SCTLR write — and Phoenix-RTOS plo was doing essentially the opposite.
+
+| Repo | Commit | Summary |
+|---|---|---|
+| plo | `9357e0b` | `_init.S start_el2` minimal EL2 setup then `eret` to `start_el1`; remove `dc isw` set/way loop; slot-E handler uses `_EL1` regs; staged SCTLR.M-only enable; drawSignal re-enabled |
+| kernel | `94905263` | `_init.S` Step 5 cache enable: single SCTLR.M write (no C, no I — TODOs) at EL1 with proper barrier ritual |
+| project | `fa4181b` | armstub `CPUACTLR_EL1[32]` (A72 errata 859971 DIS_INSTR_PREFETCH) reordered to write BEFORE SMPEN — TF-A says writes after SMPEN may be silently dropped on r0p3 |
+
+Runtime verified: read `CPUACTLR_EL1` at EL1 after armstub→EL2→EL1 ERETs — bit 32 sticks.
+
+### Boot reaches USERSPACE for the first time
+
+Real Pi 4, image SHA256 `8524f4108a5b317d0f8f2302bba5af7f45e95d557c62710157ccb93623b0fc7e`, 180 s UART capture:
+
+```
+arm_loader: Starting ARM with 948MB
+12 A S 0 TR0..TR3
+hal: console_init done -> mem: pre/post-init/map/iallu
+mem: post-read-sctlr -> mem: pre/post-sctlr-M -> mem: post-enable
+hal: hal_memoryInit done -> timer_init done
+video: pre-fbInit / mbox call / post-fbInit
+draw: enter / pre-bg-fill / post-bg-fill / post-dcacheClean   <- HDMI ORANGE RECTANGLE renders
+td16: arm_freq Hz = 0x59682f00                                <- 1.5 GHz
+hal: video_init done -> entry EL1 -> init complete
+Phoenix-RTOS loader v. 1.21 rev: unknown
+hal: Cortex-A72 Generic
+cmd: Executing pre-init script
+... all apps loaded (kernel, dummyfs, pl011-tty, mkdir, bind,
+    pcie, usb, psh) ...
+call: exec go! -> hal: jump exit el1
+        |
+        v   plo erets to EL1 with caches off
+        v
+probe: pre-jump read#1 / no diff (DDR stable)
+probe[0x310..328]= valid syspage values
+A1 ZK[LSTUMV X1 X2 X3 X4 X5 N!YOPSTUZbcd
+td15:OK                                                       <- TD-15 probe PASSED
+td16:cf=0337f980 dt=0000000000872ba4                           <- ARM counter measurement
+main: hal init done
+Phoenix-RTOS microkernel v. 3.3.1 rev. ######## +0           <- KERNEL BANNER
+vm: enter -> page init done                                   <- VM SUBSYSTEM
+threads: ready queued / context created (repeats)             <- THREADS SUBSYSTEM
+console: pl011 init done                                       <- CONSOLE DRIVER
+pcie: linkUp=1 rcMode=1                                        <- PCIe LINK UP
+pcie: 00:00.0 ven=14e4 dev=2711 cls=060400 hdr=01             <- BCM2711 PCIe bridge
+pcie: 01:00.0 ven=1106 dev=3483 cls=0c0330 hdr=00             <- VIA VL805 USB
+pcie: VL805 cmd 0000->0006 rb=0006                            <- VL805 BAR PROGRAMMED
+pcie: bcm2711NotifyXhciReset enter
+fbcon: ok                                                      <- KERNEL FRAMEBUFFER
+xhci: capProbe iter pre / ENOSYS (ok) / post capProbe
+xhci: pre reset
+psh: tty open / isatty done / ready                            <- PHOENIX SHELL
+... threads continuing past capture window ...
+```
+
+The capture window (180 s) was not long enough to see if psh reaches a prompt. Need a longer capture or interactive UART to confirm shell prompt.
+
+### Open: cache-enable TODOs
+
+Both items below are real cache-related faults that we haven't root-caused, but they no longer block the boot. The MMU-only baseline is correct ARM-architectural behavior (ARM ARM B2.4.4: SCTLR.{C,I}=0 ⇒ Non-cacheable per-access) so the cost is only boot-time performance.
+
+* **TD-plo-dcache** — `SCTLR.C=1` (D-cache enable) causes a wild-pointer-deref fault inside plo's `exec kernel ram0` command path (EC=0x22 PC-alignment with FAR holding garbage). Reproduced at both EL2 and EL1; staged vs single-shot SCTLR doesn't matter; pre-MMU `dc ivac` doesn't help; 859971 workaround is confirmed effective.
+* **TD-plo-icache** — `SCTLR.I=1` (I-cache enable) causes a "first I-fetch after SCTLR.I=1 returns garbage" fault (EC=0x00 Unknown/Undefined Instruction). 859971 confirmed effective; no other A72 workaround we've tried fixes it.
+
+Both are likely a single missing A72 bit or BCM2711-specific quirk we haven't located. Not blocking userspace bring-up.
+
+### Sibling commits + manifest
+
+* `manifests/2026-05-12-mmu-only-clean-handoff.md` (yesterday's milestone)
+* New manifest pending: `manifests/2026-05-12-kernel-boots-to-userspace.md`
+
 ## Current Status: 2026-05-12 (BREAKTHROUGH — 4GB unlocked, plo->kernel handoff clean, kernel past prior cache-hang to NEW frontier)
 
 ### Root cause finally identified

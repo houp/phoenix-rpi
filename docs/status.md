@@ -1,6 +1,44 @@
 # Phoenix-RTOS Raspberry Pi 4 Port Status
 
-## Current Status: 2026-05-12 (BIGGEST BREAKTHROUGH — kernel boots to userspace; Phoenix-RTOS microkernel + fbcon + PCIe + USB + psh tty)
+## Current Status: 2026-05-13 (cache enable parked at walker boundary; baseline still boots to psh)
+
+### TL;DR of today's session
+
+* Applied A72 erratum **1319367** workaround in the armstub
+  (`phoenix-rtos-project a27bc07`). Closes the speculative-AT
+  hazard. Baseline boots cleanly with it; UART markers now show
+  `1 3 2` (859971 / 1319367 / SMPEN) at EL3 reset.
+* Ran iter-7 through iter-12 of kernel D-cache enable. All failed
+  with the same translation-fault-L3 at `FAR=0xffffffffc0001890`.
+* iter-12-diag (image `b597c1f7…1e743807`) proved the walker uses
+  a memory path **distinct from the D-cache view**: kernel reads
+  TTL3[0]/[1] correctly via `ldr` but the walker reports them as
+  invalid. Cache maintenance and ordering changes can't bridge
+  this gap. Full forensics in
+  [docs/research/2026-05-13-iter-11-12-cache-walker-finding.md](research/2026-05-13-iter-11-12-cache-walker-finding.md).
+* Cache enable parked. Worktree reverted to functional baseline.
+  Locked-in image: SHA `2e8ed7dd…af69b592d` (current rebuild) /
+  `c6fb8ab9…bacf1ead` (today's earlier baseline manifest).
+
+### What still works (locked-in baseline)
+
+* plo + kernel + userspace boot end-to-end to `(psh)%` prompt.
+* 4 GB DRAM unlocked (`ddrh` map for chunk 2 in syspage).
+* HDMI shows psh prompt on display.
+* SMP smoke: cores 1-3 wake via spin-table, print marker, WFE.
+* armstub A72 errata 859971 + 1319367 applied at EL3 reset.
+
+### What's still blocked
+
+* Cache enable (D and I) — see "walker uses separate path" finding.
+* USB+keyboard — PCIe VL805 enumeration reads vendor/device/BARs
+  as all zero. Separate from cache. Likely needs the mailbox
+  VL805 reset to land before kernel config-space reads.
+* Full SMP (cores 1-3 currently park in WFE after the smoke marker).
+
+---
+
+## 2026-05-12 (Previous milestone — kernel boots to userspace)
 
 ### What just landed
 

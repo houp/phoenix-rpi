@@ -26,6 +26,9 @@ Validated real-Pi run:
 * image SHA256: `b36d2e7fe4d2ec78728c816fd191d2bce0678be2e00adcca621ac71e0461dfec`
 * UART log: `artifacts/rpi4b-uart/rpi4b-uart-20260514-094723-netboot-restored-cacheable-user-data-zone-uncached.log`
 * no `Exception`, `Data Abort`, `panic`, or `fault` matches after the controlled reboot
+* current restored export from the same source state:
+  `artifacts/rpi4b/rpi4b-sd.img` SHA256
+  `41955c545fad2f12ad0f33d3d3cefc397dbd15f23df543f8453a322758182958`
 
 ### New cache boundary
 
@@ -44,7 +47,9 @@ cache-enable workaround:
 * `vm/zone.c`: zone allocator backing pages still need `MAP_UNCACHED`. A
   negative-control test making them cacheable faulted in `_vm_zalloc()` while
   spawning `dummyfs-root`, with a garbage free-list pointer. Invalidating the
-  cacheable zone backing range before free-list initialization did not fix it.
+  cacheable zone backing range before free-list initialization did not fix it;
+  invalidate-plus-flush after free-list initialization regressed even earlier
+  in `main_initthr`.
 
 Two negative controls were important:
 
@@ -93,6 +98,8 @@ Harden and clean up the cacheable-data fix:
    `artifacts/rpi4b-uart/rpi4b-uart-20260514-093855-netboot-cacheable-zone-backed-pages.log`,
    and invalidate-before-init regressed in
    `artifacts/rpi4b-uart/rpi4b-uart-20260514-094326-netboot-cacheable-zone-inval-before-init.log`.
+   Invalidate-plus-flush also failed in
+   `artifacts/rpi4b-uart/rpi4b-uart-20260514-095141-netboot-cacheable-zone-inval-flush-free-list.log`.
 3. Remove or gate the temporary cache-bring-up UART/debug probes once the cache
    policy is stable enough for the next subsystem step.
 

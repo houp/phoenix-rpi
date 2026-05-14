@@ -26,7 +26,8 @@ Current cache policy:
 * `vm/zone.c`: zone backing pages still map `MAP_UNCACHED`. A direct
   cacheable-zone test failed in `_vm_zalloc()` / `_kmalloc_alloc()` with a
   garbage free-list pointer; invalidating the cacheable zone backing range
-  before free-list initialization failed the same way.
+  before free-list initialization failed the same way; invalidate-plus-flush
+  failed earlier in `main_initthr`.
 
 Next actions, in order:
 
@@ -37,7 +38,7 @@ Next actions, in order:
    boundary.
 3. Design a specific zone allocator page cache-hygiene fix before retrying
    cacheable zone mappings; do not repeat the direct `MAP_NONE` or
-   invalidate-before-init experiments.
+   invalidate-before-init / invalidate-plus-flush experiments.
 
 ## Active step (2026-05-13): cache enable parked, baseline reliable
 

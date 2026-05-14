@@ -95,12 +95,20 @@ mandatory cleanup. Until then, progress on the boot path takes priority.
   through VM initialization, then faulted while spawning `dummyfs-root`.
   Invalidating the cacheable backing range before writing the zone free-list
   failed the same way, so this is not fixed by a simple first-use invalidate.
+  Invalidating before free-list writes and flushing after them also failed,
+  earlier in `main_initthr`, with a PC-alignment fault followed by repeated
+  Data Aborts.
   Symbolization of the direct-cacheable failed image:
   - `pc=ffffffffc000f07c` -> `_vm_zalloc()` at `vm/zone.c:103`
   - `lr=ffffffffc000f2bc` -> `_kmalloc_alloc()` at `vm/kmalloc.c:66`
   Symbolization of the invalidate-before-init failed image:
   - `pc=ffffffffc000f08c` -> `_vm_zalloc()` at `vm/zone.c:117`
   - `lr=ffffffffc000f2cc` -> `_kmalloc_alloc()` at `vm/kmalloc.c:66`
+  Symbolization of the invalidate-plus-flush failed image:
+  - first fault `pc=2206401c6b272025` -> non-canonical corrupted PC
+  - repeated fault `pc=ffffffffc001a994` -> `process_getPid()` at
+    `proc/process.h:74`
+  - `lr=ffffffffc001a988` -> `posix_getOpenFile()` at `posix/posix.c:154`
   The faulting pointer was a garbage zone free-list value
   (`far=6b5cd7e987dd19fb`), so the direct cacheable-zone experiment is rejected.
 - **Validation:**
@@ -108,14 +116,18 @@ mandatory cleanup. Until then, progress on the boot path takes priority.
     fails with `Exception #37: Data Abort (EL1)` at `_vm_zalloc()`.
   - FAIL: `artifacts/rpi4b-uart/rpi4b-uart-20260514-094326-netboot-cacheable-zone-inval-before-init.log`
     fails with the same `_vm_zalloc()` / garbage free-list pointer shape.
+  - FAIL: `artifacts/rpi4b-uart/rpi4b-uart-20260514-095141-netboot-cacheable-zone-inval-flush-free-list.log`
+    fails earlier in `main_initthr` with corrupted control flow and repeated
+    Data Aborts.
 - **Resolution requirements:**
   - Identify whether stale lines come from freshly allocated zone backing
     pages, free-list writes, or old aliases from prior kernel-page ownership.
   - Add a targeted cache-maintenance point for zone backing pages before first
     cacheable free-list initialization, or keep this mapping uncached with a
     documented performance cost.
-  - Do not repeat the direct `MAP_NONE` or invalidate-before-init zone
-    experiments without a materially different cache hygiene change.
+  - Do not repeat the direct `MAP_NONE`, invalidate-before-init, or
+    invalidate-plus-flush zone experiments without a materially different cache
+    hygiene change.
 
 ## TD-01: SMP enable disabled on Cortex-A72
 

@@ -41,6 +41,9 @@ cache-enable workaround:
 * `hal/aarch64/_init.S`: kernel flips `SCTLR_EL1.M|C|I`; some early bootstrap
   mappings and pmap metadata remain non-cacheable as a separate cleanup
   boundary.
+* `vm/zone.c`: zone allocator backing pages still need `MAP_UNCACHED`. A
+  negative-control test making them cacheable faulted in `_vm_zalloc()` while
+  spawning `dummyfs-root`, with a garbage free-list pointer.
 
 Two negative controls were important:
 
@@ -84,8 +87,9 @@ Harden and clean up the cacheable-data fix:
 
 1. Audit shared-anonymous COW source handling; current invalidation is only for
    object-backed sources and freshly allocated destinations.
-2. Retry making `vm/zone.c` backing-page mappings cacheable; this remains one
-   of the broader performance workarounds.
+2. Diagnose zone allocator page cache hygiene before retrying cacheable
+   `vm/zone.c`; direct `MAP_NONE` regressed in
+   `artifacts/rpi4b-uart/rpi4b-uart-20260514-093855-netboot-cacheable-zone-backed-pages.log`.
 3. Remove or gate the temporary cache-bring-up UART/debug probes once the cache
    policy is stable enough for the next subsystem step.
 

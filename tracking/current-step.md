@@ -23,8 +23,9 @@ Current cache policy:
   mappings are cacheable again.
 * `hal/aarch64/_init.S`: kernel flips `SCTLR_EL1.M|C|I`; early table-walk attrs
   remain non-cacheable and bootstrap pmap/common metadata remains NC.
-* `vm/zone.c`: zone backing pages still map `MAP_UNCACHED`; this is now the
-  next broad cache/performance workaround to test and narrow.
+* `vm/zone.c`: zone backing pages still map `MAP_UNCACHED`. A direct
+  cacheable-zone test failed in `_vm_zalloc()` / `_kmalloc_alloc()` with a
+  garbage free-list pointer.
 
 Next actions, in order:
 
@@ -33,8 +34,8 @@ Next actions, in order:
 2. Validate on real Pi after each narrowing step. QEMU rpi4b timed out at
    marker `A3` for this image and is not authoritative for the current cache
    boundary.
-3. Test returning `vm/zone.c` backing mappings to cacheable and keep/revert
-   based on real-Pi evidence.
+3. Design a specific zone allocator page cache-hygiene fix before retrying
+   cacheable zone mappings; do not repeat the direct `MAP_NONE` experiment.
 
 ## Active step (2026-05-13): cache enable parked, baseline reliable
 

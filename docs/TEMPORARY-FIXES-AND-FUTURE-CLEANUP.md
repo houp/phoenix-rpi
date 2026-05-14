@@ -82,6 +82,34 @@ mandatory cleanup. Until then, progress on the boot path takes priority.
   - Audit and test shared-anonymous COW copy source handling.
   - Keep `SCTLR_EL1.M|C|I` enabled throughout cleanup.
 
+## TD-18: Pi 4 zone allocator backing pages remain uncached
+
+- **Status:** PENDING
+- **Stage:** 1 (cache enable).
+- **First observed:** 2026-05-14 cacheable-zone negative control.
+- **Where:** `sources/phoenix-rtos-kernel/vm/zone.c` (`_vm_zoneCreate()`).
+- **What was done:** Zone allocator backing pages still map with
+  `MAP_UNCACHED` even though global kernel `SCTLR_EL1.M|C|I`, writable ELF
+  data, and `amap` temporary aliases are cacheable.
+- **Why:** A direct change from `MAP_UNCACHED` to `MAP_NONE` built and booted
+  through VM initialization, then faulted while spawning `dummyfs-root`.
+  Symbolization of the failed image:
+  - `pc=ffffffffc000f07c` -> `_vm_zalloc()` at `vm/zone.c:103`
+  - `lr=ffffffffc000f2bc` -> `_kmalloc_alloc()` at `vm/kmalloc.c:66`
+  The faulting pointer was a garbage zone free-list value
+  (`far=6b5cd7e987dd19fb`), so the direct cacheable-zone experiment is rejected.
+- **Validation:**
+  - FAIL: `artifacts/rpi4b-uart/rpi4b-uart-20260514-093855-netboot-cacheable-zone-backed-pages.log`
+    fails with `Exception #37: Data Abort (EL1)` at `_vm_zalloc()`.
+- **Resolution requirements:**
+  - Identify whether stale lines come from freshly allocated zone backing
+    pages, free-list writes, or old aliases from prior kernel-page ownership.
+  - Add a targeted cache-maintenance point for zone backing pages before first
+    cacheable free-list initialization, or keep this mapping uncached with a
+    documented performance cost.
+  - Do not repeat the direct `MAP_NONE` zone experiment without a new cache
+    hygiene change.
+
 ## TD-01: SMP enable disabled on Cortex-A72
 
 - **Status:** PENDING

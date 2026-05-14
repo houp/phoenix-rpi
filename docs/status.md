@@ -1,6 +1,6 @@
 # Phoenix-RTOS Raspberry Pi 4 Port Status
 
-## Current Status: 2026-05-14 (MMU + D-cache + I-cache enabled on real Pi 4; cacheable user data validated)
+## Current Status: 2026-05-14 (MMU + D-cache + I-cache enabled on real Pi 4; TLBI hardening validated)
 
 ### What changed
 
@@ -21,14 +21,19 @@ main: spawned psh (9)
 main: spawn loop done, entering proc_reap idle
 ```
 
-Validated real-Pi run:
+Latest validated real-Pi run:
+
+* image SHA256: `fb4493c1e1bed1ed7fd5752d8d5657846f97d1da63eaab5fe0239089c07eabac`
+* UART log: `artifacts/rpi4b-uart/rpi4b-uart-20260514-154015-netboot-tlbi-fix-stable-cache-policy.log`
+* no `Exception`, `Data Abort`, `panic`, or `fault` matches in the captured
+  Phoenix path
+
+Previous validated real-Pi run for the same cache policy before TLBI
+hardening:
 
 * image SHA256: `b36d2e7fe4d2ec78728c816fd191d2bce0678be2e00adcca621ac71e0461dfec`
 * UART log: `artifacts/rpi4b-uart/rpi4b-uart-20260514-094723-netboot-restored-cacheable-user-data-zone-uncached.log`
 * no `Exception`, `Data Abort`, `panic`, or `fault` matches after the controlled reboot
-* current restored export from the same source state:
-  `artifacts/rpi4b/rpi4b-sd.img` SHA256
-  `41955c545fad2f12ad0f33d3d3cefc397dbd15f23df543f8453a322758182958`
 
 ### New cache boundary
 
@@ -41,6 +46,10 @@ cache-enable workaround:
   pages before first zero/copy reuse.
 * `proc/process.c`: writable ELF `PT_LOAD` mappings and explicit BSS-tail
   mappings are cacheable again.
+* `hal/aarch64/aarch64.h` and `hal/aarch64/pmap.c`: TLBI operations now issue
+  the post-TLBI ISB, and invalid-to-valid L3 PTE creation invalidates the VA
+  after the descriptor is visible. This keeps runtime PTE creation
+  architecturally ordered with D-cache enabled.
 * `hal/aarch64/_init.S`: kernel flips `SCTLR_EL1.M|C|I`; some early bootstrap
   mappings and pmap metadata remain non-cacheable as a separate cleanup
   boundary.
@@ -61,6 +70,14 @@ Two negative controls were important:
 * Adding targeted `amap_page()` invalidation for object-source and fresh
   destination pages then made both cacheable `amap` aliases and cacheable
   writable ELF data pass on real Pi.
+* Making `_page_sbrk()` dynamic kernel heap pages cacheable while leaving zones
+  uncached did not fault, but failed to complete page scanning within 180s
+  (`artifacts/rpi4b-uart/rpi4b-uart-20260514-152547-netboot-cacheable-page-sbrk-zone-uncached-long.log`).
+  Making both initial and dynamic kernel heap mappings cacheable regressed
+  further, even with TLBI hardening
+  (`artifacts/rpi4b-uart/rpi4b-uart-20260514-153601-netboot-cacheable-kheap-tlbi-fix-zone-uncached.log`).
+  These heap-cacheability attempts are rejected for now; kernel heap/pmap
+  bootstrap metadata remain non-cacheable.
 
 Working hypothesis: the real bug was stale cache lines becoming visible through
 new cacheable aliases when Phoenix reused freshly allocated application pages
@@ -93,14 +110,18 @@ Harden and clean up the cacheable-data fix:
 
 1. Audit shared-anonymous COW source handling; current invalidation is only for
    object-backed sources and freshly allocated destinations.
-2. Diagnose zone allocator page cache hygiene before retrying cacheable
+2. Diagnose why cacheable kernel heap mappings stall during page scanning
+   before retrying `_page_sbrk()` or bootstrap heap cacheability. Do not repeat
+   the rejected direct cacheable-heap tests without a materially different
+   hypothesis.
+3. Diagnose zone allocator page cache hygiene before retrying cacheable
    `vm/zone.c`; direct `MAP_NONE` regressed in
    `artifacts/rpi4b-uart/rpi4b-uart-20260514-093855-netboot-cacheable-zone-backed-pages.log`,
    and invalidate-before-init regressed in
    `artifacts/rpi4b-uart/rpi4b-uart-20260514-094326-netboot-cacheable-zone-inval-before-init.log`.
    Invalidate-plus-flush also failed in
    `artifacts/rpi4b-uart/rpi4b-uart-20260514-095141-netboot-cacheable-zone-inval-flush-free-list.log`.
-3. Remove or gate the temporary cache-bring-up UART/debug probes once the cache
+4. Remove or gate the temporary cache-bring-up UART/debug probes once the cache
    policy is stable enough for the next subsystem step.
 
 ## Current Status: 2026-05-13 (cache enable parked at walker boundary; baseline still boots to psh)

@@ -6,8 +6,8 @@ Real Pi 4 now validates with kernel `SCTLR_EL1.M|C|I` enabled. The current
 stable image reaches all configured userspace spawns and then idles in
 `proc_reap`:
 
-* image SHA256: `b36d2e7fe4d2ec78728c816fd191d2bce0678be2e00adcca621ac71e0461dfec`
-* UART log: `artifacts/rpi4b-uart/rpi4b-uart-20260514-094723-netboot-restored-cacheable-user-data-zone-uncached.log`
+* image SHA256: `fb4493c1e1bed1ed7fd5752d8d5657846f97d1da63eaab5fe0239089c07eabac`
+* UART log: `artifacts/rpi4b-uart/rpi4b-uart-20260514-154015-netboot-tlbi-fix-stable-cache-policy.log`
 * terminal milestone: `main: spawn loop done, entering proc_reap idle`
 
 The active implementation step is now "harden the cacheable-data fix and remove
@@ -21,8 +21,15 @@ Current cache policy:
   freshly allocated destination aliases before first zero/copy reuse.
 * `proc/process.c`: writable ELF `PT_LOAD` mappings and explicit BSS-tail
   mappings are cacheable again.
+* `hal/aarch64/aarch64.h`, `hal/aarch64/pmap.c`: TLBI now follows the
+  architecturally required `tlbi; dsb; isb` shape, and invalid-to-valid L3 PTE
+  creation invalidates the VA after the descriptor is visible.
 * `hal/aarch64/_init.S`: kernel flips `SCTLR_EL1.M|C|I`; early table-walk attrs
   remain non-cacheable and bootstrap pmap/common metadata remains NC.
+* `vm/page.c` / initial heap: dynamic kernel heap and bootstrap heap mappings
+  remain non-cacheable. Cacheable `_page_sbrk()` and cacheable
+  initial+dynamic heap experiments stalled during page scanning and are
+  rejected pending a better hypothesis.
 * `vm/zone.c`: zone backing pages still map `MAP_UNCACHED`. A direct
   cacheable-zone test failed in `_vm_zalloc()` / `_kmalloc_alloc()` with a
   garbage free-list pointer; invalidating the cacheable zone backing range
@@ -36,7 +43,9 @@ Next actions, in order:
 2. Validate on real Pi after each narrowing step. QEMU rpi4b timed out at
    marker `A3` for this image and is not authoritative for the current cache
    boundary.
-3. Design a specific zone allocator page cache-hygiene fix before retrying
+3. Diagnose the page-scan stall from cacheable kernel heap mappings before
+   retrying `_page_sbrk()` or initial heap cacheability.
+4. Design a specific zone allocator page cache-hygiene fix before retrying
    cacheable zone mappings; do not repeat the direct `MAP_NONE` or
    invalidate-before-init / invalidate-plus-flush experiments.
 

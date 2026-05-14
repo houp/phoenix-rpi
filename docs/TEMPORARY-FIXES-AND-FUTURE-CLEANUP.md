@@ -129,6 +129,45 @@ mandatory cleanup. Until then, progress on the boot path takes priority.
     invalidate-plus-flush zone experiments without a materially different cache
     hygiene change.
 
+## TD-19: AArch64 runtime PTE/TLBI hardening
+
+- **Status:** VALIDATED, needs upstream review.
+- **Stage:** 1 (cache enable).
+- **First observed:** 2026-05-14 cache-policy cleanup.
+- **Where:** `sources/phoenix-rtos-kernel/hal/aarch64/aarch64.h`
+  (`hal_tlbInval*()` helpers) and
+  `sources/phoenix-rtos-kernel/hal/aarch64/pmap.c`
+  (`_pmap_writeTtl3()`).
+- **What was done:** TLBI helpers now end with `dsb; isb`, not just `dsb`.
+  Runtime invalid-to-valid L3 PTE creation also invalidates the VA after the
+  descriptor has been written and cleaned to PoC. This does not make the
+  remaining kernel heap or zone mappings cacheable by itself, but it removes a
+  real ordering hole for runtime mapping changes with `SCTLR_EL1.C` enabled.
+- **Why:** The ARMv8 translation-maintenance sequence requires an ISB after
+  TLBI completion before later instruction/data accesses rely on the updated
+  translation regime. Phoenix's previous helper only did `tlbi; dsb`. Also,
+  invalid-to-valid mappings can otherwise reuse a cached invalid translation
+  after the descriptor becomes valid. The change is narrow and passed with the
+  known-good cache policy.
+- **Validation:**
+  - PASS: `artifacts/rpi4b-uart/rpi4b-uart-20260514-154015-netboot-tlbi-fix-stable-cache-policy.log`
+    reaches `main: spawned psh (9)` and
+    `main: spawn loop done, entering proc_reap idle`.
+  - Image SHA256:
+    `fb4493c1e1bed1ed7fd5752d8d5657846f97d1da63eaab5fe0239089c07eabac`.
+- **Negative controls:** This TLBI hardening did **not** make cacheable kernel
+  heap mappings pass. `_page_sbrk()` cacheable-only stalled in page scanning
+  (`artifacts/rpi4b-uart/rpi4b-uart-20260514-152547-netboot-cacheable-page-sbrk-zone-uncached-long.log`).
+  Making both initial and dynamic heap cacheable stalled even earlier
+  (`artifacts/rpi4b-uart/rpi4b-uart-20260514-153129-netboot-cacheable-consistent-kheap-zone-uncached.log`),
+  and remained stalled with TLBI hardening
+  (`artifacts/rpi4b-uart/rpi4b-uart-20260514-153601-netboot-cacheable-kheap-tlbi-fix-zone-uncached.log`).
+- **Resolution requirements:**
+  - Keep this fix unless upstream review finds a more idiomatic place for the
+    ISB / invalid-to-valid VA invalidation.
+  - Do not use this as evidence that zone or kernel-heap cacheability is solved;
+    those remain separate boundaries.
+
 ## TD-01: SMP enable disabled on Cortex-A72
 
 - **Status:** PENDING

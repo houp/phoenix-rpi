@@ -28,6 +28,13 @@ set -o pipefail
 COORD="${PHOENIX_COORD:-/Users/witoldbolt/phoenix-rpi}"
 VM="${PHOENIX_VM:-phoenix-dev}"
 QEMU_VERSION="11.0.0"
+# QEMU's `raspi4b` machine model is hard-capped at 2 GiB ("Invalid RAM
+# size, should be 2 GiB" if any other value is passed). Real Pi 4 has
+# 4 GB so this is a fidelity gap, but it's structural to QEMU — chunk-2
+# of DRAM (the `ddrh` map covering PA 0x40000000..0xfc000000) cannot be
+# exercised under raspi4b. Use the `virt` machine model instead if you
+# need >2 GiB; that loses Pi-specific peripheral fidelity though.
+QEMU_MEM="${PHOENIX_QEMU_MEM:-2G}"
 TIMEOUT=60
 LABEL="bare"
 GDB=0
@@ -38,10 +45,11 @@ while [ $# -gt 0 ]; do
         --timeout)    TIMEOUT="$2"; shift 2 ;;
         --qemu)       QEMU_VERSION="$2"; shift 2 ;;
         --label)      LABEL="$2"; shift 2 ;;
+        --mem)        QEMU_MEM="$2"; shift 2 ;;
         --gdb)        GDB=1; LABEL="gdb"; shift ;;
         --print)      PRINT=1; shift ;;
         -h|--help)
-            sed -n '1,30p' "$0"
+            head -n 30 "$0"
             exit 0
             ;;
         *)
@@ -194,7 +202,7 @@ QEMU_CMD="$VM_QEMU \\
     -M raspi4b \\
     -cpu cortex-a72 \\
     -smp 4 \\
-    -m 2G \\
+    -m $QEMU_MEM \\
     -nographic \\
     -monitor none \\
     -kernel $VM_PLO_ELF \\
@@ -253,7 +261,7 @@ QEMU_CMD="$VM_QEMU \\
     -M raspi4b \\
     -cpu cortex-a72 \\
     -smp 4 \\
-    -m 2G \\
+    -m $QEMU_MEM \\
     -nographic \\
     -monitor none \\
     -kernel $VM_PLO_ELF \\

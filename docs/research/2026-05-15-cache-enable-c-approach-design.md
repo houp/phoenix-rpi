@@ -306,3 +306,89 @@ the sibling SHAs of the passing image.
 * **C-7**: 1-2 hours for full validation + manifest.
 
 Total: ~1.5 days physical work, spread across multiple netboot cycles.
+
+## 2026-05-15 evening — C-3 attempt outcomes (FAILED)
+
+All C-3 single-MSR M|C variants tested on real Pi 4 hardware fail at the
+first post-MMU low-VA PL011 access. Bisect-style log table:
+
+| Test | TCR walks | dc op | _hal_init probes | Result |
+|------|-----------|-------|------------------|--------|
+| c3a (M\|C\|I) | cache | cisw | yes | EX=4 infinite loop (handler self-faults at slot 4) |
+| c3b (M\|C, cache) | cache | cisw | yes | L1 translation fault FAR=0xfe201018 ELR=line 635 (X4) |
+| c3c-c3e (M\|C, NC) | NC+NS | cisw | yes | No fault. Hangs at `_init.S:1363` (probe store) |
+| c3f (M\|C, NC, no probes) | NC+NS | cisw | no | No fault. Hangs at `b _hal_init_c` |
+| c3g (M\|C, NC, dc isw) | NC+NS | isw | no | Same as c3f — no improvement |
+| c3h (M\|C, cache, dc isw) | cache | isw | no | Same as c3b — fault at X4 |
+
+### Key findings
+
+* **Cacheable walks always fault** at `FAR=0xfe201018` ELR=`_init.S:635`
+  (first `ldr w4, [x3]` from PL011 FR through TTBR0 low-PA identity).
+  ESR=`0x96000005` = level-1 translation fault.
+  The walker reads `SCRATCH_TT[3]` (1 GiB block for PA [3 GiB, 4 GiB))
+  and finds it invalid, even though the block descriptor (0x600000c0000709,
+  decoded: AttrIdx=2 Device-nGnRE / AP=00 EL1-RW / SH=11 IS / AF=1 / PXN+UXN /
+  PA[47:30]=3) was stored pre-MMU and `_inval_dcache_range` covers all
+  PT pages (KERNEL_TTL2..STACK, includes SCRATCH_TT).
+
+* **`dc cisw` vs `dc isw` makes no difference for these tests.** Both
+  produce identical fault location with cacheable walks, identical hang
+  with NC walks. The Linux-style `dc isw` (discard, do not clean) is
+  still the correct primitive at cold-start, but it is not what was
+  blocking M|C on Pi 4.
+
+* **NC walks avoids the SCRATCH_TT[3] fault** but exposes a second
+  hang at the first stack write in `_hal_init_c` prologue
+  (`stp x30, x19, [sp, #-32]!`). The disassembly path is: asm "I" marker
+  prints, `b _hal_init_c` executes, `stp` to NC-mapped stack page
+  (TD-04 sibling override) hangs silently. No fault, no progress.
+
+* **Multiple cacheable TTBR1 loads succeed before the fault.** The asm
+  stub at `_init.S:1349-` reads PL011 literals from the literal pool
+  (cacheable WB), prints `h`, `R`, `I` markers, and only fails on the
+  TTBR0 low-PA path. So PT setup for TTBR1 (KERNEL_TTL3) is fine; the
+  failure is specific to SCRATCH_TT / TTBR0.
+
+### Root cause hypothesis (unverified)
+
+A Cortex-A72 / BCM2711-specific walker-cache interaction with the TTBR0
+identity mapping. Possibilities to investigate next time:
+
+1. **Walker speculative prefetch** between `_inval_dcache_range` and
+   `msr sctlr_el1` that re-pulls a stale 0 line for SCRATCH_TT[3].
+   The pre-flip canonical fence (`ic ialluis; dsb ish; tlbi vmalle1is;
+   dsb ish; isb`) should prevent this, but A72 may have implementation
+   detail not covered.
+2. **Cortex-A72 errata** beyond 859971/1319367 (the two we apply).
+   Full SDEN list has more entries (832075, 853709, 852421, etc.).
+3. **L2 cache aliasing** with the BCM2711-specific unified-L2 quirks
+   already documented for plo (TD-plo-icache, TD-plo-dcache).
+4. **TTBR0 vs TTBR1 walker cache asymmetry** — TTBR1 PT setup works
+   fine (kernel code executes), only TTBR0 SCRATCH_TT walks fail.
+
+### Independent improvements kept
+
+* `hal_cpuInvalDataCacheAll`: `dc cisw` → `dc isw` (correct Linux
+  pattern; the previous form would write stale firmware-era dirty
+  cache lines back to DDR over plo's just-loaded kernel image).
+* `_hal_init` asm stub: TD-04-hack-2 probe stores removed. The probes
+  were ad-hoc diagnostics that became a hang point under M|C with NC
+  walks. Simplified to the canonical shape (msr spsel, set sp, branch).
+* TCR remains Linux-standard (Inner+Outer WB cacheable, Inner-Shareable)
+  even at M-only — no functional difference with caches off, but ready
+  for future M|C attempts.
+
+### Status
+
+Cache enable parked. Kernel runs M-only as before, slow but correct.
+Re-engaging cache enable requires either:
+  - JTAG / SWD debugger on real Pi 4 to single-step through the MMU
+    enable + first walker access (visible in MMU state)
+  - Hardware gdbstub similar to U-boot debug for state introspection
+  - Cross-reference Linux's arm64 boot trace for the BCM2711 variant
+    to find what additional cache-maintenance Linux performs that
+    Phoenix doesn't.
+
+Next focus: features that don't depend on caches — full 4 GiB RAM
+unlock, SMP secondary cores, USB+keyboard via PCIe, HDMI text mode.

@@ -228,6 +228,53 @@ capProbe retry loop checks before attempting MMIO reads. This
 turns the timing problem from a probabilistic race into a
 positive handshake.
 
+### 2026-05-17 00:30 — warm-up loop + 8 s startup delay didn't fix it
+
+Two further interventions tested + committed as
+phoenix-rtos-devices `7bbde86`:
+
+1. pcie warm-up loop: 30 × 100 ms VL805 register reads just
+   before `pcie: exit main`, intended to overlap pcie's read
+   pattern with xhci's first capProbe attempt.
+
+2. xhci `sleep(8)` at start of xhci_init() before any mmap.
+
+Real-Pi result: xhci STILL stuck at `capProbe iter ENODEV
+attempt=0`, regardless of pcie's warm-up reads or the 8-second
+startup delay. Same boundary, no movement.
+
+**Refined hypothesis**: the BCM2711 PCIe bridge keeps per-translation
+state when the kernel sets up a `MAP_DEVICE | MAP_PHYSMEM` mapping
+for an outbound-window PA. When xhci creates its own mmap and the
+first read hits the bridge BEFORE VL805 has serviced a transaction
+through THAT specific translation, the bridge locks that translation
+into a `0xdead`-returning state for all subsequent reads. pcie's
+mmap is a different translation entry — its warming doesn't carry
+over to xhci's later mmap.
+
+**Working theories for the robust fix**:
+
+* Have pcie do the initial xhci capability validation through
+  its own mmap, then publish a sentinel that xhci waits on.
+  When xhci then mmaps, the bridge is already in a known-good
+  state for that PA range (some hardware bridges share state
+  across translations).
+
+* Refactor pcie + usb into ONE process that does both PCIe scan
+  and xhci init. Same address space, same mmap, no cross-process
+  race on the bridge translation.
+
+* Find a BCM2711 PCIe bridge config bit that controls the
+  "first read locks to 0xdead" behavior. May exist in the
+  `PCIE_BCM2711_*` register space; needs datasheet review.
+
+Latest image SHA256 (with warm-up + 8 s delay, still stuck):
+`1540ff253375f10b14172d5f15d3887eba54df3f48cb1d7dc0c7f425a6c4e276`.
+
+UART evidence:
+* `artifacts/rpi4b-uart/rpi4b-uart-20260516-223506-netboot-xhci-8s-startup-delay.log`
+* `artifacts/rpi4b-uart/rpi4b-uart-20260516-222020-netboot-xhci-pcie-warmup-loop.log`
+
 Image SHA256 with all xhci/pcie diagnostics:
 `c1bf0dd4e6ec908eb3f01576b726b03749f9afc7423998acce2e662945fe6650`
 

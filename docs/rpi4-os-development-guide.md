@@ -418,6 +418,79 @@ board (imx6ull, imxrt106x/117x, ia32).
 
 Commits: `phoenix-rtos-devices b5cc6b0`, `phoenix-rtos-project fb771c4`.
 
+## How console output reaches UART vs HDMI
+
+(Important correction from real-Pi observation 2026-05-17.)
+
+There are **two paths** from a writer to the PL011 UART, and only
+ONE of them mirrors to the HDMI framebuffer. This is why a typical
+boot UART log has hundreds of lines but the HDMI screen shows only
+3 lines (Phoenix-RTOS HDMI console banner, `fbcon: ok`, psh prompt
+when boot eventually reaches it).
+
+### Path A — kernel direct (NOT mirrored to fbcon)
+
+- Kernel `hal_consolePrint(attr, str)` at
+  `hal/aarch64/generic/console.c`.
+- Implementation: `_hal_consoleEarlyPutch` busy-waits on UART FR.TXFF,
+  then writes to PL011 DR at the TTBR1-mapped device address
+  `0xffffffffffe00000`. Synchronous, byte-by-byte.
+- Used by: every `lib_printf`/`debug()` call in the kernel (kernel
+  banner, vm: init, threads: ..., page allocator stats, `pmap:`
+  diagnostic added 2026-05-17, etc.).
+- Used by userspace `debug(s)` (libphoenix → SYS_debug syscall →
+  `syscalls_debug` → `hal_consolePrint`).
+- The kernel direct path does NOT go through pl011-tty, so it does
+  NOT get mirrored to HDMI fbcon.
+
+### Path B — userspace pl011-tty libtty (mirrored to fbcon)
+
+- userspace processes call `printf`/`write(stdout, ...)`; stdout
+  resolves to `/dev/tty0` (the pl011-tty device).
+- Write becomes `msgSend` to pl011-tty's port; pl011-tty's
+  `poolthr` handles `mtWrite` by calling `libtty_write` which
+  buffers bytes into the libtty TX queue.
+- `pl011_thr` drains the libtty TX queue: for each byte it writes
+  to PL011 DR AND calls `pl011_fbcon_write` to mirror to the
+  framebuffer (per-pixel drawChar).
+- pl011-tty's own `pl011_writeRaw` also mirrors to fbcon if fbaddr
+  is set; this is what produces the `fbcon: ok` line on HDMI.
+- The `Phoenix-RTOS HDMI console` line on HDMI comes from
+  `pl011_fbcon_init` calling `pl011_fbcon_write` directly (no UART
+  side).
+
+### Consequence for boot trace
+
+| Source | Path | Visible on UART | Visible on HDMI |
+|---|---|---|---|
+| kernel `lib_printf` / `debug()` | A | yes | NO |
+| kernel `hal_consolePrint` | A | yes | NO |
+| plo console output | A (raw MMIO) | yes | NO |
+| pl011-tty `pl011_writeRaw` (during init) | A | yes | NO (fbaddr not set yet) |
+| pl011-tty `pl011_writeRaw` (after fbcon_init) | A+B | yes | YES |
+| pl011-tty `pl011_fbcon_write` (direct) | fb only | NO | YES |
+| userspace `debug()` | A | yes | NO |
+| userspace `printf` (stdout=/dev/tty0) | B | yes | YES |
+
+So fbcon mirror cost on the path B is NOT the dominant boot-speed
+cost because most boot output is on path A which bypasses fbcon.
+The actual boot-speed cost on path A is the synchronous busy-wait
+in `_hal_consoleEarlyPutch` — each byte stalls the calling thread
+for one UART character time (≈87 µs at 115200 baud) plus the FIFO
+fill/drain pacing.
+
+### Implication
+
+To speed up boot:
+1. Reduce the number of kernel debug strings (each one is a full
+   wire-time stall on the calling thread).
+2. Buffer kernel output so the wire-time stall happens once per
+   chunk, not once per byte.
+3. Consider switching the kernel console to interrupt-driven TX
+   so the calling thread can yield while UART drains.
+4. Get SMP (TD-01b) so multiple cores share the burden of the
+   busy-wait.
+
 ## Open issues snapshot
 
 See `TEMPORARY-FIXES-AND-FUTURE-CLEANUP.md` for the full list. Short

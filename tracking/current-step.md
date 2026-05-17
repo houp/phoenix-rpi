@@ -1,5 +1,61 @@
 # Current Implementation Step
 
+## Today's headline progress (2026-05-17 second half)
+
+- **Goal 3 (full 4 GB RAM) infrastructure unblocked** by plo
+  `84ffbea` "read firmware DTB pointer from armstub PA 0xf8 as
+  fallback". The Pi 4 firmware correctly patches the armstub's
+  `dtb_ptr32` field but `x0` propagation to plo loses the value.
+  plo now reads the patched pointer directly. Kernel UART log
+  confirms `hal: using firmware dtb` (was `using syspage dtb`).
+  Firmware DTB size 57,802 B vs static 56,373 B — the extra bytes
+  are the `memory@40000000` high-bank node + other runtime
+  patches. `dtb_parseMemory` already iterates all `/memory@*`
+  siblings (audited), so the kernel page allocator now has access
+  to both banks.
+
+  Followup: confirm via a UART-visible kernel stat that the total
+  page-allocator size is ~3956 MB (978 MB low + 3008 MB high).
+
+- **TD-04-hack-2 and TD-04-hack-3 cleaned up** (kernel `6c65616f`).
+  17 marker stores in `_hal_init_c` removed; real `dtb->end` read
+  restored (was faked as `dtbStart + 0x10000` as a 64 KiB cap due
+  to a cache-off-era heisenbug that doesn't reproduce post-armstub-
+  fix). Boot still reaches `psh: tty open` cleanly.
+
+- **Cosmetic restorations** (`phoenix-rtos-devices 18eef25` and
+  `plo 6572479`): plo's 3-square progress panel rendering and
+  pl011-tty's full-framebuffer clear at init + real `\x1b[0J/2J/K`
+  clears in the fbcon dispatcher. Removes the firmware brown
+  splash background and gives clean prompt redraws on HDMI.
+
+- **Comprehensive RPi 4 OS development guide written**
+  (`docs/rpi4-os-development-guide.md`, worktree `6a7494b`) with
+  boot pipeline, BCM2711 quirks, the full `PC=0x400498` root-cause
+  story, USB merge details, tooling notes, and "Pointers for
+  future agents" — durable reference for future work on this port.
+
+- **TEMPORARY-FIXES-AND-FUTURE-CLEANUP.md re-audited** (same
+  commit). TD-02, TD-04, TD-07, TD-11 reclassified as
+  RESOLVED/STALE; TD-10, TD-11, TD-12 added as new entries.
+
+## What is still open
+
+- **TD-12 (boot speed):** even with caches operational, psh prompt
+  takes >>3 minutes wall clock on real hardware. Strongest
+  hypothesis: single-core (TD-01b) serialization + libtty
+  cross-process queue + per-byte fbcon mirror cost.
+- **TD-10 (USB xhci stall):** xhci HC init silent stall after
+  `bcm2711_pcie_initVL805` BAR readback; downstream from there is
+  invisible (libtty back-pressure suspected, or pcie_scanBus on
+  empty slots).
+- **x0 propagation root cause:** firmware DTB pointer is correctly
+  in armstub field at PA 0xf8 but `x0` arrives at plo as 0. The
+  fallback we just landed makes this non-blocking, but the
+  underlying armstub→reloc-stub→plo chain has a bug worth fixing.
+- **TD-01b (multi-core kernel SMP):** would likely close the slow
+  boot issue.
+
 ## BREAKTHROUGH 2026-05-17: Pi 4 boots through to psh shell
 
 **Status**: ✅ FIRST FULL BOOT achieved on real Pi 4 hardware. The

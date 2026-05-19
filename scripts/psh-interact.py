@@ -32,7 +32,11 @@ import serial
 DEFAULT_BAUD = 115200  # matches test-cycle-netboot.sh firmware profile;
 # plo + kernel speak this rate end-to-end despite the firmware
 # briefly reprogramming PL011 to 103448 during its own boot.
-PSH_PROMPT_MARKER = b"psh: readcmd"
+# Match the visible psh prompt. The earlier "psh: readcmd" debug marker
+# was a Pi 4 bring-up addition stripped during the TD-12 boot-speed
+# cleanup (2026-05-18); waiting for the prompt itself avoids depending
+# on diagnostic prints that should not exist in production.
+PSH_PROMPT_MARKER = b"(psh)%"
 DEFAULT_COMMANDS = ["help", "ps", "df", "meminfo"]
 
 

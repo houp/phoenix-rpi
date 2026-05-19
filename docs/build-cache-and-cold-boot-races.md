@@ -38,61 +38,53 @@ the kernel or pl011-tty link against, or any time the boot hits a hang you
 `--scope full-clean` rebuild. Don't burn an hour on Heisenbug analysis
 that's actually `make` caching.
 
-## Lesson 2: the cold-boot race between dummyfs/devfs registration and pl011-tty's first `lookup("devfs")` is intermittent
+## Lesson 2: the cold-boot 21.6 s "race" was actually a real bug — the devfs fast-path predicate was a no-op
 
-Even on a known-good image, the boot occasionally hangs at the same
-`td14: send devfs port=1 total=2.16e7 us state=2 oerr=-2` trace —
-about 21.6 s of wall time for one `lookup("devfs")` IPC round-trip, where
-the response eventually comes back ENOENT (the name wasn't registered yet
-by the time the lookup got serviced) and the caller burns its retry
-budget.
+**Update 2026-05-19, evening: ROOT-CAUSED and fixed in kernel commit
+`c8a81d5e` "rpi4b/kernel/proc/name: restore devfs fast-path predicate
+broken by Pass 4 cleanup".**
 
-What's happening:
+The intermittent `td14: send devfs port=1 total=2.16e7 us state=2 oerr=-2`
+trace had two contributing factors:
 
-- `main_initthr` spawns the syspage programs sequentially but does **not**
-  wait for each to advertise readiness before spawning the next. So
-  `dummyfs-root`, `dummyfs -N devfs -D` (the devfs server), `pl011-tty`,
-  `usb`, and `psh` all start within a few timer ticks of each other.
-- `pl011-tty`'s `pl011_createTty0` calls `lookup("devfs")` in a 30-retry
-  loop with 100 ms sleeps, so it has a 3 s budget to wait for the devfs
-  server to register its name. Most boots, devfs is ready well inside
-  that budget.
-- A small fraction of boots — somewhere around 20-30 % in this session —
-  hit a kernel-side stall where the IPC `proc_send` waits 21.6 s before
-  the response comes back. The trace records that the response was
-  ENOENT and `state == msg_responded`, so the message did reach the
-  server eventually and the server did respond. But it took 21.6 s.
+1. The Pass 4 debug-noise strip (commit `334638ee`) accidentally made
+   `name_traceDevfsLookup()` in `kernel/proc/name.c` always return 0.
+   That function's name was misleading — it served *two* roles:
+   (a) gating a small set of `hal_consolePrint` traces (the cosmetic
+       use the cleanup correctly targeted), and
+   (b) gating the **fast path** in `proc_portLookup` that short-
+       circuits any `lookup("devfs")` directly to the cached
+       `devfs_oid` once devfs has registered, skipping both the dcache
+       walk and the `proc_send` round-trip to the root server.
+   Making (a) a no-op silently killed (b), so every `lookup("devfs")`
+   on cold boot fell through to the slow path: dcache miss → mtLookup
+   to dummyfs-root → ENOENT (because dummyfs-root doesn't own /devfs
+   as a regular directory entry; devfs is only reachable via the
+   kernel name namespace).
 
-The 21.6 s magic number is suspicious (it's exactly half the documented
-upper bound of 43 s for `proc_send` round-trip times on this hardware in
-TD-14 telemetry) but I haven't tracked down the underlying mechanism.
-Theories:
+2. With (b) disabled, every cold-boot lookup of "devfs" raced against
+   `dummyfs/devfs`'s own `portRegister`. Depending on scheduling order,
+   the IPC roundtrip either returned in 8-11 ms (happy case) or sat
+   on the dummyfs-root msg queue for 21.6 s before returning ENOENT
+   (the unhappy case — likely a wakeup deadline that doesn't fire
+   until a long-running operation in dummyfs-root completes).
 
-- Single-CPU scheduler starvation: pl011-tty's threads (poolthr, pl011_thr,
-  pumpthr, main) collectively run at priority 4. If `pl011_thr` is busy in
-  the TX/RX loop, the devfs server thread (also priority 4) doesn't run.
-  But it should round-robin under the 1 ms tick. So this would only
-  account for ms-scale delays, not 21 s.
-- Kernel spinlock contention around the port queue when many lookups
-  arrive concurrently. The TD-14 telemetry suggests this is happening
-  somewhere, but I haven't isolated it.
-- Wakeup-timer programming on aarch64 generic timer wraps or is
-  misprogrammed on a particular code path. The `_threads_programWakeup`
-  in `kernel/proc/threads.c` clamps wakeups to `SYSTICK_INTERVAL` (1 ms)
-  but the actual wakeup might be much longer on a cold core that's just
-  joined the coherency domain.
+After commit `c8a81d5e` restored the predicate to its original form
+(`return name_traceIs(name, "devfs")`), the test-cycle log shows
+exactly ONE `td14: send` trace per cold boot — the unavoidable first
+lookup that fires before devfs has finished registering — followed by
+silent fast-path hits for every subsequent lookup, and a clean
+`fbcon: ok` shortly after. The cosmetic trace-print no-ops in
+`name_traceRegister` / `name_traceDevfs` are kept (those were the
+genuinely-debug-only RPi4-bringup additions).
 
-When the user is interactively driving the Pi over CoolTerm with serial,
-the race almost always resolves favourably and the prompt arrives within
-a couple of seconds of `fbcon: ok`. When running blind in an automated
-test cycle (which races dnsmasq + DHCP + TFTP + boot all back-to-back),
-the race fails ~1 in 3-5 attempts.
-
-**Operational rule:** until TD-14 is rooted out, treat
-`test-cycle-netboot.sh` results as advisory — if the run looks bad, retry
-before chasing a code-level theory. For real "does the build work?"
-verification, drive the Pi interactively from CoolTerm (or `picocom`
-directly) and prompt yourself.
+**Operational rule** (still useful as a general guideline even though the
+specific symptom is now fixed): when adding cleanup passes to the
+kernel's `proc/name.c`, watch out for helper functions whose names imply
+"trace only" but whose *predicate* role is load-bearing. Read every call
+site before turning a function into a no-op. The same caution applies
+anywhere else in the codebase where a single function's name suggests
+"diagnostic" but its return value is used in a control-flow branch.
 
 ## Lesson 3: removing the upstream `psh sleep(1)` is a load-bearing change on Pi 4
 

@@ -73,22 +73,49 @@ apply_profile() {
 
 list_candidates() {
 	local dev base seen=""
+	local host_os
+	host_os="$(uname -s)"
 
-	for dev in /dev/cu.*; do
-		[ -e "$dev" ] || continue
-		base="$(basename "$dev")"
-		case "$base" in
-			*usb*|*USB*|*serial*|*Serial*|*SLAB*|*wch*|*UART*|*uart*|*modem*|*FT*)
+	# macOS: /dev/cu.* with USB-ish names
+	# Linux: /dev/ttyUSB* (FTDI, CH340, CP210x) and /dev/ttyACM* (CDC-ACM)
+	if [ "$host_os" = "Darwin" ]; then
+		for dev in /dev/cu.*; do
+			[ -e "$dev" ] || continue
+			base="$(basename "$dev")"
+			case "$base" in
+				*usb*|*USB*|*serial*|*Serial*|*SLAB*|*wch*|*UART*|*uart*|*modem*|*FT*)
+					case " $seen " in
+						*" $dev "*) ;;
+						*)
+							printf '%s\n' "$dev"
+							seen="$seen $dev"
+							;;
+					esac
+					;;
+			esac
+		done
+	else
+		# Linux. Prefer the persistent /dev/serial/by-id/ symlinks when
+		# they exist (survive replug); fall back to /dev/ttyUSB*/ttyACM*.
+		if [ -d /dev/serial/by-id ]; then
+			for dev in /dev/serial/by-id/*; do
+				[ -e "$dev" ] || continue
+				# resolve to the real /dev/ttyUSBN path
+				real="$(readlink -f "$dev")"
 				case " $seen " in
-					*" $dev "*) ;;
-					*)
-						printf '%s\n' "$dev"
-						seen="$seen $dev"
-						;;
+					*" $real "*) ;;
+					*) printf '%s\n' "$real"; seen="$seen $real" ;;
 				esac
-				;;
-		esac
-	done
+			done
+		fi
+		for dev in /dev/ttyUSB* /dev/ttyACM*; do
+			[ -e "$dev" ] || continue
+			case " $seen " in
+				*" $dev "*) ;;
+				*) printf '%s\n' "$dev"; seen="$seen $dev" ;;
+			esac
+		done
+	fi
 }
 
 autodetect_device() {
@@ -111,7 +138,11 @@ EOF
 	if [ "$count" -gt 1 ]; then
 		printf 'multiple candidate USB serial devices found\n' >&2
 		list_candidates >&2
-		printf 'hint: rerun with --device /dev/cu....\n' >&2
+		if [ "$(uname -s)" = "Darwin" ]; then
+			printf 'hint: rerun with --device /dev/cu....\n' >&2
+		else
+			printf 'hint: rerun with --device /dev/ttyUSB0 (or /dev/serial/by-id/...)\n' >&2
+		fi
 		exit 1
 	fi
 }

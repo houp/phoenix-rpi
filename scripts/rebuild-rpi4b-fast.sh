@@ -48,9 +48,22 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
 sources_dir="${repo_root}/sources"
 
+host_os="$(uname -s)"
+
+# Host-OS-specific defaults. On macOS we shell into the phoenix-dev
+# Lima VM (which has the toolchain pre-installed under
+# /home/witoldbolt.guest/phoenix-toolchains/). On Linux we run the
+# build directly on the host, expecting the toolchain to be on PATH
+# (typically $HOME/phoenix-rpi/.toolchain/aarch64-phoenix/bin/ if
+# built via phoenix-rtos-build/toolchain/build-toolchain.sh).
 vm="${PHOENIX_VM:-phoenix-dev}"
-buildroot="${RPI4B_BUILDROOT:-/home/witoldbolt.guest/phoenix-buildroots/phoenix-rtos-project-copy}"
-toolchain_path="${PHOENIX_AARCH64_TOOLCHAIN:-/home/witoldbolt.guest/phoenix-toolchains/aarch64-phoenix/bin}"
+if [ "$host_os" = "Darwin" ]; then
+	buildroot="${RPI4B_BUILDROOT:-/home/witoldbolt.guest/phoenix-buildroots/phoenix-rtos-project-copy}"
+	toolchain_path="${PHOENIX_AARCH64_TOOLCHAIN:-/home/witoldbolt.guest/phoenix-toolchains/aarch64-phoenix/bin}"
+else
+	buildroot="${RPI4B_BUILDROOT:-${repo_root}/.buildroot}"
+	toolchain_path="${PHOENIX_AARCH64_TOOLCHAIN:-${repo_root}/.toolchain/aarch64-phoenix/bin}"
+fi
 dtb_path="${RPI4B_DTB_PATH:-/tmp/rpi4b-dtb/bcm2711-rpi-4-b.dtb}"
 target="${RPI4B_TARGET:-aarch64a72-generic-rpi4b}"
 scope="auto"
@@ -195,30 +208,53 @@ case "${scope}" in
 		;;
 esac
 
-printf 'VM: %s\n' "${vm}"
+if [ "$host_os" = "Darwin" ]; then
+	printf 'Host:     macOS (using Lima VM %s)\n' "${vm}"
+else
+	printf 'Host:     Linux (direct, no VM)\n'
+fi
+printf 'Toolchain: %s\n' "${toolchain_path}"
 printf 'Buildroot: %s\n' "${buildroot}"
-printf 'Target: %s\n' "${target}"
-printf 'Scope: %s\n' "${scope}"
+printf 'Target:    %s\n' "${target}"
+printf 'Scope:     %s\n' "${scope}"
 printf 'Build args: %s\n' "${build_args[*]}"
-printf 'Reason: %s\n' "${scope_reason}"
+printf 'Reason:    %s\n' "${scope_reason}"
 
-if ! limactl shell -y "${vm}" -- /bin/bash -lc "[ -f '${dtb_path}' ]"; then
+# Helper to run a build-shell command on the right host. On macOS this
+# is `limactl shell -y phoenix-dev -- bash -lc <cmd>`. On Linux we run
+# it directly with `bash -lc`.
+run_build_shell() {
+	local cmd="$1"
+	if [ "$host_os" = "Darwin" ]; then
+		limactl shell -y "${vm}" -- /bin/bash -lc "${cmd}"
+	else
+		/bin/bash -lc "${cmd}"
+	fi
+}
+
+if ! run_build_shell "[ -f '${dtb_path}' ]"; then
 	printf 'info: missing Pi 4 DTB at %s; preparing it now\n' "${dtb_path}" >&2
 	"${repo_root}/scripts/prepare-rpi4b-dtb.sh"
 fi
 
 if [ "${do_prepare}" -eq 1 ]; then
-	limactl shell -y "${vm}" -- /bin/bash -lc \
-		"cd '${repo_root}' && ./scripts/prepare-buildroot.sh --copy-components '${buildroot}'"
+	run_build_shell "cd '${repo_root}' && ./scripts/prepare-buildroot.sh --copy-components '${buildroot}'"
 fi
 
 build_args_str="${build_args[*]}"
-limactl shell -y "${vm}" -- /bin/bash -lc \
+run_build_shell \
 	"set -euo pipefail; export PATH='${toolchain_path}':\$PATH; cd '${buildroot}'; env RPI4B_DTB_PATH='${dtb_path}' TARGET='${target}' ./phoenix-rtos-build/build.sh ${build_args_str}"
 
 if [ "${do_qemu_sanity}" -eq 1 ]; then
-	limactl shell -y "${vm}" -- /bin/bash -lc \
-		"set -euo pipefail; cd '${buildroot}'; log=/tmp/pi4-direct-fast-helper.log; timeout 25s /home/witoldbolt.guest/tools/qemu-10.2.2/bin/qemu-system-aarch64 -M raspi4b -cpu cortex-a72 -smp 4 -m 2G -nographic -monitor none -kernel _boot/${target}/plo.elf -device loader,file=_boot/${target}/rpi4b/loader.disk,addr=0x08000000,force-raw=on >\"\$log\" 2>&1 || true; grep -En 'call: exec go!|go: enter|hal: jump exit el1|A3|KLM|Exception #37' \"\$log\" || true"
+	# QEMU path differs between hosts. On Darwin we use the in-VM
+	# QEMU 10.2; on Linux we use /opt/qemu-11 (Ubuntu host install).
+	if [ "$host_os" = "Darwin" ]; then
+		qemu_bin="/home/witoldbolt.guest/tools/qemu-10.2.2/bin/qemu-system-aarch64"
+	else
+		qemu_bin="${QEMU_AARCH64_BIN:-/opt/qemu-11/bin/qemu-system-aarch64}"
+	fi
+	run_build_shell \
+		"set -euo pipefail; cd '${buildroot}'; log=/tmp/pi4-direct-fast-helper.log; timeout 25s '${qemu_bin}' -M raspi4b -cpu cortex-a72 -smp 4 -m 2G -nographic -monitor none -kernel _boot/${target}/plo.elf -device loader,file=_boot/${target}/rpi4b/loader.disk,addr=0x08000000,force-raw=on >\"\$log\" 2>&1 || true; grep -En 'call: exec go!|go: enter|hal: jump exit el1|A3|KLM|Exception #37' \"\$log\" || true"
 fi
 
 if [ "${do_build_artifacts}" -eq 0 ]; then

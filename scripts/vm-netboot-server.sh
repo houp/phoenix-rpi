@@ -25,6 +25,11 @@ dhcp_hi="${RPI4B_NETBOOT_DHCP_HI:-10.42.0.20}"
 buildroot="${PHOENIX_BUILDROOT:-/home/witoldbolt.guest/phoenix-buildroots/phoenix-rtos-project-copy}"
 tftp_root="${RPI4B_NETBOOT_TFTPROOT:-$buildroot/_boot/aarch64a72-generic-rpi4b/rpi4b-bootfs}"
 state_dir="${RPI4B_NETBOOT_STATE_DIR:-/Users/witoldbolt/phoenix-rpi/artifacts/netboot}"
+# User dnsmasq drops to after binding privileged ports. The state dir
+# is owned by this user, so this is the only user that can write the
+# log/lease files. Override via $RPI4B_NETBOOT_DNSMASQ_USER if needed.
+dnsmasq_user="${RPI4B_NETBOOT_DNSMASQ_USER:-$(id -un)}"
+dnsmasq_group="${RPI4B_NETBOOT_DNSMASQ_GROUP:-$(id -gn)}"
 
 conf_path="$state_dir/dnsmasq.conf"
 pid_path="$state_dir/dnsmasq.pid"
@@ -91,11 +96,13 @@ log-facility=$log_path
 pid-file=$pid_path
 dhcp-leasefile=$lease_path
 
-# Drop to the human user after binding privileged ports. virtiofs in
-# vz only lets that one UID write to the host-mounted state dir; "nobody"
-# (the default) and even root fail with EPERM.
-user=witoldbolt
-group=witoldbolt
+# Drop to the human user after binding privileged ports. On the macOS+
+# Lima setup, virtiofs in vz only lets that one UID write to the
+# host-mounted state dir; "nobody" (the default) and even root fail
+# with EPERM. On the Linux-host setup, the state dir is owned by the
+# invoking user — same outcome.
+user=$dnsmasq_user
+group=$dnsmasq_group
 EOF
 }
 

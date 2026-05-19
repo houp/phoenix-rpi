@@ -187,13 +187,19 @@ stage_pi_firmware() {
 ##############################################################################
 
 setup_python_venv() {
-	if [ -d "$VENV_DIR" ]; then
-		log "Python venv already at $VENV_DIR"
+	if [ -d "$VENV_DIR" ] && "$VENV_DIR/bin/python" -c 'import serial' 2>/dev/null; then
+		log "Python venv already at $VENV_DIR (pyserial present)"
 		return 0
 	fi
 	log "Creating Python venv at $VENV_DIR with pyserial"
-	uv venv "$VENV_DIR"
-	"$VENV_DIR/bin/python" -m pip install --no-input pyserial
+	export PATH="$HOME/.local/bin:$PATH"
+	if ! command -v uv >/dev/null 2>&1; then
+		warn "uv not on PATH yet — re-source ~/.local/bin/env or restart shell"
+		return 1
+	fi
+	uv venv "$VENV_DIR" >/dev/null
+	# uv venvs don't ship with pip; use `uv pip install` instead.
+	uv pip install --python "$VENV_DIR/bin/python" pyserial
 }
 
 ##############################################################################

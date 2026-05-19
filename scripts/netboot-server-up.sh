@@ -23,6 +23,16 @@ set -euo pipefail
 repo="${PHOENIX_RPI_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 host_os="$(uname -s)"
 
+# Honour project-local environment overrides (e.g. RPI4B_NETBOOT_IFACE
+# pointing at the actual USB-Ethernet device name). .env.local is
+# gitignored.
+if [ -f "$repo/.env.local" ]; then
+	set -a
+	# shellcheck disable=SC1091
+	. "$repo/.env.local"
+	set +a
+fi
+
 case "$host_os" in
 	Darwin)
 		# macOS path: shell into the Lima VM

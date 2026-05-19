@@ -10,6 +10,13 @@ set -euo pipefail
 repo="${PHOENIX_RPI_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 host_os="$(uname -s)"
 
+if [ -f "$repo/.env.local" ]; then
+	set -a
+	# shellcheck disable=SC1091
+	. "$repo/.env.local"
+	set +a
+fi
+
 case "$host_os" in
 	Darwin)
 		vm="${PHOENIX_VM:-phoenix-dev}"

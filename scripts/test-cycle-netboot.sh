@@ -20,6 +20,14 @@
 set -euo pipefail
 
 repo="${PHOENIX_RPI_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+
+if [ -f "$repo/.env.local" ]; then
+	set -a
+	# shellcheck disable=SC1091
+	. "$repo/.env.local"
+	set +a
+fi
+
 capture_secs="${RPI4B_NETBOOT_CAPTURE_SECS:-90}"
 label=""
 power_settle_secs="${RPI4B_POWER_SETTLE_SECS:-3}"

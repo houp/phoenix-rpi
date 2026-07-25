@@ -427,15 +427,33 @@ Re-analysed with the right tools:
 - The worst-scoring cross-boot frames were **early demo frames with NO per-frame lightmap uploads**
   (`lm=00000000` at F0000–F0050) → warmup, not lighting. Plus one boot rendered **black/truncated**
   (10 frames) and poisoned the F0040 score. early-high/late-low score pattern = warmup signature.
-- **Within-run test (the decisive one):** capture *every* frame + whole-frame mean-luma across the
-  active-dynamic-light window (F180–235) on a single boot. Result on 2 independent boots: luma moves
-  in **smooth multi-frame ramps** (dynamic-light flash-and-fade: F185≈27→decay, F215≈44 explosion→
-  9-frame decay). Largest single-frame zigzag reversal = **3.31** (a real flicker would be ~15–30).
-  Both boots near-identical → the dynamic-light events are deterministic cross-boot at these frames too.
-- Conclusion: **GLQuake with `r_dynamic 1` renders correctly**; there is no within-run flicker. The
+- **Within-run screen mean-luma:** capture *every* frame + whole-frame mean-luma across the
+  active-dynamic-light window (F180–235). On 2 boots luma moves in **smooth multi-frame ramps**
+  (dynamic-light flash-and-fade: F185≈27→decay, F215≈44 explosion→9-frame decay). Largest single-frame
+  zigzag reversal = **3.31** (a real global flicker would be ~15–30). Rules out a *global* brightness
+  flicker, but whole-frame mean is blind to a *localized* one.
+- **Consecutive-frame per-pixel diff:** dominated by camera motion (fixed-timestep = 20 fps sim →
+  large inter-frame change everywhere), so it cannot cleanly isolate a localized flicker (a 628px
+  "transient" at F216 was ambiguous — motion or flicker).
+- **K-re-render test (the DECISIVE, motion-free one):** at F185/F191/F215/F216 (active dynamic
+  lighting) re-render the 3D view **8× from the frozen sim-state** (cl.time does not advance) and CRC
+  each capture. Identical input K times → **byte-identical CRCs on all 4 frames, on 3 independent
+  boots** (`QDET RERENDER … K=8 IDENTICAL`). This excludes camera motion entirely: **the GPU render
+  is deterministic on identical input — there is no within-run flicker.**
+- Conclusion: **GLQuake with `r_dynamic 1` renders correctly; there is no within-run flicker.** The
   cross-boot "flicker" score was warmup + a bad boot, i.e. measurement contamination.
 
+### Honest residual (not a player-visible defect)
+While the render is byte-deterministic *within* a run, the F215/F216 explosion frames show a **rare
+cross-boot variant** with `r_dynamic 1` (crc `25e0e69a` on 3/4 boots, `68db5645` on 1/4) — the same
+class as #67's deferred F0070 sub-perceptual residual (fire-and-forget SLCACTL not 100% closed by the
+L2T-wait proxy on the heaviest per-frame vertex/lighting load). It is **invisible during play** (each
+boot renders consistently and correctly frame-to-frame; only a cross-boot screenshot comparison sees
+it) and is covered by the same deferred fix (a guaranteed slice-invalidate-completion primitive).
+
 ### Status
-- #67: **RESOLVED** (committed, real quake HW-validated).
-- Second bug: **not reproducible as a render defect** (within-run + real-quake evidence).
+- #67: **RESOLVED** (committed, real quake HW-validated; sub-perceptual cross-boot residual on the
+  heaviest frames deferred).
+- "Second bug" (r_dynamic-1 flicker): **not a real render defect** — no within-run flicker
+  (K-re-render byte-identical ×3 boots), real quake renders correctly.
 - GLQuake is working and glitch-free on the RPi4 V3D. vkQuake remains the separate far-reaching goal.

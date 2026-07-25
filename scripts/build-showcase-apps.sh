@@ -304,6 +304,11 @@ phase_gpu() {
 
 	# --- GPU driver + GL archives (order: v3d driver -> GL frontend) ---
 	local py="python3"
+	# NB: libv3d is built from the Mesa tree AND the in-repo winsys under tools/v3d-driver-port/
+	# (v3d_phoenix_winsys.c — where the #67 GPU-coherency fix lives). archive_fresh() already
+	# hard-codes tools/v3d-driver-port (+ quakespasm-/vkquake-port) as freshness inputs, so a
+	# winsys-only change (Mesa untouched) DOES trigger a rebuild — a stale pre-fix libv3d.a cannot
+	# silently ship. The mesa src/include args below are the additional Mesa-tree inputs.
 	if [ ! -f "${gpu_libs}/libv3d-phoenix.a" ] || [ "$force" = 1 ] || ! archive_fresh "${gpu_libs}/libv3d-phoenix.a" "${repo_root}/external/mesa/src" "${repo_root}/external/mesa/include"; then
 		log "build-v3d-phoenix.py (Mesa v3d gallium driver)"
 		"$py" "${repo_root}/tools/v3d-driver-port/build-v3d-phoenix.py" || die "build-v3d-phoenix.py failed"

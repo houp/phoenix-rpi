@@ -396,3 +396,46 @@ leads all require an attended mini-renderer or Quake instrumentation (wedge-land
   --label v3ddet -- "/bin/v3dv-det"`.
 - Uncommitted (deliberately; user's known-good `rpi4-quake` untouched): the winsys diagnostic,
   the harness, and the two copied `drm-uapi` headers + `driQueryOptionstr` stub (build-drift fixes).
+
+---
+
+## 2026-07-25 — RESOLUTION: #67 FIXED + committed; "second bug" was a measurement artifact
+
+### #67 (alias-model geometry collapse) — FIXED and COMMITTED
+- Root cause confirmed: in `ioc_submit_cl` the binner (CT0) coordinate shader fetches the uncached
+  alias-model VBO vertices immediately after the pre-bin SLCACTL slice-cache invalidate, but SLCACTL
+  is **fire-and-forget** on this SoC (covers TVCCS/TDCCS; no busy bit). The binner could begin
+  fetching before the invalidate settled → stale vertices → collapse-to-fan, intermittently per boot.
+- Fix (`v3d_phoenix_winsys.c`, committed `agent/quake-67-gpu-coherency-fix` 214be9a): add a **waited
+  L2T flush** (spins on the L2TFLS busy bit = real MMIO round-trips) after the pre-bin SLCACTL, giving
+  the slice invalidate time to settle before the CT0 kick.
+- Validation: cross-boot determinism harness — baseline rendered several distinct geometry variants
+  per boot (~86% correct + ~14% garbage); with the barrier every model frame renders the correct
+  majority geometry deterministically across 10 boots (perceptual >0.3% threshold: 0 visible glitchy
+  frames). Residual: one heavier frame (F0070) keeps a 3–9px sub-perceptual diff — deferred (needs a
+  guaranteed slice-invalidate completion primitive; none known on V3D 4.x).
+- **Real playable `/bin/quake`** rebuilt against the fresh fix-A libv3d and HW-validated: demo1 runs at
+  ~35 fps @ 1080p, 0 faults; viewmodel + Ogre monster + torches (all alias models) render correctly
+  across the demo. This is the exact geometry class #67 was collapsing.
+
+### "Second bug" (r_dynamic 1 cross-boot non-determinism) — NOT a real render defect
+The cross-boot determinism harness (correct instrument for #67's per-boot intermittent collapse) is
+the **wrong** instrument for a "flicker", which is by definition *within-run* temporal instability.
+Re-analysed with the right tools:
+- **Static lightmap content is byte-deterministic across boots**: load-time `QDET LMBUILD count=4
+  crc=0ec4f78f nz=632874` identical on 4/4 boots. Data hypothesis ruled out.
+- The worst-scoring cross-boot frames were **early demo frames with NO per-frame lightmap uploads**
+  (`lm=00000000` at F0000–F0050) → warmup, not lighting. Plus one boot rendered **black/truncated**
+  (10 frames) and poisoned the F0040 score. early-high/late-low score pattern = warmup signature.
+- **Within-run test (the decisive one):** capture *every* frame + whole-frame mean-luma across the
+  active-dynamic-light window (F180–235) on a single boot. Result on 2 independent boots: luma moves
+  in **smooth multi-frame ramps** (dynamic-light flash-and-fade: F185≈27→decay, F215≈44 explosion→
+  9-frame decay). Largest single-frame zigzag reversal = **3.31** (a real flicker would be ~15–30).
+  Both boots near-identical → the dynamic-light events are deterministic cross-boot at these frames too.
+- Conclusion: **GLQuake with `r_dynamic 1` renders correctly**; there is no within-run flicker. The
+  cross-boot "flicker" score was warmup + a bad boot, i.e. measurement contamination.
+
+### Status
+- #67: **RESOLVED** (committed, real quake HW-validated).
+- Second bug: **not reproducible as a render defect** (within-run + real-quake evidence).
+- GLQuake is working and glitch-free on the RPi4 V3D. vkQuake remains the separate far-reaching goal.

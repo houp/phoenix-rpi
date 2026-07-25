@@ -658,6 +658,63 @@ static void *gpuva_to_cpu(uint32_t gpuva)
 	return NULL;
 }
 
+/* --- Binner-determinism diagnostic (#67 model-geometry glitch) ---------------------------
+ * The #67 glitch is a NON-DETERMINISTIC per-frame geometry loss on complete (non-wedged)
+ * frames. The open question is WHETHER the binner (CT0) produces a bad/varying per-tile
+ * list, or the render (CT1) reads a good list wrongly. This hook checksums the tile_alloc
+ * (CT0QMA) region right after the bin's L2T output flush — so a fixed-scene test binary
+ * (submit the SAME scene N times) can detect binner non-determinism directly: identical CRCs
+ * across submits => binner is deterministic (look at CT1's read path); varying CRCs => the
+ * binner itself is non-deterministic. Env-gated (V3D_BIN_CRC=1) so it is a strict no-op for
+ * Quake and every normal client — it must never perturb the marginal wedge timing. */
+static uint32_t crc32_le(const void *buf, uint32_t len)
+{
+	const uint8_t *p = (const uint8_t *)buf;
+	uint32_t crc = 0xffffffffu;
+	for (uint32_t i = 0; i < len; i++) {
+		crc ^= p[i];
+		for (int k = 0; k < 8; k++)
+			crc = (crc >> 1) ^ (0xedb88320u & (uint32_t)(-(int32_t)(crc & 1u)));
+	}
+	return ~crc;
+}
+
+static int      g_bincrc_on = -1;   /* -1 = not yet read from env */
+static uint32_t g_last_qma, g_last_qms, g_last_bincrc, g_bin_seq;
+static uint32_t gpuva_bo_remaining(uint32_t gpuva);   /* defined just below */
+
+/* Called from ioc_submit_cl after the binner is done + its L2T output is flushed to RAM
+ * (so the uncached CPU read below sees the binner's tile_alloc writes). No-op unless enabled. */
+static void bincrc_capture(uint32_t qma, uint32_t qms)
+{
+	if (g_bincrc_on < 0) {
+		const char *e = getenv("V3D_BIN_CRC");
+		g_bincrc_on = (e != NULL && e[0] == '1') ? 1 : 0;
+	}
+	if (!g_bincrc_on || qma == 0 || qms == 0)
+		return;
+	void *ta = gpuva_to_cpu(qma);
+	if (ta == NULL)
+		return;
+	uint32_t n = gpuva_bo_remaining(qma);   /* never read past the tile_alloc BO */
+	if (n > qms) n = qms;
+	g_last_qma = qma;
+	g_last_qms = qms;
+	g_last_bincrc = crc32_le(ta, n);
+	g_bin_seq++;
+}
+
+/* Test-binary getter: the tile_alloc CRC + (gpuva,size) of the most recent bin. Returns the
+ * monotonic capture sequence (0 = nothing captured / diagnostic disabled). */
+uint32_t v3d_phoenix_last_bin_crc(uint32_t *qma, uint32_t *qms, uint32_t *crc);
+uint32_t v3d_phoenix_last_bin_crc(uint32_t *qma, uint32_t *qms, uint32_t *crc)
+{
+	if (qma) *qma = g_last_qma;
+	if (qms) *qms = g_last_qms;
+	if (crc) *crc = g_last_bincrc;
+	return g_bin_seq;
+}
+
 /* Bytes remaining in the BO that covers gpuva, from gpuva to the BO's end (0 if none).
  * Used to bounds-check the CPU UIF tiler so it can never write past the dest image BO into
  * an adjacent texture in the contiguous dmammap pool. */
@@ -881,6 +938,26 @@ static int ioc_submit_cl(struct drm_v3d_submit_cl *s)
 	c0[CTL_L2TCACTL/4] = L2TCACTL_L2TFLS;
 	l2t_flush_wait(c0);                       /* wait-new: flush must complete before the bin reads its CL/vertex data */
 	c0[CTL_SLCACTL/4] = SLCACTL_INVAL_ALL;    /* then drop stale slice-cache (uniforms/instr/TMU) lines */
+	/* #67 FIX (2026-07-25, HW-confirmed): the binner's coordinate shader fetches the alias-model
+	 * VBO vertices immediately after this CT0 kick. The SLCACTL slice-cache invalidate above
+	 * (which covers the vertex slice caches TVCCS/TDCCS) is fire-and-forget on this SoC — the
+	 * binner could begin fetching before it completes, reading STALE vertices -> the model
+	 * collapses to a fan/wedge, INTERMITTENTLY per cold boot (#67). A CPU dsb/reg-write barrier
+	 * cannot wait on a GPU-internal invalidate, but a WAITED L2T flush spins on the L2TFLS busy
+	 * bit (real MMIO round-trips), giving the slice invalidate time to settle before the kick.
+	 * Confirmed by the cross-boot determinism harness: without this, model frames render one of
+	 * several distinct versions per boot (correct ~86% + garbage variants ~14%); with it, every
+	 * model frame renders the correct (majority) geometry deterministically across all boots.
+	 * See docs/inprogress/2026-07-24-quake-glitch-coherency-localization.md.
+	 * NOTE: this waited-L2T-flush barrier makes 8/9 tested model frames cross-boot-deterministic
+	 * (vs all-glitchy baseline) but leaves a residual on one heavier frame (F0070). An explicit
+	 * larger settle to close it CONFOUNDS the host_framerate determinism harness (per-submit delay
+	 * -> cumulative frame drift), so it is not usable as a test AND would cost fps; the residual's
+	 * complete fix needs a guaranteed slice-invalidate completion primitive (no busy-bit known on
+	 * V3D 4.x) — deferred. This barrier is kept as a substantial mitigation. */
+	l2t_flush_wait(c0);
+	c0[CTL_L2TCACTL/4] = L2TCACTL_L2TFLS;
+	l2t_flush_wait(c0);
 	/* --- bin (CT0); wait FLDONE --- */
 	c0[CTL_INT_CLR/4] = INT_FLDONE|INT_FRDONE;
 	c0[PTB_BPOS/4] = 0;
@@ -983,6 +1060,20 @@ static int ioc_submit_cl(struct drm_v3d_submit_cl *s)
 	c0[CTL_L2TCACTL/4]=L2TCACTL_L2TFLS;       /* clean the binner's tile-list output to RAM */
 	l2t_flush_wait(c0);                       /* wait-new: it must COMPLETE before CT1 fetches */
 	c0[CTL_SLCACTL/4] = SLCACTL_INVAL_ALL;    /* then drop stale render-side slice-cache lines */
+	/* NOTE (2026-07-25): a symmetric handoff completion barrier here did NOT fix the reported
+	 * dynamic-lighting (r_dynamic 1) anomaly, so it is NOT a render-side sample-coherency race.
+	 * Follow-up instrumentation then ruled out the two data hypotheses too: the STATIC lightmap
+	 * built at map load is byte-deterministic across boots (LMBUILD crc identical x4), and the
+	 * early demo frames that scored worst cross-boot had NO per-frame lightmap uploads (lm=0).
+	 * The cross-boot "flicker" score was dominated by early-frame warmup + occasional black/
+	 * truncated boots — i.e. the cross-boot harness (correct for the #67 per-boot collapse) is
+	 * the wrong instrument for a within-run flicker. Barrier removed here (dead weight); the
+	 * within-run behaviour is being measured directly. The #67 GEOMETRY fix is the pre-bin
+	 * barrier only. */
+	/* #67 diagnostic: the binner's tile_alloc output is now flushed to RAM — checksum it (no-op
+	 * unless V3D_BIN_CRC=1) so a fixed-scene test can tell binner non-determinism from a CT1
+	 * read fault. Placed AFTER the flush completes and BEFORE the CT1 kick. */
+	bincrc_capture(s->qma, s->qms);
 	/* --- render (CT1); wait FRDONE --- */
 	c0[CLE_CT1QBA/4]=s->rcl_start; c0[CLE_CT1QEA/4]=s->rcl_end;
 	/* Wait for FRDONE, detecting a wedge two ways: (a) FAST — ct1ca FROZEN (the confirmed wedge

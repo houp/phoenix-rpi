@@ -447,9 +447,12 @@ Re-analysed with the right tools:
 While the render is byte-deterministic *within* a run, the F215/F216 explosion frames show a **rare
 cross-boot variant** with `r_dynamic 1` (crc `25e0e69a` on 3/4 boots, `68db5645` on 1/4) — the same
 class as #67's deferred F0070 sub-perceptual residual (fire-and-forget SLCACTL not 100% closed by the
-L2T-wait proxy on the heaviest per-frame vertex/lighting load). It is **invisible during play** (each
-boot renders consistently and correctly frame-to-frame; only a cross-boot screenshot comparison sees
-it) and is covered by the same deferred fix (a guaranteed slice-invalidate-completion primitive).
+L2T-wait proxy on the heaviest per-frame vertex/lighting load). Within-run it is **deterministic and
+visually correct on the majority variant** (montage + real-quake HDMI); the rare 1/4 variant was
+**not visually characterized** (its crop was overwritten before capture — so whether it is a minor
+lighting difference or a small garbage region is unconfirmed). Because it is within-run-invisible
+(each boot renders consistently frame-to-frame; only a cross-boot screenshot diff sees it), it is
+grouped with the deferred #67 residual (same fix: a guaranteed slice-invalidate-completion primitive).
 
 ### Status
 - #67: **RESOLVED** (committed, real quake HW-validated; sub-perceptual cross-boot residual on the

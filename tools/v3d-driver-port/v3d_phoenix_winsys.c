@@ -910,6 +910,21 @@ static int ioc_submit_cl(struct drm_v3d_submit_cl *s)
 	 * intermittent flicker of per-frame-updated content (dynamic lightmaps; per-draw model
 	 * LightColor). Matches the comment's own stated intent ("one dsb per submit"). */
 	__asm__ volatile("dsb sy" ::: "memory");
+	/* #67 ORDERING FIX (2026-07-26): issue the fire-and-forget SLCACTL slice-cache invalidate
+	 * (TVCCS/TDCCS vertex caches + UCC/ICC) as EARLY as possible — right here, before mmu_flush_tlb
+	 * and the L2T flush+waits below — so that every subsequent per-submit spin-wait (mmu_flush_tlb,
+	 * the pre-bin L2T flush waits, and fix-A's extra L2T waits) becomes FREE settle latency for it
+	 * before the CT0 kick. Root cause of the residual torch/small-model mangle: SLCACTL has no
+	 * completion bit on V3D 4.2, and Phoenix's line-~945 `l2t_flush_wait` REMOVES the interlock
+	 * Linux relies on (Linux leaves the L2T flush in-flight so the binner hardware-stalls its first
+	 * CL read on it, flooring the slice-invalidate settle window); with the wait, SLCACTL at its old
+	 * site got only ~5 MMIO writes of settle before the kick and the coordinate-shader vertex fetch
+	 * raced it. Confirmed a RACE (not a producer bug) by a 5-boot HW discriminator: VBO source bytes
+	 * byte-identical across boots yet torch/monster geometry still mangle-varied. Moving the
+	 * invalidate to the front maximizes its settle window using waits already on the path (zero fps
+	 * cost); the idle core does not refill the slice caches in the interim, so the earlier drop holds.
+	 * See docs/inprogress/2026-07-26-gpu-linux-ordering-analysis.md. */
+	c0[CTL_SLCACTL/4] = SLCACTL_INVAL_ALL;
 	/* Flush the MMU PTE cache + TLB before the job. ioc_create_bo writes fresh PTEs but
 	 * never invalidated the MMU's cached translations, so a job whose CL/RT BOs were just
 	 * mapped at new GPU VAs (every Quake frame allocates fresh BOs) is fetched through a
@@ -937,7 +952,8 @@ static int ioc_submit_cl(struct drm_v3d_submit_cl *s)
 	l2t_flush_wait(c0);                       /* wait-old: prior L2T flush must be idle first */
 	c0[CTL_L2TCACTL/4] = L2TCACTL_L2TFLS;
 	l2t_flush_wait(c0);                       /* wait-new: flush must complete before the bin reads its CL/vertex data */
-	c0[CTL_SLCACTL/4] = SLCACTL_INVAL_ALL;    /* then drop stale slice-cache (uniforms/instr/TMU) lines */
+	/* (SLCACTL slice-cache invalidate moved to the FRONT of the submit — see the #67 ORDERING FIX
+	 * comment above the dsb. It fires right after the dsb so all these waits are its settle window.) */
 	/* #67 FIX (2026-07-25, HW-confirmed): the binner's coordinate shader fetches the alias-model
 	 * VBO vertices immediately after this CT0 kick. The SLCACTL slice-cache invalidate above
 	 * (which covers the vertex slice caches TVCCS/TDCCS) is fire-and-forget on this SoC — the

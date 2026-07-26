@@ -48,12 +48,29 @@ Two research subagents (2026-07-26) + a HW discriminator settled the mechanism:
   (torches) — a wrong-DRAM producer bug would not be latency-fixable at all, so this
   independently supports the race.
 
-### Open fix question (the deep part)
-Linux is glitch-free with the **same** ops → there must be an **ordering** difference
-(WHEN Linux invalidates relative to the CT0 kick + what naturally provides settle
-time — likely scheduler/IRQ dispatch latency vs Phoenix's synchronous self-powered
-inline kick). Studying Linux's submit ordering next; fix = match that ordering, not
-add another op. fix-A stays as the latency mitigation until then.
+### RESOLVED via ordering fix (coord 457a650) — supersedes the "deferred" conclusion
+The Linux-ordering study (docs/inprogress/2026-07-26-gpu-linux-ordering-analysis.md)
+found the difference: Linux leaves the L2T flush **in flight** so the binner
+hardware-stalls its first CL read on it, flooring the fire-and-forget SLCACTL
+settle window. Phoenix's pre-bin `l2t_flush_wait` REMOVED that interlock, so
+SLCACTL got only ~5 MMIO writes of settle before the CT0 kick → the coordinate-
+shader vertex fetch raced it. **Fix: issue SLCACTL as the FIRST op after the submit
+`dsb`, before mmu_flush_tlb + all the L2T waits — every existing per-submit spin-wait
+then becomes free settle latency (zero added fps cost).**
+
+**VALIDATED (HW):**
+- `r_dynamic 0`: torch/monster cross-boot variance **3–5.5% → 0.0%** (byte-identical
+  across 5 fresh boots), vs baseline (fix-A only) which still mangle-varied.
+- `r_dynamic 1` (user's actual setting): worst non-warmup cross-boot diff **0.4%**
+  (F0120, sub-perceptual), all else 0.0%, over 5 fresh boots.
+- Full-res HDMI (real rpi4-quake, ordering fix): wall torches render as **correct
+  flames** (vs pre-fix mangled spikes), monsters/viewmodel/world correct, 0 faults.
+- ~10 total fix boots, 0 regressions/wedges; fps unchanged (uses existing waits).
+
+The earlier "deferred, needs a slice-invalidate completion primitive" conclusion in
+the 2026-07-24 localization doc is **superseded** — no new HW primitive was needed;
+the fix was ORDERING. fix-A retained as belt-and-suspenders latency margin (its
+removal is an untested fps optimization, explicitly deferred).
 
 ## Harness
 - DET quake (`build-quakespasm-det.py`, `external/quakespasm-det`): QVBO source CRC

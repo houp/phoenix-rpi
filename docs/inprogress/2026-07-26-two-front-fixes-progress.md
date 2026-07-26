@@ -78,3 +78,35 @@ removal is an untested fps optimization, explicitly deferred).
   torch scorer, + `QDET_EXECPROBE` marker-gated exit-at-main for the NFS exec loop
   (compiled only into DET via `-DQDET_EXECPROBE`, never the ship build).
 - Torch scorer: 5-boot cross-boot per-frame distinct-count + >30/255 pixel-diff %.
+
+---
+
+## Follow-ups (2026-07-26 pm)
+
+### fix-A removal — ATTEMPTED, REGRESSED, REVERTED
+Tried removing fix-A (the extra waited-L2T-flush) since the SLCACTL ordering fix
+now settles the slice invalidate. HW result: **1 of 3 boots hit 94 CT1 RENDER
+TIMEOUTs** (ct1ca wedged in a stale per-tile sublist, mmu_ill set) — the marginal
+binner→render tile-list wedge. So fix-A also provides timing margin that suppresses
+that SEPARATE render-side wedge, not just the SLCACTL settle. Reverted (coord
+3567f2f); fix-A stays. Its removal is NOT a safe fps optimization.
+
+### NFS exec-EIO — root of the `-34` refined; re-drive extended
+The fix-A-removal boots caught the ~1/10 NFS transient (orthogonal to fix-A), and
+the unmask (4a) paid off: the real errno is **`-34` = ERANGE**, and it **persisted
+through all 8 re-drive attempts (~1.9 s) then still failed** — so the committed
+re-drive deadline was too short.
+- Root: `-34` is libnfs's **catch-all default** (`research/libnfs/nfs4/nfs4.c:188`)
+  for an NFSv4 status it doesn't map (NFS4ERR_DELAY/GRACE map to -EIO, so it's a
+  different, unmapped status). The fresh client hits it on its **first OPEN** right
+  after mount — the mount's GETATTR/FSINFO don't establish NFSv4 OPEN state, so the
+  first OPEN transiently fails during establishment, clearing in a few seconds
+  (a manual re-run always works).
+- Fix (kernel, extends c25ed0cb): change the object.c re-drive from 8 tries/~1.9 s
+  to a **~10 s deadline** with ramped backoff. It exits the instant the window
+  clears (typically ~2-3 s, not a fixed wait), recovering the exec. Still bounded
+  and targeted at the one uncovered exec open; each attempt logs the real errno.
+- Cleaner root options for later: fix libnfs's ERANGE catch-all to distinguish the
+  actual (retryable) status, or warm up the NFSv4 client's OPEN state at takeover
+  before "/" goes live (needs libnfs debug logging of the raw NFS4ERR to pick the
+  precise status). Deferred — the re-drive extension recovers it now.

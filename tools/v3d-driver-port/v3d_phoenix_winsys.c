@@ -954,23 +954,15 @@ static int ioc_submit_cl(struct drm_v3d_submit_cl *s)
 	l2t_flush_wait(c0);                       /* wait-new: flush must complete before the bin reads its CL/vertex data */
 	/* (SLCACTL slice-cache invalidate moved to the FRONT of the submit — see the #67 ORDERING FIX
 	 * comment above the dsb. It fires right after the dsb so all these waits are its settle window.) */
-	/* #67 FIX (2026-07-25, HW-confirmed): the binner's coordinate shader fetches the alias-model
-	 * VBO vertices immediately after this CT0 kick. The SLCACTL slice-cache invalidate above
-	 * (which covers the vertex slice caches TVCCS/TDCCS) is fire-and-forget on this SoC — the
-	 * binner could begin fetching before it completes, reading STALE vertices -> the model
-	 * collapses to a fan/wedge, INTERMITTENTLY per cold boot (#67). A CPU dsb/reg-write barrier
-	 * cannot wait on a GPU-internal invalidate, but a WAITED L2T flush spins on the L2TFLS busy
-	 * bit (real MMIO round-trips), giving the slice invalidate time to settle before the kick.
-	 * Confirmed by the cross-boot determinism harness: without this, model frames render one of
-	 * several distinct versions per boot (correct ~86% + garbage variants ~14%); with it, every
-	 * model frame renders the correct (majority) geometry deterministically across all boots.
-	 * See docs/inprogress/2026-07-24-quake-glitch-coherency-localization.md.
-	 * NOTE: this waited-L2T-flush barrier makes 8/9 tested model frames cross-boot-deterministic
-	 * (vs all-glitchy baseline) but leaves a residual on one heavier frame (F0070). An explicit
-	 * larger settle to close it CONFOUNDS the host_framerate determinism harness (per-submit delay
-	 * -> cumulative frame drift), so it is not usable as a test AND would cost fps; the residual's
-	 * complete fix needs a guaranteed slice-invalidate completion primitive (no busy-bit known on
-	 * V3D 4.x) — deferred. This barrier is kept as a substantial mitigation. */
+	/* "fix-A": an extra waited-L2T-flush before the CT0 kick. Its ORIGINAL purpose (settling the
+	 * fire-and-forget SLCACTL slice invalidate) is now served by the #67 ORDERING FIX (SLCACTL
+	 * issued at the front of the submit), so this is redundant FOR THAT. BUT a 2026-07-26 attempt
+	 * to remove it (to reclaim its latency) REGRESSED: 1 of 3 boots hit 94 CT1 RENDER TIMEOUTs
+	 * (ct1ca wedged in a stale per-tile sublist, mmu_ill set) — the marginal binner->render
+	 * tile-list wedge. So this waited flush ALSO provides timing margin that suppresses that
+	 * SEPARATE render-side wedge, not just the SLCACTL settle. KEEP IT: ~10 boots with it = 0
+	 * faults; without it = intermittent render wedges. Removal is NOT a safe fps optimization.
+	 * See docs/inprogress/2026-07-24-quake-glitch-coherency-localization.md. */
 	l2t_flush_wait(c0);
 	c0[CTL_L2TCACTL/4] = L2TCACTL_L2TFLS;
 	l2t_flush_wait(c0);

@@ -45,11 +45,35 @@ networking, `sudo`, and editing config files.
 3. You edit/rebuild on the host; the NFS export and the TFTP tree update in
    place — just power-cycle the Pi.
 
-**Why a native build (not Docker):** the servers read the build products
-*directly* from the buildroot on the host — TFTP from `.buildroot/…/rpi4b-bootfs/`
-and NFS from the staged rootfs. A Docker build would trap those inside a
-container image, so for netboot you build natively on the host that also runs
-the servers.
+**Why this tutorial builds natively on the host:** the netboot servers serve the
+build products *directly* from the buildroot — TFTP from `.buildroot/…/rpi4b-bootfs/`
+and NFS from the staged rootfs. Building natively on the same host that runs the
+servers is the simplest arrangement: the artifacts are already where the servers
+expect them, and an edit/rebuild updates the export in place. That is the path this
+tutorial documents end-to-end.
+
+**This does *not* rule out Docker-based builds.** The only real requirement is that
+the TFTP/NFS servers can reach the build artifacts on the host — nothing forces the
+*build* itself to run natively. Two Docker variants both work:
+
+- **Docker build → host-side artifacts (recommended if you'd rather not install the
+  toolchain natively).** Bind-mount a host directory into the container as the build
+  output/buildroot (`docker run -v $PWD/.buildroot:/…/.buildroot …`), build inside the
+  container, and the products land on the host filesystem — where the host's TFTP/NFS
+  servers then serve them exactly as in the native flow. You get the netboot
+  convenience without installing the host-side build dependencies. Reasons to prefer
+  this: it keeps the host clean (no toolchain/packages left behind), and running the
+  build scripts inside a container gives an extra layer of isolation if you'd rather
+  not run them directly on your machine.
+- **Fully containerized (build *and* serve from Docker).** You can also run DHCP/TFTP/NFS
+  from inside the container. This is more involved — it needs the container to own (or
+  bridge onto) the wired link to the Pi (e.g. `--network host`, or a macvlan/bridge so
+  DHCP broadcasts and the NFS mount reach the Pi), and the NFS server must export with
+  the right fsid/permissions from within the container. It's doable but requires network
+  plumbing beyond this tutorial's scope; the two options above are the low-friction paths.
+
+The native flow below is what this document walks through; adapt the build step to a
+container if either reason above applies to you.
 
 ---
 

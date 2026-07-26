@@ -62,7 +62,10 @@ CAPTURE = True  # DET: always build QSS_PHOENIX so qsv3d_capture_gl + SCR_DetTic
 _cap_def = ["-DQSS_PHOENIX=1"] if CAPTURE else []
 
 # Quake-side flags (Quake TUs + the Quake-facing platform shims).
+# QDET_EXECPROBE: DET-only marker-gated early-exit at main() entry (pl_phoenix_main.c) so distinct
+# copies can be exec'd in a tight loop to reproduce the exec-over-NFS -EIO. Never in the ship build.
 QFLAGS = ["-c", "-O2", "-g", "-ffreestanding", "-fno-strict-aliasing", "-Wno-error",
+          "-DQDET_EXECPROBE=1",
           *_cap_def,
           f"-I{SHIM}", f"-I{Q}", f"-I{GLINC}"]
 # Mesa-side flags (glctx only) — the endianness/timespec -D's + include order the

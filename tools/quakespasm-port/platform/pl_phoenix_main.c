@@ -80,6 +80,25 @@ int main(int argc, char *argv[])
 	setvbuf(stderr, NULL, _IONBF, 0);
 	printf("quakespasm: main() entered (argc=%d)\n", argc);
 
+#ifdef QDET_EXECPROBE
+	/* exec-cold-open reproduction probe (DET build only; compiled in via -DQDET_EXECPROBE in
+	 * build-quakespasm-det.py, NEVER in the shipping rpi4-quake). When /qexec-probe exists on the
+	 * root fs, exit immediately at main() entry — BEFORE any GPU/pak init — so distinct copies of
+	 * this large binary can be exec'd in a tight loop, stressing the kernel exec metadata force-in
+	 * (object_fetchCluster cold `proc_open`) at high frequency to reproduce the intermittent
+	 * exec-over-NFS -EIO. Reaching this print means the exec SUCCEEDED (no err=-5); a failed exec
+	 * never runs main(). Marker absent => normal DET behaviour (torch/glitch harness). */
+	{
+		FILE *qmk = fopen("/qexec-probe", "r");
+		if (qmk != NULL) {
+			fclose(qmk);
+			printf("QEXECPROBE ok\n");
+			fflush(stdout);
+			exit(0);
+		}
+	}
+#endif
+
 	host_parms = &parms;
 	parms.basedir = "/usr/share/quake";    /* FHS data dir; wait_for_gamedata() refines it (#46) */
 	parms.argc = argc;

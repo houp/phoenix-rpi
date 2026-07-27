@@ -58,14 +58,36 @@ app-side, no winsys/Mesa change.
   (hit the NFS `-34`, quake never launched). The bug is deterministic, so the same-model
   before/after is already decisive; 3 clean boots additionally cover the *intermittent*
   idle-viewmodel/monster case.
-- **Gun #2 caveat (honest):** the user named "two guns" in demo1. Gun #1 (grenade
-  launcher floor pickup) has the decisive before/after above. I could NOT isolate an
-  equally clean close-up of a *distinct second* floor-weapon pickup — the demo grabs the
-  later weapons (Super Nailgun etc.) on the move through caves, not in a central
-  approach. Gun #2 is the **identical code path** (numposes==1 → blend==0 floor pickup);
-  gun #1 rendering clean is direct proof for that path, and the held weapon cycling
-  through all weapon models renders intact. So the claim rests on gun #1's before/after
-  + the shared mechanism, not on a photogenic gun #2 shot.
+- **Gun #2 (honest — could not isolate; premise verified from code instead):** the user
+  named "two guns" in demo1. Gun #1 (grenade launcher pickup) has the decisive
+  before/after above. I searched the after-videos (spfix2, conf4) AND the before-video
+  (demo2, whole timeline + full-res opening) and could NOT visually isolate a *distinct
+  second* floor-weapon black-spike — the demo grabs later weapons (Super Nailgun etc.) on
+  the move through caves, not in a central approach, and no second spiked gun is legible
+  at video resolution. Rather than hand-wave "same path", I verified the premise in
+  r_alias.c: `blend` is set to 0 exactly when `pose1==pose2` (lines 248–255), and every
+  `numposes==1` model has `pose1==pose2` — and EVERY Quake weapon world-pickup
+  (`progs/g_*.mdl`: g_shot, g_nail, g_rock, g_light, …) is a single-frame `numposes==1`
+  model. So gun #2, being a weapon pickup, *provably* takes the same blend==0 branch that
+  gun #1 proves fixed — this is a fact about Quake's data + the code, not an assumption
+  about which gun. The held viewmodel (which cycles shotgun→nailgun→rocket) also renders
+  clean idle across all 3 boots. Bottom line: gun #1's before/after + the code-verified
+  premise cover gun #2; I did not get a photogenic distinct gun-#2 shot and say so plainly.
+
+## Cleanup owed before upstreaming (NOT done tonight — would need rebuild + re-verify)
+The verified binary is correct, but r_alias.c carries transitional cruft from the
+investigation that should go before publishing (per CLAUDE.md "remove diagnostic-only
+code whose hypothesis was disproved/confirmed"):
+- `r_alias_lerpmode` cvar modes 0 (snap fallback) and 2 (force-blend=0 FETCH-isolation
+  diagnostic) — mode 2's hypothesis is now CONFIRMED and folded into the real fix; the
+  cvar defaults to 1 (correct) so it's inert, but it's diagnostic scaffolding.
+- The now-DEAD `pose2bind = (numposes==1) ? 1 : lerpdata.pose2` de-alias + its comment
+  (lines 260–267): unreachable, because numposes==1 ⇒ blend==0 ⇒ Pose2 is no longer
+  bound at all. When blend!=0, `pose2bind == lerpdata.pose2` always. Collapse to
+  `lerpdata.pose2` and delete the misleading "bind pose2 to that distinct block" comment.
+Deferred deliberately: touching the fix file + rebuilding now risks the verified state
+right before reporting, and re-verification needs another HW boot. Do it as a dedicated
+cleanup step with a fresh HW confirm.
 
 ## Still open
 - **NFS exec `-34`**: quake fails to launch ~1/10–1/5 boots (`exec ... failed

@@ -248,3 +248,36 @@ model (fix the console-stuck boot first), then (b) if offset>=4096 confirmed, ca
 fix = give each vertex attribute its OWN BO (base offset 0) so no attribute is ever
 fetched from a high in-BO offset — OR split large alias VBOs so every attribute stays
 < one page. User can verify any candidate trivially (they see the nailgun in demo1).
+
+## Confirm-then-fix attempt (2026-07-27 late) — mechanism NOT confirmed; hypothesis weakened
+User approved confirm-then-fix. Attempted to confirm the offset>=4096 hypothesis with a
+fullbright isolated-model harness (viewmodel-swap of g_rock / g_nail / front-padded
+g_shot, r_drawworld 0). Outcome: INCONCLUSIVE and the hypothesis is now DOUBTED.
+- Harness is UNFAITHFUL: the isolated fullbright models rendered as black spikes for
+  ALL of them — INCLUDING g_rock, which the user confirms renders CLEAN in the real
+  demo. So the harness (viewmodel projection + depth-range hack + scale/position) itself
+  induces collapse; its observations cannot be trusted for broken/clean.
+- COUNTER-EXAMPLE to offset>=4096: animating monsters (e.g. zombie, 198 poses, ~420 KB
+  VBO) fetch pose data from offsets FAR beyond 4096 every frame yet render recognizably.
+  If offset>=4096 universally broke vertex fetches, monsters would be destroyed. So the
+  hypothesis is NOT universal.
+- REFINED correlation that fits ALL data: the BROKEN models (g_nail, flame torches) are
+  all drawn via the SINGLE-POSE / blend==0 path (numposes==1 pickups; r_nolerp flames
+  force blend=0) AND have fetched data >=4096. The CLEAN monsters use the ANIMATING
+  blend!=0 path and are fine at high offsets. So the trigger may be an INTERACTION of the
+  single-pose fix (binds only 3 attributes: texcoord + pose1 xyz/normal) with data at
+  offset >=4096 — NOT high offset alone. Possibly my single-pose fix (dropping the pose2
+  attributes) interacts badly with a high ST offset. UNCONFIRMED.
+- Also cost cycles: NFS `-34` exec error + NFS late-mount "not found" (stale nfsd state
+  after ~20 reboots; `sudo systemctl restart nfs-server` clears it).
+DECISION: did NOT ship a fix (mechanism unconfirmed + counter-example). Reverted all
+diagnostics; redeployed clean single-pose-fix binary (md5 13d30ecd); autoexec empty.
+The single-pose fix for the grenade launcher REMAINS valid + user-confirmed; only the
+nailgun/torch (bug #2) is unresolved.
+NEXT: my HW self-observation is unreliable (every harness confounds). Reliable oracles:
+(1) the USER (sees the nailgun in demo1 trivially) — have them check specific candidate
+builds; or (2) a host-side llvmpipe render of the same models for pixel comparison
+(needs Xvfb, not yet installed). Recommend NOT guessing a fix; instead instrument to
+capture the exact GL_SHADER_STATE attribute record + index values the winsys emits for
+g_nail vs g_rock (advisor's tie-breaker) and compare to Mesa reference — a data dump,
+not a visual, so it sidesteps the observation wall.

@@ -281,3 +281,75 @@ builds; or (2) a host-side llvmpipe render of the same models for pixel comparis
 capture the exact GL_SHADER_STATE attribute record + index values the winsys emits for
 g_nail vs g_rock (advisor's tie-breaker) and compare to Mesa reference — a data dump,
 not a visual, so it sidesteps the observation wall.
+
+## PIVOTAL (2026-07-27 late, user confirmed (A)=geometry): NOT a global count limit
+User: nailgun breakage is WRONG SHAPE (geometry collapse), not texture. Full MDL
+geometry table (pak0.pak) demolishes the raw-count hypothesis:
+- ANIMATED monsters render FINE at high counts: knight 213 tris, ogre 326, soldier 328,
+  zombie 347, demon 275, shambler 284, boss 555, player 408 — all numframes>1, all fine.
+- g_nail BROKEN at only 222 tris. So NO global vertex/primitive count limit.
+DISCRIMINATOR = numframes: every BROKEN model is SINGLE-FRAME (numframes==1 → the
+blend==0 / single-pose path): g_nail(222t), g_nail2(248t), suit(318t). And WITHIN the
+single-frame set there's a threshold — g_rock(176t/102v) & g_shot(84t) & backpack(110t)
+& w_g_key(116t) CLEAN; g_nail(222t/130v) BROKEN. Threshold between 176 and 222 tris.
+Multi-frame animated models are IMMUNE at any count (ogre 326t fine).
+So: a count-sensitive geometry collapse SPECIFIC to the single-pose/blend==0 path — the
+exact path my #67 work touches (vboposes=2 duplicate block, blend==0). Ruled out already:
+pose2 enable/disable/de-alias (all leave nailgun broken), VBO offset>=4096, skin/texture.
+Prime remaining suspects (single-pose-path-specific + count-thresholded):
+  (a) the numposes==1 DUPLICATE pose block (vboposes=2) — a candidate test is to drop it
+      (vboposes=1) since my single-pose fix no longer binds pose2;
+  (b) a VPM / binner / coordinate-shader limit that the single-pose draw config hits at a
+      LOWER effective count than the animated config (subagent researching).
+NEXT (autonomous, user asleep): await binner/VPM research; implement best-reasoned fix;
+self-verify best-effort (idle high-tri monsters use blend==0 too — should collapse pre-fix
+and be a reliable-to-observe proxy since monsters are always framed, unlike pickups).
+User will confirm the nailgun + super-nailgun in the morning (question already posed).
+
+## Research round 3 + ruled-out summary (2026-07-27 night)
+Subagent (Mesa/Linux clones) on per-draw count limits: REFUTED all count-limit theories —
+no HW per-draw vertex/primitive limit; Mesa never splits large draws (v3dx_draw.c:1358);
+INDEXED_PRIM_LIST Length = 31 bits (v3d_packet.xml:566, nowhere near ~600); VPM/VCM sizing
+is per-shader/static (vir.c:936, GFXH-1744 2-4 batch clamp — independent of draw vertex
+count); binner overflow DROPS/STALLS (handled cleanly by kernel v3d_irq.c:38-84 via a fresh
+256KB BO), it does NOT reposition vertices. Conclusion: the wrong-positioned-vertex
+corruption is a WINSYS/config issue that appears past a size threshold; leads = VPM/VCM
+segment config in the shader-state record, or the attribute Maximum-Index bound.
+BUT: our port patch (mesa-phoenix-port.patch) touches v3dx_draw.c only for an EZ-re-enable
+comment and v3dx_state.c for an R<->B-swap comment — it does NOT modify the attribute-record
+/ VPM / Maximum-Index / draw-count emission, which are therefore STOCK Mesa (correct). So the
+subagent's rank-1/2 (VPM config, Maximum Index) don't obviously apply — the emission is stock.
+
+RULED OUT (this session, mostly user-confirmed on HW):
+- Cross-boot cache / SLCACTL / fix-A (the original "resolved" was a false-positive metric).
+- Offset >= 4096 (user's ST-first-reorder run: nailgun still broken with all data <4096).
+- Pose2 handling: disabled / de-aliased / aliased all leave the nailgun broken.
+- Skin/texture size (user: nailgun breakage is WRONG SHAPE, not texture).
+- Global vertex/primitive count limit (animated monsters render fine at 326-555 tris).
+- Early-Z (scene-wide; would hole the world/monsters too — user says those are fine).
+- Mesa attribute/VPM/Maximum-Index emission bug (stock, unpatched).
+
+SOLID FACTS (the discriminator to fix): grenade launcher g_rock (176 tris/102v, single-frame,
+blend==0) CLEAN; nailgun g_nail (222 tris/130v, single-frame, blend==0) BROKEN = wrong SHAPE.
+w_g_key CLEAN. Broken set is single-frame (numframes==1 / blend==0 path) AND above a
+~176-222-tri threshold; animated (blend!=0) models immune at any count. Held viewmodel v_nail
+(numframes=9) went transparent WHEN IDLE (blend==0) — same path — reinforcing that the trigger
+is the blend==0/single-pose DRAW, count-scaled, model-specific, and geometry (missing/collapsed
+triangles). World + monsters render fine (not scene-wide).
+
+STATE: clean single-pose-fix binary redeployed (md5 3c008c86 at revert; note a later identical
+rebuild). Grenade-launcher fix intact + user-confirmed. Nailgun/torches/held-weapon/boxes NOT
+fixed. Boxes = BSP brush models (separate path). autoexec emptied (original ~15B lost earlier).
+
+PRIORITIZED NEXT STEPS (for morning / user-as-oracle):
+1. Answer the pending question: which floor guns are broken vs clean (esp. Super Nailgun,
+   g_nail2) — maps the tri-count threshold within single-frame models, confirms it's systematic.
+2. Reliable non-visual tie-breaker: instrument Mesa's emit_gl_shader_state (external/mesa
+   v3dx_draw.c ~640-871) to log the BIN coordinate-shader VPM in/out segment sizes + VCM cache
+   size + attribute maximum_index for g_nail vs g_rock vs an animated model; capture to UART
+   (reliable to read). A mismatch specific to the single-pose draw would pinpoint it.
+3. Candidate to test (single-pose-path-specific, fast quakespasm build): drop the numposes==1
+   duplicate pose block (gl_mesh.c vboposes=(numposes==1)?1:numposes) — unused since the
+   single-pose fix disables pose2; tests whether the dup block corrupts larger single-pose draws.
+4. Confirm whether the blend==0 vs blend!=0 distinction is real: does an IDLE (paused-animation)
+   high-tri monster collapse while the same monster walking is fine? (Hard to frame in demos.)

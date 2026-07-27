@@ -107,3 +107,144 @@ cleanup step with a fresh HW confirm.
   #67 verdict, but do NOT claim "GPU perfect" either.
 - Note: `/srv/.../id1/autoexec.cfg` was set to `r_dynamic 1` during testing (a prior
   15-byte autoexec was overwritten).
+
+## REOPENED — root cause NOT the blend/Pose2 branch (2026-07-27, user HW run)
+User HW run: gun #1 grenade launcher (g_rock.mdl, 102 verts) renders CLEAN, but gun #2
+**nailgun (g_nail.mdl, 130 verts)** pickup STILL collapses, plus some torches, plus
+slightly-broken TEXTURES on some health/ammo boxes. Same numposes==1/blend==0 branch
+gun #1 proves fixed → same code path, different outcome ⇒ discriminator is MODEL DATA,
+not the blend branch. The single-pose change was a partial mitigation (helped g_rock),
+not the root cause. (Boxes = BSP brush models `maps/b_*.bsp` — SEPARATE brush-texture
+bug, parked.)
+
+### Producer/consumer fork RESOLVED → consumer
+- Alias VBO (GL_ARRAY_BUFFER, not cacheable) is mapped Normal-NC (MAP_UNCACHED) in the
+  winsys default BO path (v3d_phoenix_winsys.c:584-587); BO is page-granular + memset-0;
+  submit `dsb` drains producer writes. So NOT stale-cache coherency.
+
+### Subagent V3D research (Mesa/Linux clones) — key verdicts
+- **Over-read / end-padding REFUTED**: fetch reads exactly vattr_sizes components
+  (nir_to_vir.c:2355-2362); no vertex-array pad; only ldunifa needs +4B, TFU +64B
+  (v3d_resource.c:103-144). And the kernel programs the MMU to ABORT on unmapped access
+  (PT_INVALID_ABORT, v3d_mmu.c:85-93) — so a still-rendering collapse is **wrong-but-
+  mapped** data, NOT an off-the-end read.
+- **VPM/vertex-count limits REFUTED**: VPM/VCM config independent of vertex count
+  (vir.c:868-937). 102 vs 130 → identical config.
+- **No attribute offset/stride alignment enforced** (byte-granular legal); BOs page-aligned.
+- **Leading suspects** (both = wrong-but-mapped addressing, data-dependent):
+  1. winsys GL_SHADER_STATE_ATTRIBUTE_RECORD addressing scaling with numverts_vbo (pose1
+     xyz offset = numverts_vbo*8, ST offset = 2*numverts_vbo*8 — the only per-model diff).
+  2. index handling: DrawElements sets ib.size = full padded BO (v3dx_draw.c:1333) +
+     maximum_index unclamped (:844) → an out-of-range/mis-strided index reads neighbor-
+     but-mapped data → degenerate triangles.
+- **Next empirical step**: dump the actual attribute-record fields (address/stride/
+  vec_size/type/number-of-values/maximum_index) + index values the winsys emits for
+  g_nail vs g_rock; compare to Mesa reference (v3dx_draw.c:815-822,844; v3dx_state.c:392-442).
+
+### HW instrumentation deployed
+gl_mesh.c #67DBG logs per-model numverts_vbo/totalvbo/stofs/numidx/pg_end_slack; deployed
+binary md5 5203f2ba (was 47a4e4b6), fresh. Run in progress to collect the table + video.
+
+## Discriminator table (HW #67DBG, 2026-07-27) + investigation state
+Single-pose (numposes==1) alias models, VBO total size vs the 4096-byte page:
+- g_rock (grenade launcher) 3960 B = 1 page → CLEAN (user + captures)
+- w_g_key (gold key)        2352 B = 1 page → CLEAN (observed)
+- g_nail (nailgun)          5208 B = 2 pages → BROKEN (user)
+- g_nail2                   5472 B = 2 pages ; suit 5688 = 2 pages
+- flame (torch, r_nolerp)   6720 B = 2 pages → BROKEN (user "some torches"); 120 verts
+  < g_rock's 165 verts ⇒ REFUTES vertex-count threshold; supports PAGE-COUNT/size.
+DISCRIMINATOR (leading): a single-pose alias VBO that spans MORE THAN ONE 4KiB page
+renders corrupted; ≤1 page renders clean. Consistent across all 4 ground-truth points.
+
+Mechanism note: the "attribute crosses the page boundary" sub-theory is REFUTED for
+geometry — g_nail's POSITION data (pose0, offset 0..1736) is entirely in page 0, same
+as clean g_rock; only its ST/texcoords cross 4096 (would corrupt texture, not collapse
+geometry). So multi-page is the discriminator but page-CROSSING is not the mechanism.
+Winsys BO addressing looks correct by inspection (gpuva page-aligned, per-page va2pa PT
+mapping, MMAP_BO returns full mapping, no b->pa+offset GPU addressing). MMU is flat 4KiB
+PTEs. Leading remaining mechanism: winsys/MMU multi-page mapping or TLB/MMUC-flush gap
+that only bites when a BO occupies >1 page (subagent researching Linux V3D parity).
+
+IMPORTANT capture fact: the weapon PICKUPS (g_rock, g_nail) are NOT in demo1's first
+~85 s — they appear in a LATER demo (demo2/3). An 85 s capture shows g_rock LOADED but
+never DRAWN (0 magenta frames with the tint diagnostic). Must capture ~230 s (demo1→2→3)
+to see the guns. This is why earlier gun-hunting in short captures failed.
+
+FLIP EXPERIMENT (in progress): pad g_rock's VBO to 2 pages (data still in page 0) +
+tint g_rock magenta (r_alias.c/gl_mesh.c #67DBG-FLIP/#67DBG-TINT). If magenta g_rock
+renders BROKEN → 2-page allocation alone is the trigger (mapping bug). If CLEAN → real
+data must live in page 2. Deployed md5 e02a3377; 230 s capture running to catch it.
+All #67DBG* code is diagnostic and MUST be reverted before any fix ships.
+
+## MECHANISM (subagent, Linux V3D parity, 2026-07-27) — LEADING = per-page va2pa
+V3D MMU is flat 4KiB PTEs, format (pa>>12)|VALID(bit28)|WRITE(bit29) — winsys matches
+Linux EXACTLY (v3d_mmu.c:27-30 vs winsys:54-55). PTE-format + TLB/MMUC flush both match →
+EXCLUDED as the cause. Overfetch EXCLUDED (would break 1-page VBOs too).
+LEADING (rank 1): Linux takes each page's PA from the DMA scatter-gather table
+(sg_dma_address, v3d_mmu.c:111) — authoritative per page. Our winsys derives each page's
+PA from `va2pa(cpu + i*4096)` (winsys:606-608). Page 0 = va2pa(cpu) is always correct →
+1-page VBO always fine. For pages i>=1, if va2pa mis-resolves OR MAP_CONTIGUOUS is not
+truly physically contiguous, page>=1 maps to WRONG DRAM → corruption ONLY when VBO > 1
+page. Exactly fits "1 page clean, 2 pages broken." Rank 2: winsys armed a scratch-redirect
+(MMU_ILLEGAL_ADDR) instead of PT_INVALID_ABORT → a bad higher PTE returns zeros/garbage
+(silent corruption) rather than a hang.
+Highest-value check: dump PT[gpuva>>12 + i] for a 2-page BO; compare page-1 PFN to true PA;
+and test whether MAP_CONTIGUOUS|MAP_UNCACHED actually yields contiguous PAs on Phoenix.
+Predicted FLIP outcome under this mechanism: g_rock forced to 2 pages with ALL data in
+page 0 should render CLEAN (page 2 empty, never fetched) — the bug needs real DATA in
+page>=1. If the magenta g_rock is CLEAN, mechanism confirmed.
+
+## SHARPENED (advisor, 2026-07-27): discriminator = fetched data at VBO offset >= 4096
+Not "multi-page BO" (multi-page RTs/textures/CLs all render fine → multi-page MAPPING
+works; va2pa-page>=1 REFUTED). The real discriminator is where the FETCHED attribute data
+sits in the VBO:
+- g_rock (CLEAN): pose/ST all end < 4096.
+- w_g_key (CLEAN): total 2352 < 4096.
+- g_nail (BROKEN): ST = 3472..5208, CROSSES 4096.
+- flame (BROKEN): 6 pose blocks × 960B → pose4/pose5 positions land at 3840..5760, i.e.
+  >= 4096. Prediction: a torch should flicker broken only on animation poses 4/5.
+TWO SEPARATE BUGS: bug#1 = blend==0 double-bind (g_rock's original spikes; KILLED by the
+single-pose fix). bug#2 = fetched data at offset >= 4096 (g_nail, flame; untouched by the
+fix). g_nail is NOT a regression — it always had bug#2, masked by attention on g_rock.
+Prediction for g_nail specifically: only its ST crosses 4096, so it should be TEXCOORD-
+garbled (wrong/black-sampled skin), not shape-spiked — CONFIRM which (changes the fix).
+
+## OBSERVATION HARNESS (breaks the demo-hunting loop) + decisive experiment
+Demos never reliably frame world pickups (0 usable g_rock frames in 230s; magenta-tint
+detection drowned in orange-explosion/red-HUD false positives). So:
+- Viewmodel-swap (gl_rmain.c R_DrawViewModel #67DBG-SWAP): force cl.viewent.model to a
+  test pickup, cycling every 4s: phase0 g_rock (clean baseline) → phase1 g_nail (expected
+  broken) → phase2 g_shot (front-padded). Always centered/large → crop fixed lower-center,
+  no hunting. #67SWAP marker printed per phase.
+- FRONT-PAD (gl_mesh.c #67DBG-FRONTPAD): prepend 4096 B to g_shot (normally 2160 B, CLEAN)
+  via vboxyzofs=4096 so its REAL data is at offset >=4096. If front-padded g_shot renders
+  BROKEN → "offset >= 4096" trigger locked, model-independent.
+Deployed md5 91d2f83e (swap+frontpad, tint/end-pad reverted). Capture running.
+ALL #67DBG* / #67SWAP / front-pad code is diagnostic — MUST be reverted before any fix.
+BLOCKING per advisor: no fix/report until one deterministic before(broken)/after(clean)
+observation of the actual still-broken model via the harness.
+
+## Investigation outcome (2026-07-27 pm) — mechanism STRONG but NOT self-confirmed
+Bug #2 (still-broken nailgun) is NOT the blend==0 bug (that's fixed for g_rock). Best
+hypothesis, well-supported but NOT visually confirmed: **the V3D vertex-fetch (VCD)
+client misreads alias-VBO attribute data fetched from byte-offset >= 4096.**
+Evidence FOR: discriminator table (g_rock 3960 & w_g_key 2352 <4096 = CLEAN; g_nail
+ST 3472->5208 crosses 4096 = BROKEN; flame pose4/5 >=4096 = BROKEN) — 4 ground-truth
+points, all consistent; vertex-count / multi-page-mapping (working RTs) / over-read
+(MMU abort) / page-crossing-of-position all REFUTED.
+Evidence AMBIGUOUS: an isolated-model harness (viewmodel-swap of g_rock/g_nail/front-
+padded g_shot, r_drawworld 0) showed all three with COHERENT GEOMETRY (silhouettes, no
+spikes) — consistent with the prediction that g_nail's breakage is TEXCOORD-garble
+(only its ST crosses 4096), invisible on unlit silhouettes. A fullbright textured
+isolated run to see texcoords did not render cleanly (console-stuck boot). ~17 HW
+cycles spent; a fully clean, phase-attributed, textured before/after was NOT obtained
+(demo world clutter, lighting, positioning, spin, phase-offset all confounded it).
+DECISION: per the "no fix without a clean before/after observation" rule, did NOT ship
+a fix on the unconfirmed mechanism. Reverted ALL diagnostics; redeployed the clean
+single-pose-fix binary (md5 0b095116); restored an empty autoexec (the pre-session
+~15-byte autoexec content was lost earlier and could not be recovered).
+NEXT (proposed): (a) confirm texcoord-vs-geometry on g_nail via a fullbright isolated
+model (fix the console-stuck boot first), then (b) if offset>=4096 confirmed, candidate
+fix = give each vertex attribute its OWN BO (base offset 0) so no attribute is ever
+fetched from a high in-BO offset — OR split large alias VBOs so every attribute stays
+< one page. User can verify any candidate trivially (they see the nailgun in demo1).

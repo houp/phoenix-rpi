@@ -64,6 +64,16 @@ ensure_iface_ip() {
 		sudo ip addr add "$host_ip/24" dev "$iface"
 	fi
 	sudo ip link set "$iface" up
+	# NIC hardening for the direct Pi<->host link. The USB Realtek (r8152) adapter
+	# ships with Energy-Efficient Ethernet (EEE) enabled, which parks the link in
+	# low-power idle between packets and drops/corrupts frames on wake — causing
+	# INTERMITTENT loss under the bursty load of the 2.3 MB TFTP firmware fetch and
+	# the multi-MB NFS exec reads (symptoms: "Firmware not found" boot loops and
+	# NFS exec err=-34). Disable EEE + segmentation offloads so netboot is reliable.
+	# Settings persist across Pi power-cycles but reset on NIC re-plug/host reboot,
+	# so re-apply here every time the netboot server is brought up. Best-effort.
+	sudo ethtool --set-eee "$iface" eee off >/dev/null 2>&1 || true
+	sudo ethtool -K "$iface" gro off gso off tso off >/dev/null 2>&1 || true
 }
 
 write_conf() {

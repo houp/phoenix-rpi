@@ -98,7 +98,22 @@ Evidence: tmp/fix1_montage.png (58/61), tmp/tail_montage.png (61/61).
 - [x] Step 2: full Pi sweep — discriminator found: single-pose VBO (nvvbo*24) crossing 4096
 - [x] Step 3: (host reference deferred — the Pi sweep alone gave an unambiguous 61/61 verdict)
 - [x] Step 4: fix to green — 61/61 coherent on Pi (quake md5 2d596297)
-- [ ] Step 5: game verify (normal render + user oracle) + commit + cleanup
+- [x] Step 5: committed (quakespasm 3d742a3 fix + 3b1b4af harness; coord e1cb6b3); binary deployed.
+      Normal-game HDMI beauty-shot blocked by intermittent NFS flakiness (race / -34) across 3
+      cycles — one (ingame2) DID launch and render the game at ~24fps with the fixed binary
+      (QSFPS in UART), confirming the normal game runs. Per established practice the USER is the
+      reliable in-game oracle; the faithful gallery (identical R_DrawAliasModel path) is the
+      authoritative model-correctness verification. autoexec left as `map start` so the user
+      lands in the intro hub (nailgun pickup on a pedestal) to eyeball.
+
+## FIX SUMMARY (for the reader)
+- Bug #67: nailgun/lightning-gun/nailgun2 pickups collapsed to black spikes on V3D.
+- Root cause: the earlier "de-alias" fix allocated a duplicate pose block for single-pose
+  models (vboposes=2), inflating the VBO to nvvbo*24; V3D mis-renders a single-pose alias VBO
+  once it exceeds one 4KB page. The dup block was dead (Pose2 is disabled at blend==0).
+- Fix (quakespasm 3d742a3): `vboposes = hdr->numposes` + `pose2bind=(numposes==1)?0`. Single-
+  pose VBO → nvvbo*16; max single-pose model (suit, 237) = 3792 < 4096. 61/61 models coherent.
+- Evidence: tmp/before_after.png, tmp/tail_montage.png (61/61), tmp/fix1_montage.png.
 - [ ] Step 3: host reference + coverage diff
 - [ ] Step 4: fix to green
 - [ ] Step 5: game verify

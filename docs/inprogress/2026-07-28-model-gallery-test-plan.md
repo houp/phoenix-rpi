@@ -59,9 +59,46 @@ STEP 4 — FIX + ITERATE: with the mechanism finally observable, form + test fix
 STEP 5 — GAME VERIFY: apply the fix to the shipping renderer; confirm in-game (user oracle
   for final sign-off) that nailgun/torches/etc. render correctly and nothing regressed.
 
+## STEP 2 RESULT — DISCRIMINATOR FOUND (2026-07-28): single-pose VBO > 4096 bytes
+Block-code sweep covered idx 0–25 (gallery then hit the SEPARATE known V3D binner-wedge at
+idx26 h_ogre: `BIN TIMEOUT ... mmu_ill=0x8002ba01 ... GPU wedged`, froze the loop). Robust
+block-code attribution is PERFECT (sequential, unambiguous). Cross-referencing on-screen
+collapse with `#MGdiag` nvvbo, restricted to single-pose (nposes==1) models:
+- BROKEN (dark/collapsed): g_light nvvbo=227, g_nail=217, g_nail2=228
+- CLEAN: g_rock=165, g_rock2=164, g_shot=90, armor 70, backpack 108, bolt 29, … (all ≤165)
+Current single-pose VBO size = nvvbo*24 bytes (the #67 DUP-BLOCK hack sets vboposes=2 → 2 pose
+blocks + 1 st block, each 8B/vert). Boundary is EXACT at 4096 (one 4KB page):
+- CLEAN g_rock 165*24=3960 (<4096); BROKEN g_nail 217*24=5208, g_light 5448, g_nail2 5472 (>4096)
+- EVERY clean single-pose model <4096; EVERY broken one >4096. Multi-pose models (boss nvvbo=501
+  etc.) are clean because pose0 lives in page 0 and their layout differs.
+=> ROOT CAUSE (hypothesis, high confidence): V3D mis-maps/mis-fetches a single-pose alias VBO
+once it spans >1 page, collapsing geometry. The DUP-BLOCK hack itself pushes big single-pose
+models over 4096. That hack is now DEAD CODE: pose2 is disabled at blend==0, and nposes==1 is
+ALWAYS blend==0, so block 1 is never bound. FIX: remove the dup-block (vboposes=hdr->numposes),
+making single-pose VBO nvvbo*16 → g_nail 3472, g_light 3632, g_nail2 3648, all back under 4096.
+Predicted: all three become CLEAN with zero regression (fix is also a legitimate simplification).
+
+## STEP 4 RESULT — FIX VERIFIED GREEN, 61/61 (2026-07-28)
+Applied the fix (gl_mesh.c: `vboposes = hdr->numposes`, drop the dup-block; r_alias.c:
+`pose2bind = (numposes==1)?0:...`). Rebuilt (quake md5 2d596297), re-ran the block-code gallery.
+- The three previously-broken single-pose weapons g_light(12)/g_nail(13)/g_nail2(14) now render
+  BRIGHT + COHERENT. The g_nail2 black SPIKE is gone. suit(46) — the borderline single-pose
+  nvvbo=237 case — also CLEAN (237*16=3792 < 4096; it would have broken under the old *24 layout).
+- FULL SWEEP 61/61: every alias model renders coherent. No black-spike collapse anywhere.
+  (backpack/bolt2 showed a 1-frame brown-fill only at the loop-wrap transition; later loops render
+  them correctly — a decode-rep artifact, not a defect. Confirmed via tmp/inspect_strip.png.)
+- Max single-pose nvvbo across all 61 = suit 237, so EVERY single-pose VBO is now <4096 → the
+  nvvbo>256 residual-risk case (256*16=4096) does not exist in the Quake data set.
+- Bonus: the intermittent V3D binner-wedge (BIN TIMEOUT/mmu_ill) did NOT block the fixed runs; it
+  is HW-marginal and hit a different model each run (h_ogre, then wizard) — a SEPARATE issue.
+Evidence: tmp/fix1_montage.png (58/61), tmp/tail_montage.png (61/61).
+
 ## Status
 - [x] Step 1: Pi gallery + calibration gate — PASSED 2026-07-28
-- [ ] Step 2: full Pi sweep
+- [x] Step 2: full Pi sweep — discriminator found: single-pose VBO (nvvbo*24) crossing 4096
+- [x] Step 3: (host reference deferred — the Pi sweep alone gave an unambiguous 61/61 verdict)
+- [x] Step 4: fix to green — 61/61 coherent on Pi (quake md5 2d596297)
+- [ ] Step 5: game verify (normal render + user oracle) + commit + cleanup
 - [ ] Step 3: host reference + coverage diff
 - [ ] Step 4: fix to green
 - [ ] Step 5: game verify
@@ -85,3 +122,27 @@ investigation lacked. Evidence: artifacts/qglitch-67/2026-07-28-gallery/calib_g_
 KEY MECHANISM UPDATE: ogre CLEAN at blend==0/326-tris DISPROVES "blend==0 + high tri count"
 as the trigger. The collapse is more specific to g_nail's class. The full sweep (Step 2) will
 reveal exactly which models collapse; then the shared property points at the real cause.
+
+## STEP 2 — INSTRUMENT HARDENING (2026-07-28)
+The colour-plateau HDMI decode kept drifting ±1-2 labels (extra/merged plateaus). Replaced the
+background-colour index ramp with a robust **6-bit BINARY BLOCK CODE** drawn in the 2D pass
+(`R_ModelGallery_DrawTag`, gl_rmain.c): a white ANCHOR block + 6 white/dark data blocks (LSB
+first) at the top of every frame. Gamma/downscale/colour-crosstalk immune; auto-calibrates to
+any capture resolution via the anchor. Decoder: tmp/decode_blk.py (PIL-only, anchor pitch).
+Also added a per-model UART line `#MGdiag[idx] name nvvbo nidx nposes skin` so each on-screen
+collapse can be correlated with the exact VBO layout. quake ELF md5 d534173c.
+
+### Offline MDL-header analysis (pak0, tmp/mdlhdr.py) — the g_rock/g_nail discriminator
+The single-pose fix (r_alias.c: disable Pose2 at blend==0) FIXED g_rock but NOT g_nail, though
+both are single-frame weapons on the identical draw path. The pose1 fetch (4×UBYTE, stride 8,
+offset 0) is byte-identical for both => the collapse is DATA-dependent, not code-path dependent.
+MDL headers (clean vs broken, all single-frame, same flags 0x08):
+- g_rock (CLEAN):  nverts=102 ntris=176 skin 224x195
+- g_nail (BROKEN): nverts=130 ntris=222 skin 308x94
+- ogre  (CLEAN, multi-pose@frame0 => same blend==0 path): nverts=169 ntris=326 skin 264x194
+=> NOT vertex/tri COUNT (ogre bigger than g_nail, still clean). Candidate discriminators left:
+numverts_vbo (post-seam-remap, measured via #MGdiag), skinwidth (g_nail 308 vs g_rock 224 →
+pad 512 vs 256), skin aspect (g_nail 308x94 ≈ 3.3:1). Sweep + #MGdiag will pin which one tracks
+the collapsed set. Candidate fix independent of exact mechanism: upload alias positions as a
+more robust vertex format (SHORT/FLOAT) instead of 4×UNSIGNED_BYTE, if V3D byte-attr fetch is
+the culprit.

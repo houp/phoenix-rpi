@@ -112,8 +112,12 @@ static VkCommandBuffer frame_cb			  = VK_NULL_HANDLE;
 static VkImage		   scanout_image	  = VK_NULL_HANDLE;
 static VkDeviceMemory  scanout_memory	  = VK_NULL_HANDLE;
 static VkImageView	   scanout_view		  = VK_NULL_HANDLE;
-static VkRenderPass	   ui_render_pass	  = VK_NULL_HANDLE;
+static VkImage		   depth_image		  = VK_NULL_HANDLE;   /* 3D: D32 depth buffer */
+static VkDeviceMemory  depth_memory		  = VK_NULL_HANDLE;
+static VkImageView	   depth_view		  = VK_NULL_HANDLE;
+static VkRenderPass	   ui_render_pass	  = VK_NULL_HANDLE;   /* the single color+depth pass (world+2D) */
 static VkFramebuffer   ui_framebuffer	  = VK_NULL_HANDLE;
+static int			   have_depth		  = 0;   /* 1 once the color+depth pass/world path is wired */
 static int			   render_resources_created = 0;
 static int			   frame_recording	  = 0; /* set between GL_BeginRendering and GL_EndRendering */
 static unsigned long   present_count	  = 0; /* frames submitted+presented to the fb0 scanout */
@@ -548,53 +552,122 @@ static int create_render_resources (void)
 		Sys_Printf ("vkvid: rr: imageview ok\n");
 	}
 
+	/* (2b) 3D: D32_SFLOAT depth buffer (image + memory + view), OPTIMAL tiling, depth-stencil
+	 * attachment usage. Enables the color+depth MAIN render pass so V_RenderView's world draws
+	 * depth-test. Failure here is non-fatal: fall back to the color-only (2D) pass. */
+	{
+		VkImageCreateInfo dci = {
+			.sType		   = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+			.imageType	   = VK_IMAGE_TYPE_2D,
+			.format		   = vulkan_globals.depth_format,
+			.extent		   = {fb_mode.width, fb_mode.height, 1},
+			.mipLevels	   = 1,
+			.arrayLayers   = 1,
+			.samples	   = VK_SAMPLE_COUNT_1_BIT,
+			.tiling		   = VK_IMAGE_TILING_OPTIMAL,
+			.usage		   = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+		};
+		VkMemoryRequirements dmreq; memset (&dmreq, 0, sizeof (dmreq));
+		if (pCreateImage (g_vk_device, &dci, NULL, &depth_image) == VK_SUCCESS) {
+			pGetImageMemReq (g_vk_device, depth_image, &dmreq);
+			VkMemoryAllocateInfo dmai = {
+				.sType			 = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+				.allocationSize	 = dmreq.size,
+				.memoryTypeIndex = pick_memory_type (dmreq.memoryTypeBits),
+			};
+			if (pAllocateMemory (g_vk_device, &dmai, NULL, &depth_memory) == VK_SUCCESS &&
+			    pBindImageMemory (g_vk_device, depth_image, depth_memory, 0) == VK_SUCCESS) {
+				VkImageViewCreateInfo dvci = {
+					.sType			  = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+					.image			  = depth_image,
+					.viewType		  = VK_IMAGE_VIEW_TYPE_2D,
+					.format			  = vulkan_globals.depth_format,
+					.subresourceRange = {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1},
+				};
+				if (pCreateImageView (g_vk_device, &dvci, NULL, &depth_view) == VK_SUCCESS) {
+					have_depth = 1;
+					Sys_Printf ("vkvid: rr: depth buffer ok (%ux%u D32, mem=%u)\n",
+						fb_mode.width, fb_mode.height, (unsigned)dmreq.size);
+				}
+			}
+		}
+		if (!have_depth)
+			Sys_Printf ("vkvid: rr: depth buffer setup FAILED -> 2D-only (color) pass\n");
+	}
+
 	/* (3) UI render pass: ONE color attachment, ONE subpass, samples=1, color_format. This is
 	 * the exact shape R_CreateBasicPipelines expects for RENDER_PASS_INDEX_UI (attachment_count=1,
 	 * subpass=0, samples=1), so the pipelines it builds are render-pass-compatible with the
 	 * draw-time vkCmdBeginRenderPass below. loadOp=CLEAR -> storeOp=STORE is the harness's proven
 	 * scanout-paint path. finalLayout=GENERAL matches the host-mapped scanout BO. */
 	{
-		VkAttachmentDescription att = {
-			.format			= vulkan_globals.color_format,
-			.samples		= VK_SAMPLE_COUNT_1_BIT,
-			.loadOp			= VK_ATTACHMENT_LOAD_OP_CLEAR,
-			.storeOp		= VK_ATTACHMENT_STORE_OP_STORE,
-			.stencilLoadOp	= VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-			.initialLayout	= VK_IMAGE_LAYOUT_UNDEFINED,
-			.finalLayout	= VK_IMAGE_LAYOUT_GENERAL,
+		VkAttachmentDescription att[2] = {
+			{	/* 0: color = scanout */
+				.format			= vulkan_globals.color_format,
+				.samples		= VK_SAMPLE_COUNT_1_BIT,
+				.loadOp			= VK_ATTACHMENT_LOAD_OP_CLEAR,
+				.storeOp		= VK_ATTACHMENT_STORE_OP_STORE,
+				.stencilLoadOp	= VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+				.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+				.initialLayout	= VK_IMAGE_LAYOUT_UNDEFINED,
+				.finalLayout	= VK_IMAGE_LAYOUT_GENERAL,
+			},
+			{	/* 1: depth (only attached when have_depth) */
+				.format			= vulkan_globals.depth_format,
+				.samples		= VK_SAMPLE_COUNT_1_BIT,
+				.loadOp			= VK_ATTACHMENT_LOAD_OP_CLEAR,
+				.storeOp		= VK_ATTACHMENT_STORE_OP_DONT_CARE,
+				.stencilLoadOp	= VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+				.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+				.initialLayout	= VK_IMAGE_LAYOUT_UNDEFINED,
+				.finalLayout	= VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+			},
 		};
 		VkAttachmentReference attref = {
 			.attachment = 0,
 			.layout		= VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		};
+		VkAttachmentReference depthref = {
+			.attachment = 1,
+			.layout		= VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+		};
 		VkSubpassDescription sub = {
-			.pipelineBindPoint	  = VK_PIPELINE_BIND_POINT_GRAPHICS,
-			.colorAttachmentCount = 1,
-			.pColorAttachments	  = &attref,
+			.pipelineBindPoint		 = VK_PIPELINE_BIND_POINT_GRAPHICS,
+			.colorAttachmentCount	 = 1,
+			.pColorAttachments		 = &attref,
+			.pDepthStencilAttachment = have_depth ? &depthref : NULL,
 		};
 		VkRenderPassCreateInfo rpci = {
 			.sType			 = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-			.attachmentCount = 1,
-			.pAttachments	 = &att,
+			.attachmentCount = have_depth ? 2u : 1u,
+			.pAttachments	 = att,
 			.subpassCount	 = 1,
 			.pSubpasses		 = &sub,
 		};
 		err = pCreateRenderPass (g_vk_device, &rpci, NULL, &ui_render_pass);
 		if (err != VK_SUCCESS) {
-			Sys_Printf ("vkvid: vkCreateRenderPass(ui) -> %d\n", (int)err);
+			Sys_Printf ("vkvid: vkCreateRenderPass -> %d\n", (int)err);
 			return 0;
 		}
-		Sys_Printf ("vkvid: rr: renderpass ok\n");
+		/* Publish as BOTH the MAIN (world) and UI pass so R_CreatePipelines builds the world
+		 * pipelines against it (the skip-guard only drops NULL-render-pass variants). 2D pipelines
+		 * are render-pass-compatible with the extra depth attachment (they just don't depth-test). */
+		if (have_depth) {
+			vulkan_globals.main_render_pass[MAIN_RENDER_PASS_STANDARD][MAIN_RENDER_PASS_STENCIL_CLEAR] = ui_render_pass;
+			vulkan_globals.main_render_pass[MAIN_RENDER_PASS_STANDARD][MAIN_RENDER_PASS_NO_STENCIL]	 = ui_render_pass;
+		}
+		Sys_Printf ("vkvid: rr: renderpass ok (depth=%d)\n", have_depth);
 	}
 
 	/* (4) Framebuffer wrapping the scanout view. */
 	{
+		VkImageView fb_atts[2] = { scanout_view, depth_view };
 		VkFramebufferCreateInfo fbci = {
 			.sType			 = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
 			.renderPass		 = ui_render_pass,
-			.attachmentCount = 1,
-			.pAttachments	 = &scanout_view,
+			.attachmentCount = have_depth ? 2u : 1u,
+			.pAttachments	 = fb_atts,
 			.width			 = fb_mode.width,
 			.height			 = fb_mode.height,
 			.layers			 = 1,
@@ -639,14 +712,26 @@ static int create_render_resources (void)
 	 * primary; here it points at the PRIMARY frame_cb (inline subpass), and shares ui_render_pass /
 	 * RENDER_PASS_INDEX_UI with the pipeline build so everything is render-pass-compatible. */
 	{
-		cb_context_t *gui = (cb_context_t *)Mem_Alloc (sizeof (cb_context_t));
-		gui->cb				  = frame_cb;
-		gui->current_canvas	  = CANVAS_INVALID;
-		gui->render_pass	  = ui_render_pass;
-		gui->render_pass_index = RENDER_PASS_INDEX_UI;
-		gui->subpass		  = 0;
-		vulkan_globals.secondary_cb_contexts[SCBX_GUI] = gui;
-		Sys_Printf ("vkvid: rr: gui-cbx ok\n");
+		/* Wire EVERY secondary cb-context (world + 2D) to the single primary frame_cb + the one
+		 * color+depth pass. Single-threaded (r_tasks=0) records them inline in order. Scene
+		 * contexts (SCBX_WORLD..just-before-GUI) use RENDER_PASS_INDEX_MAIN; GUI/POST use UI.
+		 * Both indices map to the same VkRenderPass here, so pipelines from either are compatible. */
+		for (int scbx = 0; scbx < SCBX_NUM; scbx++) {
+			int mult = SECONDARY_CB_MULTIPLICITY[scbx];
+			if (mult < 1) mult = 1;
+			cb_context_t *ctxs = (cb_context_t *)Mem_Alloc ((size_t)mult * sizeof (cb_context_t));
+			int rpi = (scbx < SCBX_GUI && have_depth) ? RENDER_PASS_INDEX_MAIN : RENDER_PASS_INDEX_UI;
+			for (int i = 0; i < mult; i++) {
+				memset (&ctxs[i], 0, sizeof (cb_context_t));
+				ctxs[i].cb				 = frame_cb;
+				ctxs[i].current_canvas	 = CANVAS_INVALID;
+				ctxs[i].render_pass		 = ui_render_pass;
+				ctxs[i].render_pass_index = rpi;
+				ctxs[i].subpass			 = 0;
+			}
+			vulkan_globals.secondary_cb_contexts[scbx] = ctxs;
+		}
+		Sys_Printf ("vkvid: rr: %d scbx contexts wired to frame_cb (world+2D, single color+depth pass)\n", SCBX_NUM);
 	}
 
 	/* (7) Build the basic UI pipelines by reusing the engine's own R_CreateBasicPipelines (now
@@ -660,8 +745,17 @@ static int create_render_resources (void)
 	Sys_Printf ("vkvid: rr: shadermodules ok\n");
 	R_InitVertexAttributes ();
 	Sys_Printf ("vkvid: rr: vertexattrs ok\n");
-	R_CreateBasicPipelines ();
-	Sys_Printf ("vkvid: rr: pipelines ok\n");
+	if (have_depth) {
+		/* Full pipeline set: R_CreatePipelines() builds the basic (UI) pipelines PLUS the world/
+		 * alias/brush/sky/particle MAIN pipelines against main_render_pass (now non-NULL). The
+		 * engine's skip-guard drops the OIT/WBOIT variants (their render pass stays NULL). */
+		extern void R_CreatePipelines (void);
+		R_CreatePipelines ();
+		Sys_Printf ("vkvid: rr: FULL pipelines ok (world+2D)\n");
+	} else {
+		R_CreateBasicPipelines ();
+		Sys_Printf ("vkvid: rr: basic (UI-only) pipelines ok\n");
+	}
 	R_DestroyShaderModules ();
 	Sys_Printf ("vkvid: rr: shadermodules destroyed\n");
 
@@ -906,14 +1000,17 @@ qboolean GL_BeginRendering (qboolean use_tasks, task_handle_t *begin_rendering_t
 		return false;
 	}
 
-	VkClearValue clear = vulkan_globals.color_clear_value;
+	VkClearValue clears[2];
+	clears[0] = vulkan_globals.color_clear_value;   /* color */
+	clears[1].depthStencil.depth = 1.0f;			/* depth (far) */
+	clears[1].depthStencil.stencil = 0;
 	VkRenderPassBeginInfo rpbi = {
 		.sType			 = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
 		.renderPass		 = ui_render_pass,
 		.framebuffer	 = ui_framebuffer,
 		.renderArea		 = {{0, 0}, {(uint32_t)vid.width, (uint32_t)vid.height}},
-		.clearValueCount = 1,
-		.pClearValues	 = &clear,
+		.clearValueCount = have_depth ? 2u : 1u,
+		.pClearValues	 = clears,
 	};
 	pBeginRP (frame_cb, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
 

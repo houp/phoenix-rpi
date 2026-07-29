@@ -108,10 +108,9 @@ int main(int argc, char *argv[])
 	{
 		extern cvar_t cl_startdemos;
 		Cvar_SetValueQuick(&cl_startdemos, 0.0f);
-		Cbuf_AddText("disconnect\n");
-		Cbuf_AddText("menu_main\n");
+		Cbuf_AddText("map start\n");   /* 3D bring-up: load a real BSP world so V_RenderView runs */
 		Cbuf_Execute();
-		Sys_Printf("vkquake: 2D-first: startdemos disabled, forced to main menu\n");
+		Sys_Printf("vkquake: 3D bring-up: loading 'map start' to exercise the world render path\n");
 	}
 
 	/* TEXTURE-STAGING FLUSH (hygiene; HW: textured 2D samples 0 = upload gap). conchars + the

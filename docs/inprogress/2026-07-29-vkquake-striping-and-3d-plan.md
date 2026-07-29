@@ -54,6 +54,33 @@ off OIT/WBOIT/compute-lightmap/RT — already partly done in VID_Init); render-p
 the 2D pipelines with the depth attachment; any place the engine begins a context's cb as a real
 secondary (would conflict with frame_cb already-begun). Keep a known-good clean-2D build deployable.
 
+## 3D WIRING — IMPLEMENTED + BUILDS/INITS CLEAN ON HW (2026-07-29). Remaining blocker: init speed.
+Implemented Option C (coord commit 9759e63): D32 depth buffer + single color+depth render pass
+published as main_render_pass[STANDARD][*]; FULL R_CreatePipelines (world/alias/brush/sky/particle);
+all 12 secondary_cb_contexts wired to the primary frame_cb; GL_BeginRendering clears color+depth;
+pl_phoenix_main loads `map start`. **HW: every stage builds + inits with ZERO fault** — `rr: depth
+buffer ok`, `renderpass ok (depth=1)`, `12 scbx contexts wired`, **`FULL pipelines ok (world+2D)`**
+(R_CreatePipelines survives on V3D — the biggest risk cleared). BUT the world frame is NOT reached:
+vkQuake stops after ~present 3 (2D console, con_forcedup=1, during Host_Init) — only ~3 frames +
+18 texture uploads in a 340s window, HDMI frozen on the 2D bisector for ~5 min. Two candidate causes
+(undistinguished — NEXT step is a print right after Host_Init() returns to tell them apart):
+  (a) SYNCHRONOUS-WINSYS SLOWNESS: every GPU submit waits device-idle, so each texture precache
+      upload is very slow; vkQuake precaches 100+ textures in Host_Init => 15-30 min just to finish
+      Host_Init before `map start` even runs. Real fix = batch/async GPU submits in the winsys (a
+      significant rework) or drastically cut precache.
+  (b) A post-present-3 STALL in Host_Init/first-world-frame (present 1/2/3 completed cleanly, no
+      wedge/fault; then no present 4). If (b), it's a logic/deadlock bug, not speed.
+  NOTE (important): the ORIGINAL 2D-first build ALSO stops at the same present-3 2D-bisector, so
+  this present-3 wall is PRE-EXISTING (prior scaffold state), NOT introduced by the 3D wiring — the
+  3D changes are additive and build/init cleanly on top. Resolving the present-3 wall (slow-vs-hung
+  distinguishing test = a print right after Host_Init() returns, over a long clean-boot window)
+  unblocks BOTH finishing 2D and reaching the 3D world.
+Compounding: an INTERMITTENT USB xHCI UART debug spam (`SLOT OUT`/`EP0 CTX`+hex, ~6 MB) floods the
+UART on some boots after ~present 3, drowning vkQuake output (source token not found in
+sources/phoenix-rtos-usb — likely a different build's stack or a formatting artifact). HDMI snapshots
+bypass it (used them to confirm the frozen 2D screen). Deployed rpi4-vkquake md5 2ac63d52 = the
+3D-wired build (boots + presents 2D; does not reach the world).
+
 ## Build/run quick ref
 - Build: `python3 tools/v3d-driver-port/build-v3dv-phoenix.py` then
   `python3 tools/vkquake-port/build-vkquake-phoenix.py --link` -> /tmp/vkquake-phoenix; deploy to

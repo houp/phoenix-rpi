@@ -111,6 +111,12 @@ CFLAGS = ["-c", "-O2", "-g", "-ffreestanding", "-fno-strict-aliasing", "-Wno-err
 
 
 def compile_one(src, obj, extra=None):
+    # INCR=1: reuse a cached .o that is at least as new as its .c (mtime-only; a shared-header
+    # edit needs a full, INCR-unset rebuild). Turns the ~all-engine recompile into just the
+    # edited TUs when iterating on one or two .c files. See build-v3d-phoenix.py build_objs.
+    if os.environ.get("INCR") == "1" and os.path.exists(obj) \
+            and os.path.getmtime(obj) >= os.path.getmtime(src):
+        return None
     flags = CFLAGS + (extra or [])
     r = subprocess.run([TC] + flags + ["-o", obj, src], capture_output=True, text=True)
     if r.returncode == 0:

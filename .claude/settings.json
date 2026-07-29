@@ -54,6 +54,7 @@
       "Bash(./scripts/qemu-debug.sh:*)",
       "Bash(./scripts/uart-summary.sh:*)",
       "Bash(./scripts/uart-list.sh:*)",
+      "Bash(./scripts/dbg-symbolize.sh:*)",
       "Bash(./scripts/git-siblings.sh:*)",
       "Bash(grep:*)",
       "Bash(rg:*)"

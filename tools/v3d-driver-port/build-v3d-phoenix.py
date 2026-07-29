@@ -118,15 +118,28 @@ def template_entry():
 
 
 def build_objs(entries, srcs_outs, objdir, label):
-    """entries: list of (entry, src, out). Returns (ok_objs, fails)."""
+    """entries: list of (entry, src, out). Returns (ok_objs, fails).
+
+    INCR=1 in the environment enables an mtime-based skip: a cached .o that is at least as
+    new as its .c source is reused instead of recompiled. This turns a ~9-min full front-end
+    rebuild into a ~30-s recompile of just the edited TUs — the intended workflow when
+    iterating on one or two .c files (e.g. the v3dv copy-path). CAVEAT: mtime tracks the .c
+    only, NOT its headers, so after editing a shared .h do a full (INCR-unset) rebuild."""
     os.makedirs(objdir, exist_ok=True)
-    ok, fails = [], []
+    incr = os.environ.get("INCR") == "1"
+    ok, fails, skipped = [], [], 0
     for entry, src, out in srcs_outs:
+        if incr and os.path.exists(out) and os.path.getmtime(out) >= os.path.getmtime(src):
+            ok.append(out)
+            skipped += 1
+            continue
         rc, err, cmd = compile_one(entry, src, out)
         if rc == 0:
             ok.append(out)
         else:
             fails.append((src, err.strip().splitlines()[-3:]))
+    if incr:
+        print(f"[{label}] INCR: {skipped} cached, {len(ok) - skipped} recompiled")
     print(f"[{label}] OK={len(ok)} FAIL={len(fails)}")
     for src, errtail in fails:
         print(f"  FAIL {os.path.relpath(src, MESA)}")

@@ -129,10 +129,19 @@ def build_objs(entries, srcs_outs, objdir, label):
     incr = os.environ.get("INCR") == "1"
     ok, fails, skipped = [], [], 0
     for entry, src, out in srcs_outs:
-        if incr and os.path.exists(out) and os.path.getmtime(out) >= os.path.getmtime(src):
-            ok.append(out)
-            skipped += 1
-            continue
+        # INCR skip: reuse a cached .o at least as new as its .c. `src` may be a relative path
+        # (gallium compile_commands entries) that doesn't resolve from this cwd; resolve it against
+        # the mesa build dir, and if it still can't be stat'd, fall through to recompile (never skip
+        # on a stat error). HOSTBUILD is the ninja build dir compile_one runs in.
+        if incr and os.path.exists(out):
+            try:
+                s = src if os.path.exists(src) else os.path.join(HOSTBUILD, src)
+                if os.path.getmtime(out) >= os.path.getmtime(s):
+                    ok.append(out)
+                    skipped += 1
+                    continue
+            except OSError:
+                pass
         rc, err, cmd = compile_one(entry, src, out)
         if rc == 0:
             ok.append(out)

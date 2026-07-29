@@ -212,10 +212,15 @@ void vkCmdPipelineBarrier(VkCommandBuffer commandBuffer, VkPipelineStageFlags sr
 
 void vkCmdSetDepthBias(VkCommandBuffer commandBuffer, float depthBiasConstantFactor, float depthBiasClamp, float depthBiasSlopeFactor)
 {
-	static PFN_vkCmdSetDepthBias fp = NULL;
-	if (!fp) fp = (PFN_vkCmdSetDepthBias)g_vkGetDeviceProcAddr(g_vk_device, "vkCmdSetDepthBias");
-	if (!fp) { Sys_Printf("vktramp: UNRESOLVED vkCmdSetDepthBias\n"); return; }
-	fp(commandBuffer, depthBiasConstantFactor, depthBiasClamp, depthBiasSlopeFactor);
+	/* BRING-UP NO-OP (TODO vkquake-port): vkGetDeviceProcAddr("vkCmdSetDepthBias") resolves to the
+	 * mesa runtime shim vk_common_CmdSetDepthBias, which forwards through
+	 * device dispatch_table.CmdSetDepthBias2EXT — an entry V3DV's generated device dispatch table
+	 * leaves UNPOPULATED (VK_EXT_depth_bias_control not advertised), so the indirect call jumps to
+	 * garbage (observed PC = ASCII "_emit_li") → PC-alignment fault on the first world brush-draw
+	 * frame. Depth bias is polygon-offset z-fighting cosmetics; skip it for the first world render.
+	 * PROPER FIX (deferred, tracked): populate V3DV's dispatch CmdSetDepthBias2EXT =
+	 * vk_common_CmdSetDepthBias2EXT (records dynamic state), or fix the dispatch-table generation. */
+	(void)commandBuffer; (void)depthBiasConstantFactor; (void)depthBiasClamp; (void)depthBiasSlopeFactor;
 }
 
 void vkCmdSetScissor(VkCommandBuffer commandBuffer, uint32_t firstScissor, uint32_t scissorCount, const VkRect2D* pScissors)

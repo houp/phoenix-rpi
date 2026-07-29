@@ -248,10 +248,18 @@ static qboolean create_device (void)
  * clear). The counter pins which case it is. TODO(vkquake-port): remove once 2D lands. */
 static PFN_vkCmdDraw		 real_vk_cmd_draw		   = NULL;
 static PFN_vkCmdDrawIndexed	 real_vk_cmd_draw_indexed  = NULL;
+static PFN_vkCmdDrawIndexedIndirect real_vk_cmd_draw_indexed_indirect = NULL;
 static PFN_vkCmdPushConstants real_vk_cmd_push_constants = NULL;
 static unsigned long g_draw_calls	   = 0; /* vkCmdDraw this frame */
 static unsigned long g_draw_idx_calls  = 0; /* vkCmdDrawIndexed this frame */
+static unsigned long g_draw_ind_calls  = 0; /* vkCmdDrawIndexedIndirect this frame (WORLD brush geom) */
 static unsigned long g_pc_null_layout  = 0; /* push-constant calls with NULL layout this frame */
+/* Render-pass nesting probe: the world (R_RenderView) records into frame_cb via the inline SCBX
+ * short-circuit; if those draws land OUTSIDE our begun UI render pass they rasterize nothing on V3D
+ * (clear survives -> blue) even though the draw counter increments. rp_active is set only while our
+ * render pass is begun on frame_cb. */
+static int rp_active = 0;
+static unsigned long g_draws_outside_rp = 0; /* indexed+indirect draws recorded while rp_active==0 */
 
 static void VKAPI_PTR count_vk_cmd_draw (VkCommandBuffer cb, uint32_t vc, uint32_t ic, uint32_t fv, uint32_t fi)
 {
@@ -263,8 +271,22 @@ static void VKAPI_PTR count_vk_cmd_draw (VkCommandBuffer cb, uint32_t vc, uint32
 static void VKAPI_PTR count_vk_cmd_draw_indexed (VkCommandBuffer cb, uint32_t ic, uint32_t inst, uint32_t fi, int32_t vo, uint32_t fia)
 {
 	g_draw_idx_calls++;
+	if (!rp_active)
+		g_draws_outside_rp++;
 	if (real_vk_cmd_draw_indexed)
 		real_vk_cmd_draw_indexed (cb, ic, inst, fi, vo, fia);
+}
+
+/* The WORLD brush geometry draws via vkCmdDrawIndexedIndirect (r_brush.c indirect=true), so it is
+ * invisible to the plain draw/drawIndexed counters. Count it separately to answer "is the world
+ * actually recording draws?" without inferring from con_forcedup. */
+static void VKAPI_PTR count_vk_cmd_draw_indexed_indirect (VkCommandBuffer cb, VkBuffer buf, VkDeviceSize off, uint32_t count, uint32_t stride)
+{
+	g_draw_ind_calls++;
+	if (!rp_active)
+		g_draws_outside_rp++;
+	if (real_vk_cmd_draw_indexed_indirect)
+		real_vk_cmd_draw_indexed_indirect (cb, buf, off, count, stride);
 }
 
 static void VKAPI_PTR count_vk_cmd_push_constants (VkCommandBuffer cb, VkPipelineLayout layout, VkShaderStageFlags sf,
@@ -297,8 +319,9 @@ static void populate_dispatch_table (void)
 	vulkan_globals.vk_cmd_draw = count_vk_cmd_draw;
 	real_vk_cmd_draw_indexed = (PFN_vkCmdDrawIndexed) gdpa ("vkCmdDrawIndexed");
 	vulkan_globals.vk_cmd_draw_indexed = count_vk_cmd_draw_indexed;
-	vulkan_globals.vk_cmd_draw_indexed_indirect =
+	real_vk_cmd_draw_indexed_indirect =
 		(PFN_vkCmdDrawIndexedIndirect) gdpa ("vkCmdDrawIndexedIndirect");
+	vulkan_globals.vk_cmd_draw_indexed_indirect = count_vk_cmd_draw_indexed_indirect;
 	vulkan_globals.vk_cmd_pipeline_barrier =
 		(PFN_vkCmdPipelineBarrier) gdpa ("vkCmdPipelineBarrier");
 	vulkan_globals.vk_cmd_copy_buffer_to_image =
@@ -1030,8 +1053,12 @@ qboolean GL_BeginRendering (qboolean use_tasks, task_handle_t *begin_rendering_t
 	gui->current_pipeline.layout = vulkan_globals.basic_pipeline_layout;
 
 	VkClearValue clears[2];
-	clears[0] = vulkan_globals.color_clear_value;   /* color */
-	clears[1].depthStencil.depth = 1.0f;			/* depth (far) */
+	clears[0] = vulkan_globals.color_clear_value;   /* color (engine default) */
+	/* vkQuake uses REVERSED-Z: pipelines compare with VK_COMPARE_OP_GREATER_OR_EQUAL
+	 * (gl_rmisc.c R_InitDefaultStates), so the far plane is depth 0.0 and near is 1.0. Clearing to
+	 * 1.0 (normal-Z far) made every world fragment (depth < 1.0) FAIL the GEQUAL test -> zero world
+	 * pixels (blue clear showed through). Clear to 0.0 so fragments pass and the world rasterizes. */
+	clears[1].depthStencil.depth = 0.0f;			/* reversed-Z far */
 	clears[1].depthStencil.stencil = 0;
 	VkRenderPassBeginInfo rpbi = {
 		.sType			 = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
@@ -1042,6 +1069,7 @@ qboolean GL_BeginRendering (qboolean use_tasks, task_handle_t *begin_rendering_t
 		.pClearValues	 = clears,
 	};
 	pBeginRP (frame_cb, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
+	rp_active = 1;
 
 	/* The viewport/scissor are dynamic state set per-canvas by GL_SetCanvas -> GL_Viewport. Seed
 	 * a full-frame scissor/viewport so a draw before the first GL_SetCanvas has valid state. */
@@ -1062,7 +1090,7 @@ qboolean GL_BeginRendering (qboolean use_tasks, task_handle_t *begin_rendering_t
 	R_SwapDynamicBuffers ();
 
 	/* Reset the per-frame bring-up counters (draws + NULL-layout push constants). */
-	g_draw_calls = g_draw_idx_calls = g_pc_null_layout = 0;
+	g_draw_calls = g_draw_idx_calls = g_draw_ind_calls = g_pc_null_layout = g_draws_outside_rp = 0;
 
 	vulkan_globals.device_idle = false;
 	frame_recording = 1;
@@ -1102,12 +1130,14 @@ task_handle_t GL_EndRendering (qboolean use_tasks, qboolean use_swapchain)
 	 * geometry/scissor/projection), draws==0 => the Draw_* calls never reached frame_cb (skipped
 	 * early / null pics / wrong cb). null_layout_pc>0 flags the projection-matrix-lost ordering bug
 	 * (GL_SetCanvas pushing before any pipeline bind). Logged for the first frames only. */
-	if (present_count < 8) {
-		Sys_Printf ("vkvid: 2D draws=%lu drawIdx=%lu nullLayoutPC=%lu into submitted cb\n",
-		            g_draw_calls, g_draw_idx_calls, g_pc_null_layout);
+	if (present_count < 30 || (present_count % 60) == 0) {
+		Sys_Printf ("vkvid: 2D draws=%lu drawIdx=%lu drawIndirect=%lu outsideRP=%lu nullLayoutPC=%lu | vrect=%dx%d@%d,%d\n",
+		            g_draw_calls, g_draw_idx_calls, g_draw_ind_calls, g_draws_outside_rp, g_pc_null_layout,
+		            r_refdef.vrect.width, r_refdef.vrect.height, r_refdef.vrect.x, r_refdef.vrect.y);
 		fflush (stdout);
 	}
 
+	rp_active = 0;
 	pEndRP (frame_cb);
 
 	/* End every PCBX primary, then submit them together in PCBX order (RENDER_PASSES last) in a

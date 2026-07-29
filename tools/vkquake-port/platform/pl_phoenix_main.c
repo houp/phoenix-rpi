@@ -74,6 +74,13 @@ int main(int argc, char *argv[])
 	setvbuf(stderr, NULL, _IONBF, 0);
 	printf("vkquake: main() entered (argc=%d)\n", argc);
 
+	/* dbg facility (tools/dbg-probe/dbg.c): fault handlers + a watchdog that dumps a backtrace of
+	 * wherever we're stuck. Catches the Host_Init world-load hang (host stays booted; UART only). */
+	extern void dbg_init(void);
+	extern void dbg_arm_watchdog(unsigned int secs);
+	dbg_init();
+	dbg_arm_watchdog(15);
+
 	host_parms = &parms;
 	parms.basedir = "/usr/share/quake";    /* FHS data dir; wait_for_gamedata() refines it (#46) */
 	parms.userdir = "/usr/share/quake";    /* DO_USERDIRS disabled -> userdir == basedir */

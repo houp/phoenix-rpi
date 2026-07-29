@@ -98,12 +98,14 @@ PLATFORM = [
     f"{PORT}/platform/pl_phoenix_main.c",        # main() + host loop
     f"{PORT}/platform/pl_phoenix_stubs.c",       # net_drivers loopback table + pthread_getcpuclockid
     f"{PORT}/platform/pl_phoenix_vk_vid.c",      # Vulkan vid shim (VID_*/GL_*/vid+cvars) -> fb0 scanout
+    f"{ROOT}/tools/dbg-probe/dbg.c",             # in-process backtrace/watchdog (UART) — crash+hang diag
 ]
 
 # Engine include flags. quakedef.h pulls <vulkan/vulkan_core.h> + vid.h, so VKINC and the
 # SDL shim are both on the path. -DUSE_SDL2 keeps the SDL2 codepaths (we shim SDL2).
 COMPAT = f"{PORT}/vkq_phoenix_compat.h"
 CFLAGS = ["-c", "-O2", "-g", "-ffreestanding", "-fno-strict-aliasing", "-Wno-error",
+          "-fno-omit-frame-pointer",   # keep the x29 chain walkable for the dbg backtrace facility
           "-DLINUX", "-D_GNU_SOURCE", "-DUSE_SDL2", "-include", COMPAT,
           f"-I{PORT}/sdl-shim", f"-I{Q}", f"-I{VKINC}", f"-I{SHADERS}"]
 

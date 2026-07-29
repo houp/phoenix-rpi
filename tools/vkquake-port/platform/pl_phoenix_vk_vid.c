@@ -109,6 +109,15 @@ static int			 fb_ready = 0;
  * scanout image itself. World/3D rendering (V_RenderView) is the documented next blocker. */
 static VkCommandPool   gfx_command_pool	  = VK_NULL_HANDLE;
 static VkCommandBuffer frame_cb			  = VK_NULL_HANDLE;
+/* vkQuake records into PCBX_NUM PRIMARY command-buffer contexts per frame (accel / lightmap /
+ * warp / render-passes) and submits them together, RENDER_PASSES last, in one vkQueueSubmit — the
+ * in-submit order IS the cross-pass sync. We allocate all PCBX_NUM primaries; frame_cb aliases the
+ * RENDER_PASSES primary (the one carrying the color+depth render pass + the 2D/world draws). The
+ * other primaries are begun/ended empty in this bring-up (warp guarded off in R_UpdateWarpTextures;
+ * GPU lightmap/accel off via r_gpulightmapupdate=0) but MUST be non-NULL command buffers, because
+ * R_UpdateWarpTextures issues an UNCONDITIONAL vkCmdPipelineBarrier on
+ * primary_cb_contexts[PCBX_UPDATE_WARP].cb — a NULL cb there was the world-render SIGSEGV. */
+static VkCommandBuffer pcbx_cb[PCBX_NUM]  = { VK_NULL_HANDLE };
 static VkImage		   scanout_image	  = VK_NULL_HANDLE;
 static VkDeviceMemory  scanout_memory	  = VK_NULL_HANDLE;
 static VkImageView	   scanout_view		  = VK_NULL_HANDLE;
@@ -697,14 +706,27 @@ static int create_render_resources (void)
 			.sType				= VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 			.commandPool		= gfx_command_pool,
 			.level				= VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-			.commandBufferCount = 1,
+			.commandBufferCount = PCBX_NUM,
 		};
-		err = pAllocCmdBuffers (g_vk_device, &cbai, &frame_cb);
+		err = pAllocCmdBuffers (g_vk_device, &cbai, pcbx_cb);
 		if (err != VK_SUCCESS) {
 			Sys_Printf ("vkvid: vkAllocateCommandBuffers(gfx) -> %d\n", (int)err);
 			return 0;
 		}
-		Sys_Printf ("vkvid: rr: cmdbuf ok\n");
+		/* frame_cb == the RENDER_PASSES primary: the render pass + all world/2D draws record here.
+		 * Wire every PCBX primary context to its own cb so the engine's warp/lightmap/accel phases
+		 * have a valid (if, in bring-up, empty) command buffer instead of a NULL one. */
+		frame_cb = pcbx_cb[PCBX_RENDER_PASSES];
+		for (int p = 0; p < PCBX_NUM; p++) {
+			cb_context_t *pcbx = &vulkan_globals.primary_cb_contexts[p];
+			memset (pcbx, 0, sizeof (*pcbx));
+			pcbx->cb			  = pcbx_cb[p];
+			pcbx->current_canvas  = CANVAS_INVALID;
+			pcbx->render_pass	  = ui_render_pass;
+			pcbx->render_pass_index = RENDER_PASS_INDEX_UI;
+			pcbx->subpass		  = 0;
+		}
+		Sys_Printf ("vkvid: rr: %d primary cb contexts allocated (frame_cb=RENDER_PASSES)\n", PCBX_NUM);
 	}
 
 	/* (6) The single SCBX_GUI command-buffer context the 2D draw path (SCR_DrawGUI) records into.
@@ -971,8 +993,25 @@ qboolean GL_BeginRendering (qboolean use_tasks, task_handle_t *begin_rendering_t
 		return false;
 	}
 
-	if (pReset)
-		pReset (frame_cb, 0);
+	/* Reset + begin EVERY PCBX primary this frame (warp/lightmap/accel + render-passes). They are
+	 * all submitted together in GL_EndRendering; the non-render-pass primaries stay empty in the
+	 * bring-up path but must be validly begun. No render pass is begun on them here — the warp
+	 * primary opens its own warp render pass internally (when warp is enabled); the render pass
+	 * below is begun only on frame_cb (== PCBX_RENDER_PASSES). */
+	VkCommandBufferBeginInfo bbi = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+	};
+	for (int p = 0; p < PCBX_NUM; p++) {
+		if (pReset)
+			pReset (pcbx_cb[p], 0);
+		vulkan_globals.primary_cb_contexts[p].current_canvas = CANVAS_INVALID;
+		VkResult perr = pBegin (pcbx_cb[p], &bbi);
+		if (perr != VK_SUCCESS) {
+			Sys_Printf ("vkvid: vkBeginCommandBuffer(pcbx %d) -> %d\n", p, (int)perr);
+			return false;
+		}
+	}
 
 	cb_context_t *gui = vulkan_globals.secondary_cb_contexts[SCBX_GUI];
 	gui->cb				= frame_cb;
@@ -989,16 +1028,6 @@ qboolean GL_BeginRendering (qboolean use_tasks, task_handle_t *begin_rendering_t
 	 * push-constant-compatible with every 2D draw. Leaving .handle == 0 means the first real
 	 * R_BindPipeline still fires (its handle != 0), so binding is unaffected. */
 	gui->current_pipeline.layout = vulkan_globals.basic_pipeline_layout;
-
-	VkCommandBufferBeginInfo bbi = {
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-	};
-	VkResult err = pBegin (frame_cb, &bbi);
-	if (err != VK_SUCCESS) {
-		Sys_Printf ("vkvid: vkBeginCommandBuffer -> %d\n", (int)err);
-		return false;
-	}
 
 	VkClearValue clears[2];
 	clears[0] = vulkan_globals.color_clear_value;   /* color */
@@ -1081,16 +1110,22 @@ task_handle_t GL_EndRendering (qboolean use_tasks, qboolean use_swapchain)
 
 	pEndRP (frame_cb);
 
-	VkResult err = pEnd (frame_cb);
-	if (err != VK_SUCCESS) {
-		Sys_Printf ("vkvid: vkEndCommandBuffer -> %d\n", (int)err);
-		return INVALID_TASK_HANDLE;
+	/* End every PCBX primary, then submit them together in PCBX order (RENDER_PASSES last) in a
+	 * single vkQueueSubmit — that in-submit ordering is the sync vkQuake relies on so the warp/
+	 * lightmap primaries complete before the render pass that samples their results. */
+	VkResult err = VK_SUCCESS;
+	for (int p = 0; p < PCBX_NUM; p++) {
+		VkResult perr = pEnd (pcbx_cb[p]);
+		if (perr != VK_SUCCESS) {
+			Sys_Printf ("vkvid: vkEndCommandBuffer(pcbx %d) -> %d\n", p, (int)perr);
+			return INVALID_TASK_HANDLE;
+		}
 	}
 
 	VkSubmitInfo si = {
 		.sType				= VK_STRUCTURE_TYPE_SUBMIT_INFO,
-		.commandBufferCount = 1,
-		.pCommandBuffers	= &frame_cb,
+		.commandBufferCount = PCBX_NUM,
+		.pCommandBuffers	= pcbx_cb,
 	};
 	/* BRING-UP: unconditional flushed brackets around submit + device-wait for the first
 	 * frames, so a grab can tell a SLOW frame (submit ok, wait returns late) from a true block

@@ -114,7 +114,14 @@ int main(int argc, char *argv[])
 	 * TODO(vkquake-port): remove once the world/3D render path is implemented. */
 	{
 		extern cvar_t cl_startdemos;
+		extern cvar_t r_gpulightmapupdate;
 		Cvar_SetValueQuick(&cl_startdemos, 0.0f);
+		/* Bring-up: force CPU lightmap updates (0). This keeps us on the single-threaded render
+		 * path (gl_screen.c gates use_tasks on r_gpulightmapupdate) AND leaves the GPU-lightmap +
+		 * acceleration-structure primary command buffers empty, so the shim needs no compute/RT
+		 * resources yet — only the warp + render-passes primaries carry work.
+		 * TODO(vkquake-port): re-enable once GPU lightmap/RT paths are ported. */
+		Cvar_SetValueQuick(&r_gpulightmapupdate, 0.0f);
 		Cbuf_AddText("map start\n");   /* 3D bring-up: load a real BSP world so V_RenderView runs */
 		Cbuf_Execute();
 		Sys_Printf("vkquake: 3D bring-up: loading 'map start' to exercise the world render path\n");

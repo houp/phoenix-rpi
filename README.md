@@ -7,7 +7,8 @@ Model B / BCM2711** (Cortex-A72, AArch64).
 The port was taken from "does not boot" to a system that boots to an
 interactive shell, drives the real hardware, serves its root filesystem from
 an SD card or over NFS, and runs a graphical userland: an X11 desktop with
-Window Maker, a web browser, and **GLQuake on the V3D GPU**.
+Window Maker, a web browser, and **both GLQuake (OpenGL) and vkQuake (Vulkan)
+running on the V3D GPU**.
 
 > This repository is the **coordination repo** — docs, build scripts, and
 > integration manifests. The Phoenix-RTOS source lives in sibling repositories
@@ -92,7 +93,7 @@ work; `⛔` blocked on external dependencies; `⬜` not started.
 | Hardware RNG (RNG200) | ✅ | `/dev/hwrng`; also backs `/dev/urandom` |
 | GPIO observer | 🟡 | `/dev/gpio` read-only snapshot; outputs attended |
 | GPU (V3D 4.2) — OpenGL | ✅ | Ported Mesa `v3d` Gallium + GL → **GLQuake ~40 fps @ 1080p** |
-| GPU (V3D 4.2) — Vulkan (V3DV) | 🟡 | Full init + shaders on HW; vkQuake paused at texture-upload |
+| GPU (V3D 4.2) — Vulkan (V3DV) | ✅ | Ported Mesa `v3dv` Vulkan driver → **vkQuake renders clean + lightmapped** on the V3D GPU (fork: [rpi-phoenix-rtos/vkQuake](https://github.com/rpi-phoenix-rtos/vkQuake), branch `phoenix-rpi4-port`) |
 | Audio (PWM, 3.5 mm jack) | 🟡 | `/dev/audio0` streaming DMA; Quakespasm audio backend |
 | X11 / windowing (kdrive) | ✅ | Xphoenix fbdev DDX + kbd/mouse; Window Maker, JWM, xterm |
 | posixsrv / psh userland | ✅ | pipes, ptys, `/dev/{null,zero,urandom,full}`, AF_UNIX |

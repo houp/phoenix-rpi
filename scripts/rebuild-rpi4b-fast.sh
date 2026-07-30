@@ -141,8 +141,10 @@ while [ "$#" -gt 0 ]; do
 			with_showcase=1
 			;;
 		--with-vkquake)
-			# opt-in the WIP Vulkan/vkQuake path (implies --with-showcase); NOT in the
-			# default showcase since vkQuake isn't functional yet.
+			# opt-in the Vulkan/vkQuake path (implies --with-showcase). vkQuake renders
+			# correctly (clean, lightmapped) on the V3D GPU via Vulkan; kept opt-in because
+			# loader.disk holds only one large GL/VK binary (GLQuake is the default showcase),
+			# so --with-vkquake builds+installs the vkQuake stack alongside it.
 			with_showcase=1
 			with_vkquake=1
 			;;

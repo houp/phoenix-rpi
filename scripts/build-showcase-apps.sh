@@ -330,7 +330,7 @@ phase_gpu() {
 	need_file "${gpu_libs}/libquakespasm.a" "build-quakespasm-phoenix.py did not produce its archive"
 
 	if [ "$skip_vulkan" = 1 ]; then
-		log "vkQuake/V3DV is work-in-progress and NOT in the default showcase — skipping (pass --with-vkquake to build it)"
+		log "V3DV/vkQuake is opt-in (loader.disk holds one large GL/VK binary; GLQuake is the default) — pass --with-vkquake to also build the Vulkan stack + vkQuake"
 		ok "PHASE gpu complete (GL/GLQuake)"; return 0
 	fi
 

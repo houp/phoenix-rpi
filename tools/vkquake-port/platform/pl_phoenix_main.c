@@ -104,27 +104,26 @@ int main(int argc, char *argv[])
 	Sys_Printf("Host_Init\n");
 	Host_Init();
 
-	/* 2D-FIRST BRING-UP: stop the demo loop (quake.rc's `startdemos demo1 demo2 demo3`
-	 * runs during Host_Init and loads a BSP world, driving the 3D render path whose world
-	 * render pass/pipelines are still stubbed in this port). Force the engine to the main
-	 * MENU instead: con_forcedup is then true, V_RenderView early-returns, and only the 2D
-	 * path (SCR_DrawGUI -> M_Draw) records into the UI render pass — the simplest recognizable
-	 * content to prove the no-WSI present end to end. Done post-Host_Init so it overrides
-	 * whatever quake.rc/config.cfg set, and disconnects any demo already mid-load.
-	 * TODO(vkquake-port): remove once the world/3D render path is implemented. */
+	/* Boot straight into a lit 3D world: load the start map (small hub level -> fast CPU
+	 * lightmap build). r_gpulightmapupdate=0 selects the CPU lightmap build+upload path
+	 * (R_BuildLightMap -> TexMgr_LoadImage(SRC_LIGHTMAP)); the GPU-compute lightmap update
+	 * primary is not yet wired, so the CPU path is what produces correctly-lit surfaces.
+	 *
+	 * DEMO ATTRACT-LOOP STATUS: the sys_sdl.c slurp-and-close fix makes demo playback READ
+	 * correctly now (CL_PlayDemo opens+parses the .dem, reads the recorded serverinfo, and
+	 * loads the demo's map e.g. e1m3), so the pak-held-open concurrent-FILE* bug is fixed.
+	 * BUT a full level like e1m3 has a slow first-frame CPU lightmap build (r_gpulightmapupdate=0),
+	 * which trips the render watchdog; the large real-frame dt then fast-forwards demo playback,
+	 * so the attract loop doesn't sustain and falls back to the menu. `map start` (tiny level)
+	 * builds fast and renders/sustains perfectly, so it is the default. To enable the attract
+	 * loop, replace the `map start` line with `startdemos demo1 demo2 demo3` once the GPU-compute
+	 * lightmap primary is wired (TODO(vkquake-port), see task: complete lightmap/lighting). */
 	{
-		extern cvar_t cl_startdemos;
 		extern cvar_t r_gpulightmapupdate;
-		Cvar_SetValueQuick(&cl_startdemos, 0.0f);
-		/* Bring-up: force CPU lightmap updates (0). This keeps us on the single-threaded render
-		 * path (gl_screen.c gates use_tasks on r_gpulightmapupdate) AND leaves the GPU-lightmap +
-		 * acceleration-structure primary command buffers empty, so the shim needs no compute/RT
-		 * resources yet — only the warp + render-passes primaries carry work.
-		 * TODO(vkquake-port): re-enable once GPU lightmap/RT paths are ported. */
 		Cvar_SetValueQuick(&r_gpulightmapupdate, 0.0f);
-		Cbuf_AddText("map start\n");   /* 3D bring-up: load a real BSP world so V_RenderView runs */
+		Cbuf_AddText("map start\n");
 		Cbuf_Execute();
-		Sys_Printf("vkquake: 3D bring-up: loading 'map start' to exercise the world render path\n");
+		Sys_Printf("vkquake: loading 'map start' (lit 3D world)\n");
 	}
 
 	/* TEXTURE-STAGING FLUSH (hygiene; HW: textured 2D samples 0 = upload gap). conchars + the

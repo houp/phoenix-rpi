@@ -48,8 +48,16 @@
 
 /* ------------------------------------------------------------------ mutex --- */
 
+/* SDL mutexes are RECURSIVE (a thread may re-lock a mutex it already holds); the Phoenix
+ * `mutexLock` primitive is NOT. vkQuake relies on the SDL semantics (e.g. S_StopAllSounds holds
+ * snd_mutex then calls S_ClearBuffer which re-locks it) — without recursion that self-deadlocks
+ * (observed: map load hung in phMutexLock <- S_ClearBuffer <- S_StopAllSounds <- Host_Map_f).
+ * Emulate recursion with an owner-thread id + recursion count on top of the Phoenix mutex. */
 struct SDL_mutex {
-	handle_t h;
+	handle_t  h;
+	pthread_t owner;
+	int       owned;   /* nonzero while held */
+	unsigned  count;   /* recursion depth */
 };
 
 SDL_mutex *SDL_CreateMutex(void)
@@ -61,6 +69,8 @@ SDL_mutex *SDL_CreateMutex(void)
 		free(m);
 		return NULL;
 	}
+	m->owned = 0;
+	m->count = 0;
 	return m;
 }
 
@@ -74,16 +84,50 @@ void SDL_DestroyMutex(SDL_mutex *m)
 
 int SDL_LockMutex(SDL_mutex *m)
 {
+	pthread_t self;
 	if (m == NULL)
 		return -1;
-	return mutexLock(m->h) < 0 ? -1 : 0;
+	self = pthread_self();
+	/* Already owned by THIS thread -> recurse (only the owner can observe owned+owner==self;
+	 * any other thread sees a different owner and blocks in mutexLock below). */
+	if (m->owned && pthread_equal(m->owner, self)) {
+		m->count++;
+		return 0;
+	}
+	if (mutexLock(m->h) < 0)
+		return -1;
+	m->owner = self;
+	m->owned = 1;
+	m->count = 1;
+	return 0;
 }
 
 int SDL_UnlockMutex(SDL_mutex *m)
 {
 	if (m == NULL)
 		return -1;
+	if (m->count > 1) {
+		m->count--;
+		return 0;
+	}
+	m->owned = 0;
+	m->count = 0;
 	return mutexUnlock(m->h) < 0 ? -1 : 0;
+}
+
+/* Internal: the Phoenix condWait releases + reacquires the underlying mutex EXACTLY ONCE, so the
+ * caller must hold the SDL mutex non-recursively (count==1). Clear our bookkeeping across the wait
+ * (the Phoenix mutex is genuinely released) and restore it after condWait reacquires it. */
+static int sdlcompat_cond_wait(handle_t cond, SDL_mutex *m, time_t deadline)
+{
+	int r;
+	m->owned = 0;
+	m->count = 0;
+	r = condWait(cond, m->h, deadline);
+	m->owner = pthread_self();
+	m->owned = 1;
+	m->count = 1;
+	return r;
 }
 
 /* ------------------------------------------------------------------- cond --- */
@@ -131,7 +175,7 @@ int SDL_CondWait(SDL_cond *c, SDL_mutex *m)
 	if (c == NULL || m == NULL)
 		return -1;
 	/* deadline 0 == wait forever */
-	return condWait(c->h, m->h, 0) < 0 ? -1 : 0;
+	return sdlcompat_cond_wait(c->h, m, 0) < 0 ? -1 : 0;
 }
 
 /*
@@ -148,14 +192,14 @@ int SDL_CondWaitTimeout(SDL_cond *c, SDL_mutex *m, Uint32 ms)
 	if (c == NULL || m == NULL)
 		return -1;
 	if (ms == SDL_MUTEX_MAXWAIT)
-		return condWait(c->h, m->h, 0) < 0 ? -1 : 0;   /* infinite */
+		return sdlcompat_cond_wait(c->h, m, 0) < 0 ? -1 : 0;   /* infinite */
 
 	gettime(&now, NULL);                                   /* microseconds */
 	deadline = now + (time_t)ms * 1000;
 	if (deadline == 0)
 		deadline = 1;                                  /* never the "forever" sentinel */
 
-	err = condWait(c->h, m->h, deadline);
+	err = sdlcompat_cond_wait(c->h, m, deadline);
 	if (err == -ETIME)
 		return SDL_MUTEX_TIMEDOUT;                     /* timed out */
 	return err < 0 ? -1 : 0;                               /* 0 == signaled */

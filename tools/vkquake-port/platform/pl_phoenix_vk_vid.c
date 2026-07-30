@@ -188,10 +188,25 @@ static qboolean create_device (void)
 	PFN_vkGetPhysicalDeviceMemoryProperties pMem =
 		GIPA (g_vk_instance, vkGetPhysicalDeviceMemoryProperties);
 	PFN_vkGetPhysicalDeviceFeatures pFeat = GIPA (g_vk_instance, vkGetPhysicalDeviceFeatures);
+	PFN_vkGetPhysicalDeviceProperties pProps = GIPA (g_vk_instance, vkGetPhysicalDeviceProperties);
 	if (pMem)
 		pMem (phys_device, &vulkan_globals.memory_properties);
 	if (pFeat)
 		pFeat (phys_device, &vulkan_globals.device_features);
+	/* CRITICAL (2026-07-30): upstream gl_vidsdl.c queries this in GL_InitDevice; the shim
+	 * omitted it, so vulkan_globals.device_properties was ALL-ZERO. That makes
+	 * limits.min{Uniform,Storage}BufferOffsetAlignment == 0, and R_DynBufferAllocate's
+	 * q_align(size, 0) returns 0 -> every dynamic UBO/SSBO sub-allocation collapses onto
+	 * offset 0 (last-writer-wins garbage): the alias-model/viewmodel UBOs and per-draw
+	 * uniforms alias each other. This is the missed-SDL-init class of bug. */
+	if (pProps)
+		pProps (phys_device, &vulkan_globals.device_properties);
+	else
+		Sys_Printf ("vkvid: WARNING vkGetPhysicalDeviceProperties MISSING -> device_properties ZERO (buffer alignments collapse!)\n");
+	Sys_Printf ("vkvid: device_properties minUBOalign=%llu minSSBOalign=%llu maxAniso=%.1f\n",
+		(unsigned long long)vulkan_globals.device_properties.limits.minUniformBufferOffsetAlignment,
+		(unsigned long long)vulkan_globals.device_properties.limits.minStorageBufferOffsetAlignment,
+		(double)vulkan_globals.device_properties.limits.maxSamplerAnisotropy);
 	/* The V3D exposes one universal (graphics+compute+transfer) queue family at index 0. */
 	vulkan_globals.gfx_queue_family_index = 0;
 
@@ -202,10 +217,22 @@ static qboolean create_device (void)
 		.queueCount = 1,
 		.pQueuePriorities = &prio,
 	};
+	/* Enable the same device features upstream GL_InitDevice enables (gl_vidsdl.c:1229-1255),
+	 * gated on device support (device_features queried above) so vkCreateDevice can't fail on
+	 * an unsupported feature. The shim previously passed pEnabledFeatures=NULL (all features
+	 * off), leaving samplerAnisotropy etc. disabled — a latent correctness gap. */
+	VkPhysicalDeviceFeatures enabled = { 0 };
+	enabled.shaderStorageImageExtendedFormats = vulkan_globals.device_features.shaderStorageImageExtendedFormats;
+	enabled.independentBlend                  = vulkan_globals.device_features.independentBlend;
+	enabled.samplerAnisotropy                 = vulkan_globals.device_features.samplerAnisotropy;
+	enabled.sampleRateShading                 = vulkan_globals.device_features.sampleRateShading;
+	enabled.fillModeNonSolid                  = vulkan_globals.device_features.fillModeNonSolid;
+	enabled.multiDrawIndirect                 = vulkan_globals.device_features.multiDrawIndirect;
 	VkDeviceCreateInfo dci = {
 		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
 		.queueCreateInfoCount = 1,
 		.pQueueCreateInfos = &qci,
+		.pEnabledFeatures = &enabled,
 	};
 	VkDevice dev = VK_NULL_HANDLE;
 	r = pCreateDevice (phys_device, &dci, NULL, &dev);

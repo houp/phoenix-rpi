@@ -43,10 +43,10 @@ link_repo "$ROOT" rpi-phoenix-rtos-coordination
 for d in "$ROOT"/sources/*/; do
 	[ -d "${d%/}/.git" ] && link_repo "${d%/}" "$(basename "${d%/}")"
 done
-# quakespasm is the only external served as a fork. mesa is fetched from upstream
-# freedesktop @ a pinned tag + patched (bootstrap EXTERNAL_DEPS), NOT from here;
-# vkquake is excluded from the release (local-only). lwip handled below.
-for e in quakespasm; do
+# quakespasm + vkquake are served as forks (external Quake engines). mesa is
+# fetched from upstream freedesktop @ a pinned tag + patched (bootstrap
+# EXTERNAL_DEPS), NOT from here. lwip handled below.
+for e in quakespasm vkquake; do
 	[ -d "$ROOT/external/$e/.git" ] && link_repo "$ROOT/external/$e" "$e"
 done
 # lib-lwip vendored submodule: bootstrap points submodule.lib-lwip.url at

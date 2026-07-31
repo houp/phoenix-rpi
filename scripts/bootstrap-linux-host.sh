@@ -107,10 +107,13 @@ UPSTREAM_ONLY_REPOS=(
 #                            cannot be broken by upstream drift.
 #   - external/quakespasm -> our org fork at a pinned commit; tools/quakespasm-port
 #                            builds libquakespasm.a (the rpi4-quake showcase).
+#   - external/vkquake    -> our org fork (branch phoenix-rpi4-port); tools/vkquake-port
+#                            builds libvkquake.a -> rpi4-vkquake (the Vulkan/V3DV Quake
+#                            showcase). Only cloned/built when `--with-vkquake` is passed
+#                            to build-showcase-apps.sh (it also needs the V3DV stack, so
+#                            it implies the Vulkan path); GLQuake does not require it.
 #
 # NOT cloned here:
-#   - external/vkquake    WIP/non-functional Vulkan Quake; NOT published (local-only).
-#                         `--with-vkquake` is unsupported in the public release.
 #   - external/linux      research-only; the Pi 4 DTB is fetched ready-made from
 #                         raspberrypi/firmware (stage_pi_firmware), never compiled.
 #   - external/rpi-eeprom Tier-2 lab/netboot only; prepare-pi-eeprom-netboot.sh
@@ -123,6 +126,7 @@ UPSTREAM_ONLY_REPOS=(
 EXTERNAL_DEPS=(
 	"mesa|https://gitlab.freedesktop.org/mesa/mesa.git|mesa-26.2.0-rc1|patches/mesa/phoenix-rpi4-v3d.patch"
 	"quakespasm|${EXTERNAL_FORK_BASE}/quakespasm.git|4abb3249fe45c835d3d8540845a18a114e283996"
+	"vkquake|${EXTERNAL_FORK_BASE}/vkquake.git|phoenix-rpi4-port"
 )
 
 # Raspberry Pi firmware blobs we need from raspberrypi/firmware boot tree.

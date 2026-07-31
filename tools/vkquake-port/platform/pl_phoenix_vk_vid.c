@@ -113,10 +113,12 @@ static VkCommandBuffer frame_cb			  = VK_NULL_HANDLE;
  * warp / render-passes) and submits them together, RENDER_PASSES last, in one vkQueueSubmit — the
  * in-submit order IS the cross-pass sync. We allocate all PCBX_NUM primaries; frame_cb aliases the
  * RENDER_PASSES primary (the one carrying the color+depth render pass + the 2D/world draws). The
- * other primaries are begun/ended empty in this bring-up (warp guarded off in R_UpdateWarpTextures;
- * GPU lightmap/accel off via r_gpulightmapupdate=0) but MUST be non-NULL command buffers, because
- * R_UpdateWarpTextures issues an UNCONDITIONAL vkCmdPipelineBarrier on
- * primary_cb_contexts[PCBX_UPDATE_WARP].cb — a NULL cb there was the world-render SIGSEGV. */
+ * PCBX_UPDATE_WARP primary now carries the real turbulent-surface (water/lava/slime/teleporter)
+ * compute warp — R_UpdateWarpTextures dispatches cs_tex_warp into it each frame. The remaining
+ * primaries (accel / GPU lightmap) stay empty for now (GPU lightmap/accel off via
+ * r_gpulightmapupdate=0) but MUST still be non-NULL command buffers, because R_UpdateWarpTextures
+ * issues an UNCONDITIONAL vkCmdPipelineBarrier on primary_cb_contexts[PCBX_UPDATE_WARP].cb — a NULL
+ * cb there was the world-render SIGSEGV. */
 static VkCommandBuffer pcbx_cb[PCBX_NUM]  = { VK_NULL_HANDLE };
 static VkImage		   scanout_image	  = VK_NULL_HANDLE;
 static VkDeviceMemory  scanout_memory	  = VK_NULL_HANDLE;
@@ -1056,6 +1058,14 @@ qboolean GL_BeginRendering (qboolean use_tasks, task_handle_t *begin_rendering_t
 		if (pReset)
 			pReset (pcbx_cb[p], 0);
 		vulkan_globals.primary_cb_contexts[p].current_canvas = CANVAS_INVALID;
+		/* Reset the pipeline cache too: vkResetCommandBuffer above clears the driver's recording
+		 * state (state.gfx/compute.pipeline -> NULL), so R_BindPipeline's cbx->current_pipeline
+		 * cache is now stale. Without this, R_BindPipeline sees the cached handle still matching
+		 * (e.g. cs_tex_warp bound last frame), SKIPS the vkCmdBindPipeline, and the freshly-reset cb
+		 * dispatches/draws with no pipeline bound -> V3DV derefs a NULL state.compute.pipeline
+		 * (cmd_buffer_create_csd_job) -> EL0 Data Abort. Matches the GUI context reset below. */
+		memset (&vulkan_globals.primary_cb_contexts[p].current_pipeline, 0,
+		        sizeof (vulkan_globals.primary_cb_contexts[p].current_pipeline));
 		VkResult perr = pBegin (pcbx_cb[p], &bbi);
 		if (perr != VK_SUCCESS) {
 			Sys_Printf ("vkvid: vkBeginCommandBuffer(pcbx %d) -> %d\n", p, (int)perr);

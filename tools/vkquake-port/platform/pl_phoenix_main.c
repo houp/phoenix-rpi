@@ -156,6 +156,14 @@ int main(int argc, char *argv[])
 		while (1) {
 			newtime = Sys_DoubleTime();
 			time = newtime - oldtime;
+			/* Clamp the per-frame delta so a single slow frame (e.g. the >15 s CPU lightmap
+			 * build on a full-map load) does NOT fast-forward game/demo time. Without this the
+			 * huge dt makes CL_GetDemoMessage consume the whole demo in one step (attract loop
+			 * blows past the level to the menu) and makes live play jump. Matches classic Quake's
+			 * host_frametime cap. TODO(vkquake-port): GPU-compute lightmaps will make that first
+			 * frame fast; the clamp stays correct regardless. */
+			if (time > 0.1)
+				time = 0.1;
 			if (loopn < 8) {
 				printf("vkquake: loop %lu enter\n", loopn);
 				fflush(stdout);

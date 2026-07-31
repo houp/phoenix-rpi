@@ -381,13 +381,16 @@ phase_gpu() {
 					# (make -C _user all) HARD-FAIL and abort the whole image build.
 					# GATE: remove the archive on link failure so the _user guard
 					# skips rpi4-vkquake, GLQuake still ships, and the base build is
-					# unaffected. (Known cause on a clean Ubuntu host: the mesa host
-					# build has -DHAVE_SPIRV_TOOLS, so spirv_to_nir.c references
-					# spirv_print_asm, which the v3dv aux closure doesn't resolve ->
-					# undefined symbol at the rpi4-vkquake link. See KNOWN-ISSUES.)
-					warn "build-vkquake-phoenix.py link failed — removing incomplete libvkquake.a so rpi4-vkquake is skipped (GLQuake unaffected)"
+					# unaffected. The specific undefined symbol(s) vary with the mesa
+					# version/config (past clean-host causes: spirv_print_asm from a
+					# -DHAVE_SPIRV_TOOLS host build; driQueryOptionstr from a driconf
+					# getter unresolved by the v3dv aux closure). The exact symbols are
+					# printed by build-vkquake-phoenix.py just above this warning; a new
+					# undefined symbol usually means adding a weak stub in
+					# tools/v3d-driver-port/v3dv_gap_stubs.c. See KNOWN-ISSUES.
+					warn "build-vkquake-phoenix.py link failed (see undefined symbols above) — removing incomplete libvkquake.a so rpi4-vkquake is skipped (GLQuake unaffected)"
 					rm -f "${gpu_libs}/libvkquake.a"
-					gpu_soft+=("vkquake link (spirv_print_asm undefined) — archive removed, rpi4-vkquake skipped")
+					gpu_soft+=("vkquake link failed (undefined symbols listed above) — archive removed, rpi4-vkquake skipped")
 				fi
 			else ok "libvkquake.a fresh"; fi
 		else

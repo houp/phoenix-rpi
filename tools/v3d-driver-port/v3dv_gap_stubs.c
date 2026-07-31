@@ -138,3 +138,13 @@ void driDestroyOptionCache(driOptionCache *cache)
 {
 	(void)cache;
 }
+
+/* Newly referenced after the upstream mesa merge (v3dv reads a driconf STRING option at
+ * device create). With the empty cache above there is no override, so return "" -> the
+ * caller falls back to its compiled-in default. Non-NULL so string callers never crash. */
+__attribute__((weak))
+char *driQueryOptionstr(const driOptionCache *cache, const char *name)
+{
+	(void)cache; (void)name;
+	return (char *)"";
+}

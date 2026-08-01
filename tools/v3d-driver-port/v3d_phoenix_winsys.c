@@ -60,6 +60,12 @@
 #define INT_FRDONE          (1u<<0)
 #define INT_FLDONE          (1u<<1)
 #define INT_OUTOMEM         (1u<<2)   /* binner exhausted its tile-allocation pool */
+#define INT_CSDDONE         (1u<<7)   /* compute-shader dispatch done (V3D 4.2; V3D_INT_CSDDONE ver<71 = BIT(7)) */
+/* CSD (Compute Shader Dispatch) config/status regs, CORE0-relative (V3D 4.2, ver<71).
+ * cfg[0..6] map to CSD_QUEUED_CFG0..6; writing CFG0 KICKS the dispatch. See linux
+ * v3d_regs.h (V3D_CSD_*) and v3d_sched.c v3d_csd_job_run. */
+#define CSD_STATUS          0x0900u   /* NUM_COMPLETED[11:4], HAVE_CURRENT(1), HAVE_QUEUED(0) */
+#define CSD_QUEUED_CFG0     0x0904u   /* CFG1..6 follow at +4 each; CFG0 write kicks the job */
 #define CLE_CT0QTS          0x015cu
 #define CT0QTS_ENABLE       (1u<<1)
 #define CLE_CT0QBA          0x0160u
@@ -1529,6 +1535,60 @@ int v3d_phoenix_scanout_active(void)
 	return W.scanout_claimed || (W.scanout_double && W.scanout_claim_idx > 0);
 }
 
+/* DRM_V3D_SUBMIT_CSD: run a Compute Shader Dispatch job. Previously a no-op stub, so EVERY
+ * compute shader (vkQuake's water/lava/slime/teleport warp, and the GPU-compute lightmap path)
+ * silently never ran -> warpimages sampled black. The V3D 4.2 CSD hardware is programmed via
+ * CSD_QUEUED_CFG0..6 (cfg[0..6] from the submit); writing CFG0 KICKS the dispatch, which raises
+ * INT_CSDDONE (core INT, BIT 7) when complete. Mirrors linux v3d_csd_job_run, wrapped in the same
+ * coherency bracket ioc_submit_cl uses: drain CPU stores + invalidate slice caches + flush MMU TLB
+ * and L2T BEFORE (so the compute reads current inputs), and flush L2T (clean) + TMU-write-combiner
+ * AFTER (so the compute's image/SSBO writes reach DRAM and are visible to a CPU readback and the
+ * next render job's TMU). BOs are already resident in the flat page table (ioc_create_bo), so no
+ * per-submit MMU mapping is needed — this is register writes + a synchronous wait, like CL/TFU. */
+static int ioc_submit_csd(struct drm_v3d_submit_csd *s)
+{
+	volatile uint32_t *c0 = W.core0;
+	volatile uint32_t *h = W.hub;
+	uint32_t spins, sts = 0, csd_status;
+	int i, timed_out = 0;
+
+	__asm__ volatile("dsb sy" ::: "memory");
+	c0[CTL_SLCACTL / 4] = SLCACTL_INVAL_ALL;
+	mmu_flush_tlb(h);
+	l2t_flush_wait(c0);
+	c0[CTL_L2TCACTL / 4] = L2TCACTL_L2TFLS;
+	l2t_flush_wait(c0);
+
+	/* Kick: write CFG1..6, then CFG0 (the CFG0 write starts the dispatch). */
+	c0[CTL_INT_CLR / 4] = INT_CSDDONE;
+	for (i = 1; i <= 6; i++)
+		c0[(CSD_QUEUED_CFG0 + 4u * (uint32_t)i) / 4] = s->cfg[i];
+	c0[CSD_QUEUED_CFG0 / 4] = s->cfg[0];
+
+	/* Synchronous wait for the dispatch to finish (INT_CSDDONE), like CL/TFU. */
+	for (spins = 8000000u; spins; spins--) {
+		sts = c0[CTL_INT_STS / 4];
+		if (sts & INT_CSDDONE)
+			break;
+	}
+	if (!spins)
+		timed_out = 1;
+	csd_status = c0[CSD_STATUS / 4];
+	c0[CTL_INT_CLR / 4] = INT_CSDDONE;
+
+	/* Write back the compute's dirty L2T lines to DRAM + drain the TMU write-combiner so the
+	 * output is visible to the CPU and the next render's TMU. */
+	l2t_flush_wait(c0);
+	c0[CTL_L2TCACTL / 4] = L2TCACTL_L2TFLS | L2TCACTL_TMUWCF;
+	l2t_flush_wait(c0);
+	__asm__ volatile("dsb sy" ::: "memory");
+
+	if (timed_out || (csd_status & 0x3u))
+		fprintf (stderr, "v3d-winsys: CSD %s cfg0=0x%08x int_sts=0x%08x status=0x%08x num_completed=%u\n",
+		         timed_out ? "TIMEOUT" : "done", s->cfg[0], sts, csd_status, (csd_status >> 4) & 0xffu);
+	return 0;
+}
+
 /* The single entry the libdrm shim's drmIoctl() dispatches into. */
 int phoenix_v3d_ioctl(int fd, unsigned long request, void *arg);
 
@@ -1582,7 +1642,9 @@ int phoenix_v3d_ioctl(int fd, unsigned long request, void *arg)
 		return ioc_submit_cl(arg);
 	case DRM_V3D_SUBMIT_TFU:
 		return ioc_submit_tfu(arg);
+	case DRM_V3D_SUBMIT_CSD:
+		return ioc_submit_csd(arg);
 	default:
-		return 0;   /* perfmon/csd: no-op for now */
+		return 0;   /* perfmon: no-op */
 	}
 }

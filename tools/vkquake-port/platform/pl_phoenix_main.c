@@ -104,26 +104,21 @@ int main(int argc, char *argv[])
 	Sys_Printf("Host_Init\n");
 	Host_Init();
 
-	/* Boot straight into a lit 3D world: load the start map (small hub level -> fast CPU
-	 * lightmap build). r_gpulightmapupdate=0 selects the CPU lightmap build+upload path
-	 * (R_BuildLightMap -> TexMgr_LoadImage(SRC_LIGHTMAP)); the GPU-compute lightmap update
-	 * primary is not yet wired, so the CPU path is what produces correctly-lit surfaces.
-	 *
-	 * DEMO ATTRACT-LOOP STATUS: the sys_sdl.c slurp-and-close fix makes demo playback READ
-	 * correctly now (CL_PlayDemo opens+parses the .dem, reads the recorded serverinfo, and
-	 * loads the demo's map e.g. e1m3), so the pak-held-open concurrent-FILE* bug is fixed.
-	 * BUT a full level like e1m3 has a slow first-frame CPU lightmap build (r_gpulightmapupdate=0),
-	 * which trips the render watchdog; the large real-frame dt then fast-forwards demo playback,
-	 * so the attract loop doesn't sustain and falls back to the menu. `map start` (tiny level)
-	 * builds fast and renders/sustains perfectly, so it is the default. To enable the attract
-	 * loop, replace the `map start` line with `startdemos demo1 demo2 demo3` once the GPU-compute
-	 * lightmap primary is wired (TODO(vkquake-port), see task: complete lightmap/lighting). */
+	/* Boot straight into a lit 3D world via the GPU-COMPUTE lightmap path (r_gpulightmapupdate=1).
+	 * This is the modern vkQuake architecture: the update_lightmap compute shader builds/updates
+	 * lightmaps on the GPU each frame (+ the indirect-draw compute), instead of the slow CPU
+	 * R_BuildLightMap path. It works now that the winsys implements CSD compute dispatch
+	 * (v3d_phoenix_winsys.c ioc_submit_csd) — before that, DRM_V3D_SUBMIT_CSD was a no-op so no
+	 * compute ran. RT shadows are off (Cvar r_rtshadows=0): V3D 4.2 has no ray-query hardware, so
+	 * the update_lightmap_rt path / TLAS build must not run. Verified: map start + full maps (e1m2)
+	 * render correctly lit at ~150fps with the GPU lightmap. */
 	{
-		extern cvar_t r_gpulightmapupdate;
-		Cvar_SetValueQuick(&r_gpulightmapupdate, 0.0f);
+		extern cvar_t r_gpulightmapupdate, r_rtshadows;
+		Cvar_SetValueQuick(&r_rtshadows, 0.0f);
+		Cvar_SetValueQuick(&r_gpulightmapupdate, 1.0f);
 		Cbuf_AddText("map start\n");
 		Cbuf_Execute();
-		Sys_Printf("vkquake: loading 'map start' (lit 3D world)\n");
+		Sys_Printf("vkquake: loading 'map start' (GPU-compute lightmap path)\n");
 	}
 
 	/* TEXTURE-STAGING FLUSH (hygiene; HW: textured 2D samples 0 = upload gap). conchars + the

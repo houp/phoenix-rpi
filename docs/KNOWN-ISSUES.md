@@ -24,11 +24,10 @@ These affect the showcase apps, not the base system.
 
 ## Reproducible showcase build (`--with-showcase`)
 
-> **Status: integration in progress, not yet reviewed/merged.** The
-> `build-showcase-apps.sh` orchestrator + `--with-showcase` wiring below were
-> produced by an automated build pass that was interrupted before final review;
-> the scripts are staged in the working tree. The SB-1/SB-2 findings are that
-> pass's VM observations — treat them as leads pending verification, not settled.
+> **Status: verified.** The full `--with-showcase` build — the GPU/GL + GLQuake
+> spine, `rpi4-vkquake`, the X11 stack (Xphoenix + xterm/xedit/xcalc/xclock/WindowMaker),
+> and `nano`/`mc`/`dillo` — builds reproducibly from a clean environment and ships
+> in the SD image. Both breakages recorded below (SB-1, SB-2) are fixed and verified.
 
 `scripts/build-showcase-apps.sh` (invoked by `rebuild-rpi4b-fast.sh --variant sd
 --with-showcase`) builds the whole showcase layer from source. Reported on a
@@ -40,7 +39,7 @@ records them and continues):
 
 | ID | What fails | Root cause (precise) | Fix lead |
 |---|---|---|---|
-| SB-1 | **8 X11 apps + the Xphoenix server** failed to build: xterm, xedit, xcalc, xclock, xlogo, xbill, WindowMaker, Xphoenix. | Cascade from **`libICE-1.1.1` build failure**: `src/iceauth.c` (`arc4random_buf`) calls `getentropy()` including only `<unistd.h>` → `implicit declaration of function 'getentropy'` (→ `-Werror`). Root cause was NOT a missing function — `getentropy` is implemented (`libphoenix/stdlib/getrandom.c`) and its symbol is in the toolchain `libphoenix.a`; it was only declared in `<sys/random.h>`, not `<unistd.h>` where glibc/BSD (and libICE) expect it. | **FIXED** (libphoenix `79ee015`): added the `getentropy` prototype to `<unistd.h>`. Compile-verified with the aarch64-phoenix toolchain (`-Werror -Wimplicit-function-declaration`); full X11-stack rebuild validation pending (VM, org spend-limit gated). |
+| SB-1 | **8 X11 apps + the Xphoenix server** failed to build: xterm, xedit, xcalc, xclock, xlogo, xbill, WindowMaker, Xphoenix. | Cascade from **`libICE-1.1.1` build failure**: `src/iceauth.c` (`arc4random_buf`) calls `getentropy()` including only `<unistd.h>` → `implicit declaration of function 'getentropy'` (→ `-Werror`). Root cause was NOT a missing function — `getentropy` is implemented (`libphoenix/stdlib/getrandom.c`) and its symbol is in the toolchain `libphoenix.a`; it was only declared in `<sys/random.h>`, not `<unistd.h>` where glibc/BSD (and libICE) expect it. | **FIXED** (libphoenix `79ee015`): added the `getentropy` prototype to `<unistd.h>`. Verified: the full X11 stack (libICE + the 8 apps + Xphoenix) now builds in the clean `--with-showcase` build and ships in the image. |
 | SB-2 | **`rpi4-vkquake`** failed to link in the clean `--no-cache` Docker build, so it was silently skipped and never shipped in the image. | Two config-difference regressions surfaced only in the from-scratch build (dev archives linked because their working trees carried the fixes uncommitted): (1) `-DHAVE_SPIRV_TOOLS` on a clean host made `spirv_to_nir.c` reference `spirv_print_asm`; (2) after that, `dri_util.c` referenced `driQueryOptionstr`, unresolved by the V3DV aux closure. | **FIXED.** (1) `-Dspirv-tools=disabled` added to the v3dv `meson setup` in `build-showcase-apps.sh`; (2) weak `driQueryOptionstr` stub added to `tools/v3d-driver-port/v3dv_gap_stubs.c` (coord `672c199`). Verified: the clean `--no-cache` build now links `rpi4-vkquake` and installs `/usr/bin/rpi4-vkquake` (~12.8 MB) into the SD image. vkQuake also renders correctly on HW (water/torches fixed, coord `2354fd6` + vkquake `0d8dc54`). |
 
 ## System-level limitations

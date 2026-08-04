@@ -97,7 +97,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | E1 | W2 | Dillo HTTPS support | TODO | needs TLS (libphoenix/openssl?) |
 | E2 | W2 | Pi internet via host Linux router/proxy (NAT) | TODO | host-side network config |
 | E3 | W2 | Dillo displays live internet pages | TODO | after E1+E2 |
-| C4 | W3 | Quake2 port (yQuake2) + open/shareware assets + demo+visual test | TODO | |
+| C4 | W3 | Quake2 port (yQuake2) + open/shareware assets + demo+visual test | WIP | feasibility DONE → docs/inprogress/2026-08-05-quake2-port-plan.md (~5-8d). yQuake2 ref_gl1 (fits GL 2.1) single-ELF; dlopen→static solved (backends/phoenix static-return stubs + VID_HasRenderer patch + 1 renderer); all libphoenix syscalls present; assets=Q2 2002 demo pak. Phase-1 build subagent running. external/yquake2 + tools/yquake2-port/ (mirror quakespasm-port) |
 | C5 | W3 | Quake3 port (quake3e/ioq3) + playable assets + demos | TODO | |
 | C6 | W3 | SuperTuxKart (OpenGL fullscreen, GPU) | TODO | large |
 | D1 | W3 | X11 GPU-accelerated extensions (toward RPi-OS parity) | TODO | |
@@ -152,12 +152,15 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 ## Active task
 
-**C4 — Quake2 (yQuake2)** feasibility, on the HW-validated SDL2 base. A background subagent is
-RUNNING the analysis: source choice (yQuake2 renderers — our Mesa V3D is GL **2.1**, so ref_gl1
-fits, ref_gl3 needs GL3.2 core = NO; ref_soft fallback), build against libSDL2.a + the GL glue
-(reuse sdl2-gltest link recipe), open/shareware pak0 assets, libphoenix/system gaps, and a
-phased port plan. **Do NOT launch duplicate Quake2 work.** A concurrent heartbeat may advance an
-independent item (vkQuake, docs, C3). SDL2 (C1) phase 1 COMPLETE (GL+input+audio HW-validated).
+**C4 — Quake2 (yQuake2) Phase 1** (single-ELF cross-build). Feasibility DONE (plan:
+docs/inprogress/2026-08-05-quake2-port-plan.md). A background subagent is RUNNING: clone
+yQuake2 → external/yquake2 (pin SHA); tools/yquake2-port/ (phoenix backend w/ static
+Sys_LoadLibrary/Sys_GetGameAPI stubs + VID_HasRenderer patch + Sys_Realpath guard + hunk
+decision + build-yquake2-phoenix.py); fold client+baseq2 game+ref_gl1+backend into ONE ELF
+(shared.c/md4.c/hunk.c dedup) linked against libSDL2.a + libGL/libv3d; milestone = the ELF
+LINKS (undefs→0). **Do NOT launch duplicate Quake2 work / another heavy build.** A concurrent
+heartbeat may advance an independent NON-build item (docs, vkQuake read-only, C3). Then Phase 2
+= assets (Q2 2002 demo pak → NFS) + Pi demo/timedemo render via HDMI pipeline.
 
 Note: coord working tree carries PRE-EXISTING uncommitted vkQuake/v3d WIP (v3dv_harness.c,
 vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis docs) from
@@ -187,6 +190,15 @@ video.c stale-history comments). `--scope core` build PASS; committed + pushed p
 stripped) — the fix was cherry-picked onto publish/master's tip via a worktree, NOT
 force-pushed. See [[project_git_topology]]. Kernel/libphoenix/project Tier A comment
 fixes intentionally NOT done yet (would worsen the A1 Batch 3 merges).
+
+C4 Quake2 feasibility DONE (2026-08-05): full plan → docs/inprogress/2026-08-05-quake2-
+port-plan.md. Verdict feasible ~5-8d: yQuake2 ref_gl1 (pure fixed-function, fits our GL 2.1;
+quakespasm already proves immediate-mode GL on this stack) folded into a SINGLE ELF; the
+dlopen→static problem solved via a backends/phoenix static-return backend (+ VID_HasRenderer
+file-check patch + link exactly one renderer). All needed libphoenix syscalls measured present
+(only realpath-NULL + hunk anon-mmap caveats). Assets = Q2 2002 demo pak. Location =
+external/yquake2 + tools/yquake2-port (mirror quakespasm-port), NOT a ports/ lib. Then launched
+the phase-1 single-ELF build subagent.
 
 SDL2 AUDIO driver DONE + HW-VALIDATED (2026-08-05): subagent added src/audio/phoenix/
 (SDL_phoenixaudio.c/.h, patch 0006, pull model over /dev/audio0 44100/stereo/S16LE) + a

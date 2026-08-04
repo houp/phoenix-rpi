@@ -152,14 +152,14 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 ## Active task
 
-**C1 — SDL2 port.** Video+GL+input driver **HW-VALIDATED** on the Pi (sdl2-gltest: GL 2.1/
-V3D 4.2, 600 frames, 0 faults, fullscreen GL clear-color on HDMI). No subagent running.
-**Next = SDL2 audio driver** (src/audio/phoenix/, pull model over /dev/audio0, ref
-pl_phoenix_snd.c) + **wire sdl2 into the target ports.yaml** (so it builds into images /
-games can depend on it) — both no-Pi build tasks (delegate to a subagent). After that, C1 is
-phase-1 complete and **Quake2 (C4)** can begin. Vulkan is phase 2 (needs V3DV WSI).
-Input note: gltest exercised the kbd0/mouse0 drain for 600 frames w/o fault, but actual
-keypress→event isn't verifiable unattended (no one at the keyboard). See [[project_sdl2_port]].
+**C1 — SDL2 port, phase-1 finish.** Video+GL+input driver HW-VALIDATED (sdl2-gltest). A
+background subagent is RUNNING the **audio driver + ports.yaml wiring**: src/audio/phoenix/
+(SDL pull model over /dev/audio0, invert pl_phoenix_snd.c) wired via the PHOENIX cmake
+branch (SDL_AUDIO_DRIVER_PHOENIX) + add `sdl2` to the target ports.yaml; milestone = libSDL2.a
+builds w/ audio driver + a tone-test LINKS. **Do NOT launch duplicate SDL2 work / another
+heavy build.** A concurrent heartbeat may advance an independent NON-build item (docs H2/H3,
+vkQuake read-only, C3 #68 analysis). After this: a Pi tone test (audio path, no audible
+sign-off unattended), then C1 phase-1 complete → **C4 Quake2** begins. See [[project_sdl2_port]].
 
 Note: coord working tree carries PRE-EXISTING uncommitted vkQuake/v3d WIP (v3dv_harness.c,
 vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis docs) from

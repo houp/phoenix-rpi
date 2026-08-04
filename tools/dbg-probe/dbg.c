@@ -1,5 +1,7 @@
 /* Phoenix-RTOS aarch64 in-process debug/backtrace facility.
  *
+ * Copyright 2026 Phoenix Systems  %LICENSE%
+ *
  * Phoenix delivers no ucontext to signal handlers, but the libphoenix aarch64 signal trampoline
  * (patched) stashes the interrupted cpu_context_t* into the global `_dbg_signal_ctx` on every
  * signal. This facility reads that context (interrupted pc + x29 frame pointer) and walks the

@@ -1,4 +1,6 @@
 /*
+ * Copyright 2026 Phoenix Systems  %LICENSE%
+ *
  * mouseprobe — minimal standalone HID-device read probe (no X server involved).
  *
  * Opens a Phoenix HID char device (default /dev/mouse0) O_NONBLOCK and, for ~30 s,

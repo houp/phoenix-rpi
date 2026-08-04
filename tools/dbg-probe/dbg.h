@@ -1,4 +1,7 @@
-/* Phoenix-RTOS aarch64 in-process debug/backtrace facility (UART). See dbg.c. */
+/* Phoenix-RTOS aarch64 in-process debug/backtrace facility (UART). See dbg.c.
+ *
+ * Copyright 2026 Phoenix Systems  %LICENSE%
+ */
 #ifndef PHX_DBG_H
 #define PHX_DBG_H
 

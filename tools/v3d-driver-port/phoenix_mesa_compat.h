@@ -1,4 +1,6 @@
 /*
+ * Copyright 2026 Phoenix Systems  %LICENSE%
+ *
  * phoenix_mesa_compat.h — libc/libm gap shim for cross-compiling Mesa's v3d
  * driver subset to aarch64-phoenix (GLQuake Path C). Phoenix's libm lacks several
  * C99 math functions Mesa uses; provide self-contained inline implementations.

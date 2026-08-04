@@ -1,4 +1,6 @@
 /*
+ * Copyright 2026 Phoenix Systems  %LICENSE%
+ *
  * test_ident_decode.c — HOST (x86) validation of the GET_PARAM IDENT decode.
  *
  * v3d_screen_create is GET_PARAM-only (allocates no BO), and it gates entirely on

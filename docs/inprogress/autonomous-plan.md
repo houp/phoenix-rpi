@@ -80,7 +80,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | ID | Wave | Task | Status | Notes |
 |----|------|------|--------|-------|
 | A1 | W0 | Upstream sync: pull all siblings, integrate, build, verify, push org | WIP | analysis DONE; Batch 1+2 MERGED+BUILT+BOOT-VERIFIED+PUSHED (manifest 2026-08-04-a1-batch2-done); only Batch 3 (kernel/libphoenix/project — careful) remains |
-| G1 | W1 | Full code review (all repos): bugs/hacks/diagnostics/TODOs/comments/licensing → fix+test+commit | WIP | recon → docs/review/2026-08-04-autonomous-review-recon.md. Tier A (text-only comment/TODO) DONE+PUSHED (usb/lwip/devices/plo, build OK). Tier B (diag removal, needs boot) + C (licensing) pending; kernel/libphoenix/project Tier A deferred until after A1 Batch 3 |
+| G1 | W1 | Full code review (all repos): bugs/hacks/diagnostics/TODOs/comments/licensing → fix+test+commit | WIP | recon → docs/review/2026-08-04-autonomous-review-recon.md. Tier A (comment/TODO) DONE. Tier C tools/ headers DONE (6 files +%LICENSE%; fbdev_stub KEPT — still used by build-xfbdev.sh --stub). Pending: Tier B (diag removal, needs boot); Tier C _memset.S provenance (kernel→after Batch 3) + %LICENSE% tooling verify; kernel/libphoenix/project Tier A after A1 Batch 3 |
 | H1 | W1 | Docs cleanup + archive stale docs | TODO | |
 | H2 | W1 | Final Pi4 port-state documentation | TODO | after most ports land; start skeleton |
 | H3 | W1 | Pi4 OS-dev knowledge base (extend existing) | TODO | accumulate all porting experience |
@@ -152,8 +152,8 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 ## Active task
 
-**A1 — Upstream sync** (delta analysis done). Next: execute Batch 1, then Batch 2 with
-build+boot verify. G1 code-review recon still running (parallel).
+Foundation landed (A1 Batch 1+2, G1 Tier A + Tier C tools/). **Pivoting to W2 feature
+work** (higher owner value). A1 Batch 3 + G1 Tier B remain as dedicated-turn items.
 
 ## Last progress
 
@@ -180,6 +180,14 @@ stripped) — the fix was cherry-picked onto publish/master's tip via a worktree
 force-pushed. See [[project_git_topology]]. Kernel/libphoenix/project Tier A comment
 fixes intentionally NOT done yet (would worsen the A1 Batch 3 merges).
 
+G1 Tier C (tools/) DONE (2026-08-04): added `Copyright 2026 Phoenix Systems  %LICENSE%`
+to 6 unheadered coord-repo files (v3d-driver-port phoenix_mesa_compat.h +
+test_ident_decode.c, x11-port mouseprobe.c + fbdev_stub.c, dbg-probe dbg.h + dbg.c),
+committed + pushed to coord org (d4cb38e). Corrected recon's "delete fbdev_stub.c" — it
+is STILL used by build-xfbdev.sh --stub, so kept (removing the --stub option = attended
+decision). Remaining Tier C: _memset.S ARM-provenance (kernel → do with Batch 3) +
+confirm publish tooling substitutes %LICENSE% (owner/tooling).
+
 2026-08-04: Plan created. vkQuake torch fix already landed+pushed (d3e329c). vkQuake
 e1m1 bright-walls (I1): could not reproduce — fresh `map e1m1`, `start→e1m1`,
 `r_rtshadows=1`, and weapon-fire all render lightmaps matching GLQuake (diff <0.2%)
@@ -190,19 +198,24 @@ the bright default. Robustness fix candidate for I1.
 
 ## Next step
 
-Pick ONE per turn (roughly this priority):
-1. **G1 Tier C — licensing headers** (safe, no boot): add missing Phoenix SPDX headers to
-   `tools/v3d-driver-port/phoenix_mesa_compat.h`, `test_ident_decode.c`,
-   `tools/x11-port/launcher/mouseprobe.c`, `tools/dbg-probe/dbg.h`; delete dead
-   `tools/x11-port/ddx/fbdev_stub.c`; verify `kernel/hal/aarch64/_memset.S` ARM
-   optimized-routines provenance (add MIT attribution if derived). `--scope core` build to
-   confirm. (These are in tools/ + coord — no pending-merge conflict.)
-2. **A1 Batch 3** (careful, rollback-ready, dedicated attentive turn): snapshot first;
-   libphoenix `sys/socket.c` accept4 hand-merge + the coordinated kernel↔libphoenix errno
-   transfer as ONE unit; kernel copyright-sweep collision on our 35 owned files + vm/object
-   semantic overlap; project submodule pointers (keep ours). Ready to restore to manifest
-   2026-08-04-a1-batch2-done or tag known-good/2026-04-19-map-relocation-complete. Then do
-   the deferred kernel/libphoenix/project G1 Tier A comment fixes on top.
-3. **G1 Tier B** (diagnostic removal — needs build + ONE Pi boot; honor Pi-lock).
-4. Then W2 features in parallel where independent: vkQuake I1 robustness, SDL2 (C1),
-   Quake1 MP (C3), F1 KNOWN-ISSUES, debugger lib (B1).
+Foundation (A1 Batch 1+2, G1 Tier A + Tier C tools/) is landed. A1 Batch 3 is NOT urgent
+for a fork (incoming kernel changes are a cosmetic copyright/diacritics sweep + minor hal
+fixes; we function without the errno transfer). Pivot to feature work. Priority — pick
+ONE focus per turn (use subagents to parallelize analyze/implement/test):
+
+1. **C1 — SDL2 port feasibility** (highest leverage — unblocks Quake2/3, SuperTuxKart,
+   video player): analysis-first via subagent — does SDL2 build for aarch64-phoenix? Which
+   backends fit our stack (fbdev/KMS video via our /dev/fb0 + V3D GL/Vulkan, evdev-ish input
+   via /dev/kbd0+/dev/mouse0, audio via /dev/audio0)? What libphoenix/system gaps? Produce a
+   port plan. No X11 needed (fullscreen only).
+2. **vkQuake continuation** (explicit standing ask): I1 lightmap robustness (make the
+   GPU-compute lightmap build not get stuck at the bright default — re-mark modified until
+   an upload is confirmed) — implement + verify no regression via HDMI/pixel/host pipeline;
+   and/or I2 liquids + remaining workarounds. I3 phantom-kbd bug.
+3. **C3 — Quake1 multiplayer networking** (well-scoped): net_drivers currently loopback-only
+   → wire real UDP via lwip sockets; test two-client on the lab net.
+4. Dedicated-turn / lower-urgency: **A1 Batch 3** (careful kernel/libphoenix/project merges
+   — snapshot first; restore to manifest 2026-08-04-a1-batch2-done or tag
+   known-good/2026-04-19-map-relocation-complete on trouble; then the deferred kernel G1
+   Tier A comment fixes + _memset.S provenance); **G1 Tier B** (diagnostic removal, needs
+   build+boot); **F1** KNOWN-ISSUES; **B1** debugger library.

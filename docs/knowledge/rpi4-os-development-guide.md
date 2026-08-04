@@ -756,6 +756,62 @@ likely to break on driver re-init.
 - NetBSD `sys/dev/ic/bcmgenet.c` (the original BSD port).
 
 
+## V3D GPU: 3D acceleration (OpenGL + Vulkan)
+
+The BCM2711 has two distinct graphics blocks, and confusing them wastes days:
+- **VideoCore VI (VC6)** — the firmware-owned media/display/clock block reached via the
+  mailbox property interface (framebuffer alloc, HDMI mode, clocks). It stays live after
+  handoff (see "VideoCore remains live after handoff").
+- **V3D 4.2** — a *separate* Broadcom 3D render core (the OpenGL ES / Vulkan-capable GPU),
+  MMIO-mapped and driven directly by the OS. Everything below is about V3D.
+
+### Reuse Mesa; do not hand-write a driver
+Mesa already has a complete, correct V3D backend: the **`v3d` gallium driver** (OpenGL) and
+**`v3dv`** (Vulkan). Porting that code is far cheaper and more correct than hand-encoding
+QPU shaders or CLE command lists — this yielded full textured OpenGL (GLQuake) and real
+SPIR-V Vulkan (vkQuake) on hardware. Take Mesa's CLE packers and NIR→QPU compiler as-is;
+only the **winsys** (the thin layer that submits work to the GPU) is OS-specific.
+
+### In-process winsys, no DRM
+There is no DRM kernel driver. The winsys:
+- mmaps the V3D register window and pokes it directly;
+- gives the GPU a **flat 128 MiB page table** for GPU virtual addresses (simplest correct
+  MMU setup; a BO is just mmap + virt→phys);
+- submits a control list as **CT0 (binner) + CT1 (render)** via QBA/QEA, then waits on
+  **FLDONE/FRDONE**; issues an **SLCACTL / L2T cache flush per submit** (omitting it =
+  stale-tile corruption);
+- disables early-Z (**EZ**) where the tile pipeline requires it.
+V3D 4.2 has **no ray-query hardware** — gate any Vulkan RT path off (V3DV reports it
+absent; do not run RT lightmap/shadow shaders or you get garbage).
+
+### Presentation: no-WSI, and the scanout reads color-buffer ALPHA
+There is no swapchain / `VK_KHR_surface`. The app renders into an image backed by the
+`/dev/fb0` framebuffer and the **HDMI scanout displays that image directly**. The sharp
+edge: **the scanout samples the color buffer's ALPHA channel** (a real swapchain ignores
+it). So *opaque* geometry must write **alpha = 1.0**, or low-alpha pixels vanish on screen
+though they rasterized correctly — this single gotcha cost ~40 debug cycles on vkQuake
+(vanishing torches). If you later add a real `VK_KHR_swapchain`, back its images with fb0
+and make present a framebuffer page-flip.
+
+### Serialize the mailbox (display + GPU share it)
+The GPU winsys and the display both talk to the VideoCore mailbox; concurrent access (e.g.
+one path reading virtual width/height while another flips) races into flicker /
+single-buffering. Route **all** mailbox traffic through one serialized owner (on Phoenix:
+`/dev/vcmbox` via `libvcmbox`).
+
+### Firmware governs buffering — pin it
+The RPi firmware (`start4.elf`) decides framebuffer double/triple buffering. A newer
+`start4.elf` can silently deny the 3× virtual framebuffer the loader requested → revert to
+single-buffered → tearing. **Pin the firmware SHA** in your build; treat unexplained
+tearing after a firmware bump as this.
+
+### References
+- Mesa `src/broadcom/` (CLE + NIR→QPU compiler) + `src/gallium/drivers/v3d` (GL) +
+  `src/broadcom/vulkan` (v3dv).
+- `docs/knowledge/gpu-vc6.md` / `gpu-vc6-non-linux.md` (deeper VideoCore/V3D notes).
+- Linux `drivers/gpu/drm/v3d/` — the DRM submit/MMU reference the winsys mirrors.
+
+
 ## UART & console
 
 ### PL011 vs mini-UART

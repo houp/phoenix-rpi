@@ -83,7 +83,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | G1 | W1 | Full code review (all repos): bugs/hacks/diagnostics/TODOs/comments/licensing → fix+test+commit | WIP | recon → docs/review/2026-08-04-autonomous-review-recon.md. Tier A (comment/TODO) DONE. Tier C tools/ headers DONE (6 files +%LICENSE%; fbdev_stub KEPT — still used by build-xfbdev.sh --stub). Pending: Tier B (diag removal, needs boot); Tier C _memset.S provenance (kernel→after Batch 3) + %LICENSE% tooling verify; kernel/libphoenix/project Tier A after A1 Batch 3 |
 | H1 | W1 | Docs cleanup + archive stale docs | TODO | |
 | H2 | W1 | Final Pi4 port-state documentation | TODO | after most ports land; start skeleton |
-| H3 | W1 | Pi4 OS-dev knowledge base (extend existing) | TODO | accumulate all porting experience |
+| H3 | W1 | Pi4 OS-dev knowledge base (extend existing) | WIP | base = docs/knowledge/rpi4-os-development-guide.md (1639L, low-level bring-up). Added V3D GPU section (OpenGL+Vulkan: Mesa reuse, in-process winsys, no-WSI alpha-scanout, mailbox serialize, firmware pin). Still to add: fb0/HDMI, storage+NFS-root, audio, userspace-MMIO-driver pattern, debug facility |
 | B1 | W1 | Generalize in-process debugger → reusable Phoenix debug library | TODO | from vkQuake debugger |
 | B3 | W1 | Debug-facility documentation | TODO | with B1 |
 | F1 | W2 | Resolve KNOWN ISSUES (kernel/system/libphoenix) | TODO | see docs/KNOWN-ISSUES.md; debugger-driven |
@@ -187,6 +187,13 @@ video.c stale-history comments). `--scope core` build PASS; committed + pushed p
 stripped) — the fix was cherry-picked onto publish/master's tip via a worktree, NOT
 force-pushed. See [[project_git_topology]]. Kernel/libphoenix/project Tier A comment
 fixes intentionally NOT done yet (would worsen the A1 Batch 3 merges).
+
+H3 increment (2026-08-04, heartbeat parallel to SDL2 video-driver subagent): added a
+"V3D GPU: 3D acceleration (OpenGL + Vulkan)" section to docs/knowledge/rpi4-os-development-
+guide.md (was missing the entire graphics stack) — VC6-vs-V3D distinction, reuse-Mesa,
+in-process winsys (flat 128MiB PT, CT0/CT1, SLCACTL-per-submit, EZ, no ray_query), the
+no-WSI color-buffer-alpha scanout gotcha, mailbox serialization (libvcmbox), firmware pin.
+Future H3 increments: fb0/HDMI, storage+NFS-root, audio, userspace-MMIO pattern, debugger.
 
 C3 scoping (2026-08-04, heartbeat parallel to SDL2 build): read the net glue — Quake1 MP
 is NOT loopback-only. quakespasm-port/pl_phoenix_stubs.c registers Loopback + Datagram

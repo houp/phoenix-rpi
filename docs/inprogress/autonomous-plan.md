@@ -89,7 +89,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | F1 | W2 | Resolve KNOWN ISSUES (kernel/system/libphoenix) | TODO | see docs/KNOWN-ISSUES.md; debugger-driven |
 | F2 | W2 | OS perf (I/O, net, scheduling) + modern syscalls + measurements + wire ports to them | TODO | |
 | SD | W2 | SD-card driver: full speed + correctness (prior loop goal; folds into F1/F2) | WIP | reads IRQ, writes CMD13-poll done; perf=PIO throughput |
-| C1 | W2 | SDL2 port (fullscreen GL+Vulkan, kbd+mouse, sound); no X11 needed | WIP | feasibility → docs/inprogress/2026-08-04-sdl2-port-plan.md. Phase-1 build plumbing DONE: ports/sdl2 (SDL 2.30.12, 4 patches: PHOENIX cmake branch + pthread + dynapi-off + sched-noop), libSDL2.a cross-builds+links (stock pthread backend), pushed org bdfe294. Phase-1 video+input driver DONE (patch 0005 + overlay/src/video/phoenix/ {video,opengl,events,framebuffer} + glue/{glctx GPL-copy,glstubs zlib}); libSDL2.a builds w/ SDL_VIDEO_DRIVER_PHOENIX + fullscreen-GL test LINKS (org 8671269). GPL-glue seam kept OUT of zlib libSDL2.a. **Pi GL-demo HW-VALIDATED (2026-08-04)**: sdl2-gltest = GL 2.1/V3D 4.2, 600 frames clean exit, 0 faults, 1920x1080 triple-buffer page-flip, fullscreen GL clear-color on HDMI. NEXT: audio driver (/dev/audio0), wire into target ports.yaml → then Quake2 (C4). Vulkan=phase 2 (no V3DV WSI). See [[project_sdl2_port]] |
+| C1 | W2 | SDL2 port (fullscreen GL+Vulkan, kbd+mouse, sound); no X11 needed | PHASE-1 DONE | feasibility → docs/inprogress/2026-08-04-sdl2-port-plan.md. Phase-1 build plumbing DONE: ports/sdl2 (SDL 2.30.12, 4 patches: PHOENIX cmake branch + pthread + dynapi-off + sched-noop), libSDL2.a cross-builds+links (stock pthread backend), pushed org bdfe294. Phase-1 video+input driver DONE (patch 0005 + overlay/src/video/phoenix/ {video,opengl,events,framebuffer} + glue/{glctx GPL-copy,glstubs zlib}); libSDL2.a builds w/ SDL_VIDEO_DRIVER_PHOENIX + fullscreen-GL test LINKS (org 8671269). GPL-glue seam kept OUT of zlib libSDL2.a. **Pi GL-demo HW-VALIDATED (2026-08-04)**: sdl2-gltest = GL 2.1/V3D 4.2, 600 frames clean exit, 0 faults, 1920x1080 triple-buffer page-flip, fullscreen GL clear-color on HDMI. Audio driver DONE + HW-VALIDATED (2026-08-05): src/audio/phoenix/ (patch 0006, pull model /dev/audio0), sdl2-audiotest on Pi → "audio open: driver=phoenix 44100/S16/2ch", tone played, clean exit, 0 faults. org ports c191d20; project ports.yaml f82c334 (sdl2 registered `if:false` — no consumer yet). **SDL2 phase 1 COMPLETE**: fullscreen GL + input + audio all HW-validated. NEXT: **C4 Quake2 (yQuake2)** on SDL2. Vulkan=phase 2 (no V3DV WSI). See [[project_sdl2_port]] |
 | C3 | W2 | Quake1 multiplayer networking fix | TODO | NOT loopback-only: quakespasm has UDP landriver + Datagram wired + FIONREAD→MSG_PEEK fix. Real bug = KNOWN-ISSUES **#68 MP hangs at LOADING screen** (open). vkQuake stub still loopback-only. Fix = diagnose #68 (Pi client ↔ host dedicated server) + bring vkQuake net to parity. Needs dedicated Pi turn |
 | I1 | W2 | vkQuake e1m1 bright-walls: robustness of GPU-compute lightmap build | WIP | can't repro (my loads correct); see below |
 | I2 | W2 | vkQuake: liquids + remaining workarounds + perf | TODO | |
@@ -152,14 +152,12 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 ## Active task
 
-**C1 — SDL2 port, phase-1 finish.** Video+GL+input driver HW-VALIDATED (sdl2-gltest). A
-background subagent is RUNNING the **audio driver + ports.yaml wiring**: src/audio/phoenix/
-(SDL pull model over /dev/audio0, invert pl_phoenix_snd.c) wired via the PHOENIX cmake
-branch (SDL_AUDIO_DRIVER_PHOENIX) + add `sdl2` to the target ports.yaml; milestone = libSDL2.a
-builds w/ audio driver + a tone-test LINKS. **Do NOT launch duplicate SDL2 work / another
-heavy build.** A concurrent heartbeat may advance an independent NON-build item (docs H2/H3,
-vkQuake read-only, C3 #68 analysis). After this: a Pi tone test (audio path, no audible
-sign-off unattended), then C1 phase-1 complete → **C4 Quake2** begins. See [[project_sdl2_port]].
+**SDL2 (C1) phase 1 COMPLETE + HW-validated** (fullscreen GL, input, audio all proven on
+the Pi; pushed to org). No subagent running. **Next focus = C4 Quake2 (yQuake2)** on the SDL2
+base — the first game built on our SDL2. Start analysis-first (subagent): which yQuake2/
+Quake2 source, does it build for aarch64-phoenix against libSDL2.a + the GL glue, open/
+shareware asset pack (pak0 demo), and a port plan (reuse the SDL2 + GL-glue + Mesa link
+recipe from the sdl2-gltest). See [[project_sdl2_port]] [[project_quakespasm_port]].
 
 Note: coord working tree carries PRE-EXISTING uncommitted vkQuake/v3d WIP (v3dv_harness.c,
 vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis docs) from
@@ -189,6 +187,15 @@ video.c stale-history comments). `--scope core` build PASS; committed + pushed p
 stripped) — the fix was cherry-picked onto publish/master's tip via a worktree, NOT
 force-pushed. See [[project_git_topology]]. Kernel/libphoenix/project Tier A comment
 fixes intentionally NOT done yet (would worsen the A1 Batch 3 merges).
+
+SDL2 AUDIO driver DONE + HW-VALIDATED (2026-08-05): subagent added src/audio/phoenix/
+(SDL_phoenixaudio.c/.h, patch 0006, pull model over /dev/audio0 44100/stereo/S16LE) + a
+tone-test; libSDL2.a builds w/ SDL_AUDIO_DRIVER_PHOENIX; sdl2-audiotest on Pi → "audio open:
+driver=phoenix freq=44100 format=0x8010 channels=2", "smoke test done", 0 faults (audible
+sign-off deferred — no mic unattended). Pushed org: ports c191d20, project ports.yaml f82c334
+(sdl2 registered `if:false` — a plain listing builds unconditionally which would risk unrelated
+image builds, so gated until a consumer game lands; built via scripts/build-sdl2-port.sh),
+coord test helpers 73d2158. => **SDL2 phase 1 COMPLETE** (GL+input+audio HW-validated).
 
 SDL2 video+GL+input driver HW-VALIDATED (2026-08-04): rebuilt+deployed sdl2-gltest to NFS
 root, netboot Pi cycle → UART: GL_VERSION 2.1 Mesa 26.2.0-rc1, GL_RENDERER V3D 4.2.14.0,

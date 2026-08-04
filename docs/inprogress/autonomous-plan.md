@@ -90,7 +90,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | F2 | W2 | OS perf (I/O, net, scheduling) + modern syscalls + measurements + wire ports to them | TODO | |
 | SD | W2 | SD-card driver: full speed + correctness (prior loop goal; folds into F1/F2) | WIP | reads IRQ, writes CMD13-poll done; perf=PIO throughput |
 | C1 | W2 | SDL2 port (fullscreen GL+Vulkan, kbd+mouse, sound); no X11 needed | WIP | feasibility DONE → docs/inprogress/2026-08-04-sdl2-port-plan.md (port real SDL 2.30.x in ports/sdl2, CMake, phoenix drivers reuse pl_phoenix_* prims). Phase-1 build-plumbing subagent running (threads patch → libSDL2.a) |
-| C3 | W2 | Quake1 multiplayer networking fix | TODO | net_drivers currently loopback-only |
+| C3 | W2 | Quake1 multiplayer networking fix | TODO | NOT loopback-only: quakespasm has UDP landriver + Datagram wired + FIONREAD→MSG_PEEK fix. Real bug = KNOWN-ISSUES **#68 MP hangs at LOADING screen** (open). vkQuake stub still loopback-only. Fix = diagnose #68 (Pi client ↔ host dedicated server) + bring vkQuake net to parity. Needs dedicated Pi turn |
 | I1 | W2 | vkQuake e1m1 bright-walls: robustness of GPU-compute lightmap build | WIP | can't repro (my loads correct); see below |
 | I2 | W2 | vkQuake: liquids + remaining workarounds + perf | TODO | |
 | I3 | W2 | Fix phantom /dev/kbd0 input (spurious menu spam) | TODO | open SW bug, pl_phoenix_in.c |
@@ -185,6 +185,16 @@ video.c stale-history comments). `--scope core` build PASS; committed + pushed p
 stripped) — the fix was cherry-picked onto publish/master's tip via a worktree, NOT
 force-pushed. See [[project_git_topology]]. Kernel/libphoenix/project Tier A comment
 fixes intentionally NOT done yet (would worsen the A1 Batch 3 merges).
+
+C3 scoping (2026-08-04, heartbeat parallel to SDL2 build): read the net glue — Quake1 MP
+is NOT loopback-only. quakespasm-port/pl_phoenix_stubs.c registers Loopback + Datagram
+net_drivers and the UDP net_landriver (UDP_Init…), and net_udp.c is patched to replace the
+unimplemented ioctl(FIONREAD) with an MSG_PEEK non-blocking probe. But KNOWN-ISSUES #68
+("Quake multiplayer hangs at the LOADING screen") is OPEN — so the driver is wired yet MP
+doesn't complete connect/spawn. vkQuake-port stub is still Loopback-only (comment line 13).
+C3 = reproduce+fix #68 (Pi client ↔ host quakespasm dedicated server; diagnose where the
+LOADING handshake/precache/spawn stalls) + port the UDP net_drivers table into the vkQuake
+stub for parity. Dedicated Pi turn (not while SDL2 builds).
 
 C1 SDL2 feasibility DONE (2026-08-04): full analysis → docs/inprogress/2026-08-04-sdl2-
 port-plan.md. Verdict: port real SDL 2.30.x (ports/sdl2, CMake, mimic zlib) with phoenix

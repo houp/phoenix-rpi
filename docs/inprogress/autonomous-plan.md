@@ -79,7 +79,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 
 | ID | Wave | Task | Status | Notes |
 |----|------|------|--------|-------|
-| A1 | W0 | Upstream sync: pull all siblings, integrate, build, verify, push org | WIP | delta analysis DONE (see "A1 integration plan"); merges pending |
+| A1 | W0 | Upstream sync: pull all siblings, integrate, build, verify, push org | WIP | analysis DONE; Batch 1 (doc/ports/tests) MERGED+PUSHED; Batch 2 (core+boot) & 3 (kernel/libphoenix/project) pending |
 | G1 | W1 | Full code review (all repos): bugs/hacks/diagnostics/TODOs/comments/licensing → fix+test+commit | WIP | recon DONE → docs/review/2026-08-04-autonomous-review-recon.md (Tier A/B/C/D); execute Tier A first |
 | H1 | W1 | Docs cleanup + archive stale docs | TODO | |
 | H2 | W1 | Final Pi4 port-state documentation | TODO | after most ports land; start skeleton |
@@ -161,9 +161,9 @@ build+boot verify. G1 code-review recon still running (parallel).
 pushed. Both read-only analysis subagents reported: (a) A1 upstream-delta survey →
 "A1 integration plan" above; (b) G1 code-review recon → saved to
 `docs/review/2026-08-04-autonomous-review-recon.md` with Tier A/B/C/D execution order.
-Nothing merged/edited yet — execution begins next turn (fresh context, one Pi cycle at
-a time). Recommended first executable step: A1 Batch 1 (no Pi boot) or G1 Tier A
-(text-only). Both need only `git`/build, no exclusive Pi boot.
+A1 Batch 1 DONE: phoenix-rtos-doc (ff), -ports, -tests merged clean (zero conflicts)
+and pushed to org — no boot impact. `git -C <abs> merge/push` confirmed working in this
+bg session (no permission block). Batches 2/3 still pending.
 
 2026-08-04: Plan created. vkQuake torch fix already landed+pushed (d3e329c). vkQuake
 e1m1 bright-walls (I1): could not reproduce — fresh `map e1m1`, `start→e1m1`,
@@ -175,11 +175,14 @@ the bright default. Robustness fix candidate for I1.
 
 ## Next step
 
-1. When the G1 code-review recon subagent reports, fold its candidate list into the
-   board (new G1 detail section) — do NOT auto-apply; verify each before fixing.
-2. Execute **A1 Batch 1** (doc, ports, tests): `git -C sources/<repo> merge origin/master`
-   (or ff), confirm clean, `git -C sources/<repo> push publish master`.
-3. Execute **A1 Batch 2** (filesystems, usb, utils, devices): snapshot first, merge,
-   `./scripts/rebuild-rpi4b-fast.sh --scope core`, then ONE Pi boot-verify
-   (`test-cycle-netboot.sh`, honor Pi-lock), push if green, snapshot manifest.
-4. Then Batch 3 (libphoenix errno+socket, kernel, project) on dedicated attentive turns.
+1. **A1 Batch 2** (filesystems, usb, utils, devices): `scripts/snapshot-integration-state.sh`
+   first (rollback point), `git -C sources/<repo> merge --no-edit origin/master` each
+   (abort+defer on conflict), `./scripts/rebuild-rpi4b-fast.sh --scope core`, then ONE Pi
+   boot-verify (`test-cycle-netboot.sh`, set Pi-lock IN USE first, clear after), push each
+   to org if green, snapshot a new manifest. If build breaks, bisect the offending sibling,
+   `restore-integration-state.sh`, defer it.
+2. **G1 Tier A** (text-only comment/TODO fixes from the recon doc) — can interleave; needs
+   only a `--scope core` build to confirm syntax, no boot. Good candidate to delegate to a
+   subagent to keep main context clean.
+3. Then A1 Batch 3 (libphoenix errno+socket, kernel copyright-sweep, project submodule) on
+   dedicated attentive turns; G1 Tier B/C after.

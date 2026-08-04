@@ -89,7 +89,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | F1 | W2 | Resolve KNOWN ISSUES (kernel/system/libphoenix) | TODO | see docs/KNOWN-ISSUES.md; debugger-driven |
 | F2 | W2 | OS perf (I/O, net, scheduling) + modern syscalls + measurements + wire ports to them | TODO | |
 | SD | W2 | SD-card driver: full speed + correctness (prior loop goal; folds into F1/F2) | WIP | reads IRQ, writes CMD13-poll done; perf=PIO throughput |
-| C1 | W2 | SDL2 port (fullscreen GL+Vulkan, kbd+mouse, sound); no X11 needed | TODO | reusable base for many games |
+| C1 | W2 | SDL2 port (fullscreen GL+Vulkan, kbd+mouse, sound); no X11 needed | WIP | feasibility DONE → docs/inprogress/2026-08-04-sdl2-port-plan.md (port real SDL 2.30.x in ports/sdl2, CMake, phoenix drivers reuse pl_phoenix_* prims). Phase-1 build-plumbing subagent running (threads patch → libSDL2.a) |
 | C3 | W2 | Quake1 multiplayer networking fix | TODO | net_drivers currently loopback-only |
 | I1 | W2 | vkQuake e1m1 bright-walls: robustness of GPU-compute lightmap build | WIP | can't repro (my loads correct); see below |
 | I2 | W2 | vkQuake: liquids + remaining workarounds + perf | TODO | |
@@ -152,12 +152,14 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 ## Active task
 
-**C1 — SDL2 port feasibility** — a background analysis subagent is RUNNING (launched
-2026-08-04): mapping SDL2's video/GL/Vulkan/input/audio driver model onto our
-fb0+V3D+kbd0/mouse0/audio0 stack + a phased port plan. **Do NOT launch a duplicate SDL2
-analysis.** A concurrent heartbeat may instead advance an independent item (vkQuake I1/I2,
-docs) that does not need the Pi. When the report lands, fold it into the board as a C1
-plan section and begin phase 1. (Foundation A1 Batch 1+2, G1 Tier A + Tier C tools/ done.)
+**C1 — SDL2 port, Phase 1 (build plumbing)** — feasibility DONE (plan:
+docs/inprogress/2026-08-04-sdl2-port-plan.md). A background subagent is RUNNING: create
+`sources/phoenix-rtos-ports/sdl2/` (CMake, mimic zlib), patch past the threads-detection
+gate + libphoenix gaps, cross-build a static `libSDL2.a` with the phoenix thread backend
+(lift pl_phoenix_sdlcompat.c) + dummy video/audio. **Do NOT launch duplicate SDL2 work.**
+A concurrent heartbeat may advance an independent non-build item (vkQuake I1/I2 analysis,
+docs H2/H3) but should NOT start another heavy build. Next after libSDL2.a links: the
+phoenix video/input/audio drivers (plan phase-1 steps 4-5), then Pi validate.
 
 ## Last progress
 
@@ -183,6 +185,14 @@ video.c stale-history comments). `--scope core` build PASS; committed + pushed p
 stripped) — the fix was cherry-picked onto publish/master's tip via a worktree, NOT
 force-pushed. See [[project_git_topology]]. Kernel/libphoenix/project Tier A comment
 fixes intentionally NOT done yet (would worsen the A1 Batch 3 merges).
+
+C1 SDL2 feasibility DONE (2026-08-04): full analysis → docs/inprogress/2026-08-04-sdl2-
+port-plan.md. Verdict: port real SDL 2.30.x (ports/sdl2, CMake, mimic zlib) with phoenix
+drivers reusing pl_phoenix_* prims; header-shim approach won't scale to Quake2/3/STK. Cross-
+configure probed: passes arch/ABI/atomics; first blocker = SDL threads-detection (needs
+patch). Vulkan (no V3DV WSI) = phase 2, risk #1. Then launched a background phase-1
+build-plumbing subagent (create port + threads patch + libphoenix gaps → static libSDL2.a
++ phoenix thread backend). Awaiting its report.
 
 G1 Tier C (tools/) DONE (2026-08-04): added `Copyright 2026 Phoenix Systems  %LICENSE%`
 to 6 unheadered coord-repo files (v3d-driver-port phoenix_mesa_compat.h +

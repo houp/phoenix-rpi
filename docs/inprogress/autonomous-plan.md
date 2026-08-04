@@ -79,7 +79,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 
 | ID | Wave | Task | Status | Notes |
 |----|------|------|--------|-------|
-| A1 | W0 | Upstream sync: pull all siblings, integrate, build, verify, push org | WIP | analysis DONE; Batch 1 (doc/ports/tests) MERGED+PUSHED; Batch 2 (core+boot) & 3 (kernel/libphoenix/project) pending |
+| A1 | W0 | Upstream sync: pull all siblings, integrate, build, verify, push org | WIP | analysis DONE; Batch 1+2 MERGED+BUILT+BOOT-VERIFIED+PUSHED (manifest 2026-08-04-a1-batch2-done); only Batch 3 (kernel/libphoenix/project — careful) remains |
 | G1 | W1 | Full code review (all repos): bugs/hacks/diagnostics/TODOs/comments/licensing → fix+test+commit | WIP | recon DONE → docs/review/2026-08-04-autonomous-review-recon.md (Tier A/B/C/D); execute Tier A first |
 | H1 | W1 | Docs cleanup + archive stale docs | TODO | |
 | H2 | W1 | Final Pi4 port-state documentation | TODO | after most ports land; start skeleton |
@@ -161,9 +161,15 @@ build+boot verify. G1 code-review recon still running (parallel).
 pushed. Both read-only analysis subagents reported: (a) A1 upstream-delta survey →
 "A1 integration plan" above; (b) G1 code-review recon → saved to
 `docs/review/2026-08-04-autonomous-review-recon.md` with Tier A/B/C/D execution order.
-A1 Batch 1 DONE: phoenix-rtos-doc (ff), -ports, -tests merged clean (zero conflicts)
-and pushed to org — no boot impact. `git -C <abs> merge/push` confirmed working in this
-bg session (no permission block). Batches 2/3 still pending.
+A1 Batch 1 DONE: phoenix-rtos-doc (ff), -ports, -tests merged clean and pushed.
+`git -C <abs> merge/push` confirmed working in this bg session (no permission block).
+
+A1 Batch 2 DONE (2026-08-04): snapshot pre-a1-batch2 → merged filesystems/usb/utils/
+devices (all 0 conflicts; devices +6567 lines of imx6ull/spacewire/sensors/uart16550,
+none Pi4) → `rebuild --scope core` OK (image verify OK) → netboot boot-verify HEALTHY
+(psh prompt + lwip + genet link/IP + xHCI + fbcon + NFS-root mount, 0 faults) → pushed
+all 4 to org → manifest 2026-08-04-a1-batch2-done. Pi powered off, lock FREE. Only
+Batch 3 (kernel/libphoenix/project) remains for A1.
 
 2026-08-04: Plan created. vkQuake torch fix already landed+pushed (d3e329c). vkQuake
 e1m1 bright-walls (I1): could not reproduce — fresh `map e1m1`, `start→e1m1`,
@@ -175,14 +181,14 @@ the bright default. Robustness fix candidate for I1.
 
 ## Next step
 
-1. **A1 Batch 2** (filesystems, usb, utils, devices): `scripts/snapshot-integration-state.sh`
-   first (rollback point), `git -C sources/<repo> merge --no-edit origin/master` each
-   (abort+defer on conflict), `./scripts/rebuild-rpi4b-fast.sh --scope core`, then ONE Pi
-   boot-verify (`test-cycle-netboot.sh`, set Pi-lock IN USE first, clear after), push each
-   to org if green, snapshot a new manifest. If build breaks, bisect the offending sibling,
-   `restore-integration-state.sh`, defer it.
-2. **G1 Tier A** (text-only comment/TODO fixes from the recon doc) — can interleave; needs
-   only a `--scope core` build to confirm syntax, no boot. Good candidate to delegate to a
-   subagent to keep main context clean.
-3. Then A1 Batch 3 (libphoenix errno+socket, kernel copyright-sweep, project submodule) on
-   dedicated attentive turns; G1 Tier B/C after.
+1. **G1 Tier A** (text-only comment/TODO fixes from
+   `docs/review/2026-08-04-autonomous-review-recon.md`) — no Pi boot; `--scope core` build
+   to confirm syntax only. Best delegated to a subagent (keeps main context clean); commit
+   per-repo + push. Safe, high-value, no exclusive-Pi dependency.
+2. **A1 Batch 3** (careful, rollback-ready, dedicated attentive turn): libphoenix
+   `sys/socket.c` accept4 hand-merge + the coordinated kernel↔libphoenix errno transfer as
+   ONE unit; kernel copyright-sweep collision on our 35 owned files + vm/object semantic
+   overlap; project submodule pointers (keep ours). Snapshot first; be ready to
+   `restore-integration-state.sh` to manifest 2026-08-04-a1-batch2-done or the known-good tag.
+3. Then G1 Tier B (diagnostic removal, needs build+boot) and Tier C (licensing headers).
+4. In parallel where independent: vkQuake I1 robustness, F1 KNOWN-ISSUES, debugger lib (B1).

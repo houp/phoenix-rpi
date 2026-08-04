@@ -152,13 +152,16 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 ## Active task
 
-**C4 — Quake2 (yQuake2) Phase 2** (assets + Pi demo render). Phase 1 DONE (ELF links, coord
-3eaf810). No subagent running. Steps: (1) acquire the Quake II 2002 demo `pak0.pak` +
-`demo1.dm2` (legal shareware; from `q2-314-demo-x86.exe` or an open mirror) → NFS root
-`/usr/share/quake2/baseq2/`; (2) rebuild+deploy /tmp/yquake2-phoenix → /usr/bin/yquake2;
-(3) netboot Pi (Pi-lock!), run `+set vid_renderer gl1 +playdemo demo1` (or timedemo), capture
-HDMI; (4) verify it renders (compare vs host yQuake2 gl1). Watch: malloc-hunk RSS, gi.*/ri.*
-reroute at runtime. See [[project_quake2_port]].
+**C4 Quake2 Phase 2 — first Pi boot DONE, one blocker to fix.** yQuake2 RUNS on the Pi:
+loaded pak0.pak (1106 files), ref_gl1, GL up on V3D 4.2 @1920x1080 triple-buffer, 0 faults.
+**BLOCKER (fix next):** our SDL2 phoenix video driver rejects yQuake2's mode-set with
+**"SDL SetVideoMode failed: Unknown pixel format"** → yQuake2 reverts to windowed 640x480 →
+never takes over the display, so HDMI stays on the fbcon TEXT console (GL render not shown).
+FIX = `sources/phoenix-rtos-ports/sdl2/overlay/src/video/phoenix/SDL_phoenixvideo.c`: report
+a valid SDL_PIXELFORMAT for the display mode + force fullscreen native (disable fbcon), so
+SDL_SetVideoMode/SetDisplayMode succeeds. This is a C1 SDL2 fix that helps ALL games. Then
+re-deploy + Pi test with `+demomap q2demo1.dm2`. Minor (defer): SDL relative-mouse unimpl,
+Sys_GetBinaryDir ("./"), config writes fail on RO-NFS. See [[project_quake2_port]] [[project_sdl2_port]].
 
 Note: coord working tree carries PRE-EXISTING uncommitted vkQuake/v3d WIP (v3dv_harness.c,
 vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis docs) from
@@ -188,6 +191,14 @@ video.c stale-history comments). `--scope core` build PASS; committed + pushed p
 stripped) — the fix was cherry-picked onto publish/master's tip via a worktree, NOT
 force-pushed. See [[project_git_topology]]. Kernel/libphoenix/project Tier A comment
 fixes intentionally NOT done yet (would worsen the A1 Batch 3 merges).
+
+C4 Quake2 Phase 2 first Pi boot (2026-08-05): downloaded the legal Q2 2002 demo pak
+(deponie.yamagi.org, pak0.pak 49951322 bytes verified) → NFS /usr/share/quake2/baseq2/;
+deployed yquake2 → /usr/bin. First Pi boot: **yQuake2 RUNS** — "Yamagi Quake II Initialized",
+Added packfile pak0.pak (1106 files), ref_gl1 loaded, qsv3d GL up 2.1/V3D 4.2.14.0, scanout
+FBO 1920x1080 n=3, client_connect, 0 faults. Blocker = SDL2 driver "Unknown pixel format" on
+mode-set → windowed revert → fbcon text stays (see Active task fix). HUGE: first game on our
+SDL2 base runs on HW; just needs the video-mode fix to show pixels.
 
 C4 Quake2 Phase 1 DONE (2026-08-05): subagent delivered a single static aarch64-phoenix ELF
 that LINKS clean (undefs→0), /tmp/yquake2-phoenix ~26MB. tools/yquake2-port/ (9 files, coord

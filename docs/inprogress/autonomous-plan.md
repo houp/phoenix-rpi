@@ -93,7 +93,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | C3 | W2 | Quake1 multiplayer networking fix | TODO | NOT loopback-only: quakespasm has UDP landriver + Datagram wired + FIONREAD→MSG_PEEK fix. Real bug = KNOWN-ISSUES **#68 MP hangs at LOADING screen** (open). vkQuake stub still loopback-only. Fix = diagnose #68 (Pi client ↔ host dedicated server) + bring vkQuake net to parity. Needs dedicated Pi turn |
 | I1 | W2 | vkQuake e1m1 bright-walls: robustness of GPU-compute lightmap build | WIP | can't repro (my loads correct); see below |
 | I2 | W2 | vkQuake: liquids + remaining workarounds + perf | TODO | |
-| I3 | W2 | Fix phantom /dev/kbd0 input (spurious menu spam) | TODO | open SW bug, pl_phoenix_in.c |
+| I3 | W2 | Fix phantom /dev/kbd0 input (spurious menu spam) | ANALYZED | Root-cause lead (2026-08-05, read-only): the raw-HID readers assume 8-byte-aligned reads and DISCARD the trailing `r%8` bytes (`for off+8<=r`) in tools/quakespasm-port/platform/pl_phoenix_in.c:411, tools/vkquake-port equiv, AND sources/.../sdl2/overlay/src/video/phoenix/SDL_phoenixevents.c. usbkbd fifoPushRaw preserves per-report framing, but ANY single partial read (device-push race, or N_URBS=1 stale/short interrupt-IN buffer, usbkbd.c:56-60,92-94) permanently DESYNCs → later reports read mid-frame → fabricated keys (opens menu). FIX candidates: (a) reader carry-over buffer for leftover bytes across reads (robust, low-risk, do in all 3 readers); (b) device-side: clear/validate the interrupt-IN buffer + only push full 8-byte reports. DIAGNOSTIC (needs Pi): log every raw report on an IDLE boot (no keypress) → confirms spurious vs misaligned. Fix+verify = a future Pi turn |
 | E1 | W2 | Dillo HTTPS support | TODO | needs TLS (libphoenix/openssl?) |
 | E2 | W2 | Pi internet via host Linux router/proxy (NAT) | TODO | host-side network config |
 | E3 | W2 | Dillo displays live internet pages | TODO | after E1+E2 |
@@ -190,6 +190,12 @@ video.c stale-history comments). `--scope core` build PASS; committed + pushed p
 stripped) — the fix was cherry-picked onto publish/master's tip via a worktree, NOT
 force-pushed. See [[project_git_topology]]. Kernel/libphoenix/project Tier A comment
 fixes intentionally NOT done yet (would worsen the A1 Batch 3 merges).
+
+I3 phantom-kbd analysis (2026-08-05, heartbeat parallel to Quake2 build): read the raw-HID
+kbd0 read/diff path — strong root-cause lead = the readers discard trailing `r%8` bytes, so
+one partial read permanently desyncs report framing → phantom keys (affects both Quake ports
+AND the new SDL2 events driver). See the I3 row for the fix candidates (reader carry-over
+buffer) + diagnostic (log idle reports on Pi). Fix is a future Pi turn.
 
 C4 Quake2 feasibility DONE (2026-08-05): full plan → docs/inprogress/2026-08-05-quake2-
 port-plan.md. Verdict feasible ~5-8d: yQuake2 ref_gl1 (pure fixed-function, fits our GL 2.1;

@@ -80,7 +80,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | ID | Wave | Task | Status | Notes |
 |----|------|------|--------|-------|
 | A1 | W0 | Upstream sync: pull all siblings, integrate, build, verify, push org | WIP | analysis DONE; Batch 1+2 MERGED+BUILT+BOOT-VERIFIED+PUSHED (manifest 2026-08-04-a1-batch2-done); only Batch 3 (kernel/libphoenix/project — careful) remains |
-| G1 | W1 | Full code review (all repos): bugs/hacks/diagnostics/TODOs/comments/licensing → fix+test+commit | WIP | recon DONE → docs/review/2026-08-04-autonomous-review-recon.md (Tier A/B/C/D); execute Tier A first |
+| G1 | W1 | Full code review (all repos): bugs/hacks/diagnostics/TODOs/comments/licensing → fix+test+commit | WIP | recon → docs/review/2026-08-04-autonomous-review-recon.md. Tier A (text-only comment/TODO) DONE+PUSHED (usb/lwip/devices/plo, build OK). Tier B (diag removal, needs boot) + C (licensing) pending; kernel/libphoenix/project Tier A deferred until after A1 Batch 3 |
 | H1 | W1 | Docs cleanup + archive stale docs | TODO | |
 | H2 | W1 | Final Pi4 port-state documentation | TODO | after most ports land; start skeleton |
 | H3 | W1 | Pi4 OS-dev knowledge base (extend existing) | TODO | accumulate all porting experience |
@@ -168,8 +168,17 @@ A1 Batch 2 DONE (2026-08-04): snapshot pre-a1-batch2 → merged filesystems/usb/
 devices (all 0 conflicts; devices +6567 lines of imx6ull/spacewire/sensors/uart16550,
 none Pi4) → `rebuild --scope core` OK (image verify OK) → netboot boot-verify HEALTHY
 (psh prompt + lwip + genet link/IP + xHCI + fbcon + NFS-root mount, 0 faults) → pushed
-all 4 to org → manifest 2026-08-04-a1-batch2-done. Pi powered off, lock FREE. Only
-Batch 3 (kernel/libphoenix/project) remains for A1.
+all 4 to org → manifest 2026-08-04-a1-batch2-done. Pi powered off, lock FREE.
+
+G1 Tier A DONE (2026-08-04, via synchronous subagent): text-only comment/TODO cleanups
+in usb (usb.c refuted-silicon-story + runStateSelftest ref, mem.c diag-udp ref, hub.c 5×
+#129), lwip (genet-rxcache-bench dc ivac→civac), devices (xhci #129, pcie warm-up TODOs,
+sdstorage/sdcard/pl011-tty stale TODOs incl. TD-14-pl011-retry), plo (_init.S/hal.c/
+video.c stale-history comments). `--scope core` build PASS; committed + pushed per repo.
+**lwip caveat**: its org publish tip is a git-filter-repo-scrubbed lineage (WiFi blobs
+stripped) — the fix was cherry-picked onto publish/master's tip via a worktree, NOT
+force-pushed. See [[project_git_topology]]. Kernel/libphoenix/project Tier A comment
+fixes intentionally NOT done yet (would worsen the A1 Batch 3 merges).
 
 2026-08-04: Plan created. vkQuake torch fix already landed+pushed (d3e329c). vkQuake
 e1m1 bright-walls (I1): could not reproduce — fresh `map e1m1`, `start→e1m1`,
@@ -181,14 +190,19 @@ the bright default. Robustness fix candidate for I1.
 
 ## Next step
 
-1. **G1 Tier A** (text-only comment/TODO fixes from
-   `docs/review/2026-08-04-autonomous-review-recon.md`) — no Pi boot; `--scope core` build
-   to confirm syntax only. Best delegated to a subagent (keeps main context clean); commit
-   per-repo + push. Safe, high-value, no exclusive-Pi dependency.
-2. **A1 Batch 3** (careful, rollback-ready, dedicated attentive turn): libphoenix
-   `sys/socket.c` accept4 hand-merge + the coordinated kernel↔libphoenix errno transfer as
-   ONE unit; kernel copyright-sweep collision on our 35 owned files + vm/object semantic
-   overlap; project submodule pointers (keep ours). Snapshot first; be ready to
-   `restore-integration-state.sh` to manifest 2026-08-04-a1-batch2-done or the known-good tag.
-3. Then G1 Tier B (diagnostic removal, needs build+boot) and Tier C (licensing headers).
-4. In parallel where independent: vkQuake I1 robustness, F1 KNOWN-ISSUES, debugger lib (B1).
+Pick ONE per turn (roughly this priority):
+1. **G1 Tier C — licensing headers** (safe, no boot): add missing Phoenix SPDX headers to
+   `tools/v3d-driver-port/phoenix_mesa_compat.h`, `test_ident_decode.c`,
+   `tools/x11-port/launcher/mouseprobe.c`, `tools/dbg-probe/dbg.h`; delete dead
+   `tools/x11-port/ddx/fbdev_stub.c`; verify `kernel/hal/aarch64/_memset.S` ARM
+   optimized-routines provenance (add MIT attribution if derived). `--scope core` build to
+   confirm. (These are in tools/ + coord — no pending-merge conflict.)
+2. **A1 Batch 3** (careful, rollback-ready, dedicated attentive turn): snapshot first;
+   libphoenix `sys/socket.c` accept4 hand-merge + the coordinated kernel↔libphoenix errno
+   transfer as ONE unit; kernel copyright-sweep collision on our 35 owned files + vm/object
+   semantic overlap; project submodule pointers (keep ours). Ready to restore to manifest
+   2026-08-04-a1-batch2-done or tag known-good/2026-04-19-map-relocation-complete. Then do
+   the deferred kernel/libphoenix/project G1 Tier A comment fixes on top.
+3. **G1 Tier B** (diagnostic removal — needs build + ONE Pi boot; honor Pi-lock).
+4. Then W2 features in parallel where independent: vkQuake I1 robustness, SDL2 (C1),
+   Quake1 MP (C3), F1 KNOWN-ISSUES, debugger lib (B1).

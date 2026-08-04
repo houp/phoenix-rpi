@@ -89,7 +89,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | F1 | W2 | Resolve KNOWN ISSUES (kernel/system/libphoenix) | TODO | see docs/KNOWN-ISSUES.md; debugger-driven |
 | F2 | W2 | OS perf (I/O, net, scheduling) + modern syscalls + measurements + wire ports to them | TODO | |
 | SD | W2 | SD-card driver: full speed + correctness (prior loop goal; folds into F1/F2) | WIP | reads IRQ, writes CMD13-poll done; perf=PIO throughput |
-| C1 | W2 | SDL2 port (fullscreen GL+Vulkan, kbd+mouse, sound); no X11 needed | WIP | feasibility DONE → docs/inprogress/2026-08-04-sdl2-port-plan.md (port real SDL 2.30.x in ports/sdl2, CMake, phoenix drivers reuse pl_phoenix_* prims). Phase-1 build-plumbing subagent running (threads patch → libSDL2.a) |
+| C1 | W2 | SDL2 port (fullscreen GL+Vulkan, kbd+mouse, sound); no X11 needed | WIP | feasibility → docs/inprogress/2026-08-04-sdl2-port-plan.md. Phase-1 build plumbing DONE: ports/sdl2 (SDL 2.30.12, 4 patches: PHOENIX cmake branch + pthread + dynapi-off + sched-noop), libSDL2.a cross-builds+links (stock pthread backend), pushed org bdfe294. NEXT: phoenix video+input driver (subagent running), then audio, then wire into ports.yaml + Pi GL-demo test; Vulkan=phase 2 |
 | C3 | W2 | Quake1 multiplayer networking fix | TODO | NOT loopback-only: quakespasm has UDP landriver + Datagram wired + FIONREAD→MSG_PEEK fix. Real bug = KNOWN-ISSUES **#68 MP hangs at LOADING screen** (open). vkQuake stub still loopback-only. Fix = diagnose #68 (Pi client ↔ host dedicated server) + bring vkQuake net to parity. Needs dedicated Pi turn |
 | I1 | W2 | vkQuake e1m1 bright-walls: robustness of GPU-compute lightmap build | WIP | can't repro (my loads correct); see below |
 | I2 | W2 | vkQuake: liquids + remaining workarounds + perf | TODO | |
@@ -152,14 +152,16 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 ## Active task
 
-**C1 — SDL2 port, Phase 1 (build plumbing)** — feasibility DONE (plan:
-docs/inprogress/2026-08-04-sdl2-port-plan.md). A background subagent is RUNNING: create
-`sources/phoenix-rtos-ports/sdl2/` (CMake, mimic zlib), patch past the threads-detection
-gate + libphoenix gaps, cross-build a static `libSDL2.a` with the phoenix thread backend
-(lift pl_phoenix_sdlcompat.c) + dummy video/audio. **Do NOT launch duplicate SDL2 work.**
-A concurrent heartbeat may advance an independent non-build item (vkQuake I1/I2 analysis,
-docs H2/H3) but should NOT start another heavy build. Next after libSDL2.a links: the
-phoenix video/input/audio drivers (plan phase-1 steps 4-5), then Pi validate.
+**C1 — SDL2 port, Phase 1 drivers.** Build plumbing DONE (libSDL2.a builds+links, org
+bdfe294). A background subagent is RUNNING the **phoenix video+input driver** (src/video/
+phoenix/: fb0 fullscreen window + GL_* hooks over in-process Mesa (reuse pl_phoenix_glctx.c
+qsv3d_init) + static GL_GetProcAddress table + PumpEvents draining kbd0/mouse0 pump-on-
+timer; wired via the PHOENIX cmake branch); milestone = a fullscreen-GL SDL test LINKS.
+**Do NOT launch duplicate SDL2 work / another heavy build.** A concurrent heartbeat may
+advance an independent NON-build item (docs H2/H3, C3 #68 analysis, vkQuake read-only).
+Next SDL2 steps after this: audio driver (/dev/audio0 pull model), wire into
+aarch64a72-generic-rpi4b ports.yaml, Pi GL-demo test. Deferred libphoenix gaps that bite
+at full-game link: sem_* (POSIX semaphores), pthread_mutex_timedlock, pthread_{get,set}schedparam.
 
 ## Last progress
 
@@ -200,9 +202,16 @@ C1 SDL2 feasibility DONE (2026-08-04): full analysis → docs/inprogress/2026-08
 port-plan.md. Verdict: port real SDL 2.30.x (ports/sdl2, CMake, mimic zlib) with phoenix
 drivers reusing pl_phoenix_* prims; header-shim approach won't scale to Quake2/3/STK. Cross-
 configure probed: passes arch/ABI/atomics; first blocker = SDL threads-detection (needs
-patch). Vulkan (no V3DV WSI) = phase 2, risk #1. Then launched a background phase-1
-build-plumbing subagent (create port + threads patch + libphoenix gaps → static libSDL2.a
-+ phoenix thread backend). Awaiting its report.
+patch). Vulkan (no V3DV WSI) = phase 2, risk #1. Then a phase-1 build-plumbing
+subagent DELIVERED: `sources/phoenix-rtos-ports/sdl2/` (SDL 2.30.12 + patches 0001 pthread-
+detection, 0002 PHOENIX cmake platform branch, 0003 dynapi-off, 0004 systhread-priority-
+noop). libSDL2.a cross-builds via port_manager + a trivial SDL_Init/SDL_GetTicks program
+LINKS to aarch64-phoenix. Uses STOCK SDL pthread backend (libphoenix pthreads are real +
+recursive — a custom backend would be redundant; pl_phoenix_sdlcompat.c kept as fallback).
+Pushed org bdfe294. Deferred libphoenix gaps (bite at full-game link, not archive): sem_*
+(SDL auto-uses its generic sem), pthread_mutex_timedlock, pthread_{get,set}schedparam
+(proper home = libphoenix + toolchain re-sync, would let patch 0004 drop). Then launched
+the phase-1 video+input driver subagent (src/video/phoenix/, running).
 
 G1 Tier C (tools/) DONE (2026-08-04): added `Copyright 2026 Phoenix Systems  %LICENSE%`
 to 6 unheadered coord-repo files (v3d-driver-port phoenix_mesa_compat.h +

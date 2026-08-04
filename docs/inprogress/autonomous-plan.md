@@ -74,7 +74,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 
 | ID | Wave | Task | Status | Notes |
 |----|------|------|--------|-------|
-| A1 | W0 | Upstream sync: pull all siblings, integrate, build, verify, push org | TODO | foundation for everything |
+| A1 | W0 | Upstream sync: pull all siblings, integrate, build, verify, push org | WIP | delta analysis DONE (see "A1 integration plan"); merges pending |
 | G1 | W1 | Full code review (all repos): bugs/hacks/diagnostics/TODOs/comments/licensing → fix+test+commit | TODO | safe, no-visual; ties to prepub cleanup |
 | H1 | W1 | Docs cleanup + archive stale docs | TODO | |
 | H2 | W1 | Final Pi4 port-state documentation | TODO | after most ports land; start skeleton |
@@ -105,11 +105,57 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 
 ---
 
+## A1 integration plan (from upstream delta survey, 2026-08-04)
+
+All 16 siblings fetched from `origin` (phoenix-rtos/*) OK; each also has `publish`
+(org). No fork-mirror needed. Integrate in this order, **build + boot-verify before
+pushing**, snapshot a manifest after each validated batch:
+
+**Batch 1 — no boot-image impact, zero Pi4 overlap (safe, merge + push, no boot needed):**
+`phoenix-rtos-doc` (1), `phoenix-rtos-ports` (1: libevent install path),
+`phoenix-rtos-tests` (2: tmpnam/grspw). Clean merges expected.
+
+**Batch 2 — core boot-image repos, zero Pi4-file overlap (merge → `rebuild --scope core`
+→ ONE Pi boot-verify → push):** `phoenix-rtos-filesystems` (1: jffs2 bool),
+`phoenix-rtos-usb` (1: warning), `phoenix-rtos-utils` (1: psh unused vars),
+`phoenix-rtos-devices` (27: imx6ull-sdma/spacewire/sensors/uart16550 — none touch
+bcm2711/genet/pl011, but they compile into the image, so build must pass). If the
+build breaks, bisect the offending sibling, roll it back, defer it.
+
+**Batch 3 — careful, deferred (dedicated turns, rollback-ready):**
+- `libphoenix` (MED): mostly disjoint, but `sys/socket.c` accept4 overlaps our socket
+  work → hand-merge that file. **The errno transfer is coordinated with the kernel**
+  (libphoenix `!include/errno` ↔ kernel `transfer errno defines` + `change errno
+  numbers to match host`) — these MUST land together or errno numbering breaks
+  system-wide. Integrate the errno commits from kernel+libphoenix as ONE unit.
+- `phoenix-rtos-kernel` (HIGH): upstream copyright/diacritics sweep textually touches
+  ~500 files incl. 35 we own (all `hal/aarch64/*`, `vm/object.c`, `vm/map.c`,
+  `proc/threads.c`, `posix/unix.c`, `main.c`, `syscalls.c`) → header-hunk conflicts on
+  nearly every owned file; plus semantic overlap on `vm/object.c` (our read-ahead
+  clustering 8834eaf3) and `hal/aarch64` reschedule/strncpy. Merge file-by-file for the
+  35 overlaps, keep our semantics, rebuild `--scope core`, boot-verify, be ready to
+  roll back to `known-good/2026-04-19-map-relocation-complete`. Do this on a turn with
+  full attention.
+- `phoenix-rtos-project` (MED): incoming content trivial (stm32n6 CI + submodule
+  bumps) but it's the submodule superproject and we're 172 commits diverged → keep OUR
+  submodule pointers; cherry-pick only the CI workflow if wanted.
+
+**Already up to date (no action):** build, corelibs, hostutils, lwip, posixsrv, plo.
+
+**Rollback:** run `scripts/snapshot-integration-state.sh` BEFORE Batch 2/3 merges so
+`scripts/restore-integration-state.sh` can undo a bad batch.
+
 ## Active task
 
-**A1 — Upstream sync** (starting). Establish a clean, up-to-date base before other work.
+**A1 — Upstream sync** (delta analysis done). Next: execute Batch 1, then Batch 2 with
+build+boot verify. G1 code-review recon still running (parallel).
 
 ## Last progress
+
+2026-08-04 (setup): Board + memory + heartbeat cron (df8363ff) created & pushed.
+Launched 2 read-only analysis subagents: (a) upstream-delta survey across all
+siblings → integration plan for A1; (b) cleanup/licensing/TODO recon → candidate
+list for G1. Awaiting their reports, then integrate/fix in priority order.
 
 2026-08-04: Plan created. vkQuake torch fix already landed+pushed (d3e329c). vkQuake
 e1m1 bright-walls (I1): could not reproduce — fresh `map e1m1`, `start→e1m1`,
@@ -121,6 +167,11 @@ the bright default. Robustness fix candidate for I1.
 
 ## Next step
 
-Kick off A1 (upstream sync) — survey upstream deltas across all siblings (read-only),
-then integrate + build + push. Use `scripts/git-siblings.sh` and
-`scripts/git-pull-upstream-all.sh`.
+1. When the G1 code-review recon subagent reports, fold its candidate list into the
+   board (new G1 detail section) — do NOT auto-apply; verify each before fixing.
+2. Execute **A1 Batch 1** (doc, ports, tests): `git -C sources/<repo> merge origin/master`
+   (or ff), confirm clean, `git -C sources/<repo> push publish master`.
+3. Execute **A1 Batch 2** (filesystems, usb, utils, devices): snapshot first, merge,
+   `./scripts/rebuild-rpi4b-fast.sh --scope core`, then ONE Pi boot-verify
+   (`test-cycle-netboot.sh`, honor Pi-lock), push if green, snapshot manifest.
+4. Then Batch 3 (libphoenix errno+socket, kernel, project) on dedicated attentive turns.

@@ -812,6 +812,38 @@ tearing after a firmware bump as this.
 - Linux `drivers/gpu/drm/v3d/` — the DRM submit/MMU reference the winsys mirrors.
 
 
+## Display (framebuffer / HDMI) & audio
+
+### Getting a framebuffer
+The firmware owns the display. Allocate a framebuffer through the **mailbox property
+interface**: set physical W/H, virtual W/H, depth (32 bpp), then read back the base
+**physical address + pitch**. Map it uncached and you have a linear ARGB surface the
+VideoCore scans out to HDMI. Phoenix exposes it as **`/dev/fb0`** (the `rpi4-fb` userspace
+driver). The HDMI mode itself is chosen by the firmware from `config.txt` / EDID; you read
+the resulting geometry (e.g. 1920×1080×32) from `GET_VIRTUAL_WH` or the alloc response.
+
+### Double/triple buffering = a tall virtual framebuffer
+There is no page-flip register. You request a **virtual height = N × physical** (the loader
+asks for 3×) and "flip" by setting the **virtual Y-offset** via `SET_VIRTUAL_OFFSET` — the
+scanout then reads a different band. Whether the firmware grants 3× depends on the firmware
+build, so **pin `start4.elf`** (an unexpected drop to single-buffer = tearing; see the V3D
+section). All mailbox users (display *and* the GPU winsys) must go through **one serialized
+owner** (`/dev/vcmbox` / `libvcmbox`) or the shared property buffer races.
+
+### Analog audio (3.5 mm) = PWM
+The headphone jack is driven by **PWM1 on GPIO40/41 (ALT0)**. Set the PWM clock to an
+audio rate (~44.1 kHz-derived), put PWM1 in its serialized/audio mode, and feed 16-bit
+stereo samples into the FIFO — via **DMA** for glitch-free playback (PIO works for
+bring-up but underruns under load). Phoenix exposes **`/dev/audio0`** (`rpi4-audio`). HDMI
+audio is a *separate* VideoCore path (mailbox/HDMI), not the PWM block.
+
+### These are all userspace MMIO drivers
+`rpi4-fb`, `rpi4-audio`, `rpi4-thermal`, `rpi4-gpio`, `rpi4-hwrng` are **userspace**
+drivers: mmap the peripheral's MMIO page (uncached) and poke registers — no kernel driver.
+The mailbox ones additionally serialize through `/dev/vcmbox`. See
+`docs/knowledge/userspace-mmio-driver-pattern.md`.
+
+
 ## UART & console
 
 ### PL011 vs mini-UART

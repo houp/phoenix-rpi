@@ -83,7 +83,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | G1 | W1 | Full code review (all repos): bugs/hacks/diagnostics/TODOs/comments/licensing → fix+test+commit | WIP | recon → docs/review/2026-08-04-autonomous-review-recon.md. Tier A (comment/TODO) DONE. Tier C tools/ headers DONE (6 files +%LICENSE%; fbdev_stub KEPT — still used by build-xfbdev.sh --stub). Pending: Tier B (diag removal, needs boot); Tier C _memset.S provenance (kernel→after Batch 3) + %LICENSE% tooling verify; kernel/libphoenix/project Tier A after A1 Batch 3 |
 | H1 | W1 | Docs cleanup + archive stale docs | TODO | |
 | H2 | W1 | Final Pi4 port-state documentation | TODO | after most ports land; start skeleton |
-| H3 | W1 | Pi4 OS-dev knowledge base (extend existing) | WIP | base = docs/knowledge/rpi4-os-development-guide.md (1639L, low-level bring-up). Added V3D GPU section (OpenGL+Vulkan: Mesa reuse, in-process winsys, no-WSI alpha-scanout, mailbox serialize, firmware pin). Still to add: fb0/HDMI, storage+NFS-root, audio, userspace-MMIO-driver pattern, debug facility |
+| H3 | W1 | Pi4 OS-dev knowledge base (extend existing) | WIP | base = docs/knowledge/rpi4-os-development-guide.md. Added V3D GPU section (OpenGL+Vulkan) + Display(fb0/HDMI)&audio(PWM) section (mailbox fb alloc, tall-virtual-fb flip, /dev/audio0 PWM, userspace-MMIO-driver pattern). Still to add: storage+NFS-root, in-process debug facility, the ported-app stack (SDL2/X11/Quake) |
 | B1 | W1 | Generalize in-process debugger → reusable Phoenix debug library | TODO | from vkQuake debugger |
 | B3 | W1 | Debug-facility documentation | TODO | with B1 |
 | F1 | W2 | Resolve KNOWN ISSUES (kernel/system/libphoenix) | TODO | see docs/KNOWN-ISSUES.md; debugger-driven |
@@ -152,12 +152,12 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 ## Active task
 
-**SDL2 (C1) phase 1 COMPLETE + HW-validated** (fullscreen GL, input, audio all proven on
-the Pi; pushed to org). No subagent running. **Next focus = C4 Quake2 (yQuake2)** on the SDL2
-base — the first game built on our SDL2. Start analysis-first (subagent): which yQuake2/
-Quake2 source, does it build for aarch64-phoenix against libSDL2.a + the GL glue, open/
-shareware asset pack (pak0 demo), and a port plan (reuse the SDL2 + GL-glue + Mesa link
-recipe from the sdl2-gltest). See [[project_sdl2_port]] [[project_quakespasm_port]].
+**C4 — Quake2 (yQuake2)** feasibility, on the HW-validated SDL2 base. A background subagent is
+RUNNING the analysis: source choice (yQuake2 renderers — our Mesa V3D is GL **2.1**, so ref_gl1
+fits, ref_gl3 needs GL3.2 core = NO; ref_soft fallback), build against libSDL2.a + the GL glue
+(reuse sdl2-gltest link recipe), open/shareware pak0 assets, libphoenix/system gaps, and a
+phased port plan. **Do NOT launch duplicate Quake2 work.** A concurrent heartbeat may advance an
+independent item (vkQuake, docs, C3). SDL2 (C1) phase 1 COMPLETE (GL+input+audio HW-validated).
 
 Note: coord working tree carries PRE-EXISTING uncommitted vkQuake/v3d WIP (v3dv_harness.c,
 vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis docs) from

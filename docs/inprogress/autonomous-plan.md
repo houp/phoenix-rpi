@@ -152,8 +152,12 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 ## Active task
 
-Foundation landed (A1 Batch 1+2, G1 Tier A + Tier C tools/). **Pivoting to W2 feature
-work** (higher owner value). A1 Batch 3 + G1 Tier B remain as dedicated-turn items.
+**C1 — SDL2 port feasibility** — a background analysis subagent is RUNNING (launched
+2026-08-04): mapping SDL2's video/GL/Vulkan/input/audio driver model onto our
+fb0+V3D+kbd0/mouse0/audio0 stack + a phased port plan. **Do NOT launch a duplicate SDL2
+analysis.** A concurrent heartbeat may instead advance an independent item (vkQuake I1/I2,
+docs) that does not need the Pi. When the report lands, fold it into the board as a C1
+plan section and begin phase 1. (Foundation A1 Batch 1+2, G1 Tier A + Tier C tools/ done.)
 
 ## Last progress
 

@@ -97,7 +97,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | E1 | W2 | Dillo HTTPS support | TODO | needs TLS (libphoenix/openssl?) |
 | E2 | W2 | Pi internet via host Linux router/proxy (NAT) | TODO | host-side network config |
 | E3 | W2 | Dillo displays live internet pages | TODO | after E1+E2 |
-| C4 | W3 | Quake2 port (yQuake2) + open/shareware assets + demo+visual test | WIP | feasibility DONE → docs/inprogress/2026-08-05-quake2-port-plan.md (~5-8d). yQuake2 ref_gl1 (fits GL 2.1) single-ELF; dlopen→static solved (backends/phoenix static-return stubs + VID_HasRenderer patch + 1 renderer); all libphoenix syscalls present; assets=Q2 2002 demo pak. Phase-1 build subagent running. external/yquake2 + tools/yquake2-port/ (mirror quakespasm-port) |
+| C4 | W3 | Quake2 port (yQuake2) + open/shareware assets + demo+visual test | WIP | **Phase 1 DONE (2026-08-05)**: single static aarch64-phoenix ELF LINKS (undefs→0), coord 3eaf810 tools/yquake2-port/ (dlopen→static backend, ref_gl1 only, malloc-hunk, shared-TU dedup, -fcommon, port patch). yQuake2 pinned e27fdcce. ELF /tmp/yquake2-phoenix. See [[project_quake2_port]]. **Phase 2**: 2002-demo pak0.pak → NFS /usr/share/quake2/baseq2/ + Pi +playdemo demo1 + HDMI capture vs host gl1 |
 | C5 | W3 | Quake3 port (quake3e/ioq3) + playable assets + demos | TODO | |
 | C6 | W3 | SuperTuxKart (OpenGL fullscreen, GPU) | TODO | large |
 | D1 | W3 | X11 GPU-accelerated extensions (toward RPi-OS parity) | TODO | |
@@ -152,15 +152,13 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 ## Active task
 
-**C4 — Quake2 (yQuake2) Phase 1** (single-ELF cross-build). Feasibility DONE (plan:
-docs/inprogress/2026-08-05-quake2-port-plan.md). A background subagent is RUNNING: clone
-yQuake2 → external/yquake2 (pin SHA); tools/yquake2-port/ (phoenix backend w/ static
-Sys_LoadLibrary/Sys_GetGameAPI stubs + VID_HasRenderer patch + Sys_Realpath guard + hunk
-decision + build-yquake2-phoenix.py); fold client+baseq2 game+ref_gl1+backend into ONE ELF
-(shared.c/md4.c/hunk.c dedup) linked against libSDL2.a + libGL/libv3d; milestone = the ELF
-LINKS (undefs→0). **Do NOT launch duplicate Quake2 work / another heavy build.** A concurrent
-heartbeat may advance an independent NON-build item (docs, vkQuake read-only, C3). Then Phase 2
-= assets (Q2 2002 demo pak → NFS) + Pi demo/timedemo render via HDMI pipeline.
+**C4 — Quake2 (yQuake2) Phase 2** (assets + Pi demo render). Phase 1 DONE (ELF links, coord
+3eaf810). No subagent running. Steps: (1) acquire the Quake II 2002 demo `pak0.pak` +
+`demo1.dm2` (legal shareware; from `q2-314-demo-x86.exe` or an open mirror) → NFS root
+`/usr/share/quake2/baseq2/`; (2) rebuild+deploy /tmp/yquake2-phoenix → /usr/bin/yquake2;
+(3) netboot Pi (Pi-lock!), run `+set vid_renderer gl1 +playdemo demo1` (or timedemo), capture
+HDMI; (4) verify it renders (compare vs host yQuake2 gl1). Watch: malloc-hunk RSS, gi.*/ri.*
+reroute at runtime. See [[project_quake2_port]].
 
 Note: coord working tree carries PRE-EXISTING uncommitted vkQuake/v3d WIP (v3dv_harness.c,
 vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis docs) from
@@ -190,6 +188,15 @@ video.c stale-history comments). `--scope core` build PASS; committed + pushed p
 stripped) — the fix was cherry-picked onto publish/master's tip via a worktree, NOT
 force-pushed. See [[project_git_topology]]. Kernel/libphoenix/project Tier A comment
 fixes intentionally NOT done yet (would worsen the A1 Batch 3 merges).
+
+C4 Quake2 Phase 1 DONE (2026-08-05): subagent delivered a single static aarch64-phoenix ELF
+that LINKS clean (undefs→0), /tmp/yquake2-phoenix ~26MB. tools/yquake2-port/ (9 files, coord
+3eaf810 pushed): dlopen→static backend (pl_phoenix_sys.c), malloc-hunk, main (no setuid),
+glstubs, compat header, yquake2-phoenix-port.patch, build script. yQuake2 pinned e27fdcce.
+Key: ref_gl1 only (fits GL 2.1), Client-Source already includes the server (don't add
+Server-Source), shared.c/md4.c dedup, -fcommon, -Dmodes rename. No libphoenix additions.
+Links the GPL sdl_phoenix_glctx.c glue (like sdl2-gltest). Memory [[project_quake2_port]].
+Phase 2 = assets + Pi demo render (Active task).
 
 I3 phantom-kbd analysis (2026-08-05, heartbeat parallel to Quake2 build): read the raw-HID
 kbd0 read/diff path — strong root-cause lead = the readers discard trailing `r%8` bytes, so

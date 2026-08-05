@@ -82,7 +82,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | A1 | W0 | Upstream sync: pull all siblings, integrate, build, verify, push org | WIP | analysis DONE; Batch 1+2 MERGED+BUILT+BOOT-VERIFIED+PUSHED (manifest 2026-08-04-a1-batch2-done); only Batch 3 (kernel/libphoenix/project — careful) remains |
 | G1 | W1 | Full code review (all repos): bugs/hacks/diagnostics/TODOs/comments/licensing → fix+test+commit | WIP | recon → docs/review/2026-08-04-autonomous-review-recon.md. Tier A (comment/TODO) DONE. Tier C tools/ headers DONE (6 files +%LICENSE%; fbdev_stub KEPT — still used by build-xfbdev.sh --stub). Pending: Tier B (diag removal, needs boot); Tier C _memset.S provenance (kernel→after Batch 3) + %LICENSE% tooling verify; kernel/libphoenix/project Tier A after A1 Batch 3 |
 | H1 | W1 | Docs cleanup + archive stale docs | TODO | |
-| H2 | W1 | Final Pi4 port-state documentation | TODO | after most ports land; start skeleton |
+| H2 | W1 | Final Pi4 port-state documentation | WIP | primary state doc = docs/inprogress/pi4-hardware-support-matrix.md. Corrected stale entries (SMP now ✅ 4-core works, Vulkan ✅ textured 3D, exec-reliability→F1 finding) + added "Ported libraries & applications" section (Mesa GL/Vulkan, SDL2, X11, quakespasm/vkQuake/yQuake2, Dillo). Still: promote to a docs/-root doc + final polish when ports settle |
 | H3 | W1 | Pi4 OS-dev knowledge base (extend existing) | WIP | base = docs/knowledge/rpi4-os-development-guide.md. Added 3 sections: V3D GPU (GL+Vulkan), Display(fb0/HDMI)&audio(PWM), **Porting userspace apps & games** (reuse-upstream, no-WSI GL, dlopen→static, libc gaps, no-lazy-anon memory + ~19MB exec limit, NFS-bound I/O, input/audio gotchas, allow_download). Still to add: storage+NFS-root, in-process debug facility |
 | B1 | W1 | Generalize in-process debugger → reusable Phoenix debug library | TODO | from vkQuake debugger |
 | B3 | W1 | Debug-facility documentation | TODO | with B1 |
@@ -152,7 +152,11 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 ## Active task
 
-**Non-Pi breadth mode (netboot too flaky for reliable Pi testing).** Active: **F1 large-binary
+**Non-Pi breadth mode (netboot too flaky for reliable Pi testing).** This turn: **H2 port-state
+doc** — brought docs/inprogress/pi4-hardware-support-matrix.md up to date (fixed stale SMP/Vulkan/
+exec-reliability entries; added the Ported libraries & applications section for the vacation-period
+userspace work). Sustained-documentation work stream (H2/H1/H4) sidesteps the flaky netboot.
+Previously: **F1 large-binary
 NFS-exec reliability** — a root-cause+fix-plan subagent is analyzing the kernel exec/process_load
 + anon-memory-commit path (why ~19MB/big-BSS binaries fail NFS-exec ~50%). This is the real
 bottleneck; fixing it unblocks reliable Pi game testing (and possibly a cheap userspace mitigation

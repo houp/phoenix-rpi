@@ -178,17 +178,22 @@ Trace: server stufftext configstrings + baselines + **precache** → CL_Precache
 phase (allow_download ON → tries to fetch a model over loopback → hangs).
 **FIX #1: `+set allow_download 0`** → handshake proceeds to **CL_PrepRefresh** (precache); TFU
 uploads 4→12. → **BAKE allow_download 0 into the port** (pl_phoenix_main.c or a default cfg).
-**NEW FRONTIER: CL_PrepRefresh genuinely STALLS during asset precache** (confirmed 2026-08-05
-with a 165s capture: reaches CL_PrepRefresh, never ca_active, HDMI stays dark). NOT the winsys
-TFU vcheck — that's gated to `tfu_n<=12` (v3d_phoenix_winsys.c:1389), so the "12 uploads" I saw
-were just the diag prints, not the total; and a hung TFU would TIMEOUT (winsys:1371), not hang
-forever. So the stall is likely a specific ASSET load hanging: an NFS read of a model/texture
-file, or a model (BSP/MD2) parse loop. **NEXT: instrument CL_PrepRefresh (cl_view.c:240)** —
-print each model/image configstring name as it's registered (R_RegisterModel/R_RegisterSkin) →
-one Pi boot shows WHICH asset hangs. Then fix that asset path. Also **bake allow_download 0**
-into the port once the render works. NOTE netboot is ~50-70% reliable (intermittent empty runs);
-sdl2-gltest = the netboot health check; re-up netboot-server-up.sh + re-run on an empty boot.
-See [[project_quake2_port]] [[project_pi4_v3d_scout]].
+**FRONTIER LOCALIZED (2026-08-05): the precache "stall" is SLOW texture loading, not a hang.**
+Probes (in external/yquake2 cl_view.c + gl1_model.c, local/uncommitted) traced it to
+**R_BeginRegistration → Mod_LoadBrushModel → Mod_LoadTexinfo** (last probe "before LoadTexinfo";
+"LoadTexinfo done" never printed in 90s). BUT TFU uploads keep PROGRESSING (n=5,6,7,8,9…) past
+that point — so it is NOT hung on one texture; it's loading the map's ~100 wall textures (each =
+an NFS `.wal` read from the 50MB pak + palette-convert + TFU upload) over the **slow 100Mbps
+netboot NFS** [[project_pi4_netboot_100mbps_cable]] + 19MB-binary demand-paging — just too slow to
+finish in ≤165s. **Also: several TFU uploads print `TILING=LINEAR!`/VERTICAL-MISMATCH** = the
+winsys TFU-tiling striping bug (same as vkQuake, status.md) — a correctness issue, NOT the hang.
+
+**NEXT:** (1) confirm slow-vs-hang with a **4-5 min capture** (does it eventually reach ca_active
++ render?). If slow: it's NFS-latency/demand-paging bound → mitigate via SD-boot (local, read-ahead
+clustered [[project_sdboot_largeexec_slowstart]]) or a gigabit cable (owner, physical). (2) Fix the
+TFU LINEAR-tiling striping in the winsys (shared w/ vkQuake). (3) Bake allow_download 0 into the
+port. Clean up the yquake2 YQ2DIAG probes when done. Netboot ~50-70% reliable; sdl2-gltest = health
+check. See [[project_quake2_port]] [[project_pi4_v3d_scout]].
 2026-08-05 Pi tests: yQuake2 with **`+set vid_fullscreen 2`** (desktop-fullscreen = use native
 mode, no mode-change) DISPLAY-TAKEOVER WORKS and yQuake2's **GL 2D renders to HDMI** (the
 drop-down console + green HUD text render via our SDL2+ref_gl1). But loading a level (`+map
@@ -233,6 +238,13 @@ video.c stale-history comments). `--scope core` build PASS; committed + pushed p
 stripped) — the fix was cherry-picked onto publish/master's tip via a worktree, NOT
 force-pushed. See [[project_git_topology]]. Kernel/libphoenix/project Tier A comment
 fixes intentionally NOT done yet (would worsen the A1 Batch 3 merges).
+
+C4 Quake2 precache localized (2026-08-05): probes traced the "stall" to Mod_LoadTexinfo (wall
+textures) — but TFU uploads keep progressing (n=5..12+), so it's SLOW not hung: ~100 .wal reads
+over 100Mbps NFS + binary demand-paging, doesn't finish in ≤165s. Also TFU prints TILING=LINEAR!
+(winsys striping bug, same as vkQuake). Next = 4-5min capture to confirm slow-vs-hang; SD-boot or
+gigabit cable to speed NFS; fix TFU LINEAR tiling. Quake2 needs no code fix for the "stall" if
+it's purely NFS-slow — it's an infra/perf issue.
 
 C4 Quake2 precache stall (2026-08-05): with allow_download 0 + a 165s capture, reaches
 CL_PrepRefresh but never ca_active (HDMI dark) → CL_PrepRefresh genuinely STALLS on some asset

@@ -111,7 +111,10 @@ int main(int argc, char *argv[])
 	 * (v3d_phoenix_winsys.c ioc_submit_csd) — before that, DRM_V3D_SUBMIT_CSD was a no-op so no
 	 * compute ran. RT shadows are off (Cvar r_rtshadows=0): V3D 4.2 has no ray-query hardware, so
 	 * the update_lightmap_rt path / TLAS build must not run. Verified: map start + full maps (e1m2)
-	 * render correctly lit at ~150fps with the GPU lightmap. */
+	 * render correctly lit with the GPU lightmap. Measured render perf (2026-08-06, HW, map start,
+	 * 1920x1080): ~30 fps, render-bound at ~33 ms/frame, stable (few >50 ms stalls after the initial
+	 * lightmap build). (An earlier "~150 fps" note here was an unverified estimate; the direct
+	 * host-loop measurement is ~30 fps at 1080p — the render is fill/submit-bound, a perf lead.) */
 	{
 		extern cvar_t r_gpulightmapupdate, r_rtshadows;
 		Cvar_SetValueQuick(&r_rtshadows, 0.0f);

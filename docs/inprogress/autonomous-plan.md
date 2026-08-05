@@ -272,6 +272,21 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-05 (Consolidation/hygiene pass — state verified clean+complete for owner's return): With
+the plan tail hard/risky/infra-blocked, did a responsible consolidation check. **VERIFIED: all
+autonomous work is committed AND pushed to the org** — `rev-list --count publish/<br>..HEAD` = **0
+unpushed** for every repo I touched (libphoenix, corelibs, devices, ports, tests) + coord. The owner
+returns to a complete org mirror; nothing lost/dangling. **Dirty-tree stragglers are all pre-existing
+/ intentional (left untouched, correctly):** lwip has the WiFi firmware blobs (wifi-{fw,nvram}-43455.*)
+that are DELIBERATELY uncommitted (publish is filter-scrubbed of WiFi blobs — never commit/force-push
+[[project_git_topology]]); coord has prior v3d/vkQuake tooling WIP (v3dv_harness.c, vkquake_shaders.c,
+gen-triangle-spirv.py, triangle_spirv.h — modified, likely build-generated), 2 untracked analysis
+docs (2026-07-27 v3d-alias, 2026-07-30 vkquake-striping), and DRM reference headers (drm.h/drm_mode.h,
+GPL — not committed). None are from this run; blindly committing prior WIP / GPL headers / scrubbed
+blobs would be wrong — flagged for owner review. **TD registry accurate** (TEMPORARY-FIXES: TD-01 SMP,
+TD-16 caches, etc. correctly RESOLVED-marked; autonomous work was additive ports/libs, not core TD).
+Fork is behind upstream on kernel/project/libphoenix (A1 Batch 3, deferred). No code change. Pi FREE.
+
 2026-08-05 (H4 journey article extended to the fuller autonomous arc + lessons): With the plan
 tail mostly hard/risky/infra-blocked (games banked; E2 host-NAT too risky unattended), did the
 highest-value SAFE work — the owner's explicitly-requested "extend the journey article as it

@@ -100,7 +100,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | E2 | W2 | Pi internet via host Linux router/proxy (NAT) | TODO | host-side network config |
 | E3 | W2 | Dillo displays live internet pages | TODO | after E1+E2 |
 | C4 | W3 | Quake2 port (yQuake2) + open/shareware assets + demo+visual test | DONE — FULLSCREEN 3D ✅ | **2026-08-05: yQuake2 RENDERS THE FULL 3D GAME FULLSCREEN (1920×1080) on Phoenix/V3D via SDL2+ref_gl1.** HDMI (artifacts/hdmi/20260805-133244-q2fs-tick.png) = the Outer Base level filling the whole screen: textured walls, Strogg-logo crates, green grates, central pillar + archway, health box, **an enemy Strogg in the distance**, weapon viewmodel, crosshair, full HUD (health 100 / ammo 58 / weapon icon), correct lighting/perspective, 0 faults, ca_active. Launch: `/usr/bin/yquake2 +set basedir /usr/share/quake2 +set allow_download 0 +set vid_renderer gl1 +set vid_fullscreen 2 +set r_mode -1 +map demo1` (with r_customwidth/height 1920/1080 in baseq2/config.cfg). **3 misdiagnoses corrected:** colormap.pcx = missing pak/wrong datadir (fix basedir), NOT NFS infra; corner-render = `r_mode` default 4=640×480 (fix r_mode -1); resolution = config.cfg archived r_customwidth 1024 overriding the early +set (fix = set 1920×1080 in config.cfg). The no-WSI alpha hypothesis was REFUTED. yQuake2 = **4th engine on the port** (quakespasm, vkQuake, Q3-link, now Q2 fullscreen). Single static ELF (coord 3eaf810 tools/yquake2-port; pinned e27fdcce). Minor remaining: remove YQ2DIAG probes (local); check for the winsys TFU striping under motion. See [[project_quake2_port]] |
-| C5 | W3 | Quake3 port (quake3e/ioq3) + playable assets + demos | PHASE1-DONE | quake3e links to one static aarch64-phoenix ELF (168/168 TUs, 0 undef, 27MB, GetRefAPI/main/VM_Create resolved). tools/quake3-port/ pushed (6fb98f0+3d74441). QVM=no dlopen; msg_t clash beaten w/ 0 Q3 rename. Phase-2 runtime deferred (infra) |
+| C5 | W3 | Quake3 port (quake3e/ioq3) + playable assets + demos | PHASE2-SETUP | Phase-1 DONE (static ELF, 168/168 TUs, tools/quake3-port pushed 6fb98f0+3d74441). **Phase-2 (first run+render) STARTED 2026-08-05** now that the Q2 SDL2 render pipeline is proven: deployed the quake3e ELF → /srv/phoenix-rpi4-nfs/usr/bin/quake3e; a subagent is obtaining the Q3 **demo** pak0.pk3 (freely-dl, non-distributable) → /usr/share/quake3/demoq3/. **Planned launch:** `/usr/bin/quake3e +set fs_basepath /usr/share/quake3 +set fs_game demoq3 +set r_mode -1 +set r_customwidth 1920 +set r_customheight 1080 +map q3dm1` (opengl1 renderer, QVM interpreted). NOTE the Q2 lessons: set resolution in config not just +set; the export must have the current binary (deployed). First-ever run of the ELF → expect first-run debugging. See [[project_quake3_port]] |
 | C6 | W3 | SuperTuxKart (OpenGL fullscreen, GPU) | TODO | large |
 | D1 | W3 | X11 GPU-accelerated extensions (toward RPi-OS parity) | TODO | |
 | D2 | W3 | X11 GL/Vulkan windowed (GLX) + glxgears validation | TODO | |
@@ -271,6 +271,17 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-05 (Quake3 phase-2 STARTED — first run+render): With C4 Q2 fullscreen done and the SDL2
+render pipeline proven, began C5 Quake3 phase-2 (the phase-1 link was done). Deployed the quake3e
+static ELF (from phase-1, /tmp/quake3e-phoenix, ABI-consistent with the unchanged kernel) →
+`/srv/phoenix-rpi4-nfs/usr/bin/quake3e` (sudo; export is root-owned). Launched a background subagent
+to obtain the Q3 **demo** pak0.pk3 (contains the QVM game modules + q3dm maps; freely-downloadable,
+non-distributable — NOT committed) and stage it to `/usr/share/quake3/demoq3/`. Once staged, next
+turn runs `quake3e +set fs_basepath /usr/share/quake3 +set fs_game demoq3 +set r_mode -1 ... +map
+q3dm1` and pixel-verifies the render (applying the Q2 lessons: resolution via config, current binary
+deployed). This is the first-ever run of the quake3e ELF → expect first-run debugging (QVM
+interpreter, opengl1 renderer, SDL2 path). Pi FREE (no cycle this turn — setup + subagent).
 
 2026-08-05 (Quake2 FULLSCREEN 3D ✅ — C4 DONE): Fixed the last polish item — the ~1024×768 corner
 render. Root cause: `baseq2/config.cfg` had archived `r_customwidth "1024"` / `r_customheight "768"`

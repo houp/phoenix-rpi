@@ -165,6 +165,31 @@ def main():
 
         print(f"\n*** marker seen — sending {len(args.commands)} command(s)")
 
+        # phase 1.5 (#156): on netboot the NFS-root takeover completes AFTER the psh
+        # prompt (plo launches psh as a sibling of the takeover server without gating
+        # on it), so commands sent right at the prompt hit the pre-takeover sparse
+        # dummyfs root and ENOENT — e.g. "psh: /usr/bin/<bin> not found", the dominant
+        # cause of intermittent empty game boots. Wait for the takeover line before
+        # sending. SD-boot has no takeover line -> bounded wait then proceed.
+        NFS_TAKEOVER_MARKER = b"registered / (takeover)"
+        if args.commands and NFS_TAKEOVER_MARKER not in buffered:
+            tk_deadline = time.time() + 25
+            print(f"waiting up to 25s for NFS takeover {NFS_TAKEOVER_MARKER!r}...")
+            while time.time() < tk_deadline:
+                data = ser.read(256)
+                if not data:
+                    continue
+                sys.stdout.buffer.write(data)
+                sys.stdout.flush()
+                log.write(data)
+                log.flush()
+                buffered.extend(data)
+                if NFS_TAKEOVER_MARKER in buffered:
+                    print("\n*** NFS root takeover complete — safe to send commands")
+                    break
+            else:
+                print("\n*** takeover marker not seen in 25s (SD-boot / already done?) — proceeding")
+
         # phase 2: send commands
         for cmd in args.commands:
             time.sleep(args.inter_cmd_secs)

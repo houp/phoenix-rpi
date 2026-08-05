@@ -108,7 +108,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | E4 | W3 | ffmpeg port (tool+lib) + Pi HW decode accel | TODO | |
 | E5 | W3 | X11 video player (windowed + fullscreen) | TODO | after E4 |
 | B2 | W3 | Extend debugger to kernel/driver-side | TODO | after B1 |
-| H4 | W3 | AI-driven-journey article (git+conversation+memory analysis) | TODO | LAST — summarizes whole effort incl. this phase |
+| H4 | W3 | AI-driven-journey article (git+conversation+memory analysis) | DRAFT | docs/AI-DRIVEN-PORT-JOURNEY.md — grounded draft (1427 coord commits over ~4.5mo): the arc, what was easy/hard for AI, the ~40-cycle torch bug + #67 false-metric + #156-race war-stories, observability techniques, the human's ground-truth impact, why hardware is hard for a text agent, the autonomous phase. Owner review/refine expected; extend as the journey continues |
 
 ---
 
@@ -153,6 +153,11 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 `scripts/restore-integration-state.sh` can undo a bad batch.
 
 ## Active task
+
+**H4 journey-article DRAFT written** (docs/AI-DRIVEN-PORT-JOURNEY.md) — the distinctive capstone
+the owner wanted: honest field report on the all-AI Pi4 port (easy vs hard for AI, the war-stories,
+observability-first, the human as ground-truth, why hardware is hard for a text agent, the
+autonomous phase). Owner review expected; extend as the run continues. Non-Pi, no-risk.
 
 **[DONE] G1 Tier B devices cleanup** — removed 653 lines of disproved diagnostics (sdcard/pcie/
 xhci/audio), --scope core OK, boot-verified 0 faults (audio+USB enum+NFS all work), pushed

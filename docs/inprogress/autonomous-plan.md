@@ -100,7 +100,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | E2 | W2 | Pi internet via host Linux router/proxy (NAT) | TODO | host-side network config |
 | E3 | W2 | Dillo displays live internet pages | TODO | after E1+E2 |
 | C4 | W3 | Quake2 port (yQuake2) + open/shareware assets + demo+visual test | DONE — FULLSCREEN 3D ✅ | **2026-08-05: yQuake2 RENDERS THE FULL 3D GAME FULLSCREEN (1920×1080) on Phoenix/V3D via SDL2+ref_gl1.** HDMI (artifacts/hdmi/20260805-133244-q2fs-tick.png) = the Outer Base level filling the whole screen: textured walls, Strogg-logo crates, green grates, central pillar + archway, health box, **an enemy Strogg in the distance**, weapon viewmodel, crosshair, full HUD (health 100 / ammo 58 / weapon icon), correct lighting/perspective, 0 faults, ca_active. Launch: `/usr/bin/yquake2 +set basedir /usr/share/quake2 +set allow_download 0 +set vid_renderer gl1 +set vid_fullscreen 2 +set r_mode -1 +map demo1` (with r_customwidth/height 1920/1080 in baseq2/config.cfg). **3 misdiagnoses corrected:** colormap.pcx = missing pak/wrong datadir (fix basedir), NOT NFS infra; corner-render = `r_mode` default 4=640×480 (fix r_mode -1); resolution = config.cfg archived r_customwidth 1024 overriding the early +set (fix = set 1920×1080 in config.cfg). The no-WSI alpha hypothesis was REFUTED. yQuake2 = **4th engine on the port** (quakespasm, vkQuake, Q3-link, now Q2 fullscreen). Single static ELF (coord 3eaf810 tools/yquake2-port; pinned e27fdcce). Minor remaining: remove YQ2DIAG probes (local); check for the winsys TFU striping under motion. See [[project_quake2_port]] |
-| C5 | W3 | Quake3 port (quake3e/ioq3) + playable assets + demos | PHASE2 (GL init + procs OK; FBO-bind crash) | Phase-1 DONE; demo pak staged, ELF deployed. quake3e exec's → V3D GL @ 1920×1080 (Mesa 2.1) → all GL procs resolve. **FIXED:** 9 core GL procs + 19 ARB/EXT procs added to the SDL2 GL proc table (ports f5dc210+76f195c); toolchain libphoenix synced (lround/lroundf); quake3e rint stub removed (coord a7c2780). **CURRENT FRONTIER:** past all proc resolution, now crashes `Data Abort (EL0) far=0x10` in **Mesa `_mesa_bind_framebuffers`** (addr2line'd) — quake3e's tr_arb.c binds the **default framebuffer (FB 0)** (a "reset to default" bind, happens even with r_fbo=0), but our surfaceless V3D context has no valid FB 0 (winsys renders into a scanout FBO) → NULL deref. yQuake2 never calls glBindFramebuffer so it's unaffected. **NEXT:** glue shim — wrap `glBindFramebuffer` in the SDL2 GL proc table so `(target, 0)` binds the winsys **scanout FBO** instead of the nonexistent default FB 0 (needs the winsys to expose the scanout FBO id; check qsv3d/v3d_phoenix accessor). Then rebuild libSDL2+relink+redeploy+rerun. Launch: `+set fs_basepath /usr/share/quake3 +set fs_game demoq3 +set r_mode -1 +map q3dm1`. See [[project_quake3_port]] |
+| C5 | W3 | Quake3 port (quake3e/ioq3) + playable assets + demos | ENGINE WORKS; QVM-version blocker | **quake3e's ENGINE fully works on Phoenix/V3D.** Exec → V3D GL @ 1920×1080 (Mesa 2.1) → all GL procs resolve → **R_Init FINISHES (renderer up: gamma/texturemode/shaders)** → QVM interpreter loads+runs vm/ui.qvm. Fixes landed: 9 core + 19 ARB/EXT GL procs in the SDL2 table (ports f5dc210+76f195c); **glBindFramebuffer(FB 0)→scanout-FBO wrapper** (ports c1494fc) that fixed the Mesa `_mesa_bind_framebuffers` NULL-deref (no-WSI default-FB); toolchain libphoenix sync + rint-stub removal (a7c2780). **CURRENT BLOCKER (data, not port):** `ERROR: User Interface is version 3, expected 6` — the 1.11 demo pak's QVMs are the old API; quake3e (modern) wants v6/v8. Fix = build quake3e's OWN game/cgame/ui QVMs (GPL source) with the ioq3 LCC toolchain → pak1.pk3 overriding the demo's old QVMs (subagent building it now, non-Pi). Then redeploy pak1 + rerun → should reach the menu/map. Launch: `+set fs_basepath /usr/share/quake3 +set fs_game demoq3 +set r_mode -1 +map q3dm1`. See [[project_quake3_port]] |
 | C6 | W3 | SuperTuxKart (OpenGL fullscreen, GPU) | TODO | large |
 | D1 | W3 | X11 GPU-accelerated extensions (toward RPi-OS parity) | TODO | |
 | D2 | W3 | X11 GL/Vulkan windowed (GLX) + glxgears validation | TODO | |
@@ -271,6 +271,19 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-05 (Quake3 ENGINE fully works on V3D; blocked on demo-QVM API version): Implemented the
+glBindFramebuffer wrapper (ports c1494fc): the SDL2 GL proc table now maps a bind of FB 0 →
+`qsv3d_bind_fbo()` (the winsys scanout FBO), fixing the Mesa `_mesa_bind_framebuffers` NULL-deref
+(the surfaceless context has no default FB 0). Rebuilt libSDL2 + relinked quake3e + redeployed.
+**Rerun: quake3e's engine is now FULLY UP** — V3D GL @ 1920×1080, all GL procs resolve, **R_Init
+FINISHES** (renderer initialized: gamma/texturemode/shaders), and the **QVM interpreter loads+runs
+vm/ui.qvm**. So the whole Phoenix/V3D/SDL2/QVM stack works for quake3e — the hard port work is DONE.
+**Remaining is a DATA issue:** `ERROR: User Interface is version 3, expected 6` — the 1.11 demo
+pak's QVMs are the old API; quake3e (modern) expects v6/v8. Delegated a subagent to build quake3e's
+OWN game/cgame/ui QVMs from its GPL source (via the ioq3 LCC toolchain) → package as pak1.pk3 that
+overrides the demo's old QVMs (non-Pi host build). Next turn: deploy pak1.pk3 + rerun → expect the
+menu/map to load. quake3e = 5th engine, engine-proven on Phoenix. Pi FREE.
 
 2026-08-05 (Quake3 phase-2: all GL procs resolve; now an FBO-default-bind crash): Added the 19
 ARB/EXT GL procs to the SDL2 proc table (ports 76f195c: glActiveTextureARB/glLockArraysEXT/VBO-ARB/

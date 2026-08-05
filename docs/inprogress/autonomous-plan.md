@@ -804,7 +804,19 @@ the bright default. Robustness fix candidate for I1.
 
 ## Next step
 
-**Immediate follow-ups (pick per turn):**
+**DIVERSIFY — the game-rendering thread is well-explored + banked (2026-08-05).** Q2 renders
+fullscreen ✅; vkQuake renders ✅ (I2 substantially OK); quakespasm ✅; Q3 engine+renderer proven
+(VM-exec deep-banked). Further game polish (Q3 VM-exec, vkQuake +map/liquids) is low-pri / deep /
+blocked. **Next turns should tackle a NON-game plan area** — candidates, roughly by tractability:
+- **G1 remaining code review/cleanup** (safe repos: publication hygiene; build-verifiable). Or **H1
+  docs archive/cleanup**. Both autonomous-safe, no Pi/vision.
+- **E1 Dillo HTTPS**: mbedtls + openssl are BUILT ports → wire TLS into the Dillo port (build-
+  verifiable; end-to-end HTTPS needs E2 internet, infra-deferred).
+- **F2 kernel perf / modern syscalls** (measure on Pi) or **A1 Batch 3** kernel merge (risky).
+- **B2** extend libdbg to kernel/driver-side; or the vkQuake **+map argv dx** (understand psh
+  argv → COM_InitArgv) if game work is resumed.
+
+**Immediate follow-ups (older; pick per turn):**
 - ~~libphoenix `rint` + rounding/min-max family~~ **DONE 2026-08-05** (d61f4a3 + 50f007c,
   --scope core validated). The remaining phoenix-libm gaps vs math.h are all HARD (long-double
   *l variants = binary128; transcendentals exp2/log2/expm1/erf/gamma/bessel) — leave as demand-

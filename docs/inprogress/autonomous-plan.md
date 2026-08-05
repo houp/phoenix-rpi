@@ -152,7 +152,24 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 ## Active task
 
-**C4 Quake2 Phase 2 — RUNS on Pi + 2D renders; 3D world view is BLACK (investigate).**
+**C4 Quake2 Phase 2 — RUNS + loads maps + 2D renders; game VIEW not visible (console stuck
+open).** 2026-08-05 update: the earlier "black" with `+map base1` was a RED HERRING — base1.bsp
+isn't in the demo pak ("Can't find maps/base1.bsp"). The demo pak has **maps/demo1|demo2|demo3.bsp**
++ demos/q2demo1.dm2. With **`+map demo1`** the map LOADS FULLY: "Outer Base" level title, 38
+entities inhibited, 1 team/2 entities, client_connect, 0 faults, `Multitexturing: Okay`,
+`ref_gl1` loaded. 2D renders (console + HUD text + Q2-logo conback). BUT the **drop-down console
+stays open with the conback behind it** (not the 3D world) across BOTH `+map demo1` and
+`+demomap q2demo1.dm2` → the game 3D view never becomes active/visible.
+
+**NEXT (real blocker) = why the game view never activates / console stays open.** Leading
+hypothesis: our SDL2 phoenix video driver sends **no window focus/activation events**
+(SDL_WINDOWEVENT_FOCUS_GAINED / SHOWN), so yQuake2's client stays in the console/inactive state
+(conback shown, no world refdef) instead of switching to the active game view. Check
+SDL_phoenixvideo/events: on window create, post SHOWN + FOCUS_GAINED + INPUT focus so
+key_dest→game. Fallback hypotheses: (b) console truly stuck (try appending `+toggleconsole`);
+(c) if world then renders black → the no-WSI fb0 scanout alpha issue (force alpha=1 at present
+in the SDL2 GL glue, like the vkQuake torch fix). Minor: gamma unimpl, relative-mouse, exclusive
+fullscreen. See [[project_quake2_port]] [[project_sdl2_port]] [[project_vkquake_torches_dark_fullbright]].
 2026-08-05 Pi tests: yQuake2 with **`+set vid_fullscreen 2`** (desktop-fullscreen = use native
 mode, no mode-change) DISPLAY-TAKEOVER WORKS and yQuake2's **GL 2D renders to HDMI** (the
 drop-down console + green HUD text render via our SDL2+ref_gl1). But loading a level (`+map
@@ -197,6 +214,14 @@ video.c stale-history comments). `--scope core` build PASS; committed + pushed p
 stripped) — the fix was cherry-picked onto publish/master's tip via a worktree, NOT
 force-pushed. See [[project_git_topology]]. Kernel/libphoenix/project Tier A comment
 fixes intentionally NOT done yet (would worsen the A1 Batch 3 merges).
+
+C4 Quake2 demo1 test (2026-08-05, 3 Pi cycles): "black world" was a RED HERRING — base1.bsp
+not in demo pak. Demo pak maps = demo1/demo2/demo3.bsp. `+map demo1` LOADS FULLY ("Outer Base",
+38 entities, client_connect, 0 faults, Multitexturing Okay). 2D renders. But the console stays
+open (conback behind) → game 3D view never activates. Lead: SDL2 driver sends no window
+focus/activation events → yQuake2 stays inactive. Next = post SDL_WINDOWEVENT SHOWN/FOCUS_GAINED
+in the driver (+ fallback: force present alpha=1). UART goes quiet after ref_gl1 load (yQuake2
+Com_Printf → GL console, not UART) — use HDMI to probe post-init.
 
 C4 Quake2 Phase 2 render tests (2026-08-05): with `+set vid_fullscreen 2` the "Unknown pixel
 format" mode-set error is GONE (desktop-fullscreen uses the native mode, no mode-change) and

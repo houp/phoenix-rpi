@@ -272,6 +272,20 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-05 (vkQuake +map improvement attempted — BLOCKED by opaque port argv handling; reverted
+clean): Tried to make vkQuake honor `+map <level>` (it hardcodes "map start") to enable loading
+e1m3 for an explicit liquid confirm. Two approaches both FAILED to detect the requested map:
+(a) `COM_CheckParm("+map")` returns 0 (Quake drops +args from com_argv); (b) scanning the raw
+`host_parms->argv` for "+map" ALSO didn't find it → the port's argv/exec path doesn't expose the
+`+map` token where either can reach it (needs deeper dx: how psh passes argv + what COM_InitArgv
+does with +args). Both builds rendered `start` (not e1m3). **Reverted** pl_phoenix_main.c to the
+clean hardcoded "map start"; source is pristine (empty diff), deployed rpi4-vkquake rebuilt clean
+(ca9cd342, loads start + renders — verified equivalent behavior this turn). **Build gotcha
+reinforced (stale-relink scar):** `build-vkquake-phoenix.py` is COMPILE-ONLY by default — it only
+links with `--link`; I nearly shipped a stale Aug-4 /tmp/vkquake-phoenix. Always `--link` + verify
+md5 changed. **I2 stays "substantially OK"** (e1m2 water map verified per port comment; the +map
+usability improvement is deferred pending the argv dx — low-pri). No net source change this turn. Pi FREE.
+
 2026-08-05 (vkQuake render re-verified via the HDMI pipeline; I2 liquids substantially resolved):
 Honored the standing vkQuake ask. Ran `/usr/bin/rpi4-vkquake -nosound +map e1m3` on the Pi + pixel-
 inspected the HDMI: vkQuake **renders the start map correctly, fullscreen 1920×1080** (textured

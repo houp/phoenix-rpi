@@ -100,7 +100,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | E2 | W2 | Pi internet via host Linux router/proxy (NAT) | TODO | host-side network config |
 | E3 | W2 | Dillo displays live internet pages | TODO | after E1+E2 |
 | C4 | W3 | Quake2 port (yQuake2) + open/shareware assets + demo+visual test | WIP-infra-blocked | Decisive render test 2026-08-05 (reliable exec, 5.5min): yquake2 exec'd cleanly (banner) but FATAL `GetPCXPalette: Couldn't load pics/colormap.pcx` = intermittent RUNTIME NFS read failure (distinct from the #156 exec ENOENT; likely NFS lease-expiry/reclaim or stale host nfsd). So Quake2 render is blocked by **netboot NFS runtime-read reliability (infra)**, NOT a port bug — vkQuake/quakespasm render (their reads succeeded). SD-boot would fix (no card in). **Phase 1 DONE (2026-08-05)**: single static aarch64-phoenix ELF LINKS (undefs→0), coord 3eaf810 tools/yquake2-port/ (dlopen→static backend, ref_gl1 only, malloc-hunk, shared-TU dedup, -fcommon, port patch). yQuake2 pinned e27fdcce. ELF /tmp/yquake2-phoenix. See [[project_quake2_port]]. **Phase 2**: 2002-demo pak0.pak → NFS /usr/share/quake2/baseq2/ + Pi +playdemo demo1 + HDMI capture vs host gl1 |
-| C5 | W3 | Quake3 port (quake3e/ioq3) + playable assets + demos | WIP-analysis | feasibility subagent running (phase-1 = linking ELF; QVM may sidestep dlopen) |
+| C5 | W3 | Quake3 port (quake3e/ioq3) + playable assets + demos | WIP-build | feasibility DONE (plan doc); QVM sidesteps dlopen, opengl1 fits GL2.1; phase-1 link subagent running |
 | C6 | W3 | SuperTuxKart (OpenGL fullscreen, GPU) | TODO | large |
 | D1 | W3 | X11 GPU-accelerated extensions (toward RPi-OS parity) | TODO | |
 | D2 | W3 | X11 GL/Vulkan windowed (GLX) + glxgears validation | TODO | |
@@ -271,6 +271,20 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-05 (C5 feasibility DONE → phase-1 build launched): Quake3 feasibility subagent
+reported (plan `docs/inprogress/2026-08-05-quake3-port-plan.md`). Verdict: **feasible and
+structurally SIMPLER than Quake2** — Q3 game logic is interpreted QVM bytecode shipped as data
+in the pak, so there is NO game `.so` to fold (the yQuake2 dlopen→static headache doesn't
+exist). Recommend **quake3e** + `code/renderer` (opengl1, pure fixed-function GL 1.x — fits our
+Mesa V3D GL 2.1; renderer2/vulkan do NOT), QVM interpreted (`NO_VM_COMPILED`, avoids the aarch64
+JIT's RWX mprotect), one static ELF (client+server+qcommon+botlib+renderer+SDL backend, linked
+vs our libSDL2.a+libGL/libv3d). Four patch points: q_platform.h Phoenix branch, qgl.h GLX-block
+gate, `msg_t`→`q3msg_t` rename (Phoenix sockport SysV `msg_t` clash — the one non-trivial fix),
+Phoenix sys/net backend. Probe cross-compiled ~15 TUs clean. Assets = demo `demoq3/pak0.pk3`
+(freely downloadable, NOT committable). **Launched a phase-1 build subagent** to cross-link to a
+single ELF (link closure verifiable WITHOUT the Pi), mirroring tools/yquake2-port structure into
+tools/quake3-port/. Result pending.
 
 2026-08-05 (Quake2 verdict + C5 kickoff): Decisive Quake2 render test with the reliable
 exec pipeline: yquake2 exec'd cleanly (banner) but fatal-errored `Couldn't load

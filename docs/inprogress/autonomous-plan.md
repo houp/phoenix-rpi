@@ -112,6 +112,44 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 
 ---
 
+## Owner resume-guide (deferred items + how to pick up) — 2026-08-05
+
+The autonomous run completed the safe/tractable feature+lib+doc work (see status.md + the status
+table above; all pushed to the org). What remains needs owner oversight, a Pi with visual/interactive
+ground-truth, or internet — deferred deliberately unattended. Each with a precise resume-hint:
+
+- **E2/E3 Dillo live HTTPS.** E1 done (Dillo builds HTTPS-capable via mbedTLS); Pi-side crypto ready
+  (entropy via /dev/random ✅, CA bundle available). **Resume:** on the host, NAT the Pi subnet
+  (10.42.0.0/24) → the internet NIC (`iptables MASQUERADE` + `ip_forward=1`, additive/reversible),
+  give the Pi a default route + DNS (dnsmasq option or Phoenix-side), stage the CA bundle
+  (`/etc/ssl/certs/ca-certificates.crt`) + set Dillo's CA path, then load an HTTPS URL. Left undone
+  because host-network changes could break the netboot infra everything depends on, unrecoverable
+  unattended. [[project_dillo_https_tls]]
+- **C5 Quake3 runtime.** Engine+renderer proven on V3D; banked at a VM-exec bug. **Resume:** the JIT
+  now executes (RWX-mmap fix) but the JIT'd code faults with a stray-bit-32 in a QVM data address —
+  debug vm_aarch64.c's dataMask/dataBase (SCTLR_EL1.UCI is already set; NOT an I-cache issue). Or
+  debug the interpreter's opStack analysis. [[project_quake3_port]]
+- **A1 Batch 3 (upstream sync of kernel/libphoenix/project).** Fork is behind upstream on those.
+  Risky (errno transfer + conflicts + could break boot); do with a boot-verify + rollback ready.
+- **I3 phantom /dev/kbd0 input.** Root-cause lead: raw-HID readers discard trailing r%8 bytes →
+  desync → fabricated keys. **Resume:** add a carry-over buffer across partial reads in all 3 readers
+  (quakespasm-port/vkquake-port pl_phoenix_in.c + sdl2 SDL_phoenixevents.c); needs a Pi idle-boot
+  raw-report log to confirm. Deferred: input-correctness change, silent-regression risk unverifiable
+  unattended.
+- **I1 vkQuake lightmap-flicker / I2 explicit liquid confirm / vkQuake +map.** Vision-dependent; the
+  +map load is blocked by a hardcoded `map start` (argv/psh dx pending) [[project_vkquake_bringup_mechanics]].
+- **C6 SuperTuxKart, D1/D2 X11 GPU/glxgears, D3 XFce, E4/E5 ffmpeg+video.** Large new ports; the
+  build phase is doable (like Q2/Q3), runtime needs Pi+vision.
+- **B2 kernel-side libdbg, F2 kernel perf.** Kernel-side / needs Pi measurement.
+
+**Environment gotchas (bit us this run):** netboot serves a fresh kernel (TFTP) + a hand-maintained
+NFS-root userspace — run `scripts/sync-netboot-tree.sh` (wired into netboot-server-up) so they match
+[[project_netboot_export_drift]]. After a libphoenix change, sync `.buildroot` libphoenix.a →
+`.toolchain` before relinking ports. `build-vkquake-phoenix.py`/`build-quake3e-phoenix.py` need
+`--link`/verify-md5 (stale-relink scar). One Pi cycle at a time (honor the Pi-lock line).
+
+---
+
 ## A1 integration plan (from upstream delta survey, 2026-08-04)
 
 All 16 siblings fetched from `origin` (phoenix-rtos/*) OK; each also has `publish`
@@ -271,6 +309,17 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-05 (Owner resume-guide added — deferred items gathered with precise resume-hints):
+Re-scanned the full task table; confirmed every remaining TODO is defer-appropriate unattended
+(A1 risky kernel merge; E2/E3 host-NAT risk; C3/I1/I3 need Pi+interactive/visual verify — I3's
+input-reader fix carries a silent-regression risk I can't confirm; C6/D-series/E4/E5/B2 large or
+hard/vision). So, staying in safe maintenance mode, added a concise **"Owner resume-guide"** section
+to the board (above) that gathers the deferred items + their precise resume-hints (E2/E3 NAT steps,
+Q3 vm_aarch64 dataMask dx, A1 Batch 3 caution, I3 carry-over fix, vkQuake +map, the big ports) + the
+environment gotchas that bit us (netboot export sync, toolchain-libphoenix sync, build --link/md5,
+Pi-lock) — so the owner (or a fresh boot) can immediately pick up any thread instead of digging
+through 20+ Last-progress entries. Complements the refreshed status.md. No code change. Pi FREE.
 
 2026-08-05 (Refreshed the stale primary boot doc status.md; maintenance cadence): Found
 docs/inprogress/status.md — a CLAUDE.md boot-sequence doc (read 2nd, for "current progress + active

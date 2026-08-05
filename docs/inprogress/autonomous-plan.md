@@ -170,18 +170,20 @@ run). Evidence: only **4 TFU texture uploads** (engine init textures, NOT the ma
 svc_stufftext "precache" → CL_Precache_f (cl_main.c:529) → CL_RequestNextDownload (cl_download.c:76)
 → CL_PrepRefresh (cl_view.c:240) → cls.state=ca_active (cl_parse.c:849).
 
-**INSTRUMENTATION BLOCKED by a delivery problem:** added 5 fprintf(stderr) probes at those
-points (in external/yquake2, LOCAL/uncommitted), rebuilt (140/140, md5 e8986b40), but 2 Pi runs
-produced **ZERO yQuake2 UART output — not even the startup banner** earlier same-binary runs
-showed. So either the ~19MB/47MB-bss binary's **NFS-exec is intermittently failing** (cf.
-status.md "~19MB binaries hit -ENOMEM at process_load:704") OR stdout/stderr isn't reaching UART.
-
-**NEXT:** (1) make diagnostics **FILE-BASED** — write the handshake trace to a file on the NFS
-root (e.g. /usr/share/quake2/yq2diag.txt) + read it host-side, bypassing console delivery;
-convert the 5 stderr probes to file appends. (2) In parallel, this exposes a **large-binary
-NFS-exec reliability** concern worth checking (does yquake2 exec every boot?). Fallback if the
-handshake proves a real loopback bug: inspect the Loop_* net driver message delivery. Minor:
-gamma unimpl, relative-mouse, exclusive-fullscreen. See [[project_quake2_port]] [[project_sdl2_port]].
+**STALL PINNED + PARTIALLY FIXED (2026-08-05):** the 2 empty diag runs were NETBOOT FLAKINESS
+(confirmed: sdl2-gltest ran clean = netboot/exec/UART healthy; a 3rd yquake2 diag run then
+produced the banner + full YQ2DIAG trace). The 5 fprintf(stderr) probes work.
+Trace: server stufftext configstrings + baselines + **precache** → CL_Precache_f (argc=2) →
+**CL_RequestNextDownload check=32 (CS_MODELS) → STOPS.** = the client stalls in the download-check
+phase (allow_download ON → tries to fetch a model over loopback → hangs).
+**FIX #1: `+set allow_download 0`** → handshake proceeds to **CL_PrepRefresh** (precache); TFU
+uploads 4→12. → **BAKE allow_download 0 into the port** (pl_phoenix_main.c or a default cfg).
+**NEW FRONTIER: CL_PrepRefresh stalls/crawls after ~12 TFU texture uploads** (map needs 100s).
+Never reaches ca_active → still conback. LEAD: the winsys **TFU "vcheck" readback diagnostic**
+(v3d_phoenix_winsys.c, leftover from the vkQuake striping probe) may readback+compare per upload
+→ massive slowdown or a stall. NEXT: gate/disable the TFU vcheck; add a per-model diag in
+CL_PrepRefresh if needed; then precache completes → ca_active → world renders. Minor: gamma,
+relative-mouse. See [[project_quake2_port]] [[project_pi4_v3d_scout]].
 2026-08-05 Pi tests: yQuake2 with **`+set vid_fullscreen 2`** (desktop-fullscreen = use native
 mode, no mode-change) DISPLAY-TAKEOVER WORKS and yQuake2's **GL 2D renders to HDMI** (the
 drop-down console + green HUD text render via our SDL2+ref_gl1). But loading a level (`+map
@@ -226,6 +228,12 @@ video.c stale-history comments). `--scope core` build PASS; committed + pushed p
 stripped) — the fix was cherry-picked onto publish/master's tip via a worktree, NOT
 force-pushed. See [[project_git_topology]]. Kernel/libphoenix/project Tier A comment
 fixes intentionally NOT done yet (would worsen the A1 Batch 3 merges).
+
+C4 Quake2 STALL PINNED + partially FIXED (2026-08-05): netboot flakiness explained the empty
+runs (gltest ran clean; 3rd yquake2 diag run gave the full trace). Stall = CL_RequestNextDownload
+(download-check, allow_download ON hangs over loopback). `+set allow_download 0` → reaches
+CL_PrepRefresh (TFU uploads 4→12). New frontier = CL_PrepRefresh stalls after ~12 uploads →
+suspect the winsys TFU vcheck readback diagnostic. Next = disable TFU vcheck + bake allow_download 0.
 
 C4 Quake2 handshake-diag (2026-08-05): narrowed the "console stuck" to the client stalling in
 the connect→precache handshake (never reaches ca_active; only 4 TFU init-texture uploads, not

@@ -3,7 +3,29 @@
 > Per-peripheral state at a glance: **[docs/inprogress/pi4-hardware-support-matrix.md](pi4-hardware-support-matrix.md)**.
 > Full chronological log of the multi-day unattended run: **[UNATTENDED-WORK-LOG.md](../../UNATTENDED-WORK-LOG.md)** (repo root).
 
-## 🟢 LATEST — 2026-06-27 (USB enum + NFS exec FIXED; interactive input; vkQuake textures)
+## 🟢 LATEST — 2026-08-05 (autonomous vacation run: games rendering, libs, Dillo HTTPS, netboot fixed)
+
+Authoritative per-turn state + task board during the unattended run: **[autonomous-plan.md](autonomous-plan.md)**.
+Highlights since the 2026-06-27 entry below:
+
+- **SDL2 port HW-validated** (fullscreen GL on V3D + kbd/mouse + audio). On it, **Quake II renders
+  full-screen 3D** on the GPU (Outer Base, 1920×1080); vkQuake re-verified rendering; QuakeSpasm
+  working; **Quake III** engine+renderer proven on V3D (banked at a QVM VM-execution bug, dx recorded).
+- **Netboot reliability fixed**: the #156 boot-order race, then the deeper *fresh-kernel /
+  two-week-stale-userspace* NFS-export drift (auto-sync added so netboot serves userspace matching
+  the kernel). libm `rint`/rounding/min-max family added + **HW-validated** (regression test);
+  in-process backtrace facility generalized into a reusable **`libdbg` corelib**.
+- **Dillo HTTPS build-capable** via mbedTLS (E1/#70); Pi-side crypto ready (entropy via /dev/random +
+  CA bundle) — live browsing gated only on E2 (Pi internet / host NAT).
+- Publication cleanup (dead diagnostics removed); docs current (KNOWN-ISSUES, hardware matrix, OS-dev
+  guide + a new "Dynamic code/JIT" section, the AI-journey article).
+
+**State:** the safe/tractable feature + lib + doc work is largely complete and all pushed to the org
+(verified 0 unpushed). Remaining plan items need owner oversight (risky kernel merges / host-NAT for
+E2), a Pi with visual ground-truth (game-render polish), or internet (E-series). The agent is in a
+safe maintenance cadence — incremental work + banking — awaiting the owner.
+
+## 🟢 2026-06-27 (USB enum + NFS exec FIXED; interactive input; vkQuake textures) — earlier
 
 Session logs (archived): **[docs/done/2026-06-27-input-and-vkquake-session.md](../done/2026-06-27-input-and-vkquake-session.md)**,
 **[docs/done/2026-06-27-usb-nfs-reliability-deep-dive.md](../done/2026-06-27-usb-nfs-reliability-deep-dive.md)**.

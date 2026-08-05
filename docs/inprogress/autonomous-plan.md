@@ -272,6 +272,18 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-05 (Refreshed the stale primary boot doc status.md; maintenance cadence): Found
+docs/inprogress/status.md — a CLAUDE.md boot-sequence doc (read 2nd, for "current progress + active
+focus") — was stale at its 2026-06-27 LATEST entry, not reflecting the autonomous run. Added a
+current 2026-08-05 LATEST entry (games rendering, SDL2, netboot fix, libm/libdbg, Dillo HTTPS,
+docs) pointing to autonomous-plan.md as the authoritative board; kept the old entry as history.
+So a fresh boot / the owner's return gets an accurate top-level picture. **Honest state:** the
+safe + tractable feature/lib/doc work is largely complete + all pushed (verified 0 unpushed last
+turn). Remaining plan items need what can't be done safely unattended — owner oversight (risky
+kernel merges / host-NAT for E2), a Pi with visual ground-truth (game-render polish), or internet
+(E-series). Cadence now = safe incremental maintenance + banking, ready to act on new info. Cron
+healthy (checked: today 2026-08-05, created 08-04, expires ~08-11, no re-arm). Pi FREE.
+
 2026-08-05 (Consolidation/hygiene pass — state verified clean+complete for owner's return): With
 the plan tail hard/risky/infra-blocked, did a responsible consolidation check. **VERIFIED: all
 autonomous work is committed AND pushed to the org** — `rev-list --count publish/<br>..HEAD` = **0

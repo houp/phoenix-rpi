@@ -121,15 +121,30 @@ observability constraints*.
 
 ## The autonomous phase
 
-The final stretch ran unattended: the operator went on vacation and left a task list. The
-agent worked in a self-scheduled loop against a durable task board, committing and pushing
-small verified changes, retrying through intermittent network/build failures, and
-maintaining its own memory across context resets. It shipped a full SDL2 port (HW-validated:
-GL + input + audio), got Quake II running, fixed the netboot reliability that had been
-silently taxing every test, cleaned ~650 lines of dead diagnostics for publication, and kept
-the documentation current — all without a human in the loop. The main limits it hit were
-*physical* (a 100 Mbps netboot link it couldn't rewire; an SD card it couldn't insert), not
-cognitive.
+The final stretch — the bulk of this timeline — ran unattended: the operator went on vacation and
+left a task list. The agent worked in a self-scheduled loop (a cron heartbeat) against a durable
+task board, committing and pushing small verified changes, retrying through intermittent network
+and build failures, and rebuilding its own working memory across many context resets. Over dozens
+of heartbeats it:
+
+- **Shipped a full SDL2 port** (HW-validated: fullscreen GL on V3D, keyboard/mouse, audio) and, on
+  it, brought **Quake II to a full-screen 3D render** on the GPU — the fourth engine on the port
+  after GLQuake, vkQuake (re-verified), and a Quake III cross-link.
+- **Root-caused and fixed the netboot reliability** that had silently taxed every test — first a
+  boot-order race, then the deeper finding that the NFS root was serving a *two-week-stale
+  userspace on a freshly-built kernel*, an ABI drift it closed with an automatic sync.
+- **Filled library gaps centrally** — a batch of libm rounding/min-max functions, host- and
+  HW-validated with a new regression test — rather than stubbing them per-port; and **generalized
+  its own crash/hang backtrace facility into a reusable `libdbg` corelib**.
+- **Made Dillo HTTPS-capable** (wiring mbedTLS, GPLv3-clean), cleaned hundreds of lines of dead
+  diagnostics for publication, and kept the documentation and a per-issue registry current.
+- Pushed the **Quake III engine all the way to a live V3D render + a running QVM interpreter**,
+  then **banked it** at a precisely-diagnosed VM-execution bug rather than chase it indefinitely.
+
+The limits it hit were *physical or judgment* boundaries, not cognitive ones: a 100 Mbps link it
+couldn't rewire, an SD card it couldn't insert, and a host network it judged too risky to
+reconfigure unattended (reconfiguring the netboot infrastructure everything depended on was not
+worth a silent regression while no human could recover it).
 
 ## Takeaways
 
@@ -142,3 +157,12 @@ cognitive.
 - A long-horizon agent with durable memory, rollback discipline, and a self-verifying loop
   can sustain real engineering progress for days without supervision — bounded mostly by
   what it physically cannot touch.
+- **Distrust your own confident diagnosis.** The unattended run repeatedly mislabeled things —
+  a missing game asset as "NFS flakiness," a black 3D view as an "alpha bug," an I-cache theory
+  for a JIT crash — and had to correct itself against fresh evidence. A cheap experiment that
+  *distinguishes* two hypotheses beats a well-argued but unverified one; a green proxy metric that
+  a broken build also passes is worse than no metric.
+- **Know when to bank a saga.** The hardest problems (the Quake III VM interpreter and JIT) were
+  driven to a precise root cause and then deliberately shelved, with that characterization
+  recorded, once the graphics port itself was proven. Banking hard-won understanding and moving on
+  beats an open-ended rabbit hole — the more so unattended, where there is no one to call it.

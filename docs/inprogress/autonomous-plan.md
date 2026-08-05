@@ -99,7 +99,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | E1 | W2 | Dillo HTTPS support | TODO | needs TLS (libphoenix/openssl?) |
 | E2 | W2 | Pi internet via host Linux router/proxy (NAT) | TODO | host-side network config |
 | E3 | W2 | Dillo displays live internet pages | TODO | after E1+E2 |
-| C4 | W3 | Quake2 port (yQuake2) + open/shareware assets + demo+visual test | RENDERS (loads pak+map) | **2026-08-05: the "infra-blocked colormap.pcx" diagnosis was WRONG.** Real cause = the Q2 demo pak is staged at /usr/share/quake2/baseq2/pak0.pak but yquake2's default datadir = its binary dir (/usr/bin) or "." → it searched the wrong baseq2 → `Couldn't load pics/colormap.pcx` (a MISSING PAK, not NFS flakiness). **Fix = launch with `+set basedir /usr/share/quake2`.** With it, yquake2 loads the pak, loads **demo1 (Outer Base)** — HDMI shows server init + "38 entities inhibited" + the Yamagi Quake II loading screen — and reaches the 3D render path (CL_PrepRefresh → LoadTexinfo → v3d-winsys TFU texture uploads to V3D). **Long capture (330s) 2026-08-05: map FULLY loads → `ca_active` (in-game): "models done", precache complete (pics/models/images/clients/sky), 0 faults — so the "slow load" was NOT the blocker, it finishes.** BUT the HDMI shows the **3D world view does NOT render**: only the console/loading text, in a **~640×480 bottom-left corner** of the 1920×1080 screen (rest black). Two concrete SDL2-path bugs (yQuake2 is the FIRST game on SDL2; quakespasm/vkQuake render fullscreen via the direct winsys, not SDL2): **(a) viewport/vid-resolution = 640×480 not 1920×1080** despite vid_fullscreen 2 (small corner) — NEXT TEST = launch `+set r_mode -1 +set r_customwidth 1920 +set r_customheight 1080`; **(b) 3D world black behind the (opaque) console** = likely the no-WSI fb0 scanout alpha class (3D writes alpha≈0 → dropped; console 2D alpha=1 shows) like [[project_vkquake_torches_dark_fullbright]] → fix = force alpha=1 in the SDL2 present path (sdl_phoenix_glctx.c/scanout). **Phase 1 DONE** (single static ELF, coord 3eaf810 tools/yquake2-port; yQuake2 pinned e27fdcce). Also remove leftover YQ2DIAG probes (local external/yquake2). See [[project_quake2_port]] |
+| C4 | W3 | Quake2 port (yQuake2) + open/shareware assets + demo+visual test | RENDERS 3D GAME ✅ | **2026-08-05: yQuake2 RENDERS THE 3D GAME on Phoenix/V3D via SDL2+ref_gl1.** HDMI (artifacts/hdmi/*-q2res-tick.png) shows the Outer Base level: textured walls/crates/health-box/ceiling, weapon viewmodel, crosshair, HUD (health/ammo), red particles, a corpse — all correct, 0 faults, ca_active. Launch: `/usr/bin/yquake2 +set basedir /usr/share/quake2 +set allow_download 0 +set vid_renderer gl1 +set vid_fullscreen 2 +set r_mode -1 +map demo1`. **Two earlier "blockers" resolved:** the colormap.pcx fatal was a MISSING PAK from the wrong datadir (fix=`+set basedir /usr/share/quake2`), NOT NFS infra; the 3D-view-not-rendering was `r_mode` defaulting to **4 = 640×480** (fix=`r_mode -1`), NOT the no-WSI alpha class (world renders fine — alpha hypothesis REFUTED). **Remaining polish (not blocking):** renders at ~1024×768 in the bottom-left (r_customwidth 1920 +set didn't stick → used the 1024×768 custom default); get fullscreen via `r_mode -2` (native, needs IsHighDPIaware) or fix why r_customwidth didn't apply (config.cfg override?). Also: remove leftover YQ2DIAG probes (local external/yquake2); bake the launch cvars into a config. **Phase 1 DONE** (single static ELF, coord 3eaf810 tools/yquake2-port; yQuake2 pinned e27fdcce). See [[project_quake2_port]] |
 | C5 | W3 | Quake3 port (quake3e/ioq3) + playable assets + demos | PHASE1-DONE | quake3e links to one static aarch64-phoenix ELF (168/168 TUs, 0 undef, 27MB, GetRefAPI/main/VM_Create resolved). tools/quake3-port/ pushed (6fb98f0+3d74441). QVM=no dlopen; msg_t clash beaten w/ 0 Q3 rename. Phase-2 runtime deferred (infra) |
 | C6 | W3 | SuperTuxKart (OpenGL fullscreen, GPU) | TODO | large |
 | D1 | W3 | X11 GPU-accelerated extensions (toward RPi-OS parity) | TODO | |
@@ -271,6 +271,21 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-05 (Quake2 RENDERS THE 3D GAME ✅ — a real milestone): Tested render hypothesis (a) by
+launching with `+set r_mode -1` (force custom mode instead of the default `r_mode 4` = 640×480).
+**Result: yQuake2 renders the 3D world** — HDMI (artifacts/hdmi/20260805-130206-q2res-tick.png,
+pixel-inspected) shows the Outer Base level with correct textured walls/crates/health-box/ceiling,
+the weapon viewmodel, crosshair, HUD (health 63 / ammo 57), red particle effects, and a corpse —
+0 faults, ca_active. **Root cause of "3D view doesn't render" was `r_mode` defaulting to 4 (640×480)
+→ 640px viewport in the corner; NOT the no-WSI alpha class (that hypothesis is REFUTED — the world
+renders with correct colors/lighting).** So C4 Quake2 is essentially working (renders the 3D game
+on V3D via SDL2+ref_gl1) — the 4th game engine proven on the port (after quakespasm, vkQuake, and
+Q3-link). **Remaining polish (non-blocking):** it renders at ~1024×768 in the bottom-left, not full
+1920×1080 — my `+set r_customwidth 1920` didn't take (used the 1024×768 custom default; likely a
+config.cfg archived-cvar override or a SetMode clamp). NEXT: try `r_mode -2` (native res, if the
+SDL2 driver sets IsHighDPIaware) or debug why r_customwidth didn't apply; then bake the working
+launch cvars into a config + remove the YQ2DIAG probes. Pi FREE.
 
 2026-08-05 (Quake2 fully loads to `ca_active`, but 3D view doesn't render — SDL2-path bug): Ran
 a 330s capture of `yquake2 +set basedir /usr/share/quake2 +set allow_download 0 +map demo1`. The

@@ -108,7 +108,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | E4 | W3 | ffmpeg port (tool+lib) + Pi HW decode accel | TODO | |
 | E5 | W3 | X11 video player (windowed + fullscreen) | TODO | after E4 |
 | B2 | W3 | Extend debugger to kernel/driver-side | TODO | after B1 |
-| H4 | W3 | AI-driven-journey article (git+conversation+memory analysis) | DRAFT | docs/AI-DRIVEN-PORT-JOURNEY.md — grounded draft (1427 coord commits over ~4.5mo): the arc, what was easy/hard for AI, the ~40-cycle torch bug + #67 false-metric + #156-race war-stories, observability techniques, the human's ground-truth impact, why hardware is hard for a text agent, the autonomous phase. Owner review/refine expected; extend as the journey continues |
+| H4 | W3 | AI-driven-journey article (git+conversation+memory analysis) | DRAFT (extended) | docs/AI-DRIVEN-PORT-JOURNEY.md — grounded draft: the arc, easy/hard for AI, war-stories (torch/alpha ~40 cycles, #67 false-metric, #156 race), observability, the human's ground-truth impact, why HW is hard for a text agent. **Extended 2026-08-05 (64f5466):** autonomous-phase section brought up to the fuller arc (Q2 fullscreen, vkQuake re-verified, Q3 engine+renderer banked, netboot fresh-kernel/stale-userspace fix, libm central gap-fill, libdbg corelib, Dillo HTTPS/mbedTLS) + 2 new distilled takeaways (distrust-your-diagnosis; know-when-to-bank-a-saga). Owner review/refine expected; keep extending as the journey continues |
 
 ---
 
@@ -271,6 +271,19 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-05 (H4 journey article extended to the fuller autonomous arc + lessons): With the plan
+tail mostly hard/risky/infra-blocked (games banked; E2 host-NAT too risky unattended), did the
+highest-value SAFE work — the owner's explicitly-requested "extend the journey article as it
+continues." Rewrote docs/AI-DRIVEN-PORT-JOURNEY.md's autonomous-phase section from the early-draft
+state (SDL2 + Q2-running) to the fuller arc (Q2 FULLSCREEN 3D, vkQuake re-verified, Q3 engine+
+renderer proven then banked at a VM-exec bug, the netboot fresh-kernel/stale-userspace root-cause+
+fix, central libm gap-fill + HW-validated regression test, the libdbg corelib, Dillo HTTPS via
+mbedTLS), and added 2 distilled takeaways: **distrust your own confident diagnosis** (the run
+mislabeled a missing pak as "NFS flakiness", a black 3D view as "alpha", an I-cache theory for a
+JIT crash — cheap distinguishing experiments beat unverified theories) and **know when to bank a
+saga** (drive to a precise root cause, then shelve — esp. unattended). Coord 64f5466. Distilled,
+not a changelog. Pi FREE.
 
 2026-08-05 (jpeg-guard bug FIXED + E3 HTTPS-runtime readiness ASSESSED — positive): Two safe,
 completable items (steered clear of E2 host-NAT — modifying the host netboot network unattended

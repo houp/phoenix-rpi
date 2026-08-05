@@ -1725,3 +1725,79 @@ Canonical sources for Pi 4 EL3 / cache / DMA setup, by topic:
 - Cortex-A72 MPCore Processor TRM (ARM DDI 0488).
 - GIC-400 TRM (ARM DDI 0471).
 - Generic Interrupt Controller architecture v2 spec (ARM IHI 0048).
+
+
+## Porting userspace applications & games
+
+Everything above is about the OS. This section is the other half: getting large existing
+C/C++ programs (SDL2, X11, QuakeSpasm, vkQuake, yQuake2) to run on the port. These lessons
+came from porting the Quake family + SDL2 to the RPi4.
+
+### Reuse upstream; keep a thin platform backend
+Port the *real* upstream source, not a reimplementation. Keep OS-specific code in a small
+backend (`tools/<name>-port/platform/pl_phoenix_*.c` + a `<name>-phoenix-port.patch`) plus a
+build script that cross-compiles and links. Far more maintainable than forking the app, and it
+tracks upstream. Same idea for a *library* (SDL2): a small patch set + overlay driver sources
+under `sources/phoenix-rtos-ports/<lib>/`.
+
+### Graphics reality: no WSI, no window system
+A fullscreen app renders into a `/dev/fb0`-backed surface the VideoCore scans out (see the V3D
+section). No X server required, no GL/Vulkan windowing.
+- **OpenGL**: get a context by calling Mesa directly — there is no EGL/GLX on Phoenix. GL entry
+  points link straight against `libGL-phoenix.a`; no `dlopen`/`GetProcAddress` table needed.
+- **Vulkan**: V3DV has no `VK_KHR_surface`/swapchain; apps calling `SDL_Vulkan_CreateSurface`
+  need a minimal fb0-backed WSI added to the ICD first.
+- **The alpha trap**: the scanout keys on color-buffer ALPHA — opaque geometry must write
+  alpha=1 or it vanishes on screen.
+
+### The dynamic-loader problem: there is no dlopen
+Phoenix has **no `dlopen`/`dlsym`** (no `dlfcn.h`; `SDL_dynapi` is off). Programs built around
+runtime-loaded shared objects must be **statically folded into one ELF**:
+- yQuake2 loads its renderer (`ref_gl1.so`) and game logic (`game.so`) via `Sys_LoadLibrary`.
+  Fix: a backend where `Sys_LoadLibrary`/`Sys_GetGameAPI` return the compiled-in
+  `GetRefAPI`/`GetGameAPI` directly; patch any file-existence check that gates the load; link
+  **exactly one** renderer (each defines the same export symbol).
+- Folding N `.so`s into one ELF surfaces **multiply-defined symbols**: shared TUs the build
+  compiled once per `.so` (`shared.c`, `md4.c`) must be compiled once; `-fcommon` merges
+  tentative globals; rename colliding initialized tables with a `-D`.
+
+### libc/system gaps
+Measure them by `nm`-ing the archives (undefined refs only surface at link — `-Wno-error`
+compiles hide them). Handle each by patching the app, or — preferably per project policy —
+**adding the function to libphoenix** so every future port benefits. Gaps seen: `dlopen`/`dlsym`
+(static-link), `realpath(x, NULL)` (glibc alloc form → pass a stack buffer),
+`pthread_getcpuclockid`, `pthread_{get,set}schedparam`, POSIX semaphores (SDL uses its generic
+sem), `mremap`.
+
+### Memory: no lazy demand-paging of large anonymous maps
+Phoenix does **not** demand-page large anonymous allocations — untouched pages translation-fault.
+So BSS + a big `malloc` hunk are effectively committed up front (the Quake ports `memset` the
+hunk to force it mapped). Implications:
+- Keep the linked **stack size** (`-z stack-size=`) only as large as needed; 32 MB suits a deep
+  recursive Vulkan renderer, but smaller lowers the committed footprint.
+- A large static footprint (tens of MB) raises exec pressure: binaries around **~19 MB and up
+  can intermittently fail to exec over NFS** (an ELF-load `-ENOMEM` path) — a known reliability
+  limit. Smaller footprint or SD-boot avoids it.
+
+### Asset & exec I/O is NFS-bound over netboot
+Over netboot the root is NFS; a 100 Mbps link (a crossover cable wires only 2 pairs) is slow and
+latency-bound. A game loading hundreds of textures from a pak, plus demand-paging a big binary's
+code, can take **minutes** for the first map. Infrastructure, not a port bug — **SD-boot** (local,
+read-ahead clustered) or a gigabit link makes it fast.
+
+### Input & audio
+Bind `/dev/kbd0` (raw 8-byte HID), `/dev/mouse0` (4-byte HID), `/dev/audio0` (PWM). The **`poll()`
+gotcha**: Phoenix `poll()` does not wake on HID fds — never block on it; drain non-blocking on a
+timer with a bounded per-frame read count. When reading raw HID, **carry partial (non-frame-
+aligned) bytes across reads** or you desync and fabricate input.
+
+### Networking
+Single-player uses the in-process loopback net driver — works. For Quake2, set **`allow_download
+0`**: with downloads on, the client tries to fetch a missing file over loopback and hangs the
+connect→precache handshake.
+
+### Build/link recipe
+Cross-compile with the repo toolchain (`.toolchain/aarch64-phoenix/bin/aarch64-phoenix-gcc`).
+Link circular archive sets (app → glue → Mesa; `libGL` ↔ `libv3d`) inside
+`-Wl,--start-group … --end-group`; add `-lstdc++ -lm` for Mesa's C++. Deploy the ELF to the NFS
+root `/usr/bin` (or bundle the biggest flagships in `loader.disk`) and run over netboot psh.

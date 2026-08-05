@@ -83,7 +83,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | G1 | W1 | Full code review (all repos): bugs/hacks/diagnostics/TODOs/comments/licensing → fix+test+commit | WIP | recon → docs/review/2026-08-04-autonomous-review-recon.md. Tier A (comment/TODO) DONE. Tier C tools/ headers DONE (6 files +%LICENSE%; fbdev_stub KEPT — still used by build-xfbdev.sh --stub). Pending: Tier B (diag removal, needs boot); Tier C _memset.S provenance (kernel→after Batch 3) + %LICENSE% tooling verify; kernel/libphoenix/project Tier A after A1 Batch 3 |
 | H1 | W1 | Docs cleanup + archive stale docs | TODO | |
 | H2 | W1 | Final Pi4 port-state documentation | TODO | after most ports land; start skeleton |
-| H3 | W1 | Pi4 OS-dev knowledge base (extend existing) | WIP | base = docs/knowledge/rpi4-os-development-guide.md. Added V3D GPU section (OpenGL+Vulkan) + Display(fb0/HDMI)&audio(PWM) section (mailbox fb alloc, tall-virtual-fb flip, /dev/audio0 PWM, userspace-MMIO-driver pattern). Still to add: storage+NFS-root, in-process debug facility, the ported-app stack (SDL2/X11/Quake) |
+| H3 | W1 | Pi4 OS-dev knowledge base (extend existing) | WIP | base = docs/knowledge/rpi4-os-development-guide.md. Added 3 sections: V3D GPU (GL+Vulkan), Display(fb0/HDMI)&audio(PWM), **Porting userspace apps & games** (reuse-upstream, no-WSI GL, dlopen→static, libc gaps, no-lazy-anon memory + ~19MB exec limit, NFS-bound I/O, input/audio gotchas, allow_download). Still to add: storage+NFS-root, in-process debug facility |
 | B1 | W1 | Generalize in-process debugger → reusable Phoenix debug library | TODO | from vkQuake debugger |
 | B3 | W1 | Debug-facility documentation | TODO | with B1 |
 | F1 | W2 | Resolve KNOWN ISSUES (kernel/system/libphoenix) | TODO | see docs/KNOWN-ISSUES.md; debugger-driven |
@@ -152,8 +152,17 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 ## Active task
 
-**C4 Quake2 Phase 2 — RUNS + loads maps + 2D renders; game VIEW not visible (console stuck
-open).** 2026-08-05 update: the earlier "black" with `+map base1` was a RED HERRING — base1.bsp
+**ROTATED to breadth (non-Pi) — netboot is too flaky for reliable Pi testing right now.**
+C4 Quake2 is BANKED at a well-documented state (see below): it runs, loads maps, renders 2D;
+the remaining blocker is **infrastructure** (100Mbps netboot NFS makes the ~100-texture map load
+take minutes + ~19MB binary intermittently fails to exec over NFS ~50% of boots), NOT a port bug.
+Doing NON-Pi work (docs, code analysis, upstream) for a while to broaden + sidestep the flaky
+netboot. When Pi testing resumes: SD-boot would make Quake2 fast+reliable (local, read-ahead
+clustered) — but the card is out (owner in netboot mode). Candidate non-Pi tasks: H3 doc sections
+(done: game-porting), H2 port-state doc, G1 code-review, A1 Batch 3 analysis, the large-binary
+exec-reliability kernel investigation (F1). vkQuake note: same infra constraints apply.
+
+**[BANKED] C4 Quake2 — RUNS + loads maps + 2D renders; full 3D load infra-bound.** 2026-08-05 update: the earlier "black" with `+map base1` was a RED HERRING — base1.bsp
 isn't in the demo pak ("Can't find maps/base1.bsp"). The demo pak has **maps/demo1|demo2|demo3.bsp**
 + demos/q2demo1.dm2. With **`+map demo1`** the map LOADS FULLY: "Outer Base" level title, 38
 entities inhibited, 1 team/2 entities, client_connect, 0 faults, `Multitexturing: Okay`,
@@ -238,6 +247,13 @@ video.c stale-history comments). `--scope core` build PASS; committed + pushed p
 stripped) — the fix was cherry-picked onto publish/master's tip via a worktree, NOT
 force-pushed. See [[project_git_topology]]. Kernel/libphoenix/project Tier A comment
 fixes intentionally NOT done yet (would worsen the A1 Batch 3 merges).
+
+ROTATION + infra conclusion (2026-08-05): a 5.5-min yquake2 confirm capture came back EMPTY
+(netboot flaky again — the ~19MB binary intermittently fails to exec over NFS; gltest at 18MB is
+reliable). So Quake2's remaining blocker is infrastructure (slow NFS + large-binary exec), not a
+port bug — BANKED. Rotated to non-Pi breadth: added the "Porting userspace apps & games" section
+to the OS-dev guide (H3) capturing all the SDL2/Quake porting lessons + infra gotchas. Continuing
+non-Pi work while netboot is unreliable.
 
 C4 Quake2 precache localized (2026-08-05): probes traced the "stall" to Mod_LoadTexinfo (wall
 textures) — but TFU uploads keep progressing (n=5..12+), so it's SLOW not hung: ~100 .wal reads

@@ -86,7 +86,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | H3 | W1 | Pi4 OS-dev knowledge base (extend existing) | WIP | base = docs/knowledge/rpi4-os-development-guide.md. Added 3 sections: V3D GPU (GL+Vulkan), Display(fb0/HDMI)&audio(PWM), **Porting userspace apps & games** (reuse-upstream, no-WSI GL, dlopen→static, libc gaps, no-lazy-anon memory + ~19MB exec limit, NFS-bound I/O, input/audio gotchas, allow_download). Still to add: storage+NFS-root, in-process debug facility |
 | B1 | W1 | Generalize in-process debugger → reusable Phoenix debug library | TODO | from vkQuake debugger |
 | B3 | W1 | Debug-facility documentation | TODO | with B1 |
-| F1 | W2 | Resolve KNOWN ISSUES (kernel/system/libphoenix) | WIP | **large-binary NFS-exec reliability** ROOT-CAUSED (docs/inprogress/2026-08-05-large-binary-exec-investigation.md): NOT -ENOMEM (status.md note stale) — it's the EAGER page-by-page BSS commit at exec (process_load64 anon vmmap + full hal_memset under map->lock; yquake2 26.5MB BSS = ~14k pages) → long exec window intermittently SILENT-HANGS over flaky netboot NFS. Mitigation #1 APPLIED: yquake2 stack 32MB→4MB (footprint 58→30MB, below gltest's reliable 32MB) — efficacy needs healthy-netboot multi-boot check. Proper fix (deferred): kernel lazy-demand-page exec-time anon / drop redundant memset |
+| F1 | W2 | Resolve KNOWN ISSUES (kernel/system/libphoenix) | WIP | **large-binary NFS-exec reliability** ROOT-CAUSED (docs/inprogress/2026-08-05-large-binary-exec-investigation.md): NOT -ENOMEM (status.md note stale) — it's the EAGER page-by-page BSS commit at exec (process_load64 anon vmmap + full hal_memset under map->lock; yquake2 26.5MB BSS = ~14k pages) → long exec window intermittently SILENT-HANGS over flaky netboot NFS. Stack trimmed 32→4MB (harmless). **REFRAMED 2026-08-05: the DOMINANT test-flakiness was NOT the exec-hang — it's the nfs-fs first-lookup ENOENT race (#156). WORKAROUND: `ls /usr/bin/<bin>` before exec (warms dircache) → reliable. yquake2 execs fine.** Exec-hang is a rarer secondary mode. Real fix = nfs-fs #156 (retry/populate dircache on first lookup, or exec-retry-ENOENT-once) |
 | F2 | W2 | OS perf (I/O, net, scheduling) + modern syscalls + measurements + wire ports to them | TODO | |
 | SD | W2 | SD-card driver: full speed + correctness (prior loop goal; folds into F1/F2) | WIP | reads IRQ, writes CMD13-poll done; perf=PIO throughput |
 | C1 | W2 | SDL2 port (fullscreen GL+Vulkan, kbd+mouse, sound); no X11 needed | PHASE-1 DONE | feasibility → docs/inprogress/2026-08-04-sdl2-port-plan.md. Phase-1 build plumbing DONE: ports/sdl2 (SDL 2.30.12, 4 patches: PHOENIX cmake branch + pthread + dynapi-off + sched-noop), libSDL2.a cross-builds+links (stock pthread backend), pushed org bdfe294. Phase-1 video+input driver DONE (patch 0005 + overlay/src/video/phoenix/ {video,opengl,events,framebuffer} + glue/{glctx GPL-copy,glstubs zlib}); libSDL2.a builds w/ SDL_VIDEO_DRIVER_PHOENIX + fullscreen-GL test LINKS (org 8671269). GPL-glue seam kept OUT of zlib libSDL2.a. **Pi GL-demo HW-VALIDATED (2026-08-04)**: sdl2-gltest = GL 2.1/V3D 4.2, 600 frames clean exit, 0 faults, 1920x1080 triple-buffer page-flip, fullscreen GL clear-color on HDMI. Audio driver DONE + HW-VALIDATED (2026-08-05): src/audio/phoenix/ (patch 0006, pull model /dev/audio0), sdl2-audiotest on Pi → "audio open: driver=phoenix 44100/S16/2ch", tone played, clean exit, 0 faults. org ports c191d20; project ports.yaml f82c334 (sdl2 registered `if:false` — no consumer yet). **SDL2 phase 1 COMPLETE**: fullscreen GL + input + audio all HW-validated. NEXT: **C4 Quake2 (yQuake2)** on SDL2. Vulkan=phase 2 (no V3DV WSI). See [[project_sdl2_port]] |
@@ -152,7 +152,17 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 ## Active task
 
-**Non-Pi breadth mode (netboot too flaky for reliable Pi testing).** This turn: **H2 port-state
+**BREAKTHROUGH 2026-08-05: netboot-test flakiness ROOT-CAUSED + WORKAROUND FOUND.** The intermittent
+"empty" game boots are `psh: /usr/bin/<bin> not found` = the **nfs-fs first-lookup ENOENT race (#156)**
+— the exec's FIRST access to the binary path ENOENTs before the Phoenix nfs-fs dircache is populated.
+**WORKAROUND (proven): run `ls -la /usr/bin/<bin>` as the FIRST psh command to warm the dircache,
+THEN exec** → reliable. Confirmed: `ls` then `/usr/bin/yquake2` → banner + ref_gl1 ran. So (a) games
+are now RELIABLY TESTABLE (prepend the ls-warm), (b) the yquake2 4MB-stack build execs FINE, (c) the
+F1 eager-BSS exec-hang was NOT the dominant failure — NFS-visibility was. Proper fix (#156, Phoenix
+nfs-fs): retry/populate the dircache on first lookup, or make exec retry ENOENT once. **This reopens
+reliable Pi game/vkQuake testing.**
+
+Non-Pi note: This turn also: **H2 port-state
 doc** — brought docs/inprogress/pi4-hardware-support-matrix.md up to date (fixed stale SMP/Vulkan/
 exec-reliability entries; added the Ported libraries & applications section for the vacation-period
 userspace work). Sustained-documentation work stream (H2/H1/H4) sidesteps the flaky netboot.

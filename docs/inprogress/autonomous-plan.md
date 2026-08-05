@@ -272,6 +272,25 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-05 (clean-build gate PASS + netboot-export-drift finding; libm HW-run still deferred):
+Set out to run the math_round libm test on real HW. Two wins + one key finding + one blocker:
+(1) **Clean-build gate**: staged ports (`--ports-only`: libnfs-6.0.2 + noted mbedtls/openssl
+available → relevant to E1 Dillo-HTTPS) then built a fresh `--variant nfsroot --with-tests` image
+reusing my cumulative core changes (rint/libm-family/libdbg) → **builds + verifies OK** (nfs-fs
+relinked fresh vs current libphoenix). First from-ports build since those changes → no cumulative
+breakage. (2) **CRITICAL finding — netboot export drifts from build** (new memory
+project_netboot_export_drift): the Pi netboots a FRESH kernel (TFTP from buildroot) but a
+HAND-MAINTAINED NFS root `/srv/phoenix-rpi4-nfs` (exportfs fsid=0) that does NOT auto-sync from the
+build (sync-netboot-tree.sh is a no-op). First Pi cycle → `psh: /bin/test-libc-math not found`
+(export stale). Fixed surgically (cp'd the fresh static test binary into the export). **This
+reframes game "runtime-read" failures: fresh-kernel vs stale-userspace syscall-ABI drift is a
+plausible alt cause of the Q2 colormap.pcx failure, not just NFS lease/reclaim.** (3) **Blocker**:
+the rerun boot hit **intermittent USB xHCI enumeration flakiness** (`xHC-CMD err: 19` retry storm →
+psh never reached), unrelated to the test (first boot enumerated mouse0/kbd0 fine). Stopped
+chasing the low-marginal-value HW-run (functions already host-validated vs glibc) per resilience.
+The test binary is now IN the export → a future clean boot is one step from completing the HW-run.
+Pi FREE.
+
 2026-08-05 (libm HW regression tests added; HW-run infra-deferred): Added a `math_round` test
 group to the Phoenix libc math suite (`phoenix-rtos-tests/libc/math/round.c` + main.c runner,
 commit b653851 pushed) covering the functions I recently added to the phoenix libm: rint/rintf/

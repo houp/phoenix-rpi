@@ -161,15 +161,27 @@ entities inhibited, 1 team/2 entities, client_connect, 0 faults, `Multitexturing
 stays open with the conback behind it** (not the 3D world) across BOTH `+map demo1` and
 `+demomap q2demo1.dm2` → the game 3D view never becomes active/visible.
 
-**NEXT (real blocker) = why the game view never activates / console stays open.** Leading
-hypothesis: our SDL2 phoenix video driver sends **no window focus/activation events**
-(SDL_WINDOWEVENT_FOCUS_GAINED / SHOWN), so yQuake2's client stays in the console/inactive state
-(conback shown, no world refdef) instead of switching to the active game view. Check
-SDL_phoenixvideo/events: on window create, post SHOWN + FOCUS_GAINED + INPUT focus so
-key_dest→game. Fallback hypotheses: (b) console truly stuck (try appending `+toggleconsole`);
-(c) if world then renders black → the no-WSI fb0 scanout alpha issue (force alpha=1 at present
-in the SDL2 GL glue, like the vkQuake torch fix). Minor: gamma unimpl, relative-mouse, exclusive
-fullscreen. See [[project_quake2_port]] [[project_sdl2_port]] [[project_vkquake_torches_dark_fullbright]].
+**Root cause narrowed to: client stalls in the connect→precache handshake** (cls.state never
+reaches ca_active → SCR_DrawConsole shows conback, cl_screen.c:559). RULED OUT: focus (driver
+already sets SHOWN|INPUT_FOCUS + SDL_SetKeyboardFocus), Sys_Milliseconds (standard/correct),
+main loop (Qcommon_Init runs it, "never returns" = upstream-identical, 2D renders prove frames
+run). Evidence: only **4 TFU texture uploads** (engine init textures, NOT the map's hundreds);
+"Outer Base" prints (serverdata received) but precache never runs. Handshake path: server
+svc_stufftext "precache" → CL_Precache_f (cl_main.c:529) → CL_RequestNextDownload (cl_download.c:76)
+→ CL_PrepRefresh (cl_view.c:240) → cls.state=ca_active (cl_parse.c:849).
+
+**INSTRUMENTATION BLOCKED by a delivery problem:** added 5 fprintf(stderr) probes at those
+points (in external/yquake2, LOCAL/uncommitted), rebuilt (140/140, md5 e8986b40), but 2 Pi runs
+produced **ZERO yQuake2 UART output — not even the startup banner** earlier same-binary runs
+showed. So either the ~19MB/47MB-bss binary's **NFS-exec is intermittently failing** (cf.
+status.md "~19MB binaries hit -ENOMEM at process_load:704") OR stdout/stderr isn't reaching UART.
+
+**NEXT:** (1) make diagnostics **FILE-BASED** — write the handshake trace to a file on the NFS
+root (e.g. /usr/share/quake2/yq2diag.txt) + read it host-side, bypassing console delivery;
+convert the 5 stderr probes to file appends. (2) In parallel, this exposes a **large-binary
+NFS-exec reliability** concern worth checking (does yquake2 exec every boot?). Fallback if the
+handshake proves a real loopback bug: inspect the Loop_* net driver message delivery. Minor:
+gamma unimpl, relative-mouse, exclusive-fullscreen. See [[project_quake2_port]] [[project_sdl2_port]].
 2026-08-05 Pi tests: yQuake2 with **`+set vid_fullscreen 2`** (desktop-fullscreen = use native
 mode, no mode-change) DISPLAY-TAKEOVER WORKS and yQuake2's **GL 2D renders to HDMI** (the
 drop-down console + green HUD text render via our SDL2+ref_gl1). But loading a level (`+map
@@ -214,6 +226,13 @@ video.c stale-history comments). `--scope core` build PASS; committed + pushed p
 stripped) — the fix was cherry-picked onto publish/master's tip via a worktree, NOT
 force-pushed. See [[project_git_topology]]. Kernel/libphoenix/project Tier A comment
 fixes intentionally NOT done yet (would worsen the A1 Batch 3 merges).
+
+C4 Quake2 handshake-diag (2026-08-05): narrowed the "console stuck" to the client stalling in
+the connect→precache handshake (never reaches ca_active; only 4 TFU init-texture uploads, not
+the map's hundreds). Ruled out focus/timing/main-loop. Added 5 fprintf(stderr) probes at the
+handshake fns + rebuilt (140/140), but 2 Pi runs gave ZERO yQuake2 UART output (not even the
+banner) → suspect large-binary NFS-exec flakiness or stdout/stderr not reaching UART. NEXT =
+FILE-BASED diagnostics (write trace to NFS-root file, read host-side) + check exec reliability.
 
 C4 Quake2 demo1 test (2026-08-05, 3 Pi cycles): "black world" was a RED HERRING — base1.bsp
 not in demo pak. Demo pak maps = demo1/demo2/demo3.bsp. `+map demo1` LOADS FULLY ("Outer Base",

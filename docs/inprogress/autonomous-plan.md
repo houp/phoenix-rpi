@@ -154,7 +154,14 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 ## Active task
 
-**vkQuake render VERIFIED (2026-08-05)** on the reliable pipeline: `map start` renders correctly
+**G1 Tier B — devices diagnostic cleanup** (now boot-verifiable via the reliable pipeline). A
+background subagent is REMOVING disproved instrumentation from sources/phoenix-rtos-devices
+(sdcard SDCARD_DIAG/SDREADDIAG, pcie debug() sites + diag-outbound, xhci USB-DBG/#129 dump,
+audio scout dumps) — behavior-preserving, keeps all recovery logic. It `--scope core` builds +
+commits LOCAL (no push). **When it reports: BOOT-VERIFY (one Pi cycle, reliable now) then push.**
+**Do NOT launch duplicate cleanup / another core build.** Serves the publication/upstreamability goal.
+
+**[DONE] vkQuake render VERIFIED (2026-08-05)** on the reliable pipeline: `map start` renders correctly
 (HDMI: textured walls/floor, QUAKE archway, lighting, sky, HUD, no visible striping, torch fix
 holding). vkQuake substantially DONE. The #156 harness fix delivered clean exec + render.
 Next vkQuake polish (low-pri): liquids on a water map, combat flicker, phantom-kbd.

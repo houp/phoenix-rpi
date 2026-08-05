@@ -11,19 +11,13 @@
 #include <pthread.h>
 #include <time.h>
 
-/* Phoenix's libm subset lacks rint(). quake3e's common.c uses it for
- * round-to-nearest; round-half-to-even matches the default FE_TONEAREST
- * behaviour of the standard rint(). */
+/* Phoenix's libm subset lacks rint(). quake3e's common.c uses it for simple
+ * round-to-nearest and does not depend on the standard's round-half-to-even
+ * tie rule, so round-half-away is both correct enough and obvious. */
 double
 rint(double x)
 {
-	double r = floor(x + 0.5);
-	/* fix the round-half-to-even tie case that floor(x+0.5) gets wrong */
-	if (fabs(x - (r - 0.5)) < 1e-9 && ((long long)r & 1))
-	{
-		r -= 1.0;
-	}
-	return r;
+	return (x < 0.0) ? ceil(x - 0.5) : floor(x + 0.5);
 }
 
 /* Mesa's util/u_thread.c references pthread_getcpuclockid for per-thread CPU

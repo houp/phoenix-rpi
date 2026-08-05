@@ -100,7 +100,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | E2 | W2 | Pi internet via host Linux router/proxy (NAT) | TODO | host-side network config |
 | E3 | W2 | Dillo displays live internet pages | TODO | after E1+E2 |
 | C4 | W3 | Quake2 port (yQuake2) + open/shareware assets + demo+visual test | WIP-infra-blocked | Decisive render test 2026-08-05 (reliable exec, 5.5min): yquake2 exec'd cleanly (banner) but FATAL `GetPCXPalette: Couldn't load pics/colormap.pcx` = intermittent RUNTIME NFS read failure (distinct from the #156 exec ENOENT; likely NFS lease-expiry/reclaim or stale host nfsd). So Quake2 render is blocked by **netboot NFS runtime-read reliability (infra)**, NOT a port bug — vkQuake/quakespasm render (their reads succeeded). SD-boot would fix (no card in). **Phase 1 DONE (2026-08-05)**: single static aarch64-phoenix ELF LINKS (undefs→0), coord 3eaf810 tools/yquake2-port/ (dlopen→static backend, ref_gl1 only, malloc-hunk, shared-TU dedup, -fcommon, port patch). yQuake2 pinned e27fdcce. ELF /tmp/yquake2-phoenix. See [[project_quake2_port]]. **Phase 2**: 2002-demo pak0.pak → NFS /usr/share/quake2/baseq2/ + Pi +playdemo demo1 + HDMI capture vs host gl1 |
-| C5 | W3 | Quake3 port (quake3e/ioq3) + playable assets + demos | WIP-build | feasibility DONE (plan doc); QVM sidesteps dlopen, opengl1 fits GL2.1; phase-1 link subagent running |
+| C5 | W3 | Quake3 port (quake3e/ioq3) + playable assets + demos | PHASE1-DONE | quake3e links to one static aarch64-phoenix ELF (168/168 TUs, 0 undef, 27MB, GetRefAPI/main/VM_Create resolved). tools/quake3-port/ pushed (6fb98f0+3d74441). QVM=no dlopen; msg_t clash beaten w/ 0 Q3 rename. Phase-2 runtime deferred (infra) |
 | C6 | W3 | SuperTuxKart (OpenGL fullscreen, GPU) | TODO | large |
 | D1 | W3 | X11 GPU-accelerated extensions (toward RPi-OS parity) | TODO | |
 | D2 | W3 | X11 GL/Vulkan windowed (GLX) + glxgears validation | TODO | |
@@ -271,6 +271,21 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-05 (C5 Quake3 phase-1 COMPLETE): The build subagent closed the link — quake3e cross-
+builds to a single static aarch64-phoenix ELF, **168/168 TUs, 0 undefined symbols**, 27MB, `T
+main`/`T GetRefAPI`/`T VM_Create` resolved (verified ELF at /tmp/quake3e-phoenix; reproducible).
+The no-dlopen QVM thesis held (GetRefAPI binds at link time; no game C compiled in). Pushed
+tools/quake3-port/ to org (6fb98f0 + 3d74441): build-quake3e-phoenix.py, platform/ (pl_phoenix_
+main/sys/stubs/compat), quake3e-phoenix-port.patch, README, COPYING. quake3e pinned SHA
+623982900a132e5c812dcb5231a430f28fafabeb in gitignored external/quake3e. **Reusable findings:**
+(1) the predicted top risk — Phoenix SysV `msg_t` vs Q3 net `msg_t` — was beaten with ZERO
+Q3-source rename via pl_phoenix_compat.h pre-parsing the Phoenix socket/msg header chain under a
+private rename so only Q3's msg_t is TU-visible; (2) `-DBOTLIB` needed for botlib TUs; (3)
+huffman.c's file-local `send()` shadowed POSIX send → Huff_send. **libc/libm gaps** stubbed in
+the port: `rint` (libm) + `pthread_getcpuclockid` (Mesa u_thread.c) — candidates to implement
+properly in libphoenix (standing rule), deferred (core change → needs --scope core + boot
+verify). Phase-2 runtime/render deferred per the infra caveat (needs reliable storage).
 
 2026-08-05 (F1 KNOWN-ISSUES refresh; Quake3 build still running): While the C5 phase-1
 build subagent grinds (no notification yet = still working; owns tools/quake3-port + external/

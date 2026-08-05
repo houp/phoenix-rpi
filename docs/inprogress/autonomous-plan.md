@@ -82,7 +82,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | ID | Wave | Task | Status | Notes |
 |----|------|------|--------|-------|
 | A1 | W0 | Upstream sync: pull all siblings, integrate, build, verify, push org | WIP | analysis DONE; Batch 1+2 MERGED+BUILT+BOOT-VERIFIED+PUSHED (manifest 2026-08-04-a1-batch2-done); only Batch 3 (kernel/libphoenix/project — careful) remains |
-| G1 | W1 | Full code review (all repos): bugs/hacks/diagnostics/TODOs/comments/licensing → fix+test+commit | WIP | recon → docs/review/2026-08-04-autonomous-review-recon.md. Tier A (comment/TODO) DONE. Tier C tools/ headers DONE (6 files +%LICENSE%; fbdev_stub KEPT — still used by build-xfbdev.sh --stub). Pending: Tier B (diag removal, needs boot); Tier C _memset.S provenance (kernel→after Batch 3) + %LICENSE% tooling verify; kernel/libphoenix/project Tier A after A1 Batch 3 |
+| G1 | W1 | Full code review (all repos): bugs/hacks/diagnostics/TODOs/comments/licensing → fix+test+commit | WIP | recon → docs/review/2026-08-04-autonomous-review-recon.md. Tier A (comment/TODO) DONE. Tier B **devices diagnostics REMOVED** (2026-08-05, -653 lines: sdcard/pcie/xhci/audio; --scope core OK; boot-verified 0 faults + audio/USB/NFS work; pushed devices 89ffe1c; manifest g1-devices-cleanup). Tier C tools/ headers DONE (6 files +%LICENSE%; fbdev_stub KEPT — still used by build-xfbdev.sh --stub). Pending: Tier B (diag removal, needs boot); Tier C _memset.S provenance (kernel→after Batch 3) + %LICENSE% tooling verify; kernel/libphoenix/project Tier A after A1 Batch 3 |
 | H1 | W1 | Docs cleanup + archive stale docs | TODO | |
 | H2 | W1 | Final Pi4 port-state documentation | WIP | primary state doc = docs/inprogress/pi4-hardware-support-matrix.md. Corrected stale entries (SMP now ✅ 4-core works, Vulkan ✅ textured 3D, exec-reliability→F1 finding) + added "Ported libraries & applications" section (Mesa GL/Vulkan, SDL2, X11, quakespasm/vkQuake/yQuake2, Dillo). Still: promote to a docs/-root doc + final polish when ports settle |
 | H3 | W1 | Pi4 OS-dev knowledge base (extend existing) | WIP | base = docs/knowledge/rpi4-os-development-guide.md. Added 3 sections: V3D GPU (GL+Vulkan), Display(fb0/HDMI)&audio(PWM), **Porting userspace apps & games** (reuse-upstream, no-WSI GL, dlopen→static, libc gaps, no-lazy-anon memory + ~19MB exec limit, NFS-bound I/O, input/audio gotchas, allow_download). Still to add: storage+NFS-root, in-process debug facility |
@@ -154,12 +154,13 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 ## Active task
 
-**G1 Tier B — devices diagnostic cleanup** (now boot-verifiable via the reliable pipeline). A
-background subagent is REMOVING disproved instrumentation from sources/phoenix-rtos-devices
-(sdcard SDCARD_DIAG/SDREADDIAG, pcie debug() sites + diag-outbound, xhci USB-DBG/#129 dump,
-audio scout dumps) — behavior-preserving, keeps all recovery logic. It `--scope core` builds +
-commits LOCAL (no push). **When it reports: BOOT-VERIFY (one Pi cycle, reliable now) then push.**
-**Do NOT launch duplicate cleanup / another core build.** Serves the publication/upstreamability goal.
+**[DONE] G1 Tier B devices cleanup** — removed 653 lines of disproved diagnostics (sdcard/pcie/
+xhci/audio), --scope core OK, boot-verified 0 faults (audio+USB enum+NFS all work), pushed
+(devices 89ffe1c, manifest 2026-08-05-g1-devices-cleanup). Functional recovery logic preserved.
+Next candidates (non-Pi-load-limited, publication/foundation): remaining G1 Tier B (plo dead
+diagnostic vectors, project armstub markers — careful, plo has NO real fault handling via the
+dead vector table), G1 Tier C _memset.S provenance, A1 Batch 3 (kernel merge, boot-verifiable
+now), or a new feature (Quake3 feasibility, Dillo internet). vkQuake/quakespasm/SDL2 all render.
 
 **[DONE] vkQuake render VERIFIED (2026-08-05)** on the reliable pipeline: `map start` renders correctly
 (HDMI: textured walls/floor, QUAKE archway, lighting, sky, HUD, no visible striping, torch fix

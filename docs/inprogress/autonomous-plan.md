@@ -152,16 +152,22 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 ## Active task
 
-**C4 Quake2 Phase 2 — first Pi boot DONE, one blocker to fix.** yQuake2 RUNS on the Pi:
-loaded pak0.pak (1106 files), ref_gl1, GL up on V3D 4.2 @1920x1080 triple-buffer, 0 faults.
-**BLOCKER (fix next):** our SDL2 phoenix video driver rejects yQuake2's mode-set with
-**"SDL SetVideoMode failed: Unknown pixel format"** → yQuake2 reverts to windowed 640x480 →
-never takes over the display, so HDMI stays on the fbcon TEXT console (GL render not shown).
-FIX = `sources/phoenix-rtos-ports/sdl2/overlay/src/video/phoenix/SDL_phoenixvideo.c`: report
-a valid SDL_PIXELFORMAT for the display mode + force fullscreen native (disable fbcon), so
-SDL_SetVideoMode/SetDisplayMode succeeds. This is a C1 SDL2 fix that helps ALL games. Then
-re-deploy + Pi test with `+demomap q2demo1.dm2`. Minor (defer): SDL relative-mouse unimpl,
-Sys_GetBinaryDir ("./"), config writes fail on RO-NFS. See [[project_quake2_port]] [[project_sdl2_port]].
+**C4 Quake2 Phase 2 — RUNS on Pi + 2D renders; 3D world view is BLACK (investigate).**
+2026-08-05 Pi tests: yQuake2 with **`+set vid_fullscreen 2`** (desktop-fullscreen = use native
+mode, no mode-change) DISPLAY-TAKEOVER WORKS and yQuake2's **GL 2D renders to HDMI** (the
+drop-down console + green HUD text render via our SDL2+ref_gl1). But loading a level (`+map
+base1`, even with gl1_overbrightbits 2 + intensity 3) → HDMI **pure black (max lum 0)** = the
+**3D WORLD VIEW does not draw** (2D works, 3D doesn't). 0 faults throughout.
+
+**NEXT (the real C4 blocker) = why the ref_gl1 3D world renders black on V3D.** Investigate
+like the vkQuake/quakespasm GL bring-up: is the world drawn at all (GL state: depth test,
+face cull, projection/modelview matrices, `glBegin` world surfaces), or drawn but invisible
+(matrix/viewport, or all-black lightmaps/textures). Also seen: `TFU vcheck ... VERTICAL-MISMATCH
+match=3/6` (texture-tiling mismatch, same class as vkQuake striping) and "Setting gamma failed"
+(SDL gamma unimplemented). Secondary C1 SDL2 fixes: gamma (SDL_SetWindowGammaRamp), optional
+exclusive-fullscreen "Unknown pixel format" (vid_fullscreen 1) — vid_fullscreen 2 is the
+workaround. Minor: SDL relative-mouse, Sys_GetBinaryDir, RO-NFS config writes.
+See [[project_quake2_port]] [[project_sdl2_port]] [[project_pi4_v3d_scout]].
 
 Note: coord working tree carries PRE-EXISTING uncommitted vkQuake/v3d WIP (v3dv_harness.c,
 vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis docs) from
@@ -191,6 +197,14 @@ video.c stale-history comments). `--scope core` build PASS; committed + pushed p
 stripped) — the fix was cherry-picked onto publish/master's tip via a worktree, NOT
 force-pushed. See [[project_git_topology]]. Kernel/libphoenix/project Tier A comment
 fixes intentionally NOT done yet (would worsen the A1 Batch 3 merges).
+
+C4 Quake2 Phase 2 render tests (2026-08-05): with `+set vid_fullscreen 2` the "Unknown pixel
+format" mode-set error is GONE (desktop-fullscreen uses the native mode, no mode-change) and
+yQuake2's GL output REACHES HDMI — its 2D console + green HUD text render via our SDL2 driver +
+ref_gl1 (display takeover works!). BUT `+map base1` renders PURE BLACK (3D world view doesn't
+draw; 2D does). gl1_overbrightbits/intensity didn't help → not just darkness. Also: TFU
+VERTICAL-MISMATCH (texture tiling) + gamma unsupported. 0 faults. Next = debug the black 3D
+world render (Active task). This is the last thing between us and Quake2 on screen.
 
 C4 Quake2 Phase 2 first Pi boot (2026-08-05): downloaded the legal Q2 2002 demo pak
 (deponie.yamagi.org, pak0.pak 49951322 bytes verified) → NFS /usr/share/quake2/baseq2/;

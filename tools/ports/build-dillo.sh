@@ -9,9 +9,18 @@
 #   - the X11 client closure         (/tmp/x11-phoenix  — libX11/libxcb/libXau/...)
 #   - the image libs png16/jpeg/zlib (from /tmp/x11-phoenix)
 #
-# FIRST BRING-UP = HTTP-ONLY BASELINE. Disabled because the backing libs are not
-# yet built as static host-prefix libraries Dillo can link:
-#   --disable-tls    no OpenSSL/mbedTLS host-prefix lib yet  -> no HTTPS (HTTP ok)
+# TLS/HTTPS = ENABLED via mbedTLS (task E1, KNOWN-ISSUE #70). Dillo 3.2.0 supports
+# both OpenSSL and mbedTLS; we force mbedTLS with --disable-openssl:
+#   - License: Dillo is GPLv3. mbedTLS is Apache-2.0, which is GPL-compatible.
+#     OpenSSL-1.1.1a carries the historical OpenSSL-license/GPL friction, so mbedTLS
+#     is the clean choice (and the one the task prefers).
+#   - The static mbedTLS closure (libmbedtls/libmbedx509/libmbedcrypto) plus its
+#     headers are already in the common Phoenix build dir (BUILDLIB/BUILDINC below);
+#     we point configure + the final link at them.
+# NOTE: this delivers an HTTPS-CAPABLE *build* (configure+link). End-to-end HTTPS
+# browsing (working platform entropy for mbedtls_ctr_drbg + a CA-cert bundle +
+# Pi internet/NAT) is task E2 and is NOT verified here.
+# Still disabled:
 #   --disable-webp   libwebp not ported
 # Everything else stays ENABLED — Phoenix's sysroot already provides the needed
 # primitives (png/jpeg/gif/svg images, cookies, threaded-dns via getaddrinfo,
@@ -39,6 +48,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/../.." && pwd)"
 
 TC=${ROOT}/.toolchain/aarch64-phoenix/bin/aarch64-phoenix-
 SYSROOT=${ROOT}/.buildroot/_build/aarch64a72-generic-rpi4b/sysroot
+# Common Phoenix build dir carrying the static mbedTLS closure (libmbedtls,
+# libmbedx509, libmbedcrypto) + its headers (mbedtls/*.h). Used for TLS/HTTPS.
+BUILDLIB=${ROOT}/.buildroot/_build/aarch64a72-generic-rpi4b/lib
+BUILDINC=${ROOT}/.buildroot/_build/aarch64a72-generic-rpi4b/include
 XPREFIX=/tmp/x11-phoenix            # READ-ONLY: shared X11 client lib stack
 FPREFIX=/tmp/fltk-phoenix          # READ-ONLY: FLTK 1.3.10 static libs + fltk-config
 PREFIX=/tmp/dillo-phoenix          # our own build/install prefix
@@ -54,6 +67,8 @@ fail() { echo "FAIL: $*"; exit 1; }
 [ -f "$FPREFIX/fltk-config" ]    || fail "$FPREFIX/fltk-config missing — run build-fltk.sh first"
 [ -f "$XPREFIX/lib/libX11.a" ]   || fail "$XPREFIX/lib/libX11.a missing — build the X11 client stack first"
 [ -f "$SHIM" ]                   || fail "$SHIM missing"
+[ -f "$BUILDLIB/libmbedtls.a" ]  || fail "$BUILDLIB/libmbedtls.a missing — build mbedtls-2.28.0 first (needed for TLS)"
+[ -f "$BUILDINC/mbedtls/ssl.h" ] || fail "$BUILDINC/mbedtls/ssl.h missing — mbedtls headers needed for TLS"
 
 mkdir -p "$SRC" "$PREFIX"
 
@@ -117,10 +132,16 @@ REAL=$FPREFIX/fltk-config
 case " \$* " in
 	*" --ldflags "*)
 		# -L paths from the real config, then the proven grouped closure.
-		printf '%s ' "-L$FPREFIX/lib" "-L$XPREFIX/lib" "--sysroot=$SYSROOT" "-L$SYSROOT/lib"
+		# NOTE: -L$BUILDLIB comes LAST so the shared image-lib names (z/png16/jpeg)
+		# keep resolving from XPREFIX; only the mbedtls libs are unique to BUILDLIB.
+		printf '%s ' "-L$FPREFIX/lib" "-L$XPREFIX/lib" "--sysroot=$SYSROOT" "-L$SYSROOT/lib" "-L$BUILDLIB"
+		# The mbedTLS closure sits INSIDE the group (before libc/libphoenix) so its
+		# imports into Phoenix libc resolve regardless of scan order. configure also
+		# appends LIBSSL_LIBS after this; that trailing duplicate is a harmless re-scan.
 		printf '%s ' "-Wl,--start-group" \\
 		  "-lfltk_images" "-lfltk" "-lpng16" "-ljpeg" "-lz" \\
 		  "-lX11" "-lxcb" "-lXau" "-lXdmcp" \\
+		  "-lmbedtls" "-lmbedx509" "-lmbedcrypto" \\
 		  "-lstdc++" "-lm" "-lphoenix" "-lc" \\
 		  "-Wl,--end-group"
 		echo
@@ -142,21 +163,33 @@ echo "=== fltk-config wrapper -> $WRAP ==="
 # so the build completes. NOTE: the socklen_t size mismatch is a latent RUNTIME
 # bug (getsockopt would write 8 bytes into a 4-byte stack slot) — flagged for the
 # attended runtime session; it does not affect the link-time deliverable.
-XCFLAGS="--sysroot=$SYSROOT -I$FPREFIX/include -I$XPREFIX/include -include $SHIM -O2 -Wno-error=incompatible-pointer-types -Wno-error=int-conversion"
-XLDFLAGS="--sysroot=$SYSROOT -L$FPREFIX/lib -L$XPREFIX/lib -L$SYSROOT/lib"
+XCFLAGS="--sysroot=$SYSROOT -I$FPREFIX/include -I$XPREFIX/include -I$BUILDINC -include $SHIM -O2 -Wno-error=incompatible-pointer-types -Wno-error=int-conversion"
+XLDFLAGS="--sysroot=$SYSROOT -L$FPREFIX/lib -L$XPREFIX/lib -L$SYSROOT/lib -L$BUILDLIB"
 
 # --- configure ---------------------------------------------------------------
+# TLS_MODE stamps config.status so a stale HTTP-only configure is redone when the
+# TLS decision changes (otherwise the [ ! -f config.status ] guard would silently
+# reuse a no-TLS build and the new flags would be ignored).
+TLS_MODE="tls-mbedtls-v1"
+if [ -f "$XDIR/config.status" ] && ! grep -q "$TLS_MODE" "$XDIR/.dillo-tls-mode" 2>/dev/null; then
+	echo "=== stale/HTTP-only configure detected — forcing reconfigure for $TLS_MODE ==="
+	rm -f "$XDIR/config.status"
+fi
 if [ ! -f "$XDIR/config.status" ]; then
-	echo "=== configuring $NV (HTTP-only: --disable-tls --disable-webp) ==="
+	echo "=== configuring $NV (TLS via mbedTLS: --enable-tls --disable-openssl; --disable-webp) ==="
 	( cd "$XDIR" && FLTK_CONFIG="$WRAP" ./configure \
 	    --host=aarch64-phoenix --build=x86_64-pc-linux-gnu --prefix="$PREFIX" \
-	    --disable-tls --disable-webp \
+	    --enable-tls --disable-openssl --disable-webp \
 	    --with-jpeg-lib="$XPREFIX/lib" --with-jpeg-inc="$XPREFIX/include" \
 	    CC=${TC}gcc CXX=${TC}g++ AR=${TC}ar RANLIB=${TC}ranlib \
 	    CFLAGS="$XCFLAGS" CXXFLAGS="$XCFLAGS" \
 	    CPPFLAGS="$XCFLAGS" LDFLAGS="$XLDFLAGS" \
 	    PKG_CONFIG=/bin/false \
 	    >/tmp/dillo-conf.log 2>&1 ) || { tail -50 /tmp/dillo-conf.log; fail "configure failed"; }
+	# Confirm configure actually selected mbedTLS, then stamp the TLS mode.
+	grep -q 'Using mbedTLS as TLS library' /tmp/dillo-conf.log \
+	    || fail "configure did not select mbedTLS — see /tmp/dillo-conf.log"
+	echo "$TLS_MODE" > "$XDIR/.dillo-tls-mode"
 fi
 
 # --- build -------------------------------------------------------------------
@@ -183,6 +216,21 @@ if ${TC}nm "$DILLO_BIN" 2>/dev/null | grep -q ' [TtRr] _\?XOpenDisplay'; then
 	echo "[OK] X11 (XOpenDisplay) linked into the binary"
 else
 	echo "[WARN] XOpenDisplay not found in binary — X11 closure may be missing"
+fi
+
+# Confirm the TLS/mbedTLS closure and Dillo's TLS glue actually made it in (task
+# E1 deliverable: an HTTPS-CAPABLE build). Runtime HTTPS (entropy + CA bundle +
+# Pi internet) is task E2 and is NOT exercised here.
+echo "=== TLS (mbedTLS) closure sanity (symbols in the binary) ==="
+if ${TC}nm "$DILLO_BIN" 2>/dev/null | grep -q 'mbedtls_ssl_init'; then
+	echo "[OK] mbedTLS (mbedtls_ssl_init) linked into the binary"
+else
+	echo "[WARN] mbedtls_ssl_init not found in binary — TLS closure may be missing"
+fi
+if ${TC}nm "$DILLO_BIN" 2>/dev/null | grep -q ' [TtRr] a_Tls_mbedtls_connect'; then
+	echo "[OK] Dillo TLS glue (a_Tls_mbedtls_connect) present"
+else
+	echo "[WARN] a_Tls_mbedtls_connect not found — tls_mbedtls.c may not be compiled in"
 fi
 
 echo "=== undefined symbols (nm -u) ==="

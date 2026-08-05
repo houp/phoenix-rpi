@@ -1551,6 +1551,35 @@ distribution, GPIO/clock/power/thermal/SDHCI snapshots, the PM
 watchdog reboot, a 4-thread CPU saturation benchmark. New entries
 are one function + one switch case.
 
+### In-process debugging: crash & hang backtraces (`libdbg`)
+
+Phoenix has **no ptrace** (so stock `gdbserver` does not drop in) and its signal handlers get
+**no `ucontext`** — the aarch64 ABI is the simple `sa_handler(int)` form. So a naive
+frame-pointer walk from inside a `SIGSEGV` handler only reaches the signal *plumbing*
+(`_signal_trampoline`, `_startc`), never the code that actually faulted. The fix is a small
+libphoenix hook plus a reusable library:
+
+1. **libphoenix enabler.** The kernel already memcpy's the interrupted `cpu_context_t` (with the
+   faulting `pc`, `sp`, and all `x[]` incl. `x29` = frame pointer) onto the user signal stack.
+   The aarch64 `_signal_trampoline` (`libphoenix/arch/aarch64/signal.S`) stashes that
+   `cpu_context_t*` into a global `_dbg_signal_ctx` (and the leaf/fault PC into `_dbg_signal_pc`,
+   because `signalCtx->pc` is overwritten with the handler address) before calling the handler.
+   This is a few instructions on the signal path and needs no kernel change.
+2. **`libdbg` corelib** (`phoenix-rtos-corelibs/libdbg`, link with `-fno-omit-frame-pointer`):
+   - `dbg_init()` installs handlers for `SIGSEGV/SIGILL/SIGBUS/SIGFPE/SIGABRT`; on a crash it
+     prints the faulting `pc` + a frame-pointer backtrace, then exits `128+signo`.
+   - `dbg_backtrace(tag)` prints a backtrace on demand — from a signal handler it unwinds the
+     **interrupted** code via `_dbg_signal_ctx`; otherwise it unwinds its caller.
+   - `dbg_arm_watchdog(secs)` arms a re-arming `SIGALRM`; when a process **hangs**, the timer
+     fires and the handler dumps a backtrace of wherever it is stuck — "process is wedged at
+     function X" without a reboot. This is exactly what localizing an engine's init hang needs.
+3. **Symbolize host-side**: `aarch64-phoenix-addr2line -f -e <elf> <printed return addresses>`
+   (or feed the addresses to `gdb`). Keep the deployed ELF unstripped.
+
+Because the whole facility is userspace + one static-linked trampoline tweak, you iterate by
+swapping the NFS binary only — the board stays booted. The arch-specific frame walk is guarded
+behind `__aarch64__`, so `libdbg` still builds (as a no-op backtrace) for other targets.
+
 ### Platform utilities discovered along the way
 
 While building Phoenix's diag-udp responder we exercised several

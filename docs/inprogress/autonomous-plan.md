@@ -86,8 +86,8 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | H1 | W1 | Docs cleanup + archive stale docs | TODO | |
 | H2 | W1 | Final Pi4 port-state documentation | WIP | primary state doc = docs/inprogress/pi4-hardware-support-matrix.md. Corrected stale entries (SMP now ✅ 4-core works, Vulkan ✅ textured 3D, exec-reliability→F1 finding) + added "Ported libraries & applications" section (Mesa GL/Vulkan, SDL2, X11, quakespasm/vkQuake/yQuake2, Dillo). Still: promote to a docs/-root doc + final polish when ports settle |
 | H3 | W1 | Pi4 OS-dev knowledge base (extend existing) | WIP | base = docs/knowledge/rpi4-os-development-guide.md. Added 3 sections: V3D GPU (GL+Vulkan), Display(fb0/HDMI)&audio(PWM), **Porting userspace apps & games** (reuse-upstream, no-WSI GL, dlopen→static, libc gaps, no-lazy-anon memory + ~19MB exec limit, NFS-bound I/O, input/audio gotchas, allow_download). Still to add: storage+NFS-root, in-process debug facility |
-| B1 | W1 | Generalize in-process debugger → reusable Phoenix debug library | TODO | from vkQuake debugger |
-| B3 | W1 | Debug-facility documentation | TODO | with B1 |
+| B1 | W1 | Generalize in-process debugger → reusable Phoenix debug library | DONE | libdbg corelib (phoenix-rtos-corelibs d026ff0): dbg_init/dbg_backtrace/dbg_arm_watchdog; --scope core + image verify OK, libdbg.a symbols confirmed. libphoenix trampoline enabler (_dbg_signal_ctx) already in place |
+| B3 | W1 | Debug-facility documentation | DONE | OS-dev guide "In-process debugging (libdbg)" section + dbg.h API docs + tools/dbg-probe pointer note |
 | F1 | W2 | Resolve KNOWN ISSUES (kernel/system/libphoenix) | WIP | **large-binary NFS-exec reliability** ROOT-CAUSED (docs/inprogress/2026-08-05-large-binary-exec-investigation.md): NOT -ENOMEM (status.md note stale) — it's the EAGER page-by-page BSS commit at exec (process_load64 anon vmmap + full hal_memset under map->lock; yquake2 26.5MB BSS = ~14k pages) → long exec window intermittently SILENT-HANGS over flaky netboot NFS. Stack trimmed 32→4MB (harmless). **#156 boot-order race FIXED 2026-08-05: the DOMINANT test-flakiness was psh running before the NFS takeover → `not found`. Fix: psh-interact.py waits for `registered / (takeover)` before sending commands (56bcdef) → netboot game tests RELIABLE (yquake2 3/3 clean). NO workaround needed.** Eager-BSS exec-hang = rarer secondary. Phoenix-side proper fix = plo boot-order gate (deferred) |
 | F2 | W2 | OS perf (I/O, net, scheduling) + modern syscalls + measurements + wire ports to them | TODO | |
 | SD | W2 | SD-card driver: full speed + correctness (prior loop goal; folds into F1/F2) | WIP | reads IRQ, writes CMD13-poll done; perf=PIO throughput |
@@ -271,6 +271,22 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-05 (B1+B3 DONE — libdbg reusable debug library): Promoted the aarch64 in-process
+backtrace facility (built while debugging the vkQuake/Quake hangs, HW-validated in tools/dbg-
+probe) into a first-class reusable corelib **`sources/phoenix-rtos-corelibs/libdbg`** (commit
+d026ff0, pushed). API: `dbg_init()` (crash handlers → PC + fp-backtrace, exit 128+signo),
+`dbg_backtrace(tag)` (context-aware: from a handler unwinds the INTERRUPTED code via libphoenix's
+`_dbg_signal_ctx`, else the caller), `dbg_arm_watchdog(secs)` (SIGALRM → dumps where a HANG is
+stuck, re-arms). The libphoenix enabler (trampoline stashing `_dbg_signal_ctx`/`_dbg_signal_pc`)
+was already in place from an earlier turn. Arch-specific frame walk guarded behind `__aarch64__`
+so the corelib builds for all targets. **Validation:** clean `-Wall -Wextra` cross-compile;
+wired into corelibs DEFAULT_COMPONENTS; `--scope core` + image verify OK; `nm` confirms
+dbg_init/dbg_backtrace/dbg_arm_watchdog in the built libdbg.a + dbg.h installed to the sysroot
+include dir. Behavior is identical to the HW-validated tools/dbg-probe code (pure relocation +
+style/arch-guard), so no Pi re-test. B3 docs: OS-dev guide "In-process debugging (libdbg)" section
+(mechanism + host addr2line workflow) + dbg.h API comments + a canonical-home pointer in tools/
+dbg-probe. Manifest 2026-08-05-libdbg-corelib.
 
 2026-08-05 (libphoenix libm: rounding/min-max family completed): Audited math.h-declared vs
 phoenix-libm-defined symbols (comm on nm of the built libphoenix.a) to find latent link-time

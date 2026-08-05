@@ -1,5 +1,9 @@
 /* Phoenix-RTOS aarch64 in-process debug/backtrace facility (UART). See dbg.c.
  *
+ * NOTE: this facility has been promoted to a reusable corelib — see
+ * sources/phoenix-rtos-corelibs/libdbg (link -ldbg, include <dbg.h>). This copy is kept as the
+ * standalone HW bring-up probe / test harness (test-dbg.c, test-sig.c). Prefer libdbg for new code.
+ *
  * Copyright 2026 Phoenix Systems  %LICENSE%
  */
 #ifndef PHX_DBG_H

@@ -272,6 +272,21 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-05 (netboot-export-drift FIXED + libm HW-VALIDATED — end-to-end win): Fixed the
+fresh-kernel/stale-userspace drift found last turn. **Root confirmed:** the NFS export
+`/srv/phoenix-rpi4-nfs` userspace was ~2 weeks stale (psh Jul 23) vs the Aug-5 kernel — nearly
+every base binary differed. **Fix (coord 8be79e4):** rewrote the deprecated no-op
+`scripts/sync-netboot-tree.sh` to rsync the built base rootfs into the export WITHOUT --delete
+(preserves hand-staged games/assets: baseq2, /usr/bin/yquake2, X11 configs, qdet captures; skips
+/dev,/proc,/tmp,/mnt) and wired it into `netboot-server-up.sh` so every netboot cycle serves
+userspace matching the kernel. Verified file-level (export base binaries now identical to build;
+assets preserved). **Then end-to-end on real HW:** fresh userspace booted clean + `/bin/test-libc-
+math -g math_round` → **6 Tests 0 Failures OK** → the rint/nearbyint/lrint/llrint/lround/llround/
+fdim/fmax/fmin/copysign libm functions are now **HW-VALIDATED on aarch64-Phoenix** (were host-only).
+The prior boot's USB `xHC-CMD err` was confirmed just intermittent flakiness (this boot enumerated
+mouse0/kbd0 fine). **Implication:** future netboot game/app tests now run userspace matching the
+kernel — this likely removes the ABI-drift class of "runtime-read" failures (worth re-testing Q2).
+
 2026-08-05 (clean-build gate PASS + netboot-export-drift finding; libm HW-run still deferred):
 Set out to run the math_round libm test on real HW. Two wins + one key finding + one blocker:
 (1) **Clean-build gate**: staged ports (`--ports-only`: libnfs-6.0.2 + noted mbedtls/openssl

@@ -178,7 +178,10 @@ if [ ! -f "$PREFIX/lib/libpng16.a" ]; then
 fi
 # libjpeg (IJG; WRaster's JPEG image backend — JPEG backgrounds/themes). Plain
 # autotools, no SIMD/NASM dep. Static.
-if [ ! -f "$PREFIX/lib/libjpeg.a" ]; then
+# Guard on BOTH the lib AND the header: `make install` installs both, but a partial/interrupted
+# tree can leave libjpeg.a without jpeglib.h — a lib-only guard would then skip the reinstall and
+# leave dependents (Dillo, WRaster) unable to find the header. Rebuild if EITHER is missing.
+if [ ! -f "$PREFIX/lib/libjpeg.a" ] || [ ! -f "$PREFIX/include/jpeglib.h" ]; then
 	fetch_extract jpeg-9e "https://www.ijg.org/files/jpegsrc.v9e.tar.gz"
 	( cd "$SRC/jpeg-9e" \
 	  && ./configure --host=aarch64-phoenix --prefix="$PREFIX" --disable-shared --enable-static \

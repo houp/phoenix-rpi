@@ -99,7 +99,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | E1 | W2 | Dillo HTTPS support | TODO | needs TLS (libphoenix/openssl?) |
 | E2 | W2 | Pi internet via host Linux router/proxy (NAT) | TODO | host-side network config |
 | E3 | W2 | Dillo displays live internet pages | TODO | after E1+E2 |
-| C4 | W3 | Quake2 port (yQuake2) + open/shareware assets + demo+visual test | WIP | **Phase 1 DONE (2026-08-05)**: single static aarch64-phoenix ELF LINKS (undefs→0), coord 3eaf810 tools/yquake2-port/ (dlopen→static backend, ref_gl1 only, malloc-hunk, shared-TU dedup, -fcommon, port patch). yQuake2 pinned e27fdcce. ELF /tmp/yquake2-phoenix. See [[project_quake2_port]]. **Phase 2**: 2002-demo pak0.pak → NFS /usr/share/quake2/baseq2/ + Pi +playdemo demo1 + HDMI capture vs host gl1 |
+| C4 | W3 | Quake2 port (yQuake2) + open/shareware assets + demo+visual test | WIP-infra-blocked | Decisive render test 2026-08-05 (reliable exec, 5.5min): yquake2 exec'd cleanly (banner) but FATAL `GetPCXPalette: Couldn't load pics/colormap.pcx` = intermittent RUNTIME NFS read failure (distinct from the #156 exec ENOENT; likely NFS lease-expiry/reclaim or stale host nfsd). So Quake2 render is blocked by **netboot NFS runtime-read reliability (infra)**, NOT a port bug — vkQuake/quakespasm render (their reads succeeded). SD-boot would fix (no card in). **Phase 1 DONE (2026-08-05)**: single static aarch64-phoenix ELF LINKS (undefs→0), coord 3eaf810 tools/yquake2-port/ (dlopen→static backend, ref_gl1 only, malloc-hunk, shared-TU dedup, -fcommon, port patch). yQuake2 pinned e27fdcce. ELF /tmp/yquake2-phoenix. See [[project_quake2_port]]. **Phase 2**: 2002-demo pak0.pak → NFS /usr/share/quake2/baseq2/ + Pi +playdemo demo1 + HDMI capture vs host gl1 |
 | C5 | W3 | Quake3 port (quake3e/ioq3) + playable assets + demos | TODO | |
 | C6 | W3 | SuperTuxKart (OpenGL fullscreen, GPU) | TODO | large |
 | D1 | W3 | X11 GPU-accelerated extensions (toward RPi-OS parity) | TODO | |
@@ -153,6 +153,15 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 `scripts/restore-integration-state.sh` can undo a bad batch.
 
 ## Active task
+
+**Quake2 decisive render test = infra-blocked (not a port bug).** 2026-08-05: reliable exec worked
+(banner), but yquake2 fatal-errored `Couldn't load pics/colormap.pcx` = intermittent RUNTIME NFS
+read failure (NFS lease-expiry/reclaim or stale host nfsd; the #156 exec fix doesn't cover runtime
+reads). vkQuake/quakespasm render because their reads happened to succeed. **Conclusion: the games
+are gated by netboot NFS reliability+speed (100Mbps + read flakiness) — an INFRA limit; SD-boot
+(local, no card in) would fix it. Stop chasing game full-render over flaky netboot.** Netboot NFS
+runtime-read reliability is a real KNOWN issue (lease/reclaim window) but a deep NFS effort. Pivot
+to non-game / non-Pi-heavy work: Quake3 feasibility (analysis), A1 Batch 3, more G1/docs.
 
 **H4 journey-article DRAFT written** (docs/AI-DRIVEN-PORT-JOURNEY.md) — the distinctive capstone
 the owner wanted: honest field report on the all-AI Pi4 port (easy vs hard for AI, the war-stories,

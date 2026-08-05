@@ -227,7 +227,12 @@ def main():
     # 32 MB stack matches the canonical rpi4 GL binary link.
     link = [TC] + objs + [
         "-Wl,--start-group", SDLLIB, GLLIB, V3DLIB, "-Wl,--end-group",
-        "-lstdc++", "-lm", "-Wl,-z,stack-size=33554432", "-o", ELF]
+        # 4 MB stack (was 32 MB). Quake2 uses only a few MB; the 32 MB was copied from the
+        # deep-recursion vkQuake link. Phoenix commits PT_GNU_STACK eagerly at exec, so a
+        # smaller stack cuts the exec-time eager-commit footprint (~58->~30 MB total, below
+        # the reliable ~32 MB of sdl2-gltest) — a candidate fix for the intermittent
+        # large-binary NFS-exec hang (see docs/inprogress/2026-08-05-large-binary-exec-investigation.md).
+        "-lstdc++", "-lm", "-Wl,-z,stack-size=4194304", "-o", ELF]
     r = run(link)
     if r.returncode == 0:
         print(f"=== LINK OK -> {ELF} ===")

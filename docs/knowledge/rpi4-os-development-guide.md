@@ -1774,10 +1774,15 @@ Phoenix does **not** demand-page large anonymous allocations — untouched pages
 So BSS + a big `malloc` hunk are effectively committed up front (the Quake ports `memset` the
 hunk to force it mapped). Implications:
 - Keep the linked **stack size** (`-z stack-size=`) only as large as needed; 32 MB suits a deep
-  recursive Vulkan renderer, but smaller lowers the committed footprint.
-- A large static footprint (tens of MB) raises exec pressure: binaries around **~19 MB and up
-  can intermittently fail to exec over NFS** (an ELF-load `-ENOMEM` path) — a known reliability
-  limit. Smaller footprint or SD-boot avoids it.
+  recursive Vulkan renderer, but Phoenix commits `PT_GNU_STACK` eagerly at exec, so a smaller
+  stack directly lowers the committed footprint.
+- A large **BSS** is the real cost: `process_load64` anon-maps it and `hal_memset`s it eagerly,
+  page-by-page under `map->lock` — a 26 MB BSS is ~14k pages committed synchronously during exec.
+  That long exec window intermittently **silently hangs** over the flaky netboot NFS (SMP
+  contention and/or a stalled per-page NFS text read) — NOT a clean `-ENOMEM` (that would print).
+  A binary with tens of MB of BSS exec's reliably ~50% over netboot. Mitigations: trim the linked
+  stack (cheap), boot from SD (local), or fix the kernel to demand-page exec-time anon (the proper
+  fix — makes exec O(1) in BSS size). See `docs/inprogress/2026-08-05-large-binary-exec-investigation.md`.
 
 ### Asset & exec I/O is NFS-bound over netboot
 Over netboot the root is NFS; a 100 Mbps link (a crossover cable wires only 2 pairs) is slow and

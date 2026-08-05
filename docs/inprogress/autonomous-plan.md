@@ -86,7 +86,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | H3 | W1 | Pi4 OS-dev knowledge base (extend existing) | WIP | base = docs/knowledge/rpi4-os-development-guide.md. Added 3 sections: V3D GPU (GL+Vulkan), Display(fb0/HDMI)&audio(PWM), **Porting userspace apps & games** (reuse-upstream, no-WSI GL, dlopen→static, libc gaps, no-lazy-anon memory + ~19MB exec limit, NFS-bound I/O, input/audio gotchas, allow_download). Still to add: storage+NFS-root, in-process debug facility |
 | B1 | W1 | Generalize in-process debugger → reusable Phoenix debug library | TODO | from vkQuake debugger |
 | B3 | W1 | Debug-facility documentation | TODO | with B1 |
-| F1 | W2 | Resolve KNOWN ISSUES (kernel/system/libphoenix) | TODO | see docs/KNOWN-ISSUES.md; debugger-driven |
+| F1 | W2 | Resolve KNOWN ISSUES (kernel/system/libphoenix) | WIP | **large-binary NFS-exec reliability** (real bottleneck): ~19MB/big-BSS binaries (yquake2 47MB) intermittently fail to exec over netboot NFS ~50%, while 18MB/small-BSS (gltest) is reliable. Root-cause+fix-plan subagent running (kernel exec/process_load + anon-memory commit). Fixing this unblocks reliable Pi game testing |
 | F2 | W2 | OS perf (I/O, net, scheduling) + modern syscalls + measurements + wire ports to them | TODO | |
 | SD | W2 | SD-card driver: full speed + correctness (prior loop goal; folds into F1/F2) | WIP | reads IRQ, writes CMD13-poll done; perf=PIO throughput |
 | C1 | W2 | SDL2 port (fullscreen GL+Vulkan, kbd+mouse, sound); no X11 needed | PHASE-1 DONE | feasibility → docs/inprogress/2026-08-04-sdl2-port-plan.md. Phase-1 build plumbing DONE: ports/sdl2 (SDL 2.30.12, 4 patches: PHOENIX cmake branch + pthread + dynapi-off + sched-noop), libSDL2.a cross-builds+links (stock pthread backend), pushed org bdfe294. Phase-1 video+input driver DONE (patch 0005 + overlay/src/video/phoenix/ {video,opengl,events,framebuffer} + glue/{glctx GPL-copy,glstubs zlib}); libSDL2.a builds w/ SDL_VIDEO_DRIVER_PHOENIX + fullscreen-GL test LINKS (org 8671269). GPL-glue seam kept OUT of zlib libSDL2.a. **Pi GL-demo HW-VALIDATED (2026-08-04)**: sdl2-gltest = GL 2.1/V3D 4.2, 600 frames clean exit, 0 faults, 1920x1080 triple-buffer page-flip, fullscreen GL clear-color on HDMI. Audio driver DONE + HW-VALIDATED (2026-08-05): src/audio/phoenix/ (patch 0006, pull model /dev/audio0), sdl2-audiotest on Pi → "audio open: driver=phoenix 44100/S16/2ch", tone played, clean exit, 0 faults. org ports c191d20; project ports.yaml f82c334 (sdl2 registered `if:false` — no consumer yet). **SDL2 phase 1 COMPLETE**: fullscreen GL + input + audio all HW-validated. NEXT: **C4 Quake2 (yQuake2)** on SDL2. Vulkan=phase 2 (no V3DV WSI). See [[project_sdl2_port]] |
@@ -152,15 +152,13 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 ## Active task
 
-**ROTATED to breadth (non-Pi) — netboot is too flaky for reliable Pi testing right now.**
-C4 Quake2 is BANKED at a well-documented state (see below): it runs, loads maps, renders 2D;
-the remaining blocker is **infrastructure** (100Mbps netboot NFS makes the ~100-texture map load
-take minutes + ~19MB binary intermittently fails to exec over NFS ~50% of boots), NOT a port bug.
-Doing NON-Pi work (docs, code analysis, upstream) for a while to broaden + sidestep the flaky
-netboot. When Pi testing resumes: SD-boot would make Quake2 fast+reliable (local, read-ahead
-clustered) — but the card is out (owner in netboot mode). Candidate non-Pi tasks: H3 doc sections
-(done: game-porting), H2 port-state doc, G1 code-review, A1 Batch 3 analysis, the large-binary
-exec-reliability kernel investigation (F1). vkQuake note: same infra constraints apply.
+**Non-Pi breadth mode (netboot too flaky for reliable Pi testing).** Active: **F1 large-binary
+NFS-exec reliability** — a root-cause+fix-plan subagent is analyzing the kernel exec/process_load
++ anon-memory-commit path (why ~19MB/big-BSS binaries fail NFS-exec ~50%). This is the real
+bottleneck; fixing it unblocks reliable Pi game testing (and possibly a cheap userspace mitigation
+= smaller yquake2 stack). C4 Quake2 BANKED (runs + loads maps + 2D; full 3D load infra-bound, not
+a port bug). Other non-Pi candidates queued: H2 port-state doc, more H3 sections, G1 code-review,
+A1 Batch 3 conflict analysis. SD-boot would make games fast+reliable but the card is out.
 
 **[BANKED] C4 Quake2 — RUNS + loads maps + 2D renders; full 3D load infra-bound.** 2026-08-05 update: the earlier "black" with `+map base1` was a RED HERRING — base1.bsp
 isn't in the demo pak ("Can't find maps/base1.bsp"). The demo pak has **maps/demo1|demo2|demo3.bsp**

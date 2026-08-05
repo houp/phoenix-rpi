@@ -272,6 +272,19 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-05 (libphoenix libm: rounding/min-max family completed): Audited math.h-declared vs
+phoenix-libm-defined symbols (comm on nm of the built libphoenix.a) to find latent link-time
+gaps, then filled the trivially-and-EXACTLY-implementable, commonly-hit subset (16 fns, commit
+50f007c pushed): `lrint/llrint/lrintf/llrintf`, `lround/llround/lroundf/llroundf`, `fdim/fdimf`,
+`fmax/fmaxf`, `fmin/fminf`, `copysign/copysignf`. All exact (no approximation): l*/ll* reuse
+rint()/round(); fmax/fmin/fdim use C99 NaN semantics; copysign uses the conv_t union like fabs;
+float variants delegate to double. **Validation (Pi-independent):** host unit test vs glibc
+across NaN/inf/signed-zero/ties = ALL PASS; clean `-Wall -Wextra` cross-compile; `--scope core`
++ image verify OK; symbols confirmed in rebuilt libphoenix.a. Manifest 2026-08-05-libphoenix-
+math-family. **Deliberately EXCLUDED** (not blindly implemented): all `long double` (*l) variants
+(aarch64 binary128 — hard), transcendentals (exp2/log2/expm1/log1p/erf/gamma/bessel — precision-
+critical), and nan/nanf (already a weak symbol). These stay as future demand-driven work.
+
 2026-08-05 (libphoenix libm: rint/nearbyint added — the C5 follow-up): Implemented the
 missing `rint`/`rintf`/`nearbyint`/`nearbyintf` in the phoenix libm (`sources/libphoenix/libm/
 phoenix/exp.c`, committed d61f4a3, pushed to org). **Root of the gap:** the phoenix libm
@@ -526,10 +539,11 @@ the bright default. Robustness fix candidate for I1.
 ## Next step
 
 **Immediate follow-ups (pick per turn):**
-- ~~libphoenix `rint`~~ **DONE 2026-08-05** (d61f4a3, --scope core validated). `pthread_
-  getcpuclockid` intentionally NOT done (needs kernel per-thread CPU-clock support; port stub
-  stays). If ever wanted: a `lrint`/`llrint`/`lroundf` sweep of the phoenix libm (math.h
-  declares them; verify which are missing) is the natural small follow-on.
+- ~~libphoenix `rint` + rounding/min-max family~~ **DONE 2026-08-05** (d61f4a3 + 50f007c,
+  --scope core validated). The remaining phoenix-libm gaps vs math.h are all HARD (long-double
+  *l variants = binary128; transcendentals exp2/log2/expm1/erf/gamma/bessel) — leave as demand-
+  driven (only implement when a real port link needs one, with a proper accuracy reference).
+  `pthread_getcpuclockid` still NOT done (needs kernel per-thread CPU-clock support; port stub stays).
 - **C1 SDL2 → ports.yaml wiring** so SDL2 is a first-class image component (games currently
   bundle libSDL2.a via their tools/ drivers; this makes it reusable). Build + boot verifiable.
 - Another game phase-1 (build-verifiable-without-Pi): only if it adds NEW capability — the

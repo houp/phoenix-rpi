@@ -508,10 +508,16 @@ the bright default. Robustness fix candidate for I1.
 
 ## Next step
 
-**Immediate (this turn's follow-up):** when the C5 Quake3 feasibility subagent reports,
-decide go/no-go on a **phase-1 build** (cross-link to a single ELF — verifiable WITHOUT the
-flaky netboot runtime). If QVM sidesteps dlopen and opengl1 fits GL 2.1, this is a clean,
-Pi-runtime-independent deliverable like Quake2's link phase.
+**Immediate follow-ups (pick per turn):**
+- **libphoenix `rint` + `pthread_getcpuclockid`** — the C5 build stubbed these in the port;
+  the standing rule is to implement missing libc/libm in libphoenix proper. `rint` (round to
+  nearest, ties-to-even, honoring rounding mode) benefits EVERY math-using port; both are
+  small. This is a CORE change → `--scope core` rebuild + a boot-verify (output-verifiable,
+  NOT vision). Clean, high-leverage, autonomous-safe. **Good next task.**
+- **C1 SDL2 → ports.yaml wiring** so SDL2 is a first-class image component (games currently
+  bundle libSDL2.a via their tools/ drivers; this makes it reusable). Build + boot verifiable.
+- Another game phase-1 (build-verifiable-without-Pi): only if it adds NEW capability — the
+  SDL2+GL+QVM/dlopen patterns are now proven across quakespasm/vkQuake/Q2/Q3.
 
 **Strategy note (2026-08-05):** game FULL-RENDER validation is INFRA-bound over netboot
 (100Mbps + runtime-read flakiness). vkQuake/quakespasm/SDL2 are already HW-render-validated;

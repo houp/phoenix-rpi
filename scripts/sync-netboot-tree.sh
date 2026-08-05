@@ -1,18 +1,44 @@
 #!/usr/bin/env bash
 #
-# Deprecated: kept as a no-op for back-compat with older callers.
+# Sync the freshly-built base rootfs into the netboot NFS-root export, so the userspace the
+# Pi mounts over NFS matches the kernel/bootfs served over TFTP from the buildroot.
 #
-# In the current architecture (en7 bridged into the phoenix-dev VM via
-# socket_vmnet, dnsmasq running inside the VM), there is no host-side
-# TFTP mirror — dnsmasq serves the bootfs directly from the buildroot.
-# Every rebuild is therefore live the moment it finishes, with no copy
-# step needed.
+# On the Linux dev host the netboot path serves TWO trees from different sources:
+#   - kernel + bootfs : TFTP, straight from the buildroot -> always current after a rebuild.
+#   - root filesystem : NFS, from RPI4B_NFS_EXPORT (default /srv/phoenix-rpi4-nfs).
+# The NFS root is a hand-maintained SUPERSET: the base rootfs PLUS hand-staged games/assets
+# (baseq2, /usr/bin/yquake2, X11 app configs, ...) that are not produced by a base build.
+# Nothing kept it in step with the build, so it drifted (observed 2026-08-05: ~2 weeks stale
+# userspace on a fresh kernel) -> syscall/errno ABI mismatches that masquerade as "NFS
+# runtime-read" failures. This script closes that gap.
 #
-# Older docs and scripts referenced this path, so we keep the entry
-# point but make it a clean exit.
+# We rsync WITHOUT --delete so hand-staged extras survive, and skip volatile/remounted dirs
+# (/dev, /proc, /tmp are re-bound at the nfs-fs takeover; /mnt is a mountpoint). Run it after a
+# rebuild and before a netboot cycle; netboot-server-up.sh calls it automatically.
 #
-
 set -euo pipefail
 
-printf 'sync-netboot-tree.sh: no-op (TFTP serves directly from buildroot in-VM)\n'
-exit 0
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+buildroot="${PHOENIX_BUILDROOT:-$repo/.buildroot}"
+target="${RPI4B_TARGET:-aarch64a72-generic-rpi4b}"
+src="$buildroot/_fs/$target/root"
+export_dir="${RPI4B_NFS_EXPORT:-/srv/phoenix-rpi4-nfs}"
+
+if [ ! -d "$export_dir" ]; then
+	printf 'sync-netboot-tree.sh: no NFS export at %s — nothing to sync (skipping)\n' "$export_dir"
+	exit 0
+fi
+if [ ! -d "$src" ]; then
+	printf 'sync-netboot-tree.sh: no built rootfs at %s — build first (skipping)\n' "$src"
+	exit 0
+fi
+
+printf 'sync-netboot-tree.sh: syncing base rootfs -> NFS export (no --delete; hand-staged assets preserved)\n'
+printf '  src: %s\n  dst: %s\n' "$src" "$export_dir"
+rsync -a \
+	--exclude=/dev \
+	--exclude=/proc \
+	--exclude=/tmp \
+	--exclude=/mnt \
+	"$src/" "$export_dir/"
+printf 'sync-netboot-tree.sh: done\n'

@@ -38,4 +38,9 @@ export PHOENIX_BUILDROOT="${PHOENIX_BUILDROOT:-$repo/.buildroot}"
 export RPI4B_NETBOOT_TFTPROOT="${RPI4B_NETBOOT_TFTPROOT:-$PHOENIX_BUILDROOT/_boot/aarch64a72-generic-rpi4b/rpi4b-bootfs}"
 export RPI4B_NETBOOT_STATE_DIR="${RPI4B_NETBOOT_STATE_DIR:-$repo/artifacts/netboot}"
 
+# Keep the NFS root in step with the freshly-built kernel: sync the base rootfs into the export
+# (preserving hand-staged games/assets) so userspace matches the TFTP-served kernel. Without this
+# the export drifts and stale userspace hits syscall/errno ABI mismatches vs the fresh kernel.
+"$repo/scripts/sync-netboot-tree.sh" || printf 'netboot-server-up.sh: WARN sync-netboot-tree failed (continuing)\n'
+
 exec "$repo/scripts/netboot-server.sh" up

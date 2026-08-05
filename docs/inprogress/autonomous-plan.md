@@ -99,7 +99,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | E1 | W2 | Dillo HTTPS support | TODO | needs TLS (libphoenix/openssl?) |
 | E2 | W2 | Pi internet via host Linux router/proxy (NAT) | TODO | host-side network config |
 | E3 | W2 | Dillo displays live internet pages | TODO | after E1+E2 |
-| C4 | W3 | Quake2 port (yQuake2) + open/shareware assets + demo+visual test | WIP-infra-blocked | Decisive render test 2026-08-05 (reliable exec, 5.5min): yquake2 exec'd cleanly (banner) but FATAL `GetPCXPalette: Couldn't load pics/colormap.pcx` = intermittent RUNTIME NFS read failure (distinct from the #156 exec ENOENT; likely NFS lease-expiry/reclaim or stale host nfsd). So Quake2 render is blocked by **netboot NFS runtime-read reliability (infra)**, NOT a port bug — vkQuake/quakespasm render (their reads succeeded). SD-boot would fix (no card in). **Phase 1 DONE (2026-08-05)**: single static aarch64-phoenix ELF LINKS (undefs→0), coord 3eaf810 tools/yquake2-port/ (dlopen→static backend, ref_gl1 only, malloc-hunk, shared-TU dedup, -fcommon, port patch). yQuake2 pinned e27fdcce. ELF /tmp/yquake2-phoenix. See [[project_quake2_port]]. **Phase 2**: 2002-demo pak0.pak → NFS /usr/share/quake2/baseq2/ + Pi +playdemo demo1 + HDMI capture vs host gl1 |
+| C4 | W3 | Quake2 port (yQuake2) + open/shareware assets + demo+visual test | RENDERS (loads pak+map) | **2026-08-05: the "infra-blocked colormap.pcx" diagnosis was WRONG.** Real cause = the Q2 demo pak is staged at /usr/share/quake2/baseq2/pak0.pak but yquake2's default datadir = its binary dir (/usr/bin) or "." → it searched the wrong baseq2 → `Couldn't load pics/colormap.pcx` (a MISSING PAK, not NFS flakiness). **Fix = launch with `+set basedir /usr/share/quake2`.** With it, yquake2 loads the pak, loads **demo1 (Outer Base)** — HDMI shows server init + "38 entities inhibited" + the Yamagi Quake II loading screen — and reaches the 3D render path (CL_PrepRefresh → LoadTexinfo → v3d-winsys TFU texture uploads to V3D). Ran to the 110s capture cutoff still uploading (slow-NFS map load). **Phase 1 DONE** (single static ELF, coord 3eaf810 tools/yquake2-port; yQuake2 pinned e27fdcce). Remaining: longer capture to reach the in-game 3D view + confirm full render (HDMI showed console/loading region, mostly black — likely pre-3D-view state); remove leftover YQ2DIAG probes (local external/yquake2). See [[project_quake2_port]] |
 | C5 | W3 | Quake3 port (quake3e/ioq3) + playable assets + demos | PHASE1-DONE | quake3e links to one static aarch64-phoenix ELF (168/168 TUs, 0 undef, 27MB, GetRefAPI/main/VM_Create resolved). tools/quake3-port/ pushed (6fb98f0+3d74441). QVM=no dlopen; msg_t clash beaten w/ 0 Q3 rename. Phase-2 runtime deferred (infra) |
 | C6 | W3 | SuperTuxKart (OpenGL fullscreen, GPU) | TODO | large |
 | D1 | W3 | X11 GPU-accelerated extensions (toward RPi-OS parity) | TODO | |
@@ -271,6 +271,21 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-05 (Quake2 UNBLOCKED — "infra-blocked" was a MISDIAGNOSIS): Re-tested Q2 on the fresh-
+synced userspace to check the colormap.pcx failure. Found the real cause: **baseq2 in the game's
+default datadir had NO pak** — the Q2 demo pak0.pak is staged at `/usr/share/quake2/baseq2/` but
+yquake2's default datadir is its binary dir (`/usr/bin`) or `.`, so it searched the wrong path →
+`Couldn't load pics/colormap.pcx` = a MISSING PAK, **not** the NFS lease/reclaim "runtime-read
+flakiness" the board claimed. **Fix = `+set basedir /usr/share/quake2`** (the basedir cvar →
+FS datadir; verified by reading external/yquake2 filesystem.c). Relaunched → yquake2 loaded the
+pak + loaded **demo1 (Outer Base)**: HDMI shows "Game is baseq2 built on Aug 5 2026", server init,
+"38 entities inhibited", the Yamagi Quake II loading screen; UART shows CL_PrepRefresh → LoadTexinfo
+→ v3d-winsys TFU **texture uploads to the V3D GPU** (ran to the 110s capture cutoff still loading —
+slow-NFS map). So **Quake2 loads pak+map+renderer and reaches the 3D render path** — C4 is
+substantially working, not infra-blocked. Corrected the false "colormap.pcx = NFS runtime-read"
+story in memory [[project_large_binary_exec_hang]]. Remaining: longer capture to reach the in-game
+3D view (HDMI so far = console/loading, mostly black); clean up leftover YQ2DIAG probes. Pi FREE.
 
 2026-08-05 (netboot-export-drift FIXED + libm HW-VALIDATED — end-to-end win): Fixed the
 fresh-kernel/stale-userspace drift found last turn. **Root confirmed:** the NFS export

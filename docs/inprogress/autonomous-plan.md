@@ -272,6 +272,21 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-05 (F1 KNOWN-ISSUES refresh; Quake3 build still running): While the C5 phase-1
+build subagent grinds (no notification yet = still working; owns tools/quake3-port + external/
+quake3e, so I stayed clear), did an independent, autonomous-safe, non-vision task: refreshed
+`docs/KNOWN-ISSUES.md` (2026-07-22 → 2026-08-05, committed+pushed 8ef82a2). (a) Condensed the
+huge #67 alias-model saga to its TRUE resolved state — quakespasm `3d742a3` (verified in
+external/quakespasm): single-pose VBO crossing a 4KB page = deterministic data-dependent V3D
+fetch bug, `vboposes=numposes`; kept the false-positive-metric lesson. (b) Added a system-level
+limitation documenting **netboot NFS-root reliability** (the two flakiness modes: boot-order
+race + transient runtime read failures on 100Mbps) and recommending SD-boot / gigabit for
+asset-heavy use — capturing this run's game-render infra finding for the public release.
+**Explicitly deferred vkQuake I1 (lightmap) per my own scoping rule:** it's a rendering-
+correctness bug I couldn't reproduce and can't get owner ground-truth on while owner is away
+(screenshot-needing → defer in unattended mode; #67 taught: don't trust a fix for a bug you
+can't reproduce). SD-driver work also deferred (no card in Pi → untestable). Pi FREE, untouched.
+
 2026-08-05 (C5 feasibility DONE → phase-1 build launched): Quake3 feasibility subagent
 reported (plan `docs/inprogress/2026-08-05-quake3-port-plan.md`). Verdict: **feasible and
 structurally SIMPLER than Quake2** — Q3 game logic is interpreted QVM bytecode shipped as data

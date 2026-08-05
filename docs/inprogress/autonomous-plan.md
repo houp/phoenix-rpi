@@ -310,6 +310,20 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-05 (vkQuake +map: decisive dx, then BANKED per my own "know-when-to-bank" lesson): Re-opened
++map (the gate to loading vkQuake test maps for the liquid/lightmap work the owner wants), this time
+diagnosing instead of guessing. Confirmed `argc=4` (the process DOES receive 4 tokens). Moved the
+"+map" scan to the PRISTINE argv *before* COM_InitArgv (COM_InitArgv rewrites argv in place) — but it
+STILL found no "+map" token. Added an argv[] dump — which didn't surface on UART (userspace printf→
+stdout is unreliable post-fbcon-takeover; only Sys_Printf reaches UART reliably). **Finding: argc=4 but
+the pristine argv has no "+map" token where a standard scan expects it — Phoenix's argv marshaling to
+the process (psh/exec) is non-standard; cracking it needs a `Sys_Printf` dump of a SAVED pristine-argv
+copy AFTER Sys_Init to see the real tokens.** That's 5-6 build/Pi cycles on a LOW-PRI item (I2 liquids
+already OK per the e1m2 verification) — so I applied the H4 "know when to bank a saga" lesson to myself:
+**reverted to clean** (source pristine, rpi4-vkquake redeployed byte-identical to known-good ca9cd342)
+and banked +map with the precise resume-hint above. No net change. Lesson reinforced: diagnose (Sys_Printf,
+not printf) BEFORE editing; don't spend 6 cycles on low-pri polish. Pi FREE.
+
 2026-08-05 (Owner resume-guide added — deferred items gathered with precise resume-hints):
 Re-scanned the full task table; confirmed every remaining TODO is defer-appropriate unattended
 (A1 risky kernel merge; E2/E3 host-NAT risk; C3/I1/I3 need Pi+interactive/visual verify — I3's

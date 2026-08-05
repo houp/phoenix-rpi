@@ -99,7 +99,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | E1 | W2 | Dillo HTTPS support | TODO | needs TLS (libphoenix/openssl?) |
 | E2 | W2 | Pi internet via host Linux router/proxy (NAT) | TODO | host-side network config |
 | E3 | W2 | Dillo displays live internet pages | TODO | after E1+E2 |
-| C4 | W3 | Quake2 port (yQuake2) + open/shareware assets + demo+visual test | RENDERS 3D GAME ✅ | **2026-08-05: yQuake2 RENDERS THE 3D GAME on Phoenix/V3D via SDL2+ref_gl1.** HDMI (artifacts/hdmi/*-q2res-tick.png) shows the Outer Base level: textured walls/crates/health-box/ceiling, weapon viewmodel, crosshair, HUD (health/ammo), red particles, a corpse — all correct, 0 faults, ca_active. Launch: `/usr/bin/yquake2 +set basedir /usr/share/quake2 +set allow_download 0 +set vid_renderer gl1 +set vid_fullscreen 2 +set r_mode -1 +map demo1`. **Two earlier "blockers" resolved:** the colormap.pcx fatal was a MISSING PAK from the wrong datadir (fix=`+set basedir /usr/share/quake2`), NOT NFS infra; the 3D-view-not-rendering was `r_mode` defaulting to **4 = 640×480** (fix=`r_mode -1`), NOT the no-WSI alpha class (world renders fine — alpha hypothesis REFUTED). **Remaining polish (not blocking):** renders at ~1024×768 in the bottom-left (r_customwidth 1920 +set didn't stick → used the 1024×768 custom default); get fullscreen via `r_mode -2` (native, needs IsHighDPIaware) or fix why r_customwidth didn't apply (config.cfg override?). Also: remove leftover YQ2DIAG probes (local external/yquake2); bake the launch cvars into a config. **Phase 1 DONE** (single static ELF, coord 3eaf810 tools/yquake2-port; yQuake2 pinned e27fdcce). See [[project_quake2_port]] |
+| C4 | W3 | Quake2 port (yQuake2) + open/shareware assets + demo+visual test | DONE — FULLSCREEN 3D ✅ | **2026-08-05: yQuake2 RENDERS THE FULL 3D GAME FULLSCREEN (1920×1080) on Phoenix/V3D via SDL2+ref_gl1.** HDMI (artifacts/hdmi/20260805-133244-q2fs-tick.png) = the Outer Base level filling the whole screen: textured walls, Strogg-logo crates, green grates, central pillar + archway, health box, **an enemy Strogg in the distance**, weapon viewmodel, crosshair, full HUD (health 100 / ammo 58 / weapon icon), correct lighting/perspective, 0 faults, ca_active. Launch: `/usr/bin/yquake2 +set basedir /usr/share/quake2 +set allow_download 0 +set vid_renderer gl1 +set vid_fullscreen 2 +set r_mode -1 +map demo1` (with r_customwidth/height 1920/1080 in baseq2/config.cfg). **3 misdiagnoses corrected:** colormap.pcx = missing pak/wrong datadir (fix basedir), NOT NFS infra; corner-render = `r_mode` default 4=640×480 (fix r_mode -1); resolution = config.cfg archived r_customwidth 1024 overriding the early +set (fix = set 1920×1080 in config.cfg). The no-WSI alpha hypothesis was REFUTED. yQuake2 = **4th engine on the port** (quakespasm, vkQuake, Q3-link, now Q2 fullscreen). Single static ELF (coord 3eaf810 tools/yquake2-port; pinned e27fdcce). Minor remaining: remove YQ2DIAG probes (local); check for the winsys TFU striping under motion. See [[project_quake2_port]] |
 | C5 | W3 | Quake3 port (quake3e/ioq3) + playable assets + demos | PHASE1-DONE | quake3e links to one static aarch64-phoenix ELF (168/168 TUs, 0 undef, 27MB, GetRefAPI/main/VM_Create resolved). tools/quake3-port/ pushed (6fb98f0+3d74441). QVM=no dlopen; msg_t clash beaten w/ 0 Q3 rename. Phase-2 runtime deferred (infra) |
 | C6 | W3 | SuperTuxKart (OpenGL fullscreen, GPU) | TODO | large |
 | D1 | W3 | X11 GPU-accelerated extensions (toward RPi-OS parity) | TODO | |
@@ -271,6 +271,20 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-05 (Quake2 FULLSCREEN 3D ✅ — C4 DONE): Fixed the last polish item — the ~1024×768 corner
+render. Root cause: `baseq2/config.cfg` had archived `r_customwidth "1024"` / `r_customheight "768"`
+which override the early `+set` (config exec runs after early +set commands). Fixed by editing the
+config (sudo; it's root-owned via no_root_squash) to 1920/1080. Relaunched → **yQuake2 renders the
+full 3D game FULLSCREEN at 1920×1080** (HDMI artifacts/hdmi/20260805-133244-q2fs-tick.png, pixel-
+inspected): the Outer Base level fills the screen — textured walls, Strogg-logo crates, green
+grates, central pillar + archway, health box, an enemy Strogg in the distance, weapon viewmodel,
+crosshair, full HUD (health 100 / ammo 58), correct lighting, 0 faults, ca_active. **C4 Quake2 is
+DONE** — a full, correct, fullscreen 3D game render on Phoenix/V3D via the SDL2 path (the 4th engine
+after quakespasm, vkQuake, Q3-link). Over the last 3 turns I corrected THREE stacked misdiagnoses
+(colormap.pcx="NFS infra", 3D-black="alpha", corner="unfixable") — all were config/launch issues,
+not port/infra bugs. Minor cleanup left: remove the local YQ2DIAG probes; watch for TFU striping
+under motion. Pi FREE.
 
 2026-08-05 (Quake2 RENDERS THE 3D GAME ✅ — a real milestone): Tested render hypothesis (a) by
 launching with `+set r_mode -1` (force custom mode instead of the default `r_mode 4` = 640×480).

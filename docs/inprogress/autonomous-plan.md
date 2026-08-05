@@ -272,6 +272,23 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-05 (libm HW regression tests added; HW-run infra-deferred): Added a `math_round` test
+group to the Phoenix libc math suite (`phoenix-rtos-tests/libc/math/round.c` + main.c runner,
+commit b653851 pushed) covering the functions I recently added to the phoenix libm: rint/rintf/
+nearbyint/nearbyintf (ties-to-even + signed-zero + NaN/inf), lrint/llrint vs lround/llround
+(ties-even vs ties-away), fdim/fdimf, fmax/fmaxf, fmin/fminf (C99 NaN semantics), copysign/
+copysignf. Expected values verified vs glibc; test cross-compiles clean (all TEST_math_round_*
+symbols generated). **Intended to run it on real HW over netboot, but hit an infra blocker:** the
+**nfsroot** variant's nfs-fs links the **libnfs port**, which is only staged by the `ports` build
+stage — and the default/auto scope with dirty `phoenix-rtos-tests` forces `clean host core project
+image` (NO `ports`), so `--variant nfsroot --with-tests` fails `fatal error: nfsc/libnfs.h`. Only
+`--scope full-clean` includes `ports` (a ~20min from-scratch rebuild). Given the functions are
+already host-validated vs glibc and integer-exact (HW double FP handles them trivially), the HW-
+run's marginal benefit is low vs a full-clean's cost, so I deferred it rather than rabbit-hole
+(resilience rule). The test is committed + will run in CI / a future full-build turn. **Reusable
+finding:** to run tests OR games on netboot after a tests-dirty tree, use `--scope full-clean
+--with-tests --variant nfsroot` (stages libnfs) — a bare `--with-tests` won't stage libnfs.
+
 2026-08-05 (H3 DONE — knowledge-base "Storage & the root filesystem" section): Added the last
 planned OS-dev-guide section (docs/knowledge/rpi4-os-development-guide.md), capturing the hard-won
 storage + rootfs knowledge for the public release: SD/eMMC (EMMC2) DDR50+SDMA reads, PIO writes

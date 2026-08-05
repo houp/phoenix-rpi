@@ -72,7 +72,7 @@ INCS = ["-I" + CODE, f"-I{CODE}/qcommon", f"-I{CODE}/renderercommon",
 # NO -DUSE_SYSTEM_JPEG (bundle libjpeg). -DUSE_OPENGL_API + -DNO_VM_COMPILED +
 # -DUSE_LOCAL_HEADERS=1 match the opengl1/interpreted/local-SDL-header config.
 CFLAGS = ["-c", "-O2", "-g", "-ffreestanding", "-fno-strict-aliasing", "-fwrapv",
-          "-fcommon", "-Wno-error", "-DNDEBUG", "-DNO_VM_COMPILED",
+          "-fcommon", "-Wno-error", "-DNDEBUG",
           "-DUSE_OPENGL_API", "-DUSE_LOCAL_HEADERS=1", "-include", COMPAT] + INCS
 
 # botlib TUs select their engine-build include set with -DBOTLIB (mirrors the
@@ -102,7 +102,7 @@ QCOMMON = [
     "cmd", "common", "cvar", "files", "history", "keys", "md4", "md5", "msg",
     "net_chan", "net_ip", "huffman", "huffman_static", "q_math", "q_shared",
     "unzip", "puff",
-    "vm", "vm_interpreted",   # NO_VM_COMPILED -> no vm_aarch64 (JIT)
+    "vm", "vm_interpreted", "vm_aarch64",   # aarch64 JIT (Phoenix honors PROT_EXEC) + interpreter fallback
 ]
 
 CLIENT = [

@@ -41,4 +41,12 @@ struct ipv6_mreq {
 };
 #endif
 
+/* quake3e's aarch64 JIT (code/qcommon/vm_aarch64.c) flushes the instruction cache after emitting
+ * code via __clear_cache(). The Phoenix toolchain exposes no prototype for the libgcc symbol, so
+ * map it to the compiler builtin (which emits the aarch64 dc cvau / ic ivau / dsb / isb sequence
+ * inline). Phoenix maps PROT_EXEC pages executable (kernel vm/map.c), so the JIT is viable. */
+#ifndef __clear_cache
+#define __clear_cache(beg, end) __builtin___clear_cache((void *)(beg), (void *)(end))
+#endif
+
 #endif /* PL_PHOENIX_COMPAT_H */

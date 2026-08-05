@@ -178,12 +178,17 @@ Trace: server stufftext configstrings + baselines + **precache** → CL_Precache
 phase (allow_download ON → tries to fetch a model over loopback → hangs).
 **FIX #1: `+set allow_download 0`** → handshake proceeds to **CL_PrepRefresh** (precache); TFU
 uploads 4→12. → **BAKE allow_download 0 into the port** (pl_phoenix_main.c or a default cfg).
-**NEW FRONTIER: CL_PrepRefresh stalls/crawls after ~12 TFU texture uploads** (map needs 100s).
-Never reaches ca_active → still conback. LEAD: the winsys **TFU "vcheck" readback diagnostic**
-(v3d_phoenix_winsys.c, leftover from the vkQuake striping probe) may readback+compare per upload
-→ massive slowdown or a stall. NEXT: gate/disable the TFU vcheck; add a per-model diag in
-CL_PrepRefresh if needed; then precache completes → ca_active → world renders. Minor: gamma,
-relative-mouse. See [[project_quake2_port]] [[project_pi4_v3d_scout]].
+**NEW FRONTIER: CL_PrepRefresh genuinely STALLS during asset precache** (confirmed 2026-08-05
+with a 165s capture: reaches CL_PrepRefresh, never ca_active, HDMI stays dark). NOT the winsys
+TFU vcheck — that's gated to `tfu_n<=12` (v3d_phoenix_winsys.c:1389), so the "12 uploads" I saw
+were just the diag prints, not the total; and a hung TFU would TIMEOUT (winsys:1371), not hang
+forever. So the stall is likely a specific ASSET load hanging: an NFS read of a model/texture
+file, or a model (BSP/MD2) parse loop. **NEXT: instrument CL_PrepRefresh (cl_view.c:240)** —
+print each model/image configstring name as it's registered (R_RegisterModel/R_RegisterSkin) →
+one Pi boot shows WHICH asset hangs. Then fix that asset path. Also **bake allow_download 0**
+into the port once the render works. NOTE netboot is ~50-70% reliable (intermittent empty runs);
+sdl2-gltest = the netboot health check; re-up netboot-server-up.sh + re-run on an empty boot.
+See [[project_quake2_port]] [[project_pi4_v3d_scout]].
 2026-08-05 Pi tests: yQuake2 with **`+set vid_fullscreen 2`** (desktop-fullscreen = use native
 mode, no mode-change) DISPLAY-TAKEOVER WORKS and yQuake2's **GL 2D renders to HDMI** (the
 drop-down console + green HUD text render via our SDL2+ref_gl1). But loading a level (`+map
@@ -228,6 +233,12 @@ video.c stale-history comments). `--scope core` build PASS; committed + pushed p
 stripped) — the fix was cherry-picked onto publish/master's tip via a worktree, NOT
 force-pushed. See [[project_git_topology]]. Kernel/libphoenix/project Tier A comment
 fixes intentionally NOT done yet (would worsen the A1 Batch 3 merges).
+
+C4 Quake2 precache stall (2026-08-05): with allow_download 0 + a 165s capture, reaches
+CL_PrepRefresh but never ca_active (HDMI dark) → CL_PrepRefresh genuinely STALLS on some asset
+(NFS read or model parse), NOT the winsys vcheck (gated to first 12). Next = instrument
+CL_PrepRefresh to print each asset name → find the hanging one. Netboot ~50-70% reliable this
+session (several empty runs); re-up + re-run works.
 
 C4 Quake2 STALL PINNED + partially FIXED (2026-08-05): netboot flakiness explained the empty
 runs (gltest ran clean; 3rd yquake2 diag run gave the full trace). Stall = CL_RequestNextDownload

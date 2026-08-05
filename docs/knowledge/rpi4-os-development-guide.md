@@ -1819,6 +1819,36 @@ The load-bearing lessons:
   reliability — **SD/eMMC boot avoids it entirely**. Treat NFS-root as a dev convenience, not the
   performance path.
 
+## Dynamic code / executable memory (JIT)
+
+Phoenix on aarch64 *can* run JIT-compiled / dynamically-generated code, but the memory-protection
+model differs from Linux in one way that trips the standard JIT idiom. Findings (from bringing up
+the quake3e aarch64 QVM JIT):
+
+- **`mmap` honors `PROT_EXEC`.** The kernel maps a `PROT_EXEC` request to a `PGHD_EXEC` page
+  attribute (`vm/map.c`), so `mmap(..., PROT_READ|PROT_WRITE|PROT_EXEC, ...)` gives you a genuinely
+  executable RWX buffer. Executable memory is supported.
+- **`mprotect` cannot *escalate* protection.** `vm_mprotect` rejects any `prot` that exceeds the
+  mapping's **original** protection (`map_checkProt(entry->protOrig, prot)` → `-EACCES`). This is a
+  deliberate W^X-style policy. So the classic JIT pattern — `mmap` a region **RW**, write code, then
+  `mprotect` it to **RX** — **fails on the mprotect step** (`EACCES`, because EXEC wasn't in the
+  original prot). Diagnose it as `mprotect ... failed` right after a JIT emits code.
+- **The fix: allocate RWX up front.** `mmap` the code buffer `PROT_READ|PROT_WRITE|PROT_EXEC` and
+  skip (or treat as non-fatal) the later `mprotect(RX)`. You lose the W^X hardening on that buffer,
+  but the code runs. (A future enhancement could let `mprotect` widen within a `PROT_MAX`; today it
+  can't.)
+- **EL0 cache maintenance is enabled**, so `__builtin___clear_cache()` (the mandatory I-cache flush
+  after emitting aarch64 code — `dc cvau` + `ic ivau` + `dsb`/`isb`) works from userspace: the
+  kernel sets `SCTLR_EL1.UCI` (bit 26) and `SCTLR_EL1.UCT` (bit 15) in `_init.S`. The toolchain
+  exposes no `__clear_cache` prototype, so `#define __clear_cache(b,e) __builtin___clear_cache(...)`.
+- **32-bit-VM-on-64-bit-host caveat.** A JIT that targets a 32-bit VM (Quake's QVM) must mask every
+  guest data address to the VM's address space; a stray high bit (e.g. bit 32) in a computed
+  address faults immediately on aarch64. Verify the JIT's data-address masking against where the VM
+  memory actually lands in the Phoenix address space (which can differ from Linux).
+
+Net: executable memory + I-cache flush work; only the `mprotect`-widen idiom needs the RWX-up-front
+workaround.
+
 ## Porting userspace applications & games
 
 Everything above is about the OS. This section is the other half: getting large existing

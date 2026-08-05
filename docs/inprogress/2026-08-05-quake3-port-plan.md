@@ -11,6 +11,37 @@ Evidence: ~15 representative TUs cross-compiled clean with the aarch64-phoenix t
 (see "Cross-build probe" below); a full undefined-symbol link closure is phase-1
 implementation work, not yet done.
 
+## PHASE 1 COMPLETE — link closure achieved (2026-08-05)
+
+Single static aarch64-phoenix ELF links clean: **168/168 TUs compile, 0 undefined
+symbols**, `EXEC` (statically linked, entry set), ~27 MB (`/tmp/quake3e-phoenix`).
+`nm` shows `T GetRefAPI` / `T main` / `T VM_Create` resolved — confirming the
+"no dlopen plumbing" thesis (renderer `GetRefAPI` binds at link time). Verifiable
+without the Pi; reproducible from a pristine clone (build script auto-applies the
+patch). **Pinned quake3e SHA: `623982900a132e5c812dcb5231a430f28fafabeb`.**
+
+Deliverables in `tools/quake3-port/`: `build-quake3e-phoenix.py`,
+`platform/{pl_phoenix_main,pl_phoenix_sys,pl_phoenix_stubs}.c` +
+`pl_phoenix_compat.h`, `quake3e-phoenix-port.patch`, `README.md`, `COPYING`.
+
+Reality vs the four predicted patch points:
+1. `q_platform.h` Phoenix branch — as predicted (trivial).
+2. `qgl.h` — GLX-block gate **plus** a needed `<GL/gl.h>` include for `__phoenix__`
+   (the probe missed the GL-header branch; still small).
+3. **`msg_t` clash solved with ZERO Q3-source rename** — the predicted "top risk /
+   pervasive rename" was avoided. `pl_phoenix_compat.h` pre-parses the Phoenix
+   socket/msg header chain under a private rename of *Phoenix's* `msg_t`, tripping
+   its include guards so only Q3's `msg_t` is ever visible in-TU. This is the
+   headline simplification over the plan.
+4. Phoenix sys/net backend — as predicted; `net_ip.c` compiles from source
+   unchanged (only needed `struct ipv6_mreq` from the compat shim).
+
+Two items the probe did not surface, both minor: botlib TUs need `-DBOTLIB` (they
+gate their include set on it), and `huffman.c`'s file-local `send()` shadowed
+POSIX `send()` once the socket headers were force-included — renamed to
+`Huff_send()` (a de-shadowing cleanup). libc/libm gaps: just `rint` and
+`pthread_getcpuclockid` (both in `pl_phoenix_stubs.c`).
+
 ## quake3e vs ioq3 — pick quake3e
 - **quake3e**: single self-contained `Makefile` with first-class knobs for exactly the
   config we need (`USE_RENDERER_DLOPEN=0`, `RENDERER_DEFAULT=opengl`, `USE_SDL=1`,

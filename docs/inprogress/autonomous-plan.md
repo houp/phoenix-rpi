@@ -99,7 +99,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | E1 | W2 | Dillo HTTPS support | TODO | needs TLS (libphoenix/openssl?) |
 | E2 | W2 | Pi internet via host Linux router/proxy (NAT) | TODO | host-side network config |
 | E3 | W2 | Dillo displays live internet pages | TODO | after E1+E2 |
-| C4 | W3 | Quake2 port (yQuake2) + open/shareware assets + demo+visual test | RENDERS (loads pak+map) | **2026-08-05: the "infra-blocked colormap.pcx" diagnosis was WRONG.** Real cause = the Q2 demo pak is staged at /usr/share/quake2/baseq2/pak0.pak but yquake2's default datadir = its binary dir (/usr/bin) or "." → it searched the wrong baseq2 → `Couldn't load pics/colormap.pcx` (a MISSING PAK, not NFS flakiness). **Fix = launch with `+set basedir /usr/share/quake2`.** With it, yquake2 loads the pak, loads **demo1 (Outer Base)** — HDMI shows server init + "38 entities inhibited" + the Yamagi Quake II loading screen — and reaches the 3D render path (CL_PrepRefresh → LoadTexinfo → v3d-winsys TFU texture uploads to V3D). Ran to the 110s capture cutoff still uploading (slow-NFS map load). **Phase 1 DONE** (single static ELF, coord 3eaf810 tools/yquake2-port; yQuake2 pinned e27fdcce). Remaining: longer capture to reach the in-game 3D view + confirm full render (HDMI showed console/loading region, mostly black — likely pre-3D-view state); remove leftover YQ2DIAG probes (local external/yquake2). See [[project_quake2_port]] |
+| C4 | W3 | Quake2 port (yQuake2) + open/shareware assets + demo+visual test | RENDERS (loads pak+map) | **2026-08-05: the "infra-blocked colormap.pcx" diagnosis was WRONG.** Real cause = the Q2 demo pak is staged at /usr/share/quake2/baseq2/pak0.pak but yquake2's default datadir = its binary dir (/usr/bin) or "." → it searched the wrong baseq2 → `Couldn't load pics/colormap.pcx` (a MISSING PAK, not NFS flakiness). **Fix = launch with `+set basedir /usr/share/quake2`.** With it, yquake2 loads the pak, loads **demo1 (Outer Base)** — HDMI shows server init + "38 entities inhibited" + the Yamagi Quake II loading screen — and reaches the 3D render path (CL_PrepRefresh → LoadTexinfo → v3d-winsys TFU texture uploads to V3D). **Long capture (330s) 2026-08-05: map FULLY loads → `ca_active` (in-game): "models done", precache complete (pics/models/images/clients/sky), 0 faults — so the "slow load" was NOT the blocker, it finishes.** BUT the HDMI shows the **3D world view does NOT render**: only the console/loading text, in a **~640×480 bottom-left corner** of the 1920×1080 screen (rest black). Two concrete SDL2-path bugs (yQuake2 is the FIRST game on SDL2; quakespasm/vkQuake render fullscreen via the direct winsys, not SDL2): **(a) viewport/vid-resolution = 640×480 not 1920×1080** despite vid_fullscreen 2 (small corner) — NEXT TEST = launch `+set r_mode -1 +set r_customwidth 1920 +set r_customheight 1080`; **(b) 3D world black behind the (opaque) console** = likely the no-WSI fb0 scanout alpha class (3D writes alpha≈0 → dropped; console 2D alpha=1 shows) like [[project_vkquake_torches_dark_fullbright]] → fix = force alpha=1 in the SDL2 present path (sdl_phoenix_glctx.c/scanout). **Phase 1 DONE** (single static ELF, coord 3eaf810 tools/yquake2-port; yQuake2 pinned e27fdcce). Also remove leftover YQ2DIAG probes (local external/yquake2). See [[project_quake2_port]] |
 | C5 | W3 | Quake3 port (quake3e/ioq3) + playable assets + demos | PHASE1-DONE | quake3e links to one static aarch64-phoenix ELF (168/168 TUs, 0 undef, 27MB, GetRefAPI/main/VM_Create resolved). tools/quake3-port/ pushed (6fb98f0+3d74441). QVM=no dlopen; msg_t clash beaten w/ 0 Q3 rename. Phase-2 runtime deferred (infra) |
 | C6 | W3 | SuperTuxKart (OpenGL fullscreen, GPU) | TODO | large |
 | D1 | W3 | X11 GPU-accelerated extensions (toward RPi-OS parity) | TODO | |
@@ -271,6 +271,21 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-05 (Quake2 fully loads to `ca_active`, but 3D view doesn't render — SDL2-path bug): Ran
+a 330s capture of `yquake2 +set basedir /usr/share/quake2 +set allow_download 0 +map demo1`. The
+map **fully loaded**: UART shows all models loaded ("models done"), precache complete ("Map: demo1
+pics models images clients sky"), and **`ca_active`** (client in-game) — 0 faults. So the earlier
+"slow-NFS load doesn't finish" story is REFUTED (it finishes ~5min). **But the HDMI (pixel-checked)
+shows the 3D world view does NOT render** — only the console/loading text, confined to a ~640×480
+bottom-left corner of the 1920×1080 screen, rest black. Diagnosed 2 SDL2-specific bugs (yQuake2 is
+the FIRST game on the SDL2 path; quakespasm/vkQuake use the direct winsys): (a) game's vid-resolution
+= 640×480 not 1920×1080 despite vid_fullscreen 2 → renders in a corner (the SDL2 driver forces the
+window to 1920×1080 at qsv3d_init but ref_gl1's viewport is 640×480 — a mode-negotiation gap); (b)
+3D world black behind the opaque console = likely the no-WSI scanout alpha class (vkQuake torches).
+**NEXT (a Pi turn): test (a) with `+set r_mode -1 +set r_customwidth 1920 +set r_customheight 1080`;
+if the corner fills but stays black, chase (b) = force alpha=1 in sdl_phoenix_glctx.c present.** This
+is the deep-GL-rendering class — bounded, pixel-analysis-verifiable, but multi-cycle. Pi FREE.
 
 2026-08-05 (Quake2 UNBLOCKED — "infra-blocked" was a MISDIAGNOSIS): Re-tested Q2 on the fresh-
 synced userspace to check the colormap.pcx failure. Found the real cause: **baseq2 in the game's

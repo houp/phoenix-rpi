@@ -83,7 +83,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 |----|------|------|--------|-------|
 | A1 | W0 | Upstream sync: pull all siblings, integrate, build, verify, push org | WIP | analysis DONE; Batch 1+2 MERGED+BUILT+BOOT-VERIFIED+PUSHED (manifest 2026-08-04-a1-batch2-done); only Batch 3 (kernel/libphoenix/project — careful) remains |
 | G1 | W1 | Full code review (all repos): bugs/hacks/diagnostics/TODOs/comments/licensing → fix+test+commit | WIP | recon → docs/review/2026-08-04-autonomous-review-recon.md. Tier A (comment/TODO) DONE. Tier B **devices diagnostics REMOVED** (2026-08-05, -653 lines: sdcard/pcie/xhci/audio; --scope core OK; boot-verified 0 faults + audio/USB/NFS work; pushed devices 89ffe1c; manifest g1-devices-cleanup). Tier C tools/ headers DONE (6 files +%LICENSE%; fbdev_stub KEPT — still used by build-xfbdev.sh --stub). Pending: Tier B (diag removal, needs boot); Tier C _memset.S provenance (kernel→after Batch 3) + %LICENSE% tooling verify; kernel/libphoenix/project Tier A after A1 Batch 3 |
-| H1 | W1 | Docs cleanup + archive stale docs | TODO | |
+| H1 | W1 | Docs cleanup + archive stale docs | WIP (started) | 2026-08-05: archived 10 clearly-done, UNREFERENCED (refs=0, ref-checked vs docs/README/tracking) session-investigation docs → docs/done/ (X11 apps/fonts/xt/xedit/perf, NFS-as-root, SD perf/ext2/highspeed). docs/inprogress 68→58. Conservative: kept docs for OPEN areas (WiFi, active A1/Dillo) + all referenced docs (avoid dangling links). More done+unref candidates remain (owner or future turns can continue); did NOT bulk-move to avoid link-breakage/mis-judging "done" |
 | H2 | W1 | Final Pi4 port-state documentation | WIP | primary state doc = docs/inprogress/pi4-hardware-support-matrix.md. Corrected stale entries (SMP now ✅ 4-core works, Vulkan ✅ textured 3D, exec-reliability→F1 finding) + added "Ported libraries & applications" section (Mesa GL/Vulkan, SDL2, X11, quakespasm/vkQuake/yQuake2, Dillo). Still: promote to a docs/-root doc + final polish when ports settle |
 | H3 | W1 | Pi4 OS-dev knowledge base (extend existing) | DONE | base = docs/knowledge/rpi4-os-development-guide.md. Added: V3D GPU (GL+Vulkan), Display(fb0/HDMI)&audio(PWM), Porting userspace apps & games, **In-process debugging (libdbg)** (2026-08-05), **Storage & the root filesystem** (SD/eMMC DDR50-reads/PIO-writes/CMD13-poll-completion/pool-thread-stack + NFS-root takeover/boot-order-race/NFSv4-expiry/GENET-RX-aliasing/poll-stall/runtime-read caveat) (2026-08-05). Both planned gaps closed; living doc, extend as work continues |
 | B1 | W1 | Generalize in-process debugger → reusable Phoenix debug library | DONE | libdbg corelib (phoenix-rtos-corelibs d026ff0): dbg_init/dbg_backtrace/dbg_arm_watchdog; --scope core + image verify OK, libdbg.a symbols confirmed. libphoenix trampoline enabler (_dbg_signal_ctx) already in place |
@@ -309,6 +309,15 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-05 (H1 docs-archive started — safe, zero-churn publication hygiene): Held maintenance
+discipline (small safe task, no churn). Started H1: archived 10 clearly-done, UNREFERENCED
+(refs=0, checked vs docs/README/tracking) session-investigation docs from docs/inprogress → docs/done
+(X11 sample-apps/app-suite/named-fonts/xt-double-free/xedit/perf-color-ipc, nfs-as-root-blocker, SD
+ext2-conc/linux-highspeed/perf-systemic). docs/inprogress 68→58. Zero link-breakage risk (ref-checked)
++ zero churn (git mv, no build). Conservative: KEPT docs for open areas (WiFi, active A1/Dillo) + all
+referenced docs; left the rest for the owner / future turns (didn't bulk-move to avoid mis-judging
+"done" or dangling links). Committed to coord. Pi FREE.
 
 2026-08-05 (vkQuake +map: decisive dx, then BANKED per my own "know-when-to-bank" lesson): Re-opened
 +map (the gate to loading vkQuake test maps for the liquid/lightmap work the owner wants), this time

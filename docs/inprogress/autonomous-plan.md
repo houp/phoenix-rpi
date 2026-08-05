@@ -100,7 +100,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | E2 | W2 | Pi internet via host Linux router/proxy (NAT) | TODO | host-side network config |
 | E3 | W2 | Dillo displays live internet pages | TODO | after E1+E2 |
 | C4 | W3 | Quake2 port (yQuake2) + open/shareware assets + demo+visual test | DONE — FULLSCREEN 3D ✅ | **2026-08-05: yQuake2 RENDERS THE FULL 3D GAME FULLSCREEN (1920×1080) on Phoenix/V3D via SDL2+ref_gl1.** HDMI (artifacts/hdmi/20260805-133244-q2fs-tick.png) = the Outer Base level filling the whole screen: textured walls, Strogg-logo crates, green grates, central pillar + archway, health box, **an enemy Strogg in the distance**, weapon viewmodel, crosshair, full HUD (health 100 / ammo 58 / weapon icon), correct lighting/perspective, 0 faults, ca_active. Launch: `/usr/bin/yquake2 +set basedir /usr/share/quake2 +set allow_download 0 +set vid_renderer gl1 +set vid_fullscreen 2 +set r_mode -1 +map demo1` (with r_customwidth/height 1920/1080 in baseq2/config.cfg). **3 misdiagnoses corrected:** colormap.pcx = missing pak/wrong datadir (fix basedir), NOT NFS infra; corner-render = `r_mode` default 4=640×480 (fix r_mode -1); resolution = config.cfg archived r_customwidth 1024 overriding the early +set (fix = set 1920×1080 in config.cfg). The no-WSI alpha hypothesis was REFUTED. yQuake2 = **4th engine on the port** (quakespasm, vkQuake, Q3-link, now Q2 fullscreen). Single static ELF (coord 3eaf810 tools/yquake2-port; pinned e27fdcce). Minor remaining: remove YQ2DIAG probes (local); check for the winsys TFU striping under motion. See [[project_quake2_port]] |
-| C5 | W3 | Quake3 port (quake3e/ioq3) + playable assets + demos | ENGINE WORKS; QVM-version blocker | **quake3e's ENGINE fully works on Phoenix/V3D.** Exec → V3D GL @ 1920×1080 (Mesa 2.1) → all GL procs resolve → **R_Init FINISHES (renderer up: gamma/texturemode/shaders)** → QVM interpreter loads+runs vm/ui.qvm. Fixes landed: 9 core + 19 ARB/EXT GL procs in the SDL2 table (ports f5dc210+76f195c); **glBindFramebuffer(FB 0)→scanout-FBO wrapper** (ports c1494fc) that fixed the Mesa `_mesa_bind_framebuffers` NULL-deref (no-WSI default-FB); toolchain libphoenix sync + rint-stub removal (a7c2780). **CURRENT BLOCKER (data, not port):** `ERROR: User Interface is version 3, expected 6` — the 1.11 demo pak's QVMs are the old API; quake3e (modern) wants v6/v8. Fix = build quake3e's OWN game/cgame/ui QVMs (GPL source) with the ioq3 LCC toolchain → pak1.pk3 overriding the demo's old QVMs (subagent building it now, non-Pi). Then redeploy pak1 + rerun → should reach the menu/map. Launch: `+set fs_basepath /usr/share/quake3 +set fs_game demoq3 +set r_mode -1 +map q3dm1`. See [[project_quake3_port]] |
+| C5 | W3 | Quake3 port (quake3e/ioq3) + playable assets + demos | ENGINE+RENDERER PROVEN; QVM-interp bug | **quake3e ENGINE + RENDERER fully work on Phoenix/V3D** (exec → V3D GL @1920×1080 → all GL procs → R_Init finishes → QVM interpreter loads QVMs). Fixes landed: 9 core + 19 ARB/EXT GL procs (ports f5dc210+76f195c); glBindFramebuffer(0)→scanout-FBO wrapper (ports c1494fc, fixed Mesa NULL-deref); toolchain libphoenix sync + rint-stub removal (a7c2780). QVM-VERSION solved: built ioq3 GPL v6/v8/v4 QVMs (ABI-verified compatible) → pak1.pk3 staged (overrides demo's old v3 QVMs). **NEW BLOCKER (deep): QVM INTERPRETER mis-executes on aarch64** — v6 ui.qvm loads then `bad opStack 8` (loader jump-table analysis) + runtime `Sys_Error: Bad UI system trap: <garbage>` (interpreter passes a garbage syscall number). The NO_VM_COMPILED interpreter path (chosen for W^X) is less-tested on aarch64 (JIT is default). **NEXT options:** (a) debug vm_interpreted.c/VM loader opStack analysis vs ioq3 bytecode; (b) probe whether Phoenix mmap honors PROT_EXEC (0x4 defined in kernel mman.h) → try the aarch64 JIT (vm_aarch64.c, the well-tested path); (c) DEBUG_VM build. Multi-cycle. NOTE: ~5 turns into Q3 phase-2 — consider diversifying if the interp bug proves a long saga. See [[project_quake3_port]] |
 | C6 | W3 | SuperTuxKart (OpenGL fullscreen, GPU) | TODO | large |
 | D1 | W3 | X11 GPU-accelerated extensions (toward RPi-OS parity) | TODO | |
 | D2 | W3 | X11 GL/Vulkan windowed (GLX) + glxgears validation | TODO | |
@@ -271,6 +271,22 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-05 (Quake3: QVM-version solved; now a deep QVM-interpreter bug): The QVM-build subagent
+reported: quake3e ships NO game source (only 4 public headers) — so it built **ioquake3's** GPL
+game/cgame/ui QVMs (same Q3 1.32 lineage; ui v6 / game v8 / cgame-import v4), verified byte-for-byte
+ABI-compatible with quake3e (structs/traps/vmMagic), and staged pak1.pk3 (overrides the demo's old
+v3 QVMs). Reran quake3e: the **v6 UI QVM now LOADS** (version error gone) — but the QVM INTERPRETER
+mis-executes: `bad opStack 8` warning at load (loader jump-table analysis) then `Sys_Error: Bad UI
+system trap: 205763293216818` (a GARBAGE syscall number → the interpreter read the wrong location).
+So the whole quake3e engine+renderer+QVM-load stack works on Phoenix/V3D; the remaining bug is
+**QVM-interpreter correctness on aarch64** (the NO_VM_COMPILED interpreter path, chosen for W^X, is
+less-tested on aarch64 where the JIT is default). This is a deep VM-internals frontier. **NEXT:**
+(a) dive vm_interpreted.c / the VM loader's opStack analysis for the ioq3-bytecode-vs-quake3e-loader
+mismatch; OR (b) probe whether Phoenix mmap honors PROT_EXEC (0x4 is defined in kernel mman.h) → use
+the aarch64 JIT (vm_aarch64.c, the well-tested path). **Reflection:** ~5 turns deep in Q3 phase-2;
+if the interpreter bug is a long saga, bank quake3e as engine+renderer-proven and diversify (other
+plan areas under-served). Pi FREE.
 
 2026-08-05 (Quake3 ENGINE fully works on V3D; blocked on demo-QVM API version): Implemented the
 glBindFramebuffer wrapper (ports c1494fc): the SDL2 GL proc table now maps a bind of FB 0 →

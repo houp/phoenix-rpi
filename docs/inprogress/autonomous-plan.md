@@ -272,6 +272,23 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-05 (libphoenix libm: rint/nearbyint added — the C5 follow-up): Implemented the
+missing `rint`/`rintf`/`nearbyint`/`nearbyintf` in the phoenix libm (`sources/libphoenix/libm/
+phoenix/exp.c`, committed d61f4a3, pushed to org). **Root of the gap:** the phoenix libm
+(default `LIBM_USE_LIBMCS=n`) had floor/ceil/round/trunc but not rint/nearbyint, even though
+math.h declares them and the alternative libmcs backend has them — so the C5 quake3e link had to
+stub rint. Fixed centrally so EVERY math-using port gets it. Key correctness point: rint/
+nearbyint round ties-to-EVEN (default FE_TONEAREST), unlike round() which rounds ties away from
+zero; nearbyint==rint here since this libm raises no FP exceptions. **Validation (all Pi-
+independent):** (a) a host unit test comparing a verbatim copy of the impl to glibc's rint across
+24 ties-to-even/signed-zero/large cases = ALL PASS; (b) cross-compiles clean (aarch64-phoenix-gcc,
+-Wall); (c) `rebuild --scope core` succeeds + image verify OK; (d) nm confirms `T rint`/`T
+nearbyint` in the rebuilt .buildroot libphoenix.a + sysroot copy. Manifest 2026-08-05-libphoenix-
+rint snapshotted. NOTE: quake3e's port-local rint stub is now redundant but HARMLESS (a strong
+.o symbol shadows the archive copy — no duplicate-symbol conflict), so left as-is; will drop on
+the next quake3e rebuild. `pthread_getcpuclockid` NOT done in libphoenix — it needs kernel
+per-thread CPU-clock support to be correct, so the port stub stays (documented).
+
 2026-08-05 (C5 Quake3 phase-1 COMPLETE): The build subagent closed the link — quake3e cross-
 builds to a single static aarch64-phoenix ELF, **168/168 TUs, 0 undefined symbols**, 27MB, `T
 main`/`T GetRefAPI`/`T VM_Create` resolved (verified ELF at /tmp/quake3e-phoenix; reproducible).
@@ -509,11 +526,10 @@ the bright default. Robustness fix candidate for I1.
 ## Next step
 
 **Immediate follow-ups (pick per turn):**
-- **libphoenix `rint` + `pthread_getcpuclockid`** — the C5 build stubbed these in the port;
-  the standing rule is to implement missing libc/libm in libphoenix proper. `rint` (round to
-  nearest, ties-to-even, honoring rounding mode) benefits EVERY math-using port; both are
-  small. This is a CORE change → `--scope core` rebuild + a boot-verify (output-verifiable,
-  NOT vision). Clean, high-leverage, autonomous-safe. **Good next task.**
+- ~~libphoenix `rint`~~ **DONE 2026-08-05** (d61f4a3, --scope core validated). `pthread_
+  getcpuclockid` intentionally NOT done (needs kernel per-thread CPU-clock support; port stub
+  stays). If ever wanted: a `lrint`/`llrint`/`lroundf` sweep of the phoenix libm (math.h
+  declares them; verify which are missing) is the natural small follow-on.
 - **C1 SDL2 → ports.yaml wiring** so SDL2 is a first-class image component (games currently
   bundle libSDL2.a via their tools/ drivers; this makes it reusable). Build + boot verifiable.
 - Another game phase-1 (build-verifiable-without-Pi): only if it adds NEW capability — the

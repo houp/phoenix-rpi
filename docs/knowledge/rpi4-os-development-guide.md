@@ -1756,6 +1756,69 @@ Canonical sources for Pi 4 EL3 / cache / DMA setup, by topic:
 - Generic Interrupt Controller architecture v2 spec (ARM IHI 0048).
 
 
+## Storage & the root filesystem
+
+Two root filesystems are supported, and each taught its own lessons.
+
+### SD / eMMC (EMMC2 controller)
+
+The Pi 4's `EMMC2` SDHCI controller (`0xfe340000`) drives the microSD slot. Bring-up gotchas
+that generalize to any SDHCI port:
+
+- **Reads**: UHS-I **DDR50** (1.8 V) + **SDMA** + multi-block `CMD18`, IRQ-driven. ~38 MB/s
+  (~86 % of Linux on the same card). A **lost-wakeup guard** in the command-wait path matters:
+  the completion IRQ can land between "issue" and "sleep", so re-check `PRES_STATE`/status before
+  blocking (`_sdio_cmdExecutionWait`), or a block read hangs forever on an already-finished op.
+- **Writes**: multi-block `CMD25` but **PIO, not DMA** — a BCM2711 controller quirk corrupts DMA
+  *writes* specifically, so writes stay PIO (~13–17 MB/s). Write **completion** is the subtle
+  part: the `TRANSFER_DONE` IRQ never reliably latches for writes on this silicon, so completion
+  is done by **polling `CMD13` (SEND_STATUS) for the card to return to `TRAN`** while holding the
+  event lock — reads keep using the IRQ. 16/16 multi-block writes verified 0-corruption.
+- **`CMD7` R1b**: after selecting the card, poll `PRES_STATE` rather than trusting the busy IRQ.
+- **The crash that wasn't a storage bug**: an ext2 root under load faulted deep in the FS call
+  chain — root cause was a **filesystem pool-thread stack overflow**, not the driver. Fix: give
+  the storage/FS worker threads a bigger stack (`storage_run(..., 16*_PAGE_SIZE)`). Deep call
+  chains (ext2 → cache → block driver) blow a small default stack.
+- **Card variance is real**: a "large sequential read EIO" chased as a driver bug turned out to
+  be **marginal media** — a known-good card read 2048 consecutive blocks at 50 MHz with zero
+  errors. Rule out the card before rewriting the driver.
+
+### NFS root over netboot
+
+For fast iterate-without-reflashing, the board mounts `/` over **NFS** (the SD card must be
+**out** — VideoCore firmware won't fall through to network boot with a card present). The chain:
+
+1. `plo` loads the kernel + a RAM image over **TFTP**; early userspace comes up on a sparse
+   **dummyfs** root.
+2. `lwip` brings up **GENET**; once the netif has an IP, an **nfs-fs** server mounts the real
+   export and **takes over `/`** — the log line `registered / (takeover)` marks the handover.
+3. From then on `/` is the NFS export; binaries and assets are read over the wire.
+
+The load-bearing lessons:
+
+- **Boot-order race (the dominant test-flakiness)**: `plo` launches `psh` as a *sibling* of the
+  takeover server without gating on it, so a command issued right at the first prompt hits the
+  pre-takeover dummyfs root and fails `not found`. The proper fix is a `plo` boot-order gate; the
+  test harness works around it by **waiting for the `registered / (takeover)` line** before
+  sending commands. Any "intermittently empty" game boot is almost always this, not a port bug.
+- **NFSv4 lease expiry**: after many reboots the host `nfsd` can hand back `NF4ERR_EXPIRED`
+  (surfaces as `-ERANGE`/`exec -12`). nfs-fs runs an `OP_RENEW` thread (~45 s) and does
+  reclaim/retry on expiry; a genuinely stuck server state is cleared host-side with
+  `systemctl restart nfs-server` (mind the ~90 s grace window before the next boot).
+- **Throughput is cable-bound, then buffer-bound**: a crossover cable only wired 2 pairs → the
+  link fell back to 100 Mbps; a Cat5e/6 straight cable or a gigabit switch is an ~8–10× win. On
+  top of that, GENET RX **buffer aliasing** (16 recycled buffers) collapsed the TCP window —
+  giving RX 256 unique buffers from one `dmammap` restored ~8 MB/s. Diagnose the window collapse
+  host-side with `ss -tin`.
+- **poll() that never wakes**: Phoenix `poll()` didn't wake on socket readiness, so libnfs's
+  100 ms default poll stalled every RPC (~20–75× slowdown). Setting `nfs_set_poll_timeout(1)`
+  worked around it pending the kernel poll fix.
+- **Runtime-read reliability caps asset-heavy workloads**: even after the exec race is fixed, an
+  individual file read can transiently fail on the slow link (a game aborting on a "missing" pak
+  that exists). So games load and render, but a full asset load is gated by netboot NFS
+  reliability — **SD/eMMC boot avoids it entirely**. Treat NFS-root as a dev convenience, not the
+  performance path.
+
 ## Porting userspace applications & games
 
 Everything above is about the OS. This section is the other half: getting large existing

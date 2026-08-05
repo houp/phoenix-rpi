@@ -100,7 +100,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | E2 | W2 | Pi internet via host Linux router/proxy (NAT) | TODO | host-side network config |
 | E3 | W2 | Dillo displays live internet pages | TODO | after E1+E2 |
 | C4 | W3 | Quake2 port (yQuake2) + open/shareware assets + demo+visual test | WIP-infra-blocked | Decisive render test 2026-08-05 (reliable exec, 5.5min): yquake2 exec'd cleanly (banner) but FATAL `GetPCXPalette: Couldn't load pics/colormap.pcx` = intermittent RUNTIME NFS read failure (distinct from the #156 exec ENOENT; likely NFS lease-expiry/reclaim or stale host nfsd). So Quake2 render is blocked by **netboot NFS runtime-read reliability (infra)**, NOT a port bug — vkQuake/quakespasm render (their reads succeeded). SD-boot would fix (no card in). **Phase 1 DONE (2026-08-05)**: single static aarch64-phoenix ELF LINKS (undefs→0), coord 3eaf810 tools/yquake2-port/ (dlopen→static backend, ref_gl1 only, malloc-hunk, shared-TU dedup, -fcommon, port patch). yQuake2 pinned e27fdcce. ELF /tmp/yquake2-phoenix. See [[project_quake2_port]]. **Phase 2**: 2002-demo pak0.pak → NFS /usr/share/quake2/baseq2/ + Pi +playdemo demo1 + HDMI capture vs host gl1 |
-| C5 | W3 | Quake3 port (quake3e/ioq3) + playable assets + demos | TODO | |
+| C5 | W3 | Quake3 port (quake3e/ioq3) + playable assets + demos | WIP-analysis | feasibility subagent running (phase-1 = linking ELF; QVM may sidestep dlopen) |
 | C6 | W3 | SuperTuxKart (OpenGL fullscreen, GPU) | TODO | large |
 | D1 | W3 | X11 GPU-accelerated extensions (toward RPi-OS parity) | TODO | |
 | D2 | W3 | X11 GL/Vulkan windowed (GLX) + glxgears validation | TODO | |
@@ -271,6 +271,20 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-05 (Quake2 verdict + C5 kickoff): Decisive Quake2 render test with the reliable
+exec pipeline: yquake2 exec'd cleanly (banner) but fatal-errored `Couldn't load
+pics/colormap.pcx` = a SECOND netboot-NFS flakiness that bites RUNTIME asset reads (distinct
+from the #156 exec race the harness fix already handles; likely NFS lease-reclaim window /
+stale host nfsd after many boots). Recorded in memory (project_large_binary_exec_hang). **Verdict:
+game full-render over netboot is INFRA-bound (100Mbps + runtime-read flakiness), not a port
+bug — vkQuake/quakespasm render because their reads happened to succeed; SD-boot would fix but
+no card is in.** So pivoted off game-render-over-netboot. Launched a Quake3 (C5) feasibility
+subagent scoped to **phase-1 = build-to-a-linking-ELF (verifiable WITHOUT the flaky netboot
+runtime)**, on the HW-validated SDL2 base, investigating the key simplifier: Q3's QVM bytecode
+modules may SIDESTEP the dlopen→static problem that Quake2 needed (and whether opengl1 renderer
+fits Mesa V3D's GL 2.1). Result pending. Did NOT restart host nfs-server (its Phoenix export is
+dynamic via netboot-server-up — a bare restart could drop it and break future boots).
 
 2026-08-04 (setup + analysis): Board + memory + heartbeat cron (df8363ff) created &
 pushed. Both read-only analysis subagents reported: (a) A1 upstream-delta survey →
@@ -450,9 +464,20 @@ the bright default. Robustness fix candidate for I1.
 
 ## Next step
 
+**Immediate (this turn's follow-up):** when the C5 Quake3 feasibility subagent reports,
+decide go/no-go on a **phase-1 build** (cross-link to a single ELF — verifiable WITHOUT the
+flaky netboot runtime). If QVM sidesteps dlopen and opengl1 fits GL 2.1, this is a clean,
+Pi-runtime-independent deliverable like Quake2's link phase.
+
+**Strategy note (2026-08-05):** game FULL-RENDER validation is INFRA-bound over netboot
+(100Mbps + runtime-read flakiness). vkQuake/quakespasm/SDL2 are already HW-render-validated;
+adding more game *runtime* proofs is gated on reliable storage (SD, no card). So prefer work
+whose success is verifiable WITHOUT a clean multi-minute netboot game run: cross-build/link
+milestones, host/QEMU-checkable fixes, docs, and code cleanup.
+
 Foundation (A1 Batch 1+2, G1 Tier A + Tier C tools/) is landed. A1 Batch 3 is NOT urgent
 for a fork (incoming kernel changes are a cosmetic copyright/diacritics sweep + minor hal
-fixes; we function without the errno transfer). Pivot to feature work. Priority — pick
+fixes; we function without the errno transfer). Priority — pick
 ONE focus per turn (use subagents to parallelize analyze/implement/test):
 
 1. **C1 — SDL2 finish phase 1** (video+GL+input HW-VALIDATED ✓ 2026-08-04): (a) **audio

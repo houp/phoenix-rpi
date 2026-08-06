@@ -83,7 +83,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 |----|------|------|--------|-------|
 | A1 | W0 | Upstream sync: pull all siblings, integrate, build, verify, push org | WIP | analysis DONE; Batch 1+2 MERGED+BUILT+BOOT-VERIFIED+PUSHED (manifest 2026-08-04-a1-batch2-done); only Batch 3 (kernel/libphoenix/project — careful) remains |
 | G1 | W1 | Full code review (all repos): bugs/hacks/diagnostics/TODOs/comments/licensing → fix+test+commit | WIP | recon → docs/review/2026-08-04-autonomous-review-recon.md. Tier A (comment/TODO) DONE. Tier B **devices diagnostics REMOVED** (2026-08-05, -653 lines: sdcard/pcie/xhci/audio; --scope core OK; boot-verified 0 faults + audio/USB/NFS work; pushed devices 89ffe1c; manifest g1-devices-cleanup). Tier C tools/ headers DONE (6 files +%LICENSE%; fbdev_stub KEPT — still used by build-xfbdev.sh --stub). Pending: Tier B (diag removal, needs boot); Tier C _memset.S provenance (kernel→after Batch 3) + %LICENSE% tooling verify; kernel/libphoenix/project Tier A after A1 Batch 3 |
-| H1 | W1 | Docs cleanup + archive stale docs | WIP (started) | 2026-08-05: archived 10 clearly-done, UNREFERENCED (refs=0, ref-checked vs docs/README/tracking) session-investigation docs → docs/done/ (X11 apps/fonts/xt/xedit/perf, NFS-as-root, SD perf/ext2/highspeed). docs/inprogress 68→58. Conservative: kept docs for OPEN areas (WiFi, active A1/Dillo) + all referenced docs (avoid dangling links). More done+unref candidates remain (owner or future turns can continue); did NOT bulk-move to avoid link-breakage/mis-judging "done" |
+| H1 | W1 | Docs cleanup + archive stale docs | WIP (started) | 2026-08-05: archived 10 clearly-done, UNREFERENCED (refs=0, ref-checked vs docs/README/tracking) session-investigation docs → docs/done/ (X11 apps/fonts/xt/xedit/perf, NFS-as-root, SD perf/ext2/highspeed). docs/inprogress 68→58. Conservative: kept docs for OPEN areas (WiFi, active A1/Dillo) + all referenced docs (avoid dangling links). More done+unref candidates remain (owner or future turns can continue); did NOT bulk-move to avoid link-breakage/mis-judging "done". 2026-08-06: the closed Quake flicker/#67 investigation cluster (~9 files: flicker-regression/quake-glitch/single-frame-alias/67-REAL-fix/v3d-alias-vertex/model-gallery/gpu-torch/gpu-linux-ordering) is NOT safe to bulk-archive unattended — inbound-linked from published docs/KNOWN-ISSUES.md + internally cross-referenced (2026-07-26-two-front-fixes → others); needs coordinated link-fixing (attended/dedicated turn) |
 | H2 | W1 | Final Pi4 port-state documentation | WIP | primary state doc = docs/inprogress/pi4-hardware-support-matrix.md. Corrected stale entries (SMP now ✅ 4-core works, Vulkan ✅ textured 3D, exec-reliability→F1 finding) + added "Ported libraries & applications" section (Mesa GL/Vulkan, SDL2, X11, quakespasm/vkQuake/yQuake2, Dillo). Still: promote to a docs/-root doc + final polish when ports settle |
 | H3 | W1 | Pi4 OS-dev knowledge base (extend existing) | DONE | base = docs/knowledge/rpi4-os-development-guide.md. Added: V3D GPU (GL+Vulkan), Display(fb0/HDMI)&audio(PWM), Porting userspace apps & games, **In-process debugging (libdbg)** (2026-08-05), **Storage & the root filesystem** (SD/eMMC DDR50-reads/PIO-writes/CMD13-poll-completion/pool-thread-stack + NFS-root takeover/boot-order-race/NFSv4-expiry/GENET-RX-aliasing/poll-stall/runtime-read caveat) (2026-08-05). Both planned gaps closed; living doc, extend as work continues |
 | B1 | W1 | Generalize in-process debugger → reusable Phoenix debug library | DONE | libdbg corelib (phoenix-rtos-corelibs d026ff0): dbg_init/dbg_backtrace/dbg_arm_watchdog; --scope core + image verify OK, libdbg.a symbols confirmed. libphoenix trampoline enabler (_dbg_signal_ctx) already in place |
@@ -341,6 +341,17 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-06 (Lighter-cadence heartbeat: refreshed the stale status.md LATEST section; found the H1 flicker-cluster
+cross-linked): status.md's `## 🟢 LATEST` section was stale at 2026-08-05 (omitted a full day of 2026-08-06 work),
+so prepended a fresh 2026-08-06 LATEST section — E4 ffmpeg COMPLETE+HW-validated (MJPEG+H.264 bit-exact decode →
+/dev/fb0 → moving video on HDMI), the libm completions + the scalbln bug the new tests caught, B2 feasibility
+(TRACTABLE; impl banked), the journey capstone, and the drained-backlog/lighter-cadence state — additively (old
+sections untouched, zero link risk). Also probed continuing H1 docs-archive (the closed Quake flicker/#67
+investigation cluster, ~9 files): ref-check showed it's inbound-linked from the published docs/KNOWN-ISSUES.md AND
+internally cross-referenced (2026-07-26-two-front-fixes → others), so bulk-archiving needs coordinated link-editing
+across durable/published docs — deferred to an attended/dedicated verifiable turn rather than risk dangling links
+unattended (recorded in the H1 row so it isn't silently net-negative). No code, non-Pi. Pi FREE.
 
 2026-08-06 (Lighter-cadence heartbeat: finished the journey capstone, retired the converged SD loop, queued a
 board-trim): Completed the in-progress H4 journey-article extension — added the E4 ffmpeg arc to the

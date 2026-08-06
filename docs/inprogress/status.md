@@ -3,7 +3,30 @@
 > Per-peripheral state at a glance: **[docs/inprogress/pi4-hardware-support-matrix.md](pi4-hardware-support-matrix.md)**.
 > Full chronological log of the multi-day unattended run: **[UNATTENDED-WORK-LOG.md](../../UNATTENDED-WORK-LOG.md)** (repo root).
 
-## 🟢 LATEST — 2026-08-05 (autonomous vacation run: games rendering, libs, Dillo HTTPS, netboot fixed)
+## 🟢 LATEST — 2026-08-06 (autonomous vacation run: E4 ffmpeg video, libm completions, B2 feasibility, journey capstone)
+
+Authoritative per-turn state + task board: **[autonomous-plan.md](autonomous-plan.md)**. Highlights since 2026-08-05:
+
+- **E4 ffmpeg decode core — COMPLETE + HW-validated (a from-scratch RTOS playing H.264).** A decode-only,
+  LGPL-clean ffmpeg n6.1 core (libav{util,codec,format}.a) cross-builds and links to a static aarch64-Phoenix
+  ELF, and on the netbooted Pi it decodes **MJPEG then H.264 *bit-exactly*** (luma matches the host decoder to
+  the integer), writes decoded frames to **`/dev/fb0` → HDMI**, and **loops a clip as moving video on the
+  screen** (294 frames, visible motion, 0 faults). Reproducible scaffold committed (`tools/ffmpeg-port/`); a
+  runtime fault was root-caused to a stack overflow in H.264's deep decoder and fixed with a large-stack thread.
+- **libphoenix libm gaps filled centrally** for E4: `exp2`/`exp2f`/`log2f`, `erf`/`erfc`/`erff`/`erfcf`, and the
+  `scalbn`/`scalbnf`/`scalbln`/`scalblnf` family — each host-verified vs glibc and `--scope core` clean. New
+  regression tests (`phoenix-rtos-tests/libc/math`) immediately **found + fixed a real `scalbln` overflow**.
+- **B2 (kernel-side backtrace) feasibility — DONE, TRACTABLE**; implementation banked as attended kernel/HAL
+  work (needs `-fno-omit-frame-pointer` + a `hal_exceptionsBacktrace` hook). Recipe recorded.
+- **Journey-article capstone** (`docs/AI-DRIVEN-PORT-JOURNEY.md`) extended with the E4 arc + new takeaways.
+
+**State:** the high-value tractable-unattended backlog is **drained** → the run is in a deliberate lighter-cadence
+stewardship mode (small, verified, converging turns). Remaining plan items are banked (vkQuake render, Quake III
+VM-exec, B2-impl), risk-deferred (E2 internet host-NAT), large multi-turn ports (SuperTuxKart, XFce), or need a Pi
+with visual/interactive ground-truth (game-render polish, audible-audio sign-off, phantom-kbd). All work pushed to
+the org.
+
+## 🟢 2026-08-05 (autonomous vacation run: games rendering, libs, Dillo HTTPS, netboot fixed)
 
 Authoritative per-turn state + task board during the unattended run: **[autonomous-plan.md](autonomous-plan.md)**.
 Highlights since the 2026-06-27 entry below:

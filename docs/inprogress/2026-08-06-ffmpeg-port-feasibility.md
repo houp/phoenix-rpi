@@ -163,3 +163,82 @@ dependency in the requested config.
 the toolchain, asm, threads, and libc surface are all favorable and the single blocker is a
 known-tractable libm gap. **NO-GO (defer) for VideoCore HW decode** and for any demo that
 relies on streaming large video off the NFS root.
+
+---
+
+## 2026-08-06 core cross-build probe
+
+Follow-up to the feasibility scan above, run **after** the 4 libm gaps (`erf/erfc/erff/erfcf`,
+`exp2/exp2f`, `log2f`) were filled in libphoenix. This probe actually **builds the core static
+libs** and enumerates the real undefined surface (not projected). Same rules: no ffmpeg source
+edited (only the generated `config.h`), nothing committed, Pi untouched.
+
+### Setup / sanity
+- Fresh cross-checked libc = `.buildroot/_build/aarch64a72-generic-rpi4b/lib/libphoenix.a`
+  (NOT the stale toolchain sysroot). All 7 new libm symbols confirmed `T` (defined):
+  `erf, erfc, erff, erfcf, exp2, exp2f, log2f`.
+- `./configure` (the task's decode-only line: decoders `mjpeg,rawvideo,pcm_s16le`; demuxers
+  `mjpeg,wav`; protocol `file`; `--enable-asm`; pthreads auto-on) → **exit 0**. All 6 requested
+  components confirmed `=1` in `config_components.h`.
+- One expected config fix-up: configure link-probes against the **stale** sysroot, so it set
+  `HAVE_{ERF,EXP2,EXP2F,LOG2F}=0` (→ ffmpeg emits its `static inline` fallbacks, which clash with
+  libphoenix's non-static prototypes — the §4 compile blocker). Flipped those 4 flags to `1` in
+  the generated `config.h`; that is the whole compile fix, and it is now *link-honest* because the
+  fresh libphoenix genuinely defines them.
+
+### Did the archives build?  **YES — all three, zero compile-fail TUs.**
+```
+make libavutil/libavutil.a libavcodec/libavcodec.a libavformat/libavformat.a  → MAKEEXIT=0
+  libavutil.a    90 objects   (1.00 MB)
+  libavcodec.a   62 objects   (0.56 MB)
+  libavformat.a  29 objects   (0.38 MB)
+```
+No `error:` / `undefined` / `fatal` in the build log. NEON asm on (`HAVE_NEON=1`, `HAVE_ARMV8=1`).
+
+### Undefined surface (measured via `aarch64-phoenix-nm`, counted `U` externals)
+- 717 raw `U` refs across the 3 archives; 604 are cross-satisfied **within** ffmpeg itself.
+- **113 external undefined** (not defined by any ffmpeg TU). Of those:
+  - **102 SATISFIED by fresh libphoenix.a** — ordinary libc/POSIX + libm surface, no gaps:
+    string/mem 21, stdio 11, stdlib/alloc 9, **libm 16**, pthread 12, time 5, file/fd/mmap 13,
+    misc 15 (`__errno_location`, `opendir/readdir/closedir`, `gmtime_r`, `isatty`, `mkstemp`,
+    `stderr`, `sinh/cosh/tanh`, …). Nothing in string/stdio/pthread/fs/time is missing.
+  - **11 GENUINELY UNDEFINED** (not in libphoenix) — the entire "surface beyond libm":
+
+    **(a) 10 = compiler-runtime, provided by libgcc — NOT a Phoenix gap.** All verified `T` in
+    the toolchain's `libgcc.a` (`gcc -print-libgcc-file-name`); resolved automatically by the gcc
+    driver on any link, exactly like every existing Phoenix ELF:
+    - outline-atomics (5): `__aarch64_ldadd4_acq_rel`, `__aarch64_ldadd4_relax`,
+      `__aarch64_ldadd8_acq_rel`, `__aarch64_ldadd8_relax`, `__aarch64_swp4_relax`
+    - TFmode soft-float for 128-bit `long double` (5): `__addtf3`, `__multf3`, `__extenddftf2`,
+      `__trunctfdf2`, `__floatunsitf`
+
+    **(b) 1 = one real libc gap: `scalbn`.** Trivial: FLT_RADIX=2 on aarch64 so
+    `scalbn(x,n) == ldexp(x,n)`, and libphoenix already defines `ldexp/ldexpf/frexp`. A one-line
+    shim (or libphoenix add per the standing "implement missing libc" rule). Not a blocker.
+
+### libm confirmation
+Of the 7 new symbols, only **`exp2` is actually pulled** by this minimal decoder set (referenced
+externally and resolved by libphoenix). The other six (`erf/erfc/erff/erfcf`, `exp2f`, `log2f`)
+are **not exercised** by mjpeg/rawvideo/pcm but are **confirmed present** in libphoenix for when
+h264 / richer decoders need them. So: the libm gap that blocked the prior scan is **closed** — no
+libm symbol appears in the genuinely-undefined set.
+
+### Verdict — how close is a linking decode-only ELF?
+**Very close. Zero hard blockers.** The core decode libraries compile and archive cleanly with
+asm on, and the *entire* external symbol surface resolves as: 102 → libphoenix, 10 → libgcc
+(auto-linked), 1 → a one-line `scalbn` shim. Remaining work to a linking decode-only ELF:
+1. Add/shim `scalbn` (~minutes).
+2. Bake the `HAVE_{ERF,EXP2,EXP2F,LOG2F}=1` reconciliation into a proper `config.h` patch /
+   `phoenix_ffmpeg_compat.h` force-include (so it survives reconfigure) — mechanical.
+3. Provide `main`/entry + link against `libphoenix.a` + `libgcc.a` and drive out any last
+   transitive refs. **Est. effort: well under one focused session** to a linking mjpeg/rawvideo/
+   pcm decode ELF; h264 (with NEON) is the natural next increment and only risks pulling a few
+   more (already-present) libm/pthread symbols.
+
+**Two load-bearing caveats** (this is a name-level closure, not a verified link, per the prior
+memo's norm): (a) matching is by symbol name across archives — archive-member transitive closure
+through libphoenix is not link-verified; (b) libgcc resolution assumes the standard gcc-driver
+auto-link (safe — it is how all Phoenix ELFs link today). Neither changes the verdict.
+
+**GO** — a decode-only libavcodec ELF for Phoenix aarch64 is a short, routine step from here; the
+only genuine libc addition is a trivial `scalbn` alias.

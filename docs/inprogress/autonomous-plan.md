@@ -342,6 +342,20 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-06 (Periodic vkQuake render REGRESSION HEALTH-CHECK — PASSES clean; honors the standing HDMI-pipeline ask):
+Rather than another doc turn, ran an actual empirical guard on the shipped capability (the standing "continue
+vkQuake rendering work via the HDMI-capture pipeline" ask). Netboot `map start` cycle (no `phoenix-map.cfg` →
+default; binary present in the export, 12.8MB Aug-6): boot reached psh + lwip + genet IP, vkQuake loaded `map
+start`, sustained render to **present=3120, drawIndirect=80 (world indirect-draw path live), 0 real faults** (the
+3 "fault" grep hits are benign: the libdbg install line + `execing default.cfg` + the map-load line). **Pixel +
+visual match to known-good:** fresh grab full(mean=19.64 std=14.05) center(mean=14.03 std=10.72) vs 3 independent
+2026-08-05 `map start` references (full mean≈19.4-19.8 std≈13.9-14.3; center mean≈13.9-14.1 std≈9.7-10.7) — within
+0.2/0.1; ticks vary slightly (live, not frozen). HDMI eyeball confirms the correct render (lightmapped QUAKE
+archway, brick walls + light falloff, wood beams, tiled floor, lit torches, fireball sky, clean shotgun viewmodel,
+HUD 100/25), NO striping/speckle/black-walls. Guards against silent regression (export drift, accumulated changes)
+— confirms the durable "vkQuake render DONE + resting" claim still holds. Helper: job-tmp vkq_pixstats.py (PIL).
+No code change; Pi-lock cleared to FREE.
+
 2026-08-06 (Lighter-cadence heartbeat: refreshed the stale status.md LATEST section; found the H1 flicker-cluster
 cross-linked): status.md's `## 🟢 LATEST` section was stale at 2026-08-05 (omitted a full day of 2026-08-06 work),
 so prepended a fresh 2026-08-06 LATEST section — E4 ffmpeg COMPLETE+HW-validated (MJPEG+H.264 bit-exact decode →

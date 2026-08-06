@@ -140,6 +140,15 @@ of heartbeats it:
   diagnostics for publication, and kept the documentation and a per-issue registry current.
 - Pushed the **Quake III engine all the way to a live V3D render + a running QVM interpreter**,
   then **banked it** at a precisely-diagnosed VM-execution bug rather than chase it indefinitely.
+- **Ported an ffmpeg decode core and played video on the screen.** From a feasibility scan, through
+  filling the last four libc gaps it hit (`erf`/`exp2`/`log2f`/`scalbn`), a reproducible LGPL-clean
+  build scaffold, and finally decoding **MJPEG then H.264 *bit-exactly*** on the hardware (the decoded
+  luma matched the host decoder to the integer) and looping a clip onto the `/dev/fb0` framebuffer as
+  **moving video on the HDMI output** — a from-scratch RTOS playing H.264. Every step was a bounded,
+  HW-verified increment: a runtime fault was root-caused (not guessed) to a *stack overflow* from
+  H.264's deep decoder and fixed with a large-stack thread; and an early "the on-device demo is
+  infra-gated" bank was correctly *revisited* once the agent noticed the gating was about multi-MB
+  video, not a 1 KB test frame.
 
 The limits it hit were *physical or judgment* boundaries, not cognitive ones: a 100 Mbps link it
 couldn't rewire, an SD card it couldn't insert, and a host network it judged too risky to
@@ -166,3 +175,11 @@ worth a silent regression while no human could recover it).
   driven to a precise root cause and then deliberately shelved, with that characterization
   recorded, once the graphics port itself was proven. Banking hard-won understanding and moving on
   beats an open-ended rabbit hole — the more so unattended, where there is no one to call it.
+- **The agent's own tests caught the agent's own bug.** Once the high-value backlog was drained, the
+  loop shifted to a lighter cadence — hardening what was shipped rather than manufacturing new
+  features. Writing regression tests for the libm functions it had *just shipped* immediately
+  surfaced a real overflow in its own `scalbln` (a huge exponent clamped to `INT_MAX` wrapped to ~0
+  instead of ∞). "I already verified this" is not the same as a test; on a long unsupervised run the
+  cheapest guard against your own confident mistakes is to make the check executable. Knowing when
+  to *drop to that gear* — small, sure, verifying turns instead of forcing another headline — is
+  itself part of the judgment.

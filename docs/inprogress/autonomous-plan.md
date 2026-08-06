@@ -337,6 +337,14 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-06 (Lighter cadence: extended the journey-article capstone (H4) with the E4 arc + a takeaway): Small
+sure doc turn — added the E4 ffmpeg story to docs/AI-DRIVEN-PORT-JOURNEY.md's autonomous-phase section (ported
+a decode core: feasibility → 4 libc gaps → LGPL scaffold → bit-exact MJPEG then H.264 on HW → moving video on
+/dev/fb0, with the stack-overflow root-cause + the correctly-revisited "infra-gated" bank as method examples),
+and a new takeaway distilled from this run: "the agent's own tests caught the agent's own bug" (the libm
+regression tests found the scalbln overflow) + knowing when to drop to the lighter/verifying gear. Enriches
+the publication-bound capstone with the major E4 accomplishment. No code, non-Pi. Pi FREE.
+
 2026-08-06 (Lighter-cadence stewardship: refreshed the port-state doc (H2) + verified everything pushed):
 Small sure turn. Confirmed cron healthy (~5 days) and — stewardship for the owner's return + the public tree —
 verified ALL repos are pushed to the org (coord + libphoenix/tests/kernel/devices: 0 unpushed-to-publish).

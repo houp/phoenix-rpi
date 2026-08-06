@@ -1,8 +1,18 @@
 # Phoenix-RTOS Raspberry Pi 4 (BCM2711) — Hardware Support Matrix
 
-**Updated:** 2026-06-26. Canonical "where are we" reference for the Pi 4 port.
+**Updated:** 2026-08-06. Canonical "where are we" reference for the Pi 4 port.
 One row per peripheral/subsystem. For narrative gap analysis see
 `docs/knowledge/scope-pi4-uncovered.md`; for live progress see `docs/inprogress/status.md`.
+
+> **STATUS (2026-08-06):** the port is a working graphical + media machine. **Games render on the
+> GPU:** GLQuake (quakespasm) flagship, **vkQuake full textured 3D via Vulkan** (the old #29 no-WSI
+> gap is FIXED — see the vkQuake row), **Quake II fullscreen 3D** (SDL2+ref_gl1), and Quake III
+> engine+renderer (VM-exec banked). **SDL2 2.30.12** (fullscreen GL + input + audio) HW-validated.
+> **E4: an ffmpeg decode core** now decodes **MJPEG and H.264** correctly on HW and **plays moving
+> video on the HDMI screen** (`tools/ffmpeg-port/`, `/dev/fb0` sink). libphoenix **libm** filled
+> (rint/rounding/min-max + exp2/log2f/erf/erfc/scalbn, regression-tested); **libdbg** in-process
+> backtrace corelib (kernel-side B2 feasibility done); Dillo builds HTTPS-capable (mbedTLS). The old
+> 2026-06-26 blurb below is retained for history.
 
 > **STATUS (2026-06-26):** since the 2026-06-18 pass — the X11 software desktop is fully
 > live on HW (Xphoenix kdrive fbdev DDX + kbd/mouse input + JWM + Window Maker WMs + xterm
@@ -65,8 +75,11 @@ One row per peripheral/subsystem. For narrative gap analysis see
 | X11 desktop (kdrive/Xphoenix) | ✅ HW-validated | fbdev DDX → /dev/fb0, kbd+mouse input, xeyes/xterm/xcalc/xedit + JWM/Window Maker WMs (`project_x11_lib_port`) |
 | QuakeSpasm (GLQuake) | ✅ HW-validated | textured GLQuake ~40fps@1080p, demos + SP map, LAN MP, 0 faults (`project_quakespasm_port`) |
 | vkQuake (Vulkan Quake) | ✅ HW-validated | textured 3D via Vulkan on V3D; torch/alpha-scanout fixed (d3e329c). Remaining: TFU tiling striping, phantom-kbd (`project_vkquake_torches_dark_fullbright`) |
-| yQuake2 (Quake II, `ref_gl1`) | 🟡 runs | single-ELF (dlopen→static), loads maps ("Outer Base", 38 entities), renders 2D + connects; full 3D map load is **infra-bound** (slow 100Mbps NFS + large-binary exec) not a port bug; needs `allow_download 0` (`project_quake2_port`) |
-| Dillo / mc / glib2 | ✅ | render on fbcon (`project_pi4_glib2_mc`) |
+| yQuake2 (Quake II, `ref_gl1`) | ✅ HW-validated | single-ELF (dlopen→static); **renders the full 3D game fullscreen 1920×1080** on V3D via SDL2+ref_gl1 (textured walls, enemies, viewmodel, HUD, correct lighting, 0 faults); launch `+set vid_renderer gl1 +set r_mode -1` (`project_quake2_port`) |
+| Quake III (quake3e) | 🟡 engine+renderer proven | exec → V3D GL @1080p → all GL procs → R_Init → QVMs load; VM-execution (interpreter + aarch64 JIT) deep-blocked, **banked** (`project_quake3_port`) |
+| **ffmpeg decode core (E4)** | ✅ HW-validated | **MJPEG + H.264** decode correct on HW (bit-exact vs host ffmpeg) and **moving video plays on the HDMI screen** (decode → YUV→RGB → `/dev/fb0`, paced loop); reproducible LGPL-clean scaffold `tools/ffmpeg-port/`; h264 needs an 8 MB-stack thread. Remaining = a full media player (real content/audio/demux) (`project_ffmpeg_e4_feasibility`) |
+| Dillo / mc / glib2 | ✅ | render on fbcon; **Dillo builds HTTPS-capable via mbedTLS** (E1, LGPL/GPLv3-clean); live browsing gated on E2 host-NAT (`project_pi4_glib2_mc`, `project_dillo_https_tls`) |
+| libphoenix libm + libdbg (corelibs) | ✅ | libm gaps filled (rint/rounding/min-max + exp2/log2f/erf/erfc/scalbn, regression-tested in `phoenix-rtos-tests/libc/math`); **libdbg** reusable in-process crash/hang backtrace corelib (`project_libphoenix_libm`, `project_libdbg_facility`) |
 
 ## Build / test infrastructure (✅)
 

@@ -337,6 +337,15 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-06 (Lighter-cadence stewardship: refreshed the port-state doc (H2) + verified everything pushed):
+Small sure turn. Confirmed cron healthy (~5 days) and — stewardship for the owner's return + the public tree —
+verified ALL repos are pushed to the org (coord + libphoenix/tests/kernel/devices: 0 unpushed-to-publish).
+Refreshed the port-state matrix (docs/inprogress/pi4-hardware-support-matrix.md), which was stale at
+2026-06-26 (still said vkQuake "2D raster, paused at #29", Q2 "2D/infra-bound"): added a current 2026-08-06
+status blurb, a NEW row for the E4 ffmpeg decode core (MJPEG+H.264 decode + moving video on HDMI), a Quake III
+row, a libphoenix-libm+libdbg row, corrected the Q2 row to "fullscreen 3D HW-validated", and noted Dillo's
+HTTPS/mbedTLS build. The doc now reflects the port's real current capabilities. No code, non-Pi. Pi FREE.
+
 2026-08-06 (Lighter cadence: libc math regression tests — and they FOUND + fixed a real scalbln bug): Per the
 advisor's saturation guidance (high-value tractable-unattended backlog drained → small sure turns are fine),
 did the responsible completion of the shipped libm work: regression tests (phoenix-rtos-tests/libc/math) for

@@ -204,7 +204,12 @@ the loop alive + resilient, NOT land a big capability every heartbeat.** Correct
 converging turns (upstreamable hardening, test coverage, doc/publication polish, periodic clean-build/pushed
 stewardship) — a small turn is a fine turn; do NOT manufacture big deliverables or over-deliberate. Do NOT
 reopen the banked items (vkQuake render, B2-impl, E2, A1, C3) absent a regression or new owner signal.
-This turn: libm regression tests (upstreamable, completes foundational libc coverage — round.c precedent).
+Standing menu for these turns (not turn-specific — stop re-deriving it each heartbeat): upstreamable
+libc/test hardening, doc/publication polish, periodic push + clean-build stewardship, low-risk repo hygiene.
+**Concrete queued hygiene task: this board's `## Last progress` log has grown to ~940 lines (entries back to
+2026-08-05, anchored from ~line 620 downward) and the whole file is read every heartbeat (~64k tokens);
+archive all-but-the-~10-most-recent entries into a dated `docs/done/` file to cut that recurring read cost —
+do it as a careful contiguous-range MOVE (nothing deleted), not fragile in-place exact-match surgery.**
 
 **★ 2026-08-06 STRATEGIC PIVOT (advisor-confirmed): vkQuake RENDER IS DONE + RESTING.** After ~8 turns of
 vkQuake render work (I1 closed, perf characterized+closed, config-map feature shipped, episode sweep
@@ -336,6 +341,19 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-06 (Lighter-cadence heartbeat: finished the journey capstone, retired the converged SD loop, queued a
+board-trim): Completed the in-progress H4 journey-article extension — added the E4 ffmpeg arc to the
+autonomous-phase section + a takeaway distilled from this run ("the agent's own regression tests caught the
+agent's own just-shipped scalbln bug" + knowing when to drop to a lighter verifying gear) — committed + pushed
+to the org (coord 165d86b..b4592c2). Retired the SD-driver `/loop` cleanly: its goal is resolved to a
+well-founded, advisor-endorsed stop (reads at the DDR50 ceiling ~38 MB/s; writes 100% correct via PIO ~13 MB/s,
+#154) and the sole remaining lever (an SDMA write path) is HW-blocked — the netboot Pi has NO card in the slot,
+so nothing unattended can advance it (resume recipe durable in [[project_pi4_sd_fullspeed_state]] + the SD row).
+Cron df8363ff healthy (~5 days from expiry — no re-arm yet). Observed the board itself is now ~1331 lines /
+~64k tokens read every heartbeat (the `## Last progress` log is the bulk) → queued a careful archive of the
+oldest entries as a hygiene task (see Active task) rather than risk large in-place surgery on the durable source
+of truth unattended. No code, non-Pi. Pi FREE.
 
 2026-08-06 (Lighter cadence: extended the journey-article capstone (H4) with the E4 arc + a takeaway): Small
 sure doc turn — added the E4 ffmpeg story to docs/AI-DRIVEN-PORT-JOURNEY.md's autonomous-phase section (ported

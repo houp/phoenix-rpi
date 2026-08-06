@@ -37,9 +37,15 @@ decode program (`e4_decode_file.c`) against them plus the **fresh** buildroot
   not); `e4_decode_h264.c` runs the decode on an 8 MB pthread. libphoenix `pthread_create`
   mmaps exactly the requested stack (no clamp).
 
+- **Decode → HDMI** (`e4-fbshow /usr/share/e4/pattern.jpg`): decoded a 1280x720 JPEG and
+  **displayed it on the HDMI output** — `/dev/fb0` is the live firmware framebuffer, so a
+  YUV420→32bpp blit (byte order per pl011-tty) shows on screen. HDMI-verified: the image centered
+  on black with correct colors (TL red / TR green / BL blue / BR white), 0 faults. The first
+  *visible* output of the port. (`e4_fbshow.c` + `e4_fb_blit.h`; test images stage fine over NFS.)
+
 So the full pipeline — libphoenix file I/O + libavcodec (MJPEG **and** H.264) + NEON + the
-new libm — actually decodes correctly on hardware, not just links. (`e4_decode_demo.c`
-remains a minimal link-only variant that decodes nothing.)
+new libm — actually decodes correctly on hardware **and puts pixels on the HDMI screen**, not just
+links. (`e4_decode_demo.c` remains a minimal link-only variant that decodes nothing.)
 
 Enabled decode-only feature set (the proven recipe):
 
@@ -142,8 +148,10 @@ None are toolchain/link blockers; they are runtime + infra:
    **SD or tmpfs**, **not** the NFS root. File delivery over the ~100 Mbps flaky
    netboot NFS is the headline runtime risk (the same limit that gated large
    game assets), not a decode bug.
-2. **Frame sink.** Blit decoded frames to `/dev/fb0` (the raw-frame → fb0
-   scanout path already exists on this port) for a visible result.
+2. **Frame sink — DONE (HW-validated 2026-08-06).** `e4_fbshow.c` blits a decoded
+   frame to `/dev/fb0` (the live firmware HDMI framebuffer) and it shows on screen
+   (see the Decode → HDMI result above). A *moving* player (loop frames + timing)
+   is the remaining step toward actual video playback.
 3. **Threading.** ffmpeg's pthread frame/slice threading API satisfies configure
    but is unproven under load on Phoenix — run `-threads 1` for first bring-up.
 4. **h264 — DONE (HW-validated 2026-08-06).** `--enable-decoder=h264

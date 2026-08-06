@@ -67,6 +67,9 @@ LIBPHOENIX = f"{ROOT}/.buildroot/_build/aarch64a72-generic-rpi4b/lib/libphoenix.
 #                     == host ffmpeg (bit-exact). Runs the decode on an 8 MB-stack pthread — H.264's
 #                     DPB/deblocking overflow the small default main-thread stack (mjpeg does not).
 #                     Build h264 in via --enable-decoder=h264 --enable-parser=h264 (already in CONFIGURE).
+#   e4_fbshow.c       REAL decode → /dev/fb0 → HDMI (needs e4_fb_blit.h). HW-VALIDATED: a
+#                     1280x720 jpeg decoded + displayed centered on the HDMI output with correct
+#                     colors (YUV420→32bpp, byte order per pl011-tty). The first VISIBLE output.
 #   e4_decode_demo.c  minimal link-only variant (decodes nothing), kept for reference.
 DEMO = os.environ.get("DEMO_SRC", f"{ROOT}/tools/ffmpeg-port/e4_decode_file.c")
 ELF = "/tmp/e4_decode-phoenix"

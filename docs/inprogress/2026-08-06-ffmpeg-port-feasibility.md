@@ -242,3 +242,75 @@ auto-link (safe — it is how all Phoenix ELFs link today). Neither changes the 
 
 **GO** — a decode-only libavcodec ELF for Phoenix aarch64 is a short, routine step from here; the
 only genuine libc addition is a trivial `scalbn` alias.
+
+---
+
+## 2026-08-06 decode ELF link probe
+
+Follow-up to the core cross-build probe above. This step does the **real link** the prior probe
+deferred: a minimal mjpeg-decode program driven through the actual decode call graph, linked
+against the three built ffmpeg archives + the **fresh** libphoenix.a to a Phoenix aarch64 ELF.
+Same rules: analysis-only, no Pi, no commits, no source-repo / sysroot / toolchain mutation
+(work in job tmp `/home/houp/.claude/jobs/c8f1289c/tmp/e4_link`).
+
+### Program (real call graph, not just name refs)
+`main.c` exercises: `avcodec_find_decoder(AV_CODEC_ID_MJPEG)` → `avcodec_alloc_context3` →
+`avcodec_open2` → `av_packet_alloc` / `av_frame_alloc` → `avcodec_send_packet` →
+`avcodec_receive_frame` → `av_frame_free` / `av_packet_free` → `avcodec_free_context`. No real
+input (drain packet only) — enough to pull the decoder open/close + send/receive machinery.
+Compiled clean: `aarch64-phoenix-gcc -c main.c -I<ffmpeg-root>` → exit 0.
+
+### LINKS? **YES — first try, exit 0, ZERO undefined.**
+Working link line (headers = ffmpeg source root; archives = prior-probe build; fresh libc explicit):
+```
+aarch64-phoenix-gcc -o e4_decode main.o \
+  -Wl,--start-group \
+    <ffmpeg>/libavformat/libavformat.a \
+    <ffmpeg>/libavcodec/libavcodec.a \
+    <ffmpeg>/libavutil/libavutil.a \
+    .buildroot/_build/aarch64a72-generic-rpi4b/lib/libphoenix.a \
+  -Wl,--end-group -lm -lgcc
+  → LINK_EXIT=0
+```
+No `-nodefaultlibs` / crt-override gymnastics needed. The gcc driver's implicit trailing
+`-lphoenix` (stale sysroot) caused **no** multiple-definition and left **no** new-libm symbol
+unresolved — because the fresh libphoenix.a inside the group is searched first and defines every
+new libm symbol, so the linker never falls through to the stale copy.
+
+### Verification (empirical, not projected)
+- `aarch64-phoenix-readelf -h e4_decode` → `Class ELF64`, `Machine AArch64`, `Type EXEC`,
+  entry `0x401568`. No dynamic section (fully static, as intended).
+- **ELF size: 1,369,704 bytes (~1.31 MB).**
+- `aarch64-phoenix-nm e4_decode | grep ' U '` → **0 undefined externals.** Nothing remains in
+  any group (no libc/libphoenix gap, no libgcc-runtime gap, no ffmpeg-internal gap, no
+  link-mechanics gap).
+- Spot-checks confirm the projected closure landed as `T` (defined) in the ELF:
+  - libm/from fresh libphoenix: `exp2`, `scalbn`, `ldexp`, `log2`, `pow`, `sqrt` — all `T`.
+  - libgcc runtime auto-linked: `__addtf3`, `__multf3`, `__aarch64_ldadd4_acq_rel` — all `T`.
+  - crt0 + entry: `_start` and `main` — `T`.
+- Note vs. prior probe: `scalbn` is **no longer even a gap** — the fresh
+  `.buildroot/_build/.../libphoenix.a` already defines it (`T`), so the projected "one-line
+  shim" is unnecessary against this libc.
+
+### Verdict — decode core is LINK-COMPLETE for Phoenix aarch64
+The prior probe's name-level closure is now **link-verified**: a real mjpeg-decode call graph
+links to a static AArch64 Phoenix ELF with **zero undefined symbols** and no link-mechanics
+tricks. Both load-bearing caveats from the previous section are now discharged — archive-member
+transitive closure through libphoenix **does** resolve, and gcc-driver libgcc auto-link **does**
+supply the runtime. There are **no remaining toolchain/libc/link blockers** for a decode-only
+(mjpeg/rawvideo/pcm) build.
+
+**What's left before an on-Pi decode demo** (all runtime, none toolchain):
+1. Package this as a proper `tools/*-port`-style driver: a `phoenix_ffmpeg_compat.h` / `config.h`
+   patch that bakes the `HAVE_{ERF,EXP2,EXP2F,LOG2F}=1` reconciliation so it survives reconfigure
+   (mechanical), and a real `main` that decodes a staged clip to `/dev/fb0` (raw-frame → fb0 sink
+   already exists).
+2. Stage a **tiny** mjpeg/clip on **SD or tmpfs**, not the NFS root — file delivery over the
+   ~100 Mbps flaky NFS is the headline runtime risk (unchanged from §Risks), not a decode bug.
+3. h264 (NEON asm on) is the natural next increment — only risks pulling a few more
+   already-present libm/pthread symbols; re-run this exact link probe against an h264-enabled
+   build to confirm.
+4. Threading: run `-threads 1` for first bring-up (API present, runtime unproven).
+
+**GO** — decode core links cleanly to a Phoenix ELF today; remaining work is a build-driver
+wrapper + an on-Pi runtime/file-delivery demo, not a port blocker.

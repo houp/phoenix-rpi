@@ -192,6 +192,19 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 ## Active task
 
+**★ 2026-08-06 STRATEGIC PIVOT (advisor-confirmed): vkQuake RENDER IS DONE + RESTING.** After ~8 turns of
+vkQuake render work (I1 closed, perf characterized+closed, config-map feature shipped, episode sweep
+e1m1-e1m4 ✓, e1m4-dark note resolved), the render is thoroughly characterized and healthy. **DURABLE RULE
+(stop re-deriving this each heartbeat): treat vkQuake render as DONE unless a render REGRESSION or a NEW
+signal appears.** The twice-banked liquid pixel-confirm stays banked (a re-confirmation of the established
+CSD warp fix, blocked by no-movement — NOT reopened). "Continue vkQuake rendering work" is honored by keeping
+render healthy; it does NOT mean spending every turn exclusively on vkQuake. **Now advancing OTHER plan items
+via bounded, verifiable FIRST STEPS** (per the advisor + this board's own "pivot to non-game/non-Pi-heavy
+work" note). This turn's bounded step: **E4 ffmpeg feasibility scan** (does libavcodec cross-compile for
+aarch64-phoenix? build/dep/undefined surface? the NFS-runtime-read limit that gated Q2?) — a non-Pi
+capability-feasibility assessment, same analysis-first shape as the Q2/Q3/SDL2 scans. Rule: one bounded
+characterization per candidate; deep-dive only if it surfaces a tractable path.
+
 **Quake2 decisive render test = infra-blocked (not a port bug).** 2026-08-05: reliable exec worked
 (banner), but yquake2 fatal-errored `Couldn't load pics/colormap.pcx` = intermittent RUNTIME NFS
 read failure (NFS lease-expiry/reclaim or stale host nfsd; the #156 exec fix doesn't cover runtime
@@ -309,6 +322,18 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-06 (STRATEGIC PIVOT off saturated vkQuake render → E4 ffmpeg feasibility; advisor-confirmed): Consulted
+the advisor on a real change-of-approach after ~8 vkQuake-render turns. Verdict (which I agree with): vkQuake
+render is DONE + RESTING — perf characterized+closed, config-map feature shipped, episode e1m1-e1m4 ✓, e1m4-dark
+note resolved; the twice-banked liquid confirm is a re-confirmation blocked by no-movement and must STAY banked
+(reversing it a 3rd time = the one clear error), and 8/8 map completion is cosmetic. "Continue vkQuake rendering
+work" is honored by keeping render healthy, NOT by exclusive focus — and this board's own note already says
+"pivot to non-game/non-Pi-heavy work." **Durable rule recorded in Active task: treat vkQuake render as done
+unless a regression/new-signal appears; advance other plan items via bounded verifiable FIRST STEPS.** This
+turn's bounded step: launched a subagent for an **E4 ffmpeg feasibility scan** (cross-compile probe + build/dep/
+undefined surface + the NFS-runtime-read concern) — non-Pi, same analysis-first shape as the Q2/Q3/SDL2 scans.
+Result pending (subagent). Board pivot committed now (durable). Pi FREE.
 
 2026-08-06 (vkQuake episode render-validation sweep via the new config-map — 4/8 maps ✓, stale e1m4 note
 resolved): Used last turn's config-driven boot map (NO rebuild — just write id1/phoenix-map.cfg + one Pi

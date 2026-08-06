@@ -192,6 +192,20 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 ## Active task
 
+**★★ 2026-08-06 DURABLE STATE (advisor-confirmed): HIGH-VALUE TRACTABLE-UNATTENDED BACKLOG IS DRAINED → LIGHTER
+CADENCE.** After a long, productive run (SDL2, Quake2/3/vkQuake/quakespasm render, full E4 ffmpeg decode+display
++moving-video-on-HDMI, libm completions, libdbg + B2 feasibility, Dillo HTTPS, thermal/gpio/hwrng/fb0/audio
+drivers, netboot/NFS/SD fixes, extensive docs), NO remaining plan item is BOTH high-value AND
+tractable-unattended. Remaining skews: kernel/HAL (B2-impl, A1 Batch 3 — unattended-DEFER per
+[[feedback_unattended_scoping]]), risk-deferred (E2 internet dnsmasq), large multi-turn ports (C6 STK, D3 XFce),
+owner-verification-needed (audible audio sign-off, I3 phantom-kbd — no keyboard/ears), or Pi-heavy-uncertain
+(C3 MP #68 — niche + uncertain host-server setup = rabbit hole, do NOT start unattended). **"Never stop" = keep
+the loop alive + resilient, NOT land a big capability every heartbeat.** Correct behavior now: small, sure,
+converging turns (upstreamable hardening, test coverage, doc/publication polish, periodic clean-build/pushed
+stewardship) — a small turn is a fine turn; do NOT manufacture big deliverables or over-deliberate. Do NOT
+reopen the banked items (vkQuake render, B2-impl, E2, A1, C3) absent a regression or new owner signal.
+This turn: libm regression tests (upstreamable, completes foundational libc coverage — round.c precedent).
+
 **★ 2026-08-06 STRATEGIC PIVOT (advisor-confirmed): vkQuake RENDER IS DONE + RESTING.** After ~8 turns of
 vkQuake render work (I1 closed, perf characterized+closed, config-map feature shipped, episode sweep
 e1m1-e1m4 ✓, e1m4-dark note resolved), the render is thoroughly characterized and healthy. **DURABLE RULE
@@ -322,6 +336,20 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-06 (Lighter cadence: libc math regression tests — and they FOUND + fixed a real scalbln bug): Per the
+advisor's saturation guidance (high-value tractable-unattended backlog drained → small sure turns are fine),
+did the responsible completion of the shipped libm work: regression tests (phoenix-rtos-tests/libc/math) for
+exp2/exp2f/log2f + the scalbn family + a new math_erf group (erf/erfc/erff/erfcf), expected values host-compiled
+from Phoenix's OWN libm (not glibc) so assertions match Phoenix's accuracy (exact for scalbn/specials, tight
+WITHIN for transcendentals). **The test-writing FOUND A REAL BUG:** scalbln/scalblnf clamped a huge long
+exponent to INT_MAX, which overflowed ldexp's internal `exponent += conv.exponent + exp` → returned ~0 instead
+of ±inf for |n|>INT_MAX (my earlier "preserves the result for any n" comment was wrong). **Fixed** (libphoenix
+7ca437b): clamp to ±100000 (past the double exponent range so still saturates, but no int overflow); host-tested
+vs glibc across normal+huge n (incl LONG_MAX/MIN) all match; --scope core clean; added a huge-|n| regression
+guard to the test. Committed tests (phoenix-rtos-tests d049606) + fix (libphoenix 7ca437b, manifest
+2026-08-06-libphoenix-scalbln-fix-libm-tests). The tests earned their keep immediately. Non-Pi (host-verified;
+no HW run needed — E4 already exercised exp2/scalbn on HW). Pi FREE.
 
 2026-08-06 (Diversified off E4 → B2 kernel-backtrace FEASIBILITY (TRACTABLE); impl banked per unattended-defer):
 E4 done, so diversified to a clean non-Pi bounded first-step: assess extending libdbg backtraces to the kernel

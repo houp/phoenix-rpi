@@ -105,7 +105,7 @@ Status: TODO / WIP / BLOCKED / DONE. Priority waves: W0 foundation → W3 hardes
 | D1 | W3 | X11 GPU-accelerated extensions (toward RPi-OS parity) | TODO | |
 | D2 | W3 | X11 GL/Vulkan windowed (GLX) + glxgears validation | TODO | |
 | D3 | W3 | XFce desktop environment port | TODO | large |
-| E4 | W3 | ffmpeg port (tool+lib) + Pi HW decode accel | TODO | |
+| E4 | W3 | ffmpeg port (tool+lib) + Pi HW decode accel | FEASIBILITY ASSESSED (2026-08-06) | Bounded host-side scan (subagent) → docs/inprogress/2026-08-06-ffmpeg-port-feasibility.md. **Two-tier verdict: (a) core sw-decode library port (libavutil/libavcodec.a, small decoder set) = TRACTABLE** — ffmpeg n6.1 `./configure --target-os=none --arch=aarch64 --cc=aarch64-phoenix-gcc ...` exits 0 (its own hand-rolled configure, no autotools/hosted-POSIX to fight; all config.log failures are benign optional probes), **NEON/aarch64 asm ASSEMBLES** (keep asm ON, don't --disable-asm), pthreads probe passes, ~14 libavutil/libavcodec TUs compiled clean. **(b) end-to-end video-on-Pi unattended = HARD-BUT-POSSIBLE** (gated by NFS file delivery + sw-decode perf, NOT toolchain). **(c) VideoCore HW decode = INFEASIBLE-UNATTENDED** (from-scratch mailbox/V4L2 driver). **Top blocker #1 = a libphoenix libm gap** (`erf`/`exp2`/`exp2f`/`log2f` DECLARED in math.h but not DEFINED → configure sets HAVE_*=0, ffmpeg's static-inline fallback clashes with the prototype) — the SAME add-a-fn pattern already used for rint/rounding families ([[project_libphoenix_libm]]); fix = flip the 4 HAVE_* + supply the 4 defs. Other risks: NFS runtime-read limit for multi-MB video (stage a tiny clip on SD/tmpfs for a first demo); no HW decode. **GO for a bounded sw-decode core port (mjpeg→h264, asm on, static single ELF, decode-only); ~2-4 sessions to a linking ELF.** Natural next bounded step: implement the 4 libm fns in libphoenix (in-wheelhouse, benefits any port). |
 | E5 | W3 | X11 video player (windowed + fullscreen) | TODO | after E4 |
 | B2 | W3 | Extend debugger to kernel/driver-side | TODO | after B1 |
 | H4 | W3 | AI-driven-journey article (git+conversation+memory analysis) | DRAFT (extended) | docs/AI-DRIVEN-PORT-JOURNEY.md — grounded draft: the arc, easy/hard for AI, war-stories (torch/alpha ~40 cycles, #67 false-metric, #156 race), observability, the human's ground-truth impact, why HW is hard for a text agent. **Extended 2026-08-05 (64f5466):** autonomous-phase section brought up to the fuller arc (Q2 fullscreen, vkQuake re-verified, Q3 engine+renderer banked, netboot fresh-kernel/stale-userspace fix, libm central gap-fill, libdbg corelib, Dillo HTTPS/mbedTLS) + 2 new distilled takeaways (distrust-your-diagnosis; know-when-to-bank-a-saga). Owner review/refine expected; keep extending as the journey continues |
@@ -333,7 +333,12 @@ work" is honored by keeping render healthy, NOT by exclusive focus — and this 
 unless a regression/new-signal appears; advance other plan items via bounded verifiable FIRST STEPS.** This
 turn's bounded step: launched a subagent for an **E4 ffmpeg feasibility scan** (cross-compile probe + build/dep/
 undefined surface + the NFS-runtime-read concern) — non-Pi, same analysis-first shape as the Q2/Q3/SDL2 scans.
-Result pending (subagent). Board pivot committed now (durable). Pi FREE.
+**RESULT (memo docs/inprogress/2026-08-06-ffmpeg-port-feasibility.md): core sw-decode lib port = TRACTABLE**
+(configure exit 0 for --target-os=none aarch64; NEON asm assembles; pthreads OK; ~14 TUs compiled), end-to-end
+video-on-Pi = HARD-BUT-POSSIBLE (NFS/perf-gated), HW decode = INFEASIBLE-UNATTENDED. Top blocker = a libphoenix
+libm gap (erf/exp2/exp2f/log2f declared-not-defined) — same add-a-fn pattern as rint/rounding ([[project_libphoenix_libm]]).
+GO for a bounded sw-decode core port (~2-4 sessions); natural next step = implement the 4 libm fns. A clean
+pivot: turned E4 from "unknown/large" into "tractable core, known first blocker, effort estimate". Pi FREE.
 
 2026-08-06 (vkQuake episode render-validation sweep via the new config-map — 4/8 maps ✓, stale e1m4 note
 resolved): Used last turn's config-driven boot map (NO rebuild — just write id1/phoenix-map.cfg + one Pi

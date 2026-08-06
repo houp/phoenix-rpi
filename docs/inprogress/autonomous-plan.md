@@ -69,7 +69,7 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
 
 ## Pi lock
 
-- **FREE** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
+- **IN USE e4-h264 2026-08-06T07:40Z** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
   Netboot game tests are now RELIABLE — the harness (psh-interact.py) waits for the NFS
   "registered / (takeover)" line before sending commands (#156 fix). No ls-warm needed.
 
@@ -322,6 +322,16 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-06 (E4 h264 increment: LINKS clean 0-undefined; runtime FAULTS ~stack-overflow → fixing with a
+big-stack thread): Extended the decode core from mjpeg to h264 (the practical video codec). **h264 decoder +
+parser cross-LINK 0-undefined against the fresh libphoenix.a — NO new libc/libm gaps beyond mjpeg** (verified;
+build-ffmpeg-phoenix.py now `--enable-decoder=mjpeg,h264,... --enable-parser=h264`, committed). Host-verified
+the h264 demo decodes a tiny 128x96 Annex-B clip (plane0 avg 123). **On-Pi: FAULTED** after `file opened` —
+EL0 Data Abort, WRITE, translation-fault-L3, far=0x7fffff6140 (near userspace stack top) = **stack overflow**
+(h264's DPB/deblocking/deep call chains need much more stack than mjpeg's single-frame path). Attempting the
+bounded fix: run the decode in a pthread with a large (8MB) stack (demo-side, no libphoenix change) — which
+also confirms the stack hypothesis. If it decodes → h264-on-HW milestone; else bank h264-runtime. Pi IN USE.
 
 2026-08-06 (E4 ★ DECODE RUNS CORRECTLY ON PHOENIX HW — the headline milestone): Realized last turn's "on-Pi
 demo infra-gated" bank was too pessimistic for SMALL media (gating = multi-MB video over NFS, not a 1.4KB

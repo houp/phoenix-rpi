@@ -62,6 +62,40 @@ static void wait_for_gamedata(void)
 	Sys_Printf("vkquake: pak0.pak not found after wait (continuing; Host_Init will report)\n");
 }
 
+/* Startup map: this port has no console/argv path to pick a level (the classic engine takes
+ * `+map <name>`, but Phoenix argv marshalling doesn't surface it — #I2), so historically the
+ * boot map was HARDCODED to "start". Instead, read the map name from an optional one-line file
+ * `<basedir>/id1/phoenix-map.cfg` (first whitespace-delimited token). Absent/empty -> "start"
+ * (unchanged default). This lets a tester boot any level (e2m1, a water map, a DM map, ...) by
+ * dropping a file into the game dir — no rebuild — which is also how the HDMI render pipeline can
+ * exercise maps beyond start. Only [A-Za-z0-9_-] are accepted (it is pasted into a `map` command). */
+static void read_boot_map(const char *basedir, char *out, size_t n)
+{
+	char path[96];
+	FILE *f;
+	size_t i;
+	out[0] = '\0';
+	snprintf(path, sizeof(path), "%s/id1/phoenix-map.cfg", basedir);
+	f = fopen(path, "r");
+	if (f != NULL) {
+		if (fgets(out, (int)n, f) == NULL)
+			out[0] = '\0';
+		fclose(f);
+	}
+	/* keep only a leading run of safe map-name chars (strips newline/space/anything odd) */
+	for (i = 0; out[i] != '\0'; i++) {
+		char ch = out[i];
+		int ok = (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+		         (ch >= '0' && ch <= '9') || ch == '_' || ch == '-';
+		if (!ok) {
+			out[i] = '\0';
+			break;
+		}
+	}
+	if (out[0] == '\0')
+		snprintf(out, n, "start");
+}
+
 int main(int argc, char *argv[])
 {
 	double time, oldtime, newtime;
@@ -117,11 +151,15 @@ int main(int argc, char *argv[])
 	 * host-loop measurement is ~30 fps at 1080p — the render is fill/submit-bound, a perf lead.) */
 	{
 		extern cvar_t r_gpulightmapupdate, r_rtshadows;
+		char bootmap[64];
+		char mapcmd[80];
 		Cvar_SetValueQuick(&r_rtshadows, 0.0f);
 		Cvar_SetValueQuick(&r_gpulightmapupdate, 1.0f);
-		Cbuf_AddText("map start\n");
+		read_boot_map(g_basedir, bootmap, sizeof(bootmap));
+		snprintf(mapcmd, sizeof(mapcmd), "map %s\n", bootmap);
+		Cbuf_AddText(mapcmd);
 		Cbuf_Execute();
-		Sys_Printf("vkquake: loading 'map start' (GPU-compute lightmap path)\n");
+		Sys_Printf("vkquake: loading 'map %s' (GPU-compute lightmap path; boot map from id1/phoenix-map.cfg, default start)\n", bootmap);
 	}
 
 	/* TEXTURE-STAGING FLUSH (hygiene; HW: textured 2D samples 0 = upload gap). conchars + the

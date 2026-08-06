@@ -22,11 +22,17 @@ enters the Phoenix system repositories — this port lives entirely in
 
 ## What this is (Phase 1)
 
-A **link-complete decode core**, not yet a running demo. The build compiles the
-three static archives with **NEON asm on**, then links a real MJPEG decode call
-graph (`e4_decode_demo.c`) against them plus the **fresh** buildroot
-`libphoenix.a` into one static AArch64 Phoenix ELF that links with **zero
-undefined symbols**.
+A **running decode core, HW-VALIDATED on real Phoenix/RPi4 hardware.** The build
+compiles the three static archives with **NEON asm on**, then links a real MJPEG
+decode program (`e4_decode_file.c`) against them plus the **fresh** buildroot
+`libphoenix.a` into one static AArch64 Phoenix ELF (zero undefined symbols).
+
+**2026-08-06 on-Pi result:** `e4-decode /usr/share/e4/test.jpg` on the netbooted
+Pi decoded a 96x64 baseline JPEG end-to-end — `frame decoded 96x64`, plane-0
+average **127** (host ffmpeg baseline 127.03: pixels numerically correct), `DONE
+ok`, 0 faults. So the full pipeline — libphoenix file I/O + libavcodec MJPEG +
+NEON + the new libm — actually decodes correctly on hardware, not just links.
+(`e4_decode_demo.c` remains as a minimal link-only variant that decodes nothing.)
 
 Enabled decode-only feature set (the proven recipe):
 
@@ -111,22 +117,23 @@ and no stale copy is reached. libgcc supplies the compiler-runtime symbols
 (outline-atomics, TFmode soft-float for 128-bit `long double`) automatically, as
 for every Phoenix ELF.
 
-## Honest scope: link-complete core, not a running demo
+## Scope: running decode core (HW-validated), not yet a media player
 
-This is a **link/bring-up milestone**. `e4_decode_demo.c` exercises the decode
-call graph (find_decoder → alloc_context3 → open2 → send/receive → free) with
-**no real input** (a drain-only flush), so the open/close + send/receive
-machinery is genuinely referenced and the link is honest — but nothing is
-decoded yet.
+The decode core is **proven end-to-end on hardware** (a 96x64 JPEG decodes
+correctly on the Pi — see above). `e4_decode_file.c` is that real demo;
+`e4_decode_demo.c` is a minimal link-only variant kept for reference. What
+remains is turning a working decoder into a usable feature (a player), which is
+runtime/integration work, not a port/link problem.
 
-## Remaining / infra-gated runtime work
+## Remaining runtime/integration work
 
-None of these are toolchain/link blockers; they are runtime + infra:
+None are toolchain/link blockers; they are runtime + infra:
 
-1. **On-Pi decode demo.** Feed a **tiny** MJPEG/WAV clip and decode it. Stage
-   the clip on **SD or tmpfs**, **not** the NFS root — file delivery over the
-   ~100 Mbps flaky netboot NFS is the headline runtime risk (the same limit that
-   gated large game assets), not a decode bug.
+1. **Larger media over NFS.** The 1.4 KB test JPEG reads fine, but multi-MB
+   video hits the netboot NFS speed/reliability limit — stage such clips on
+   **SD or tmpfs**, **not** the NFS root. File delivery over the ~100 Mbps flaky
+   netboot NFS is the headline runtime risk (the same limit that gated large
+   game assets), not a decode bug.
 2. **Frame sink.** Blit decoded frames to `/dev/fb0` (the raw-frame → fb0
    scanout path already exists on this port) for a visible result.
 3. **Threading.** ffmpeg's pthread frame/slice threading API satisfies configure

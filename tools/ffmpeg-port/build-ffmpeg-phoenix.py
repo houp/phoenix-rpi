@@ -60,7 +60,10 @@ USE_AS_IS = "FFMPEG_SRC" in os.environ
 # The toolchain sysroot copy is STALE and must NOT be used for the link.
 LIBPHOENIX = f"{ROOT}/.buildroot/_build/aarch64a72-generic-rpi4b/lib/libphoenix.a"
 
-DEMO = f"{ROOT}/tools/ffmpeg-port/e4_decode_demo.c"
+# e4_decode_file.c performs a REAL on-target MJPEG decode of a file (HW-VALIDATED: decodes a
+# 96x64 jpeg correctly on Phoenix, plane0 avg 127 == host ffmpeg). Override with DEMO_SRC=... ;
+# e4_decode_demo.c is the minimal link-only variant (decodes nothing) kept for reference.
+DEMO = os.environ.get("DEMO_SRC", f"{ROOT}/tools/ffmpeg-port/e4_decode_file.c")
 ELF = "/tmp/e4_decode-phoenix"
 
 # The proven decode-only, LGPL configure line. NO --enable-gpl / --enable-nonfree.

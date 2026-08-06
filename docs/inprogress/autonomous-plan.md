@@ -347,10 +347,13 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
-**[Saturated-maintenance no-op tally — UPDATE THIS LINE IN PLACE, don't add a new paragraph per no-op turn.]**
-Cheap health-confirm heartbeats (2h cadence, cron d663a1f0): coord pushed, only the pre-existing vkQuake/v3d WIP
-dirty (left untouched), nothing newly actionable, banked items untouched. Fires: **2026-08-06 ×2**. (When a turn
-does real work, add a normal dated entry below instead.)
+**[Saturated-maintenance no-op tally — UPDATE IN PLACE, DAY-granularity. A same-day no-op fire needs NO board
+change and NO commit — just confirm health and end. Only touch this when the DAY rolls over (add the date), or
+when a turn does real work (add a normal dated entry below instead). This keeps quiet heartbeats truly cheap —
+no per-2h git churn.]**
+Cheap health-confirm heartbeats (2h cadence, cron d663a1f0): each confirms coord fully pushed, only the
+pre-existing vkQuake/v3d WIP dirty (left untouched), cron alive, nothing newly actionable, banked items untouched.
+Days seen healthy: **2026-08-06**.
 
 2026-08-06 (Saturated-maintenance heartbeat — cheap by design; slowed the cron 30min→2h): Advisor-endorsed:
 nothing changed since the last checks, so no re-verification manufactured. Confirmed health (coord HEAD pushed;

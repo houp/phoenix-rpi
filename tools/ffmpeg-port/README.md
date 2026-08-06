@@ -43,9 +43,15 @@ decode program (`e4_decode_file.c`) against them plus the **fresh** buildroot
   on black with correct colors (TL red / TR green / BL blue / BR white), 0 faults. The first
   *visible* output of the port. (`e4_fbshow.c` + `e4_fb_blit.h`; test images stage fine over NFS.)
 
+- **Moving video** (`e4-play /usr/share/e4/clip.h264`): decoded a multi-frame color-cycling H.264
+  clip in a paced loop and **played it on the HDMI screen** — HDMI-verified motion (frame 160 = cyan,
+  end = magenta; different frames at different snapshots), `DONE ok (7 passes, 294 frames displayed)`,
+  0 faults. Actual video playback on Phoenix. (`e4_play.c` + `gen_e4_clip.py`; runs on an 8 MB-stack
+  pthread; `e4_fb_blit.h` shared.)
+
 So the full pipeline — libphoenix file I/O + libavcodec (MJPEG **and** H.264) + NEON + the
-new libm — actually decodes correctly on hardware **and puts pixels on the HDMI screen**, not just
-links. (`e4_decode_demo.c` remains a minimal link-only variant that decodes nothing.)
+new libm — actually decodes correctly on hardware, **puts pixels on the HDMI screen, and plays
+moving video**, not just links. (`e4_decode_demo.c` remains a minimal link-only variant.)
 
 Enabled decode-only feature set (the proven recipe):
 
@@ -148,10 +154,11 @@ None are toolchain/link blockers; they are runtime + infra:
    **SD or tmpfs**, **not** the NFS root. File delivery over the ~100 Mbps flaky
    netboot NFS is the headline runtime risk (the same limit that gated large
    game assets), not a decode bug.
-2. **Frame sink — DONE (HW-validated 2026-08-06).** `e4_fbshow.c` blits a decoded
-   frame to `/dev/fb0` (the live firmware HDMI framebuffer) and it shows on screen
-   (see the Decode → HDMI result above). A *moving* player (loop frames + timing)
-   is the remaining step toward actual video playback.
+2. **Frame sink + moving playback — DONE (HW-validated 2026-08-06).** `e4_fbshow.c`
+   blits one decoded frame to `/dev/fb0` (the live firmware HDMI framebuffer); `e4_play.c`
+   loops+paces a multi-frame clip = **moving video on screen** (see the Decode → HDMI and
+   Moving-video results above). Remaining toward a real *media player*: real content
+   (not synthetic clips), audio (/dev/audio0 exists), container demux, seeking.
 3. **Threading.** ffmpeg's pthread frame/slice threading API satisfies configure
    but is unproven under load on Phoenix — run `-threads 1` for first bring-up.
 4. **h264 — DONE (HW-validated 2026-08-06).** `--enable-decoder=h264

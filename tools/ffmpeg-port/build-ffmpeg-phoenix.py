@@ -70,6 +70,10 @@ LIBPHOENIX = f"{ROOT}/.buildroot/_build/aarch64a72-generic-rpi4b/lib/libphoenix.
 #   e4_fbshow.c       REAL decode → /dev/fb0 → HDMI (needs e4_fb_blit.h). HW-VALIDATED: a
 #                     1280x720 jpeg decoded + displayed centered on the HDMI output with correct
 #                     colors (YUV420→32bpp, byte order per pl011-tty). The first VISIBLE output.
+#   e4_play.c         REAL MOVING VIDEO PLAYER — decode a multi-frame h264 clip in a loop, pace
+#                     (usleep), and blit each frame to /dev/fb0. HW-VALIDATED: a color-cycling clip
+#                     played 7 loops / 294 frames on the HDMI screen with visible motion, 0 faults.
+#                     Runs on an 8MB-stack pthread (h264). Generate a clip with gen_e4_clip.py.
 #   e4_decode_demo.c  minimal link-only variant (decodes nothing), kept for reference.
 DEMO = os.environ.get("DEMO_SRC", f"{ROOT}/tools/ffmpeg-port/e4_decode_file.c")
 ELF = "/tmp/e4_decode-phoenix"

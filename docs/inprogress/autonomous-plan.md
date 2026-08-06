@@ -61,11 +61,16 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
 
 ## Heartbeat / scheduling state
 
-- Mechanism: `CronCreate` recurring, `11,41 * * * *` (every 30 min, fires only when
+- Mechanism: `CronCreate` recurring, `11 */2 * * *` (**every 2 h** at :11, fires only when
   REPL idle → acts as a restart-after-stall safety net; long work turns don't overlap).
-- **Re-arm before 7-day expiry** (created 2026-08-04 → expires ~2026-08-11).
-- Job ID: `df8363ff` (CronList to verify; CronDelete to cancel). Session-only (dies
-  if this background session ends — no cloud fallback has Pi access).
+- **Cadence slowed 30min→2h on 2026-08-06** (advisor-endorsed): the backlog is drained, so
+  heartbeats are mostly health-confirms — 48 expensive reasoning turns/day was the real cost.
+  2h keeps the loop alive + responsive to a new signal/owner-return within ~2h. Reversible
+  (CronDelete + CronCreate) — speed up if activity resumes, slow further if it stays quiet.
+- **Re-arm before 7-day expiry** (recreated 2026-08-06 → expires ~2026-08-13).
+- Job ID: `d663a1f0` (CronList to verify; CronDelete to cancel). Session-only (dies
+  if this background session ends — no cloud fallback has Pi access). The saturation/near-no-op
+  guidance is now baked into the cron prompt itself so each fire doesn't re-derive it.
 
 ## Pi lock
 
@@ -341,6 +346,13 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-06 (Saturated-maintenance heartbeat — cheap by design; slowed the cron 30min→2h): Advisor-endorsed:
+nothing changed since the last checks, so no re-verification manufactured. Confirmed health (coord HEAD pushed;
+only the known pre-existing vkQuake/v3d WIP dirty, correctly left untouched) and slowed the heartbeat cron
+30min→2h (`11 */2 * * *`, new job d663a1f0) to cut the real cost of a drained backlog — 48 reasoning turns/day.
+Baked the saturation guidance into the cron prompt so fires stop re-deriving it. Nothing newly actionable; banked
+items stay banked. See Heartbeat/scheduling state.
 
 2026-08-06 (Periodic vkQuake render REGRESSION HEALTH-CHECK — PASSES clean; honors the standing HDMI-pipeline ask):
 Rather than another doc turn, ran an actual empirical guard on the shipped capability (the standing "continue

@@ -27,16 +27,24 @@ compiles the three static archives with **NEON asm on**, then links a real MJPEG
 decode program (`e4_decode_file.c`) against them plus the **fresh** buildroot
 `libphoenix.a` into one static AArch64 Phoenix ELF (zero undefined symbols).
 
-**2026-08-06 on-Pi result:** `e4-decode /usr/share/e4/test.jpg` on the netbooted
-Pi decoded a 96x64 baseline JPEG end-to-end — `frame decoded 96x64`, plane-0
-average **127** (host ffmpeg baseline 127.03: pixels numerically correct), `DONE
-ok`, 0 faults. So the full pipeline — libphoenix file I/O + libavcodec MJPEG +
-NEON + the new libm — actually decodes correctly on hardware, not just links.
-(`e4_decode_demo.c` remains as a minimal link-only variant that decodes nothing.)
+**2026-08-06 on-Pi results (both HW-validated on the netbooted RPi4):**
+- **MJPEG** (`e4-decode /usr/share/e4/test.jpg`): decoded a 96x64 baseline JPEG —
+  `frame decoded 96x64`, plane-0 avg **127** (host ffmpeg 127.03), `DONE ok`, 0 faults.
+- **H.264** (`e4-decode-h264 /usr/share/e4/test.h264`): decoded a 128x96 Annex-B clip —
+  `frame decoded 128x96`, plane-0 avg **123** (host ffmpeg 123, **bit-exact**), `DONE ok`,
+  0 faults. **NOTE:** the H.264 decode must run on a **large (8 MB) stack** — its
+  DPB/deblocking/deep call chains overflow the small default main-thread stack (MJPEG does
+  not); `e4_decode_h264.c` runs the decode on an 8 MB pthread. libphoenix `pthread_create`
+  mmaps exactly the requested stack (no clamp).
+
+So the full pipeline — libphoenix file I/O + libavcodec (MJPEG **and** H.264) + NEON + the
+new libm — actually decodes correctly on hardware, not just links. (`e4_decode_demo.c`
+remains a minimal link-only variant that decodes nothing.)
 
 Enabled decode-only feature set (the proven recipe):
 
-- **decoders:** `mjpeg`, `rawvideo`, `pcm_s16le`
+- **decoders:** `mjpeg`, `h264`, `rawvideo`, `pcm_s16le`
+- **parsers:** `h264`
 - **demuxers:** `mjpeg`, `wav`
 - **protocol:** `file`
 - asm **on** (`--enable-asm`, NEON); static only; no programs / network / docs /
@@ -138,10 +146,11 @@ None are toolchain/link blockers; they are runtime + infra:
    scanout path already exists on this port) for a visible result.
 3. **Threading.** ffmpeg's pthread frame/slice threading API satisfies configure
    but is unproven under load on Phoenix — run `-threads 1` for first bring-up.
-4. **h264 extension.** The natural next codec increment (`--enable-decoder=h264`
-   with the NEON asm on). It only risks pulling a few more already-present
-   libm/pthread symbols; re-run this exact link driver against an h264-enabled
-   configure to confirm. Software H.264 on Cortex-A72 is realistic for SD/~720p;
+4. **h264 — DONE (HW-validated 2026-08-06).** `--enable-decoder=h264
+   --enable-parser=h264` (NEON asm on) links 0-undefined with no new libc/libm
+   gaps beyond mjpeg, and `e4_decode_h264.c` decoded a 128x96 clip bit-exactly on
+   the Pi (see above) — with the decode on an 8 MB stack (see the H.264 note in
+   the status section). Software H.264 on Cortex-A72 is realistic for SD/~720p;
    1080p is marginal. **VideoCore HW decode is out of scope** (Phoenix has no
    V4L2/MMAL codec path — a separate large driver project).
 

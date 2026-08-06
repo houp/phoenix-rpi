@@ -60,9 +60,14 @@ USE_AS_IS = "FFMPEG_SRC" in os.environ
 # The toolchain sysroot copy is STALE and must NOT be used for the link.
 LIBPHOENIX = f"{ROOT}/.buildroot/_build/aarch64a72-generic-rpi4b/lib/libphoenix.a"
 
-# e4_decode_file.c performs a REAL on-target MJPEG decode of a file (HW-VALIDATED: decodes a
-# 96x64 jpeg correctly on Phoenix, plane0 avg 127 == host ffmpeg). Override with DEMO_SRC=... ;
-# e4_decode_demo.c is the minimal link-only variant (decodes nothing) kept for reference.
+# Demos (pick via DEMO_SRC=...):
+#   e4_decode_file.c  (default) REAL on-target MJPEG decode. HW-VALIDATED: 96x64 jpeg, plane0
+#                     avg 127 == host ffmpeg.
+#   e4_decode_h264.c  REAL on-target H.264 decode. HW-VALIDATED: 128x96 Annex-B, plane0 avg 123
+#                     == host ffmpeg (bit-exact). Runs the decode on an 8 MB-stack pthread — H.264's
+#                     DPB/deblocking overflow the small default main-thread stack (mjpeg does not).
+#                     Build h264 in via --enable-decoder=h264 --enable-parser=h264 (already in CONFIGURE).
+#   e4_decode_demo.c  minimal link-only variant (decodes nothing), kept for reference.
 DEMO = os.environ.get("DEMO_SRC", f"{ROOT}/tools/ffmpeg-port/e4_decode_file.c")
 ELF = "/tmp/e4_decode-phoenix"
 

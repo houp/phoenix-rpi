@@ -310,6 +310,20 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-06 (vkQuake episode render-validation sweep via the new config-map — 4/8 maps ✓, stale e1m4 note
+resolved): Used last turn's config-driven boot map (NO rebuild — just write id1/phoenix-map.cfg + one Pi
+cycle each) to systematically HDMI-validate the shareware episode (the owner's pipeline). Confirmed
+correct render on: **e1m3 "the Necropolis"** (mossy crypt, wall torch w/ correct light gradient, ammo box,
+atmospheric-dark ~24 mean, 0 faults) and **e1m4 "the Grisly Grotto"** (stone altar, TWO medkit item models
+w/ red crosses, riveted ceiling, ~17.5 mean, 0 faults). **RESOLVED the stale memory note "e1m4 renders dark
+(confounded)"** — it renders CORRECTLY; the dimness is atmospheric (like e1m3), NOT a bug (that note was
+pre-fixes). Episode sweep now e1m1/e1m2/e1m3/e1m4 all ✓ (4/8, diverse themes: techbase/castle/crypt/grotto)
+→ high confidence the port renders the episode; e1m5-e1m8 optional. Bonus: item alias models (medkits)
+confirmed rendering. **Explicit LIQUID pixel-confirm still blocked** — water is deeper in these maps, not at
+spawn, and there's no movement (no keyboard) or working setpos to reach it; liquid rendering stands confirmed
+from prior sessions (CSD warp). No source change (deployed feature binary + config only); config removed
+(defaults to start). Pi FREE.
+
 2026-08-06 (vkQuake: config-driven boot map — a real SHIPPED feature, resolves the I2 "+map ignored" limit):
 With the perf thread closed, converted the banked I2 gotcha (port HARDCODED `map start`, ignored `+map`)
 into a genuine, upstreamable feature instead of another re-confirmation. Added `read_boot_map()`

@@ -387,6 +387,24 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 (Owner priorities #1 + #3 KICKED OFF — both planned via subagents; concrete first steps done):
+**Priority #1 (Linux-Pi4 reference env):** subagent investigation found it ALREADY ~90% staged on the host
+(`artifacts/linux-netboot/{tftp,rootfs}`, Raspberry Pi OS trixie arm64, coexists with Phoenix netboot; both NFS
+exports already live). Switch = TFTP-root env only: `RPI4B_NETBOOT_TFTPROOT=.../linux-netboot/tftp
+./scripts/netboot-server-up.sh`; rollback = the same script no-arg. Pi EEPROM already network-first + flat TFTP,
+so the served dir decides the OS — no EEPROM/dnsmasq/NFS change to switch. **Done this turn:** de-weaponized the
+Linux `cmdline.txt` (it had a destructive `init=/usr/local/bin/sdflash-boot.sh` that dd's the SD card — backed up
+as `cmdline.txt.sdflash`, replaced with a normal NFS-root boot + serial console); reversible. **Remaining for #1:**
+give the rootfs a UART login (chroot: root pw + `serial-getty@ttyS0` + mask first-boot units — no serial-getty
+today) then a Pi boot-verify. Full state in [[project_linux_pi4_netboot_reference]].
+**Priority #3 (SDL de-Quake + consolidation):** subagent audit produced a precise plan — only ONE file needs
+relicensing (`sdl2/glue/sdl_phoenix_glctx.c`, GPL→zlib, it's byte-identical to our owner-authored quakespasm
+copy), the `qsv3d_` ("QuakeSpasm-V3D") symbol prefix → `phxgl_` across 7 files (lockstep), + comment/string
+Quake-name scrubs; then C1-C6 consolidation (make all Quake ports use the SDL port, easiest-first). An implementer
+subagent is EXECUTING C1+B1 now (rename + relicense + scrub + build-verify the gltest link) — review + commit
+next. NEXT: finish #1 boot-verify (vs Linux), land the SDL cleanup commit, then start using RAM-disk/alt-transfer
++ Linux comparison to unblock the runtime tasks. Pi FREE.
+
 2026-08-08 ★ OWNER OVERRIDE RECEIVED + INTEGRATED — back to aggressive work. The owner (Witold) pushed commit
 11f02d8 to the org coord repo with a direct message to me: don't stop, don't wait, HARDWARE IS NOT BROKEN, always
 compare with Linux-on-Pi4, take risks incl. KERNEL changes (system may be unstable ~2 weeks — use git rollback),

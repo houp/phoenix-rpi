@@ -90,15 +90,14 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
 
 ## Heartbeat / scheduling state
 
-- Mechanism: `CronCreate` recurring, `11 */8 * * *` (**every 8 h** at :11, fires only when
+- Mechanism: `CronCreate` recurring, `7 * * * *` (**hourly** at :07, fires only when
   REPL idle → acts as a restart-after-stall safety net; long work turns don't overlap).
-- **Cadence stepped down as quiet persisted** (advisor-endorsed), at most one step per quiet day:
-  30min→2h (2026-08-06) → 2h→4h (2026-08-07) → 4h→8h (2026-08-08). The backlog is drained, so
-  heartbeats are mostly health-confirms; slowing cuts the real cost (expensive reasoning turns/day)
-  while keeping the loop alive + responsive to a new signal/owner-return within the interval.
-  Reversible (CronDelete + CronCreate) — slow further if it stays quiet, speed up on a new signal.
+- **Cadence RESTORED to hourly on 2026-08-08 (owner override 11f02d8).** History: it had been stepped
+  DOWN 30min→2h→4h→8h (2026-08-06→08) during the mistaken "backlog drained / maintenance" phase; the
+  owner's "do not stop, do not waste time" directive reverses that — active continuous work resumed, so
+  a faster heartbeat is correct again. Reversible (CronDelete + CronCreate).
 - **Re-arm before 7-day expiry** (recreated 2026-08-08 → expires ~2026-08-15).
-- Job ID: `78def329` (CronList to verify; CronDelete to cancel). Session-only (dies
+- Job ID: `d4af8f7f` (CronList to verify; CronDelete to cancel). Session-only (dies
   if this background session ends — no cloud fallback has Pi access). The saturation/near-no-op
   + day-granular-tally guidance is baked into the cron prompt itself so each fire doesn't re-derive it.
 
@@ -227,24 +226,35 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 ## Active task
 
-**★★ 2026-08-06 DURABLE STATE (advisor-confirmed): HIGH-VALUE TRACTABLE-UNATTENDED BACKLOG IS DRAINED → LIGHTER
-CADENCE.** After a long, productive run (SDL2, Quake2/3/vkQuake/quakespasm render, full E4 ffmpeg decode+display
-+moving-video-on-HDMI, libm completions, libdbg + B2 feasibility, Dillo HTTPS, thermal/gpio/hwrng/fb0/audio
-drivers, netboot/NFS/SD fixes, extensive docs), NO remaining plan item is BOTH high-value AND
-tractable-unattended. Remaining skews: kernel/HAL (B2-impl, A1 Batch 3 — unattended-DEFER per
-[[feedback_unattended_scoping]]), risk-deferred (E2 internet dnsmasq), large multi-turn ports (C6 STK, D3 XFce),
-owner-verification-needed (audible audio sign-off, I3 phantom-kbd — no keyboard/ears), or Pi-heavy-uncertain
-(C3 MP #68 — niche + uncertain host-server setup = rabbit hole, do NOT start unattended). **"Never stop" = keep
-the loop alive + resilient, NOT land a big capability every heartbeat.** Correct behavior now: small, sure,
-converging turns (upstreamable hardening, test coverage, doc/publication polish, periodic clean-build/pushed
-stewardship) — a small turn is a fine turn; do NOT manufacture big deliverables or over-deliberate. Do NOT
-reopen the banked items (vkQuake render, B2-impl, E2, A1, C3) absent a regression or new owner signal.
-Standing menu for these turns (not turn-specific — stop re-deriving it each heartbeat): upstreamable
-libc/test hardening, doc/publication polish, periodic push + clean-build stewardship, low-risk repo hygiene.
-**Concrete queued hygiene task: this board's `## Last progress` log has grown to ~940 lines (entries back to
-2026-08-05, anchored from ~line 620 downward) and the whole file is read every heartbeat (~64k tokens);
-archive all-but-the-~10-most-recent entries into a dated `docs/done/` file to cut that recurring read cost —
-do it as a careful contiguous-range MOVE (nothing deleted), not fragile in-place exact-match surgery.**
+**★★ 2026-08-08 OWNER OVERRIDE (Witold, commit 11f02d8 — see "## Comments from human operator / owner (2026-08-07)"
+above): BACK TO AGGRESSIVE WORK. The backlog is NOT drained; the earlier "saturated / maintenance / lighter-cadence
+/ defer-risky" posture (2026-08-06→08, superseded note kept below for history) is OVERRIDDEN.** Owner's standing
+directive [[feedback_owner_directive_aggressive_2026_08_07]]: DO NOT STOP, do not wait for feedback, HARDWARE IS
+NOT BROKEN, take risks (incl. KERNEL changes — the system may be unstable for ~2 weeks; rely on strict git-commit
++ manifest rollback discipline), you have full passwordless-sudo root on the dedicated host, be creative, don't
+waste time. Cadence restored to hourly. **Banked items are UN-BANKED** (E2 internet, A1 Batch 3, B2-impl, Quake III
+VM-exec, netboot/NFS reliability — all in scope now). [[feedback_unattended_scoping]] is superseded for this period.
+
+**PRIORITY PLAN (owner-directed):**
+1. **Linux-on-Pi4 reference env — FOUNDATION, do first.** Stand up a netboot Linux Pi4 (NFS root) on the host,
+   switchable with Phoenix netboot, as an always-available comparison reference. Owner: "always compare with Linux
+   on Pi4." (Pi currently netboots Phoenix, card out; need a boot-target switch that doesn't break Phoenix netboot.)
+2. **Netboot/NFS reliability = a BUG to FIX, not an infra limit.** For any netboot/NFS/net problem: reproduce on
+   Linux-Pi4; if Linux is fine → Phoenix software bug (NFS impl or TCP/Ethernet) → FIX in kernel/stack; if Linux
+   also fails → work around: big RAM-disk at boot + pre-download rootfs/assets, or HTTP/FTP/SFTP/rsync via
+   loader.disk. 100Mbps is plenty for Quake/X11.
+3. **SDL2 port finish + consolidation.** The Quakespasm-derived code in the SDL port is OWNER-authorized to
+   relicense (strip ALL "Quake/Quakespasm" names). Then refactor ALL Quake ports (1/2/3, gl+vk) to USE the SDL
+   port instead of per-game shims — minimize per-game divergence.
+4. **Drive the "infra-gated" runtime tasks** using RAM-disk / alt-transfer to push large assets: Quake 1 MP (#68),
+   Quake 2/3 full runtime, ffmpeg/video player, X11 GPU/windowed + XFce, Dillo E2/E3 internet (host NAT sanctioned),
+   SuperTuxKart.
+5. **Kernel/system (now in scope, rollback-guarded):** A1 Batch 3 merge, B2 kernel-backtrace impl, Phoenix NFS/TCP
+   fixes, perf.
+
+Board hygiene (board-trim, docs-archive) is DEPRIORITIZED under the owner's "do real work, don't waste time" — touch
+only if it actively helps. Keep the task table + Last progress current; snapshot manifests for core changes; commit
+every step so a boot break is a fast rollback.
 
 **★ 2026-08-06 STRATEGIC PIVOT (advisor-confirmed): vkQuake RENDER IS DONE + RESTING.** After ~8 turns of
 vkQuake render work (I1 closed, perf characterized+closed, config-map feature shipped, episode sweep
@@ -377,10 +387,24 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
-**[Saturated-maintenance no-op tally — UPDATE IN PLACE, DAY-granularity. A same-day no-op fire needs NO board
-change and NO commit — just confirm health and end. Only touch this when the DAY rolls over (add the date), or
-when a turn does real work (add a normal dated entry below instead). This keeps quiet heartbeats truly cheap —
-no per-2h git churn.]**
+2026-08-08 ★ OWNER OVERRIDE RECEIVED + INTEGRATED — back to aggressive work. The owner (Witold) pushed commit
+11f02d8 to the org coord repo with a direct message to me: don't stop, don't wait, HARDWARE IS NOT BROKEN, always
+compare with Linux-on-Pi4, take risks incl. KERNEL changes (system may be unstable ~2 weeks — use git rollback),
+full passwordless-sudo root on the dedicated host, finish the SDL port (the Quakespasm-derived code is
+owner-authorized to relicense — strip Quake names) then refactor all Quake ports to USE it, and drive all open
+tasks (use RAM-disk / alt-transfer to beat the NFS/100Mbps limits; treat netboot/NFS flakiness as a Phoenix bug to
+FIX, verified against Linux-Pi4). Integrated: rebased my in-flight cadence commit onto his (clean, autostash for
+the pre-existing WIP); rewrote the Active-task section (superseded the "backlog drained / maintenance / defer-risky"
+posture → an owner-directed PRIORITY PLAN; UN-BANKED E2 / A1 Batch 3 / B2-impl / Quake III / netboot-NFS);
+restored the heartbeat cadence to hourly (had been slowed to 8h during the lull; new job d4af8f7f); ended the no-op
+maintenance tally. Memory: added [[feedback_owner_directive_aggressive_2026_08_07]], will update
+[[feedback_unattended_scoping]] + [[project_autonomous_vacation_mode]]. NEXT: begin priority #1 — stand up a netboot
+**Linux-Pi4 NFS-root reference env** on the host (switchable with Phoenix netboot). Board pushed; Pi FREE.
+
+**[SUPERSEDED 2026-08-08 by the owner override (11f02d8): the no-op maintenance mode has ENDED — active work
+resumed, so heartbeats now DO real work and add normal dated entries again. The day-granular no-op tally below is
+historical, covering the 2026-08-06→08 maintenance lull only.]**
+**[Saturated-maintenance no-op tally (HISTORICAL) — day-granular record of health-confirm-only heartbeats.]**
 Cheap health-confirm heartbeats (2h cadence, cron d663a1f0): each confirms coord fully pushed, only the
 pre-existing vkQuake/v3d WIP dirty (left untouched), cron alive, nothing newly actionable, banked items untouched.
 Days seen healthy: **2026-08-06, 2026-08-07, 2026-08-08**.

@@ -387,6 +387,20 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 ★ PRIORITY #1 DONE — Linux-Pi4 NFS-root reference env BOOTS to an autologin root shell (the owner's
+"always compare with Linux on Pi4" foundation). HW-verified over netboot: DHCP (10.42.0.12) → `VFS: Mounted root
+(nfs filesystem)` @~9s → systemd (Debian trixie 13) → `raspberrypi login: root (automatic login)` → `root@raspberrypi:~#`
+on ttyS0. Got there by iterating boots + masking the NFS-root blockers I found empirically: de-weaponized cmdline
+(removed the destructive sdflash init), autologin drop-in on serial-getty@ttyS0, masked systemd-networkd-wait-online
++ NetworkManager-wait-online (never complete on kernel-ip=dhcp NFS root) + rpi-resize(-swap) + **sdbench.service**
+(a leftover SD-benchmark that ran then sysrq-poweroff'd at t=24s — the blocker that kept killing the boot), disabled
+cloud-init, default→multi-user. Full REDO recipe in [[project_linux_pi4_netboot_reference]] (host config isn't
+git-tracked). Switch: `RPI4B_NETBOOT_TFTPROOT=.../linux-netboot/tftp ./scripts/test-cycle-netboot.sh …`; **restored
+Phoenix default after** (`netboot-server-up.sh` no-arg). Now I can reproduce any Phoenix netboot/NFS/net problem on
+Linux to prove it's a Phoenix bug vs infra. Gotcha: the test-cycle wrapper overruns the Bash timeout (exit 143) but
+the UART log writes regardless — grep the log. NEXT: use this reference for the netboot/NFS comparison (owner
+priority #2), and SDL consolidation C2/C3. Pi FREE (Phoenix default restored).
+
 2026-08-08 (Priority #3 SDL de-Quake + relicense — DONE + pushed; first consolidation step complete): Executed
 the SDL-port cleanup (implementer subagent + my review/commit). Renamed the `qsv3d_` (QuakeSpasm-V3D) GL-context
 symbols → `phxgl_` (Phoenix-GL) lockstep across 10 files; scrubbed ALL "Quake/Quakespasm" name references from the

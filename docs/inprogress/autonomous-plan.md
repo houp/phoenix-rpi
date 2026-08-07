@@ -90,15 +90,15 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
 
 ## Heartbeat / scheduling state
 
-- Mechanism: `CronCreate` recurring, `11 */4 * * *` (**every 4 h** at :11, fires only when
+- Mechanism: `CronCreate` recurring, `11 */8 * * *` (**every 8 h** at :11, fires only when
   REPL idle → acts as a restart-after-stall safety net; long work turns don't overlap).
-- **Cadence stepped down as quiet persisted** (advisor-endorsed): 30min→2h (2026-08-06) →
-  2h→4h (2026-08-07, after a full quiet day). The backlog is drained, so heartbeats are mostly
-  health-confirms; slowing cuts the real cost (expensive reasoning turns/day) while keeping the
-  loop alive + responsive to a new signal/owner-return within the interval. Reversible
-  (CronDelete + CronCreate) — slow further (6-8h) if it stays quiet, speed up on a new signal.
-- **Re-arm before 7-day expiry** (recreated 2026-08-07 → expires ~2026-08-14).
-- Job ID: `19a426fa` (CronList to verify; CronDelete to cancel). Session-only (dies
+- **Cadence stepped down as quiet persisted** (advisor-endorsed), at most one step per quiet day:
+  30min→2h (2026-08-06) → 2h→4h (2026-08-07) → 4h→8h (2026-08-08). The backlog is drained, so
+  heartbeats are mostly health-confirms; slowing cuts the real cost (expensive reasoning turns/day)
+  while keeping the loop alive + responsive to a new signal/owner-return within the interval.
+  Reversible (CronDelete + CronCreate) — slow further if it stays quiet, speed up on a new signal.
+- **Re-arm before 7-day expiry** (recreated 2026-08-08 → expires ~2026-08-15).
+- Job ID: `78def329` (CronList to verify; CronDelete to cancel). Session-only (dies
   if this background session ends — no cloud fallback has Pi access). The saturation/near-no-op
   + day-granular-tally guidance is baked into the cron prompt itself so each fire doesn't re-derive it.
 
@@ -383,7 +383,7 @@ when a turn does real work (add a normal dated entry below instead). This keeps 
 no per-2h git churn.]**
 Cheap health-confirm heartbeats (2h cadence, cron d663a1f0): each confirms coord fully pushed, only the
 pre-existing vkQuake/v3d WIP dirty (left untouched), cron alive, nothing newly actionable, banked items untouched.
-Days seen healthy: **2026-08-06, 2026-08-07**.
+Days seen healthy: **2026-08-06, 2026-08-07, 2026-08-08**.
 
 2026-08-06 (Saturated-maintenance heartbeat — cheap by design; slowed the cron 30min→2h): Advisor-endorsed:
 nothing changed since the last checks, so no re-verification manufactured. Confirmed health (coord HEAD pushed;

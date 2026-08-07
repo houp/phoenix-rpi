@@ -387,6 +387,20 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 (Priority #3 SDL de-Quake + relicense — DONE + pushed; first consolidation step complete): Executed
+the SDL-port cleanup (implementer subagent + my review/commit). Renamed the `qsv3d_` (QuakeSpasm-V3D) GL-context
+symbols → `phxgl_` (Phoenix-GL) lockstep across 10 files; scrubbed ALL "Quake/Quakespasm" name references from the
+SDL2 port (video/opengl/events/audio/framebuffer drivers + glue + README) → `grep -i quake sdl2/` = 0 hits; and
+**relicensed `sdl2/glue/sdl_phoenix_glctx.c` GPL-2.0-or-later → Zlib** (owner-authorized — it's byte-identical to
+our Phoenix-Systems/Witold quakespasm-port copy). Build-verified: libSDL2.a rebuilds clean (nm: 0 qsv3d, phxgl_
+externs present), gltest links 0-undefined against the fresh libphoenix.a (the 2 `scalbn*` undefs are the known
+toolchain-libphoenix drift, NOT the rename — reconfirmed by linking w/ fresh libphoenix.a). Also fixed 2 stale
+GPL-mention comments post-relicense. Pushed: sibling phoenix-rtos-ports master **bc5e7ae**, coord main **93a1c13**.
+Remaining SDL consolidation (C2-C6, easiest-first): dedup the now-zlib glctx across all Quake ports (delete the
+per-game copies), dedup the libc-gap glstubs, then migrate quakespasm/vkquake off their private sdl-shim onto the
+real libSDL2.a + overlay drivers. NEXT: finish priority #1 (Linux-Pi4 ref env — chroot the rootfs for a UART login,
+then boot-verify), then C2/C3 dedup.
+
 2026-08-08 (Owner priorities #1 + #3 KICKED OFF — both planned via subagents; concrete first steps done):
 **Priority #1 (Linux-Pi4 reference env):** subagent investigation found it ALREADY ~90% staged on the host
 (`artifacts/linux-netboot/{tftp,rootfs}`, Raspberry Pi OS trixie arm64, coexists with Phoenix netboot; both NFS

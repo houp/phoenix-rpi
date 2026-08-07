@@ -69,7 +69,7 @@ CFLAGS = ["-c", "-O2", "-g", "-ffreestanding", "-fno-strict-aliasing", "-fwrapv"
 # no non-gl1 TU references the renderer's `modes`).
 GL1_CFLAGS = CFLAGS + ["-Dmodes=yq2_gl1_modes"]
 
-# The SDL2 GL-context glue (winsys bridge: qsv3d_*) is compiled with Mesa's
+# The SDL2 GL-context glue (winsys bridge: phxgl_*) is compiled with Mesa's
 # include/define set, verbatim from build-sdl2-gltest.py MFLAGS.
 MESA   = f"{ROOT}/external/mesa"
 MCOMPAT = f"{ROOT}/tools/v3d-driver-port/phoenix_mesa_compat.h"

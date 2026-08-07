@@ -4,9 +4,9 @@
 #
 # Proves the SDL2 port's video+GL seam links end-to-end:
 #   sdl2-gltest.o  (zlib, SDL client)
-# + sdl_phoenix_glctx.o  (the GL-context glue, compiled with Mesa flags; carries
-#                         the QuakeSpasm port's GPL-2.0-or-later header — kept
-#                         OUTSIDE libSDL2.a, see the port's glue/README.md)
+# + sdl_phoenix_glctx.o  (the GL-context glue, zlib, compiled with Mesa flags;
+#                         kept OUTSIDE libSDL2.a because it needs Mesa-internal
+#                         headers/flags, see the port's glue/README.md)
 # + libSDL2.a    (zlib, phoenix video+input driver)
 # + libGL-phoenix.a + libv3d-phoenix.a  (the ported Mesa V3D GL stack)
 # -> aarch64-phoenix ELF.

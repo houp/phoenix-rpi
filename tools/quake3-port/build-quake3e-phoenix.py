@@ -80,7 +80,7 @@ CFLAGS = ["-c", "-O2", "-g", "-ffreestanding", "-fno-strict-aliasing", "-fwrapv"
 # prerequisites and source_t/punctuation_t/fielddef_t are undefined.
 BOTLIB_CFLAGS = CFLAGS + ["-DBOTLIB"]
 
-# The SDL2 GL-context glue (winsys bridge: qsv3d_*) is compiled with Mesa's
+# The SDL2 GL-context glue (winsys bridge: phxgl_*) is compiled with Mesa's
 # include/define set, verbatim from the yQuake2 / sdl2-gltest MFLAGS.
 MESA   = f"{ROOT}/external/mesa"
 MCOMPAT = f"{ROOT}/tools/v3d-driver-port/phoenix_mesa_compat.h"

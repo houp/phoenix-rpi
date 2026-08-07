@@ -6,11 +6,11 @@
  * SDL's core (SDL.c) references SDL_VideoInit unconditionally, so a static link
  * of ANY SDL program pulls the video driver object in. That driver references
  * the in-process Mesa V3D GL entry points (gl*) and the winsys / GL-context glue
- * (qsv3d_*, v3d_phoenix_*), which normally live outside libSDL2.a and are
+ * (phxgl_*, v3d_phoenix_*), which normally live outside libSDL2.a and are
  * provided by the GL glue TU + libGL/libv3d that a GL app links.
  *
  * An AUDIO-only test needs none of that, and must NOT pull in the GL-context
- * glue (it carries a GPL-2.0-or-later header) or the Mesa GL libraries. These
+ * glue (which needs Mesa-internal headers/flags) or the Mesa GL libraries. These
  * no-op definitions resolve exactly the video-path symbols the linker names so
  * the audio-only ELF links cleanly with pure zlib code. They are never called:
  * the test opens no window and creates no GL context. Signatures are irrelevant
@@ -19,7 +19,7 @@
  *
  * Regenerate if the video driver's external surface changes: relink the test
  * against libSDL2.a + -lm alone and add any newly-undefined GL entry points or
- * qsv3d_ / v3d_phoenix_ glue symbols here.
+ * phxgl_ / v3d_phoenix_ glue symbols here.
  */
 
 void glActiveTexture(void) { }
@@ -124,10 +124,10 @@ void glVertex3f(void) { }
 void glVertexAttribPointer(void) { }
 void glVertexPointer(void) { }
 void glViewport(void) { }
-void qsv3d_bind_fbo(void) { }
-void qsv3d_init(void) { }
-void qsv3d_make_current(void) { }
-void qsv3d_resolve(void) { }
+void phxgl_bind_fbo(void) { }
+void phxgl_init(void) { }
+void phxgl_make_current(void) { }
+void phxgl_resolve(void) { }
 void v3d_phoenix_flip(void) { }
 void v3d_phoenix_scanout_active(void) { }
 void v3d_phoenix_scanout_init(void) { }

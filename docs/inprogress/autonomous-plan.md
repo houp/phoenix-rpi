@@ -13,6 +13,35 @@ host/Linux comparison, UART logs, QEMU, debugger).
 
 ---
 
+## Comments from human operator / owner (2026-08-07)
+
+Do not wait for human feedback. Do not stop the work.
+
+If you are facing netboot / NFS issues do following: 
+
+(1) deep analysis of what happened, 
+(2) compare with Linux on Pi4 - do a netbook Linux root with NFS and see if the same problems are there. 
+(3) If Linux is not facing the same problems, then you know that this is Phoenix-RTOS specific ... and thus caused by software and YOU CAN FIX THIS. Either NFS implementation of Ethernet / TCP implementation on Phoenix-RTOS on Pi4 is broken. Work on the fix! 
+(4) If the same problems happen on Linux - you still can continue the work, by setting up a large RAM disk partition on boot, and pre-downloading all the files you need to this Ramdisk on Phoenix-RTOS. You just need to patiently wait for the long download of the rootfs, place it in RAM and do the work on Quake 1/2/3, ffmpeg, X11 and other stuff! You can use this "trick" to push over larger files for testing. If NFS is not working for transfer - use HTTP, FTP, SFTP, SSH, RSYNC - whatever you can get working on Phoenix-RTOS using loader.disk. 
+(5) Keep in mind that you have full control of the host Linux x86 machine! 
+(6) Keep in mind that 100mbps ethernet used to be considered FAST in the days of Quake and golden days of X11 - these programs SHOULD cope with 100mbps very well!!!
+
+When it comes to SDL port I've noticed that you don't know what to do with some code copied from our port of Quakespasm. But notice that this code is authored by us - we are free to re-license it on something else than GPL. Just make sure to cleanup all references to the name Quake of Quakespasm from the code in SDL port.
+
+As soon as you have SDL ported, please clean up all the Quake ports (all versions) to actually use this SDL port rather than providing shims or workarounds. This should limit the number of changes which are needed per-game.
+
+Please try to continue working on all the open tasks! Do do not stop! Do not assume that hardware is broken - IT IS NOT! Do not assume that you need my feedback or analysis - you do not! 
+
+Remember that you are free to make configuration changes to the Linux host you are running on. You have root access via sudo without password, and this machine is fully dedicated to this Phoenix-RTOS Pi4 project. 
+
+Try harder to complete all the tasks - and do not waste time. Instead of waiting for magical problem solutions to come from me, or from hardware - be creative. Always compare with Linux on Pi4. Make sure you have a working netboot based Linux Pi4 environment ready for experiments and use this environment as a point of reference. 
+
+Also don't be afraid of complex, kernel level changes in Phoenix RTOS. If you use git the correct way - keep track of all your changes - you can take risks of breaking the boot, regressing something etc. At worst case, you will just rollback couple of git commits and re-try with different strategy. I will be away for around 2 weeks - during this time, you can have the system unstable at times. You can experiment and break things - as long as you have a rollback plan, and keep track of the open tasks.
+
+Summing up - please go back to work! 
+
+---
+
 ## Long-term goal
 
 Deliver **all** tasks in `~/rpi-phoenix-tasks.md`: upstream sync, extended

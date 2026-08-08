@@ -89,8 +89,8 @@ bogus-priv
 
 # DHCP on the lab subnet only.
 dhcp-range=$dhcp_lo,$dhcp_hi,12h
-dhcp-option=3            # no router
-dhcp-option=6            # no DNS server
+dhcp-option=3,$host_ip   # router = host (NAT gateway for Pi internet, E2); was empty
+dhcp-option=6,8.8.8.8    # DNS = public resolver reached via host NAT (dnsmasq DNS off, port=0); was empty
 dhcp-option=66,$host_ip  # TFTP server name (Pi 4 uses this)
 log-dhcp
 

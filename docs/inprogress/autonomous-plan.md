@@ -387,6 +387,19 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 ★★ E2 COMPLETE — Phoenix Pi4 has full INTERNET (DNS + HTTP), persistent/auto-configured. Finished E2:
+added the DHCP side so the Pi auto-gets gateway+DNS (no manual per-boot route). Edited the netboot dnsmasq
+(scripts/netboot-server.sh) `dhcp-option=3,10.42.0.1` (router=host NAT) + `dhcp-option=6,8.8.8.8` (public DNS via
+NAT; dnsmasq's own DNS is off, port=0) — the edit the board long flagged as netboot-risky. **HW-verified SAFE +
+WORKING:** Phoenix still netboots (reached psh 3×, DHCP not broken), and `wget http://example.com/index.html` →
+**`Resolving example.com... 104.20.23.154` → `Connecting...:80... Connected` → `HTTP request sent... 404 Not
+Found`** = a full end-to-end round-trip: DNS resolution + routing + NAT + HTTP request + real server response (the
+404 is just that path). Gateway+DNS now come from DHCP automatically → persistent, no manual psh route. Added
+`scripts/pi-internet-nat.sh` (idempotent host-NAT helper; the iptables rules are runtime → re-run after a host
+reboot). [[project_pi4_internet_e2_feasibility]]. **E2 DONE.** NEXT = E3: Dillo live HTTPS (Dillo is a big binary,
+now exec-able post lazy-BSS; stage host /etc/ssl/certs/ca-certificates.crt to the export + set Dillo CA path;
+mbedTLS entropy/FS-IO ready [[project_dillo_https_tls]]) — a real web page on the Pi over HTTPS. Pi FREE.
+
 2026-08-08 ★ E2 CORE VALIDATED — Phoenix Pi4 reaches the INTERNET (outbound routing via host NAT). Diversified off
 the game/NFS thread to a fresh owner-listed capability. Did it with ZERO netboot-config risk (no dnsmasq edit):
 (1) HOST NAT (additive/reversible): `iptables -t nat -A POSTROUTING -s 10.42.0.0/24 -o enp1s0f0 -j MASQUERADE` +

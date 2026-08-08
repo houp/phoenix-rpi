@@ -387,6 +387,76 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 ★★★★ E3 HEADLINE ACHIEVED — PHOENIX-RTOS/PI 4 BROWSES THE LIVE HTTPS INTERNET WITH A GRAPHICAL
+BROWSER. Cycle e3https (`route add default gw 10.42.0.1 dev en1` → `ntpclient -s pool.ntp.org` →
+`pl_phoenix_xlaunch ... /bin/dillo https://example.com/`). UART proved the whole chain: NTP synced the clock
+(`System time set to UTC Sat Aug 8 ... 2026` from 1970), DNS resolved (`example.com is 104.20.23.154` via the
+NAT/8.8.8.8), and the TLS handshake completed (`example.com TLSv1.2, cipher
+TLS-ECDHE-ECDSA-WITH-CHACHA20-POLY1305-SHA256`, no cert error → CA-verified with the real clock). HDMI grab
+(`20260808-183611-e3https-final.png`) shows Dillo rendering the REAL example.com page — "Example Domain" H1, the
+paragraph, and the "Learn more" hyperlink, "Page 0.5 KB". **Full stack end-to-end on real HW: netboot → NFS root
+→ default route → DNS → NTP clock → Dillo → mbedTLS TLSv1.2 CA-verified → HTML on HDMI under Xphoenix.** E1
+(Dillo HTTPS build) + E2 (Pi internet) + E3 (live browsing) are now ALL DONE and HW-proven. No code change (used
+already-committed binaries) — pure runtime validation + staging. Polish follow-ups (low-pri, deferred): stage
+dpid+file.dpi for file:// browsing; dillo font_* uses core-X fallback not the DejaVu TTFs (root-caused: dillo's
+FLTK is core-X, NOT Xft/fontconfig — [[project_dillo_https_tls]]); bake route+ntpclient into a boot step for
+auto-internet each boot. NEXT: pick the next owner-priority non-Pi-blocked task (SD is HW-blocked; D1/D2 X11-GPU
+glxgears on the proven X substrate + V3D, or Quake 2/3 runtime, or SDL consolidation audit). Pi FREE.
+[[project_pi4_internet_e2_feasibility]] [[project_x11_lib_port]]
+
+2026-08-08 ★★★ E3 RENDER-UNDER-X PROVEN: DILLO RENDERS A LIVE WEB PAGE ON THE PI 4. Retried the HTTP cycle
+(the prior attempt typed the psh command but the Enter didn't submit = netboot input flake; a settle +
+retry fixed it). HDMI grab (`20260808-183049-e3http2-final.png`) shows Dillo rendering my full HTML page
+fetched **live over HTTP** from the host (`http://10.42.0.1:8080/`, host log: `10.42.0.13 GET / 200`, "Page
+1.6 KB"): blue H1, red H3, body paragraphs, a bulleted list, and a **fully-styled table (blue header row,
+green DONE cells, borders, cell-padding, bgcolors) all rendered correctly** under Xphoenix→/dev/fb0 on real
+Pi 4 HW over netboot. So the full chain works: netboot → NFS root → Xphoenix (kdrive fbdev) → Dillo (FLTK, in-
+process HTTP) → HTML+table render on HDMI. Fonts use the DejaVu fallback (crisp; only `&rarr;`/`&mdash;` show as
+`?` — cosmetic, a fontconfig-resolution polish item). **A web browser renders a live web page on Phoenix-RTOS.**
+NEXT: the E3 internet headline — `https://` over the internet (a cycle sending `route add default gw 10.42.0.1
+dev en1` → `ntpclient -s pool.ntp.org` (cert clock) → `pl_phoenix_xlaunch ... /bin/dillo https://example.com/`;
+all deps validated via curl [[project_pi4_internet_e2_feasibility]]). Follow-ups: stage dpid+file.dpi (file://
+browsing), fix fontconfig DejaVu resolution (cosmetic). [[project_dillo_https_tls]] [[project_x11_lib_port]]
+
+2026-08-08 ★★ E3: DILLO'S FULL GUI RENDERS UNDER XPHOENIX ON THE PI (the hard X-integration is PROVEN). First
+cycle (`file:///root/e3-test.html`): HDMI shows the complete Dillo browser chrome — menubar, URL bar (showing the
+file:// url), graphical toolbar icons (Home/Reload/Save/Stop/Book/Tools), Images/Page widgets — all drawing
+correctly under Xphoenix→/dev/fb0. So Dillo (FLTK+Xft) runs + renders its UI on real HW over netboot. The page
+CONTENT was blank for ONE specific reason (status bar: `ERROR: can't start dpid daemon (URL scheme = 'file')!`):
+Dillo routes **`file://` through the dpid plugin daemon** (dpid + file.dpi — NOT staged), whereas **`http://` and
+`https://` are handled IN-PROCESS** (mbedTLS 2.28.0 loaded in-process, "Trusting 121 TLS certificates"). So my
+file:// choice (meant to avoid network deps) hit the one scheme needing dpid. Font warnings (`preferred sans-serif
+"DejaVu Sans" not found`) are non-fatal — FLTK falls back and UI text renders fine (fontconfig resolution is a
+polish item, NOT a blocker). **FIX + relaunched:** started a host HTTP server (python http.server on
+10.42.0.1:8080 serving the test page, harness job bpjgyufmg, verified 200) and launched a 2nd cycle
+`/bin/pl_phoenix_xlaunch /bin/Xphoenix /usr/share/fonts/X11/misc /bin/dillo http://10.42.0.1:8080/` — in-process
+HTTP (no dpid), host on-subnet (no route/DNS/clock/internet needed). NEXT: read the HDMI grab — if the page body
+renders, E3 render-under-X is FULLY proven → then the E3 headline `https://` (add `route add default gw 10.42.0.1
+dev en1` + `ntpclient -s pool.ntp.org`; all validated via curl). Follow-ups: stage dpid+file.dpi for file://
+browsing; fix fontconfig so DejaVu resolves (cosmetic). Pi LOCKED (cycle running). [[project_dillo_https_tls]]
+[[project_x11_lib_port]]
+
+2026-08-08 (SD /loop-goal VERDICT + pivot to E3 Dillo-under-X). This session's `/loop` goal = "SD driver
+ready (full speed + correctness)". **VERDICT: correctness DONE** (reads correct, writes correct via #154
+CMD13-poll, 16/16 0 faults, ext2-root mounts+execs+psh clean); reads at the **DDR50 ceiling ~38 MB/s**. The
+ONLY remaining full-speed lever = SDMA writes (writes are PIO ~13 MB/s) — and it is **already IMPLEMENTED** in
+`sdcard.c:_sdio_cmdSend` (DMA data phase + DMA-write CMD13-back-to-TRAN completion poll) but **deliberately
+GATED OFF at sdcard.c:1625** (`bool useDma = host->useDma && (dir == sdio_read);`). Enabling = drop the
+`&& (dir == sdio_read)` clause + HW-validate (write a SCRATCH region, physical host `/dev/sda` read-back to
+catch a DMA-write coherency bug). **But it is VERIFIED HW-BLOCKED (not the stale assumption):** every recent
+netboot logs `sdcard: no card present in slot 0` AND host reader `/dev/sda` = 0 B → there is NO SD card in the
+Pi's slot OR the host reader → cannot flash, cannot self-flash-via-Linux, cannot SD-boot. Risk-tolerance can't
+overcome a physically-absent card; left `:1625` as-is (an unvalidated default-on DMA-write could silently corrupt
+the ext2 root — reckless). SD advanced as far as possible without a card; memory `project_pi4_sd_fullspeed_state`
+updated with the exact gate + resume recipe. **PIVOTED this cycle (advisor-endorsed) to the non-blocked E3
+headline.** Launched a netboot psh cycle running `pl_phoenix_xlaunch /bin/Xphoenix /usr/share/fonts/X11/misc
+/bin/dillo file:///root/e3-test.html` — isolates the NEW capability (Dillo = FLTK+Xft rendering HTML under
+Xphoenix on HDMI) from already-validated networking (curl HTTPS 200). Confirmed Dillo is FLTK/Xft-based and its
+font needs are met (staged /etc/fonts/fonts.conf aliases → DejaVu TTFs, never-NULL fallback). Staged a
+distinctive /root/e3-test.html. NEXT: read the HDMI grab — if the page renders, E3 render-under-X is PROVEN →
+escalate to `http://example.com/` (add `route add default gw 10.42.0.1 dev en1`) then `https://` (route +
+`ntpclient -s pool.ntp.org` for the cert clock). Pi LOCKED (cycle running). [[project_x11_lib_port]]
+
 2026-08-08 ★★ X11 GUI RENDERS OVER NETBOOT — the E3/D1-D2/XFce substrate is UP (+ a passing kernel-regression
 guard). Reaped the X11 build (build-x11-phoenix.sh clean, 0 undef — fresh-libm resync resolved the scalbn/hypot/
 getpw* gaps; Xphoenix 7.2MB + xeyes/twm static ELFs). Staged into the netboot root: Xphoenix/xeyes/twm/startx +

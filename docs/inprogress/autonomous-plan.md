@@ -387,6 +387,23 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 (Poll-readiness root cause NAILED via code-read; the fix is a careful system-wide change — designed +
+queued, not rushed). Traced Phoenix `poll()`/`select()`: implemented in the KERNEL (posix.c `posix_poll`/
+`do_poll_iteration`), it sends per-fd `mtGetAttr(atPollStatus)` SNAPSHOTS and, if not ready, loops with a
+**20ms timed `proc_threadSleep(POLL_INTERVAL)`** — **only AF_UNIX fds get a real readiness wakeup (`unix_pollWait`);
+sockets/remote fds get NO wakeup** (the code comment admits it). This (not transport) is the definitive root of the
+NFS/socket perf limit: each RPC pays up to the poll granularity on top of RTT; libnfs only masks it with a 1ms
+self-poll spin; the lwip `poll_one` already accepts a timeout but the caller hardcodes 0 (sockets.c:833). Full
+design + blast-radius in [[project_pi4_poll_readiness]]. **The proper fix (server→kernel readiness events) touches
+the core poll path used by psh/X11/NFS/every server → system-wide blast radius → warrants a careful design +
+full boot-regression, NOT a same-turn hack.** Chosen approach: design (B) — a CONTAINED single-remote-fd
+optimization (kernel passes the poll deadline in the atPollStatus msg; the socket server blocks in
+`lwip_select(deadline)` returning on readiness; multi-fd keeps the 20ms loop; gated so non-socket servers are
+unaffected) — kills the per-RPC poll tax with minimal risk; (A) generalized event-wakeup later. NEXT: implement
+design (B) carefully — kernel posix_poll single-remote-fd path + sockets.c handler + gate; test via a
+poll-latency micro-probe + full boot-regression (psh/X11/NFS) + re-measure NFS vs Linux-Pi4. Pi FREE (no cycle
+this turn — pure analysis).
+
 2026-08-08 (NFS: REVERTED root v3→v4 after the v3 mount-flakiness verdict; pivoting to the REAL fix = lwip poll).
 Decision after the root-cause analysis: the v3 switch fixed read-expiry CLEANLINESS but regressed the boot-critical
 takeover MOUNT (~1/3 boots timed out → RAM-root fallback) — a per-boot unicast-TCP/ARP reachability stall that v3

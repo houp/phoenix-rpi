@@ -395,8 +395,16 @@ context) + the lwip-port poll()/UDP RX behavior, cross-check vs Linux's reliable
 concrete fixes (force-TCP-mount / poll-readiness); (B) SDL consolidation C2+C3 — dedup the now-relicensed shared
 glue across the Quake ports (C3: point yquake2/quake3 at the shared Zlib glstubs + drop their GPL copies; C2: fold
 quakespasm onto the shared phxgl_ glctx), build-verifying each game links (no commit — I review). Both running;
-review + commit/act on completion. NEXT: land SDL C2/C3, then apply the top-ranked v3-mount fix + a multi-boot
-quantification bench. Pi FREE (no Pi cycle this turn).
+review + commit/act on completion. **(A) RETURNED with a strong root cause (code-cited, refuted my UDP/transport
+guesses):** the v3 mount is ALREADY 100% TCP and reuses the tuned context; the failure is BIMODAL/per-boot-persistent
+— a bad boot's EVERY unicast TCP to the host stalls the full 120s (genet+DHCP up), i.e. a Phoenix unicast-TCP/ARP
+reachability bug that v3 merely EXPOSED (amplified by v3's 3-4 conns vs v4's 1, + `rpc->retrans=0` hard-failing a
+stalled connect at 5s). Fix menu (in [[project_pi4_nfs_linux_comparison]]): (0) RPC_LOG diag to pin outqueue-vs-waitpdu;
+(1) pin `nfs_set_mountport`+`nfs_set_nfsport` to skip the portmapper → v4-like single-target (public API, +host fixed
+mountd port); (2) raise mount timeout (palliative); (3) stable Pi IP + warm-ARP if all host TCP stalls. Plus the lwip
+`poll()`-readiness perf fix (separate; explains slow init). (B) SDL C2/C3 still running. NEXT: review+commit SDL,
+then apply fix-1 (+stable IP) + a multi-boot quantify bench (and boot Linux ×N — if it never stalls, Phoenix bug
+confirmed). Pi FREE (no Pi cycle this turn).
 
 2026-08-08 ⚠️ CORRECTION + deeper finding on the NFSv3 switch (do NOT trust the "validated" claim in the entry
 below — it was premature, based on 1 boot). Ran yquake2 (26MB ELF + 50MB pak) over the v3 root across 3 boots to

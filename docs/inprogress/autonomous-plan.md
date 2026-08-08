@@ -387,6 +387,20 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 (NFS: REVERTED root v3→v4 after the v3 mount-flakiness verdict; pivoting to the REAL fix = lwip poll).
+Decision after the root-cause analysis: the v3 switch fixed read-expiry CLEANLINESS but regressed the boot-critical
+takeover MOUNT (~1/3 boots timed out → RAM-root fallback) — a per-boot unicast-TCP/ARP reachability stall that v3
+EXPOSES via its extra portmapper/mountd/nfsd connections. v4 uses ONE :2049 connection + was the empirically
+reliable long-time default, and v4's read-expiry is handled by the validated reclaim → v4 loses nothing net.
+Reverted the boot config v3→v4 (project 38ff3cb; v3 still selectable via argv[4]), rebuilt, **HW-verified v4
+mounts + `registered / (takeover)` cleanly**. Manifests: 2026-08-08-nfsv4-root-restored (good),
+2026-08-08-pre-nfsv3-switch (also v4). This is a redirect, not a retreat: the ACTUAL NFS perf gap (Phoenix ~8 vs
+Linux 11.4 MB/s + slow init) is the **lwip `poll()`-not-waking bug** (subagent-confirmed, version-agnostic,
+benefits ALL poll/select apps) — that is the real next target, and it does NOT risk mount reliability.
+[[project_pi4_nfs_linux_comparison]]. NEXT: implement the lwip poll()-readiness fix (carry the caller's timeout
+into the mtGetAttr(atPollStatus) msg + block in lwip_select on the netconn callback; sources/phoenix-rtos-lwip/
+port/sockets.c:78-112,828-835) → re-measure NFS throughput/init vs Linux. Pi FREE.
+
 2026-08-08 ★ SDL consolidation C2/C3 LANDED + stale-toolchain-libm blocker FIXED (both parallel subagents reaped).
 **C2/C3 (owner priority #3, coord 5bcd1a8):** removed per-game DUPLICATES of the now-relicensed shared SDL2 glue
 (−336 lines, 3 GPL headers dropped): quake3+yquake2 now compile the shared Zlib `sdl_phoenix_glstubs.c` (deleted

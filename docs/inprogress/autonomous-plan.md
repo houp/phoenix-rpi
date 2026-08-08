@@ -387,6 +387,21 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 ★ E2 CORE VALIDATED — Phoenix Pi4 reaches the INTERNET (outbound routing via host NAT). Diversified off
+the game/NFS thread to a fresh owner-listed capability. Did it with ZERO netboot-config risk (no dnsmasq edit):
+(1) HOST NAT (additive/reversible): `iptables -t nat -A POSTROUTING -s 10.42.0.0/24 -o enp1s0f0 -j MASQUERADE` +
+FORWARD accept both ways (ip_forward already 1; internet NIC enp1s0f0 → 192.168.50.1). (2) PHOENIX default route,
+client-side at runtime: **`route add default gw 10.42.0.1 dev en1`** (the `dev en1` is REQUIRED — without it psh
+route silently no-ops; en1 = the genet iface). HW-verified: route table shows `default 10.42.0.1 UG en1`, and
+**`wget http://1.1.1.1/index.html` → "Connecting to 1.1.1.1:80... Connected"** = a real outbound TCP connect to a
+public IP through the NAT (IP-literal, no DNS). So Phoenix outbound internet ROUTING works. [[project_pi4_internet_e2_feasibility]]
+[[project_dillo_https_tls]]. Remaining for full E2/E3: (a) DNS (used an IP literal; need a resolver — Phoenix-side
+or dnsmasq option 6, port=0 currently disables dnsmasq DNS); (b) PERSIST it (host NAT is a runtime iptables rule =
+lost on host reboot; the Phoenix route is a manual psh cmd/boot = bake into a boot script or dnsmasq opt 3); (c)
+E3 = Dillo live HTTPS (big binary — now exec-able post-lazy-BSS — + stage the CA bundle + DNS). psh `wget` needs a
+URL WITH a filename (bare `http://host/` → "url missing filename"). NEXT: DNS + persistence, then E3 Dillo browse.
+Pi FREE.
+
 2026-08-08 ★ QUAKE II RENDERS THE FULL 3D GAME OVER NETBOOT — the visible payoff of the keystone exec fix; C4-over-
 netboot CLOSED. Two turns ago yquake2 (26MB) was totally exec-blocked over netboot; with the lazy-BSS exec fix it
 now loads end-to-end: banner → pak0 → ref_gl1 → all models (T+226) → TFU texture uploads → **`DIAG: ca_active`

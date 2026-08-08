@@ -387,6 +387,21 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 ★★★ D1/D2 ACHIEVED — ACCELERATED V3D GPU RENDERING IN AN X WINDOW ON THE PI 4. HW-validated over
+netboot: `pl_phoenix_xlaunch /bin/Xphoenix .../misc /bin/gl-x11-window` → UART: `GL up; 2.1 Mesa 26.2.0 /
+V3D 4.2.14.0`, offscreen FBO 640x480 complete, X window depth=24 masks r=0xff/g=0xff00/b=0xff0000, and it
+animated `frame 3450/20000 angle=6900` (continuous). HDMI grab (`20260808-194919-glx11-final.png`) shows the
+**V3D-rendered rotating 12-spoke pinwheel — smooth per-vertex color gradients, overlapping depth-tested
+triangles — inside a 640x480 X window** on the Xphoenix root. So an accelerated OpenGL app renders in a
+managed-able X window on real HW, proving the offscreen-FBO + glReadPixels + XPutImage single-process approach
+(NO GLX/DRI/glamor/dlopen, NO winsys/xserver/Mesa change). The task was far smaller than the feasibility report
+feared: offscreen render+readback was already proven by gl_det_harness.c; only the X-present glue + the GL+X
+static link (21M ELF, 0 undefined) was new. Committed tools/x11-port/gl_x11_window.c + build-gl-x11-window.sh.
+Next polish (low-pri): run it under twm for a decorated/draggable window; scale to fullscreen or a bigger window;
+present via XShmPutImage for speed; wire an SDL2-X backend so ALL GL apps can go windowed. **NEXT owner task:**
+#2 NFS/netboot perf (validate+extend the poll()-readiness kernel fix — speeds all loads, gates Quake 2/3 full
+runtime), or Quake 2/3 runtime, or SuperTuxKart. [[project_x11_gpu_windowed_feasibility]] [[project_pi4_v3d_scout]]
+
 2026-08-08 (D1/D2 X11-GPU IMPLEMENTATION STARTED — and the task is SMALLER than the feasibility report feared).
 KEY finding: the offscreen GPU render + CPU readback path is **ALREADY PROVEN + HW-validated** by
 `tools/v3d-driver-port/gl_det_harness.c` — it does v3d_screen_create → st_create_context(API_OPENGL_COMPAT) →

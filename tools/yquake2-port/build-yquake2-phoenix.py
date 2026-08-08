@@ -74,6 +74,11 @@ GL1_CFLAGS = CFLAGS + ["-Dmodes=yq2_gl1_modes"]
 MESA   = f"{ROOT}/external/mesa"
 MCOMPAT = f"{ROOT}/tools/v3d-driver-port/phoenix_mesa_compat.h"
 GLUE   = f"{ROOT}/sources/phoenix-rtos-ports/sdl2/glue/sdl_phoenix_glctx.c"
+# Shared libc/Mesa gap-filler (Zlib). Was a per-port copy (platform/pl_phoenix_glstubs.c);
+# deduped onto the SDL2 port's glstubs. Its former lroundf stub is gone — libphoenix's
+# libm now provides lroundf (libm/phoenix/exp.c), so -lm resolves it (same reasoning the
+# quake3 port used to drop its rint stub).
+GLSTUBS = f"{ROOT}/sources/phoenix-rtos-ports/sdl2/glue/sdl_phoenix_glstubs.c"
 MFLAGS = ["-c", "-O2", "-g", "-ffreestanding", "-fno-strict-aliasing", "-Wno-error",
           "-Wno-undef", "-DUTIL_ARCH_LITTLE_ENDIAN=1", "-DUTIL_ARCH_BIG_ENDIAN=0",
           "-DHAVE_STRUCT_TIMESPEC", "-include", MCOMPAT,
@@ -152,9 +157,10 @@ GL1 = [
     "client/refresh/files/pvs",
 ]
 
-# Phoenix backend (platform/) replacing backends/unix/{system,main,shared/hunk}.c
-# plus the GL gap-fillers (lroundf / pthread_getcpuclockid / trace stub).
-PHOENIX = ["pl_phoenix_sys", "pl_phoenix_main", "pl_phoenix_hunk", "pl_phoenix_glstubs"]
+# Phoenix backend (platform/) replacing backends/unix/{system,main,shared/hunk}.c.
+# The libc/Mesa gap-filler (pthread_getcpuclockid) is the shared Zlib GLSTUBS, compiled
+# below; the trace stub lives in the shared GL-context glue.
+PHOENIX = ["pl_phoenix_sys", "pl_phoenix_main", "pl_phoenix_hunk"]
 
 
 def run(cmd):
@@ -215,7 +221,11 @@ def main():
     glue_o, glue_err = compile_one("sdl_phoenix_glctx", GLUE, MFLAGS)
     (objs.append(glue_o) if glue_o else fail.append(("sdl_phoenix_glctx", glue_err)))
 
-    total = sum(len(g[0]) for g in groups) + 1
+    # Shared libc/Mesa gap-filler (Zlib) — plain CFLAGS, from sources/.
+    stubs_o, stubs_err = compile_one("sdl_phoenix_glstubs", GLSTUBS, CFLAGS)
+    (objs.append(stubs_o) if stubs_o else fail.append(("sdl_phoenix_glstubs", stubs_err)))
+
+    total = sum(len(g[0]) for g in groups) + 2
     print(f"\n=== compile: {len(objs)}/{total} TUs OK ===")
     if fail:
         print(f"--- {len(fail)} FAILED ---")

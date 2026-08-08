@@ -58,9 +58,9 @@ extern int v3d_phoenix_scanout_active(void);
 #include <phoenix/fbcon.h>
 
 /* GL context/FBO helpers (pl_phoenix_glctx.c) — plain C API, no Quake/Mesa types. */
-int  qsv3d_init(int w, int h);
-void qsv3d_make_current(void);
-int  qsv3d_resolve(void);   /* color-only GPU blit: DRAM render FBO -> scanout fb (returns 1 if active) */
+int  phxgl_init(int w, int h);
+void phxgl_make_current(void);
+int  phxgl_resolve(void);   /* color-only GPU blit: DRAM render FBO -> scanout fb (returns 1 if active) */
 
 #define VID_W 1920
 #define VID_H 1080
@@ -276,7 +276,7 @@ void VID_Init(void)
 	}
 
 	/* Open /dev/fb0 and hand the GPU winsys the scanout framebuffer's PA + size BEFORE
-	 * qsv3d_init creates the FBO — the full-screen render target is allocated during context
+	 * phxgl_init creates the FBO — the full-screen render target is allocated during context
 	 * create, so the winsys must already know the scanout PA to back the RT with it
 	 * (render-to-scanout: GPU stores straight to screen, no CPU readback/blit). */
 	fbfd = open("/dev/fb0", O_WRONLY);
@@ -296,9 +296,9 @@ void VID_Init(void)
 		}
 	}
 
-	if (qsv3d_init(VID_W, VID_H) != 0)
+	if (phxgl_init(VID_W, VID_H) != 0)
 		Sys_Error("VID_Init: V3D GL context create failed");
-	qsv3d_make_current();
+	phxgl_make_current();
 
 	vid.width = vid.conwidth = VID_W;
 	vid.height = vid.conheight = VID_H;
@@ -493,8 +493,8 @@ void VID_Shutdown(void)
 /* Quake calls these around each frame's GL work. */
 void GL_BeginRendering(int *x, int *y, int *width, int *height)
 {
-	extern void qsv3d_bind_fbo(void);
-	qsv3d_bind_fbo();   /* render this frame into our readable FBO, not default FB0 */
+	extern void phxgl_bind_fbo(void);
+	phxgl_bind_fbo();   /* render this frame into our readable FBO, not default FB0 */
 	*x = 0;
 	*y = 0;
 	*width = vid.width;
@@ -509,7 +509,7 @@ void GL_EndRendering(void)
 	if (fbfd < 0 || !readbuf[0] || !readbuf[1] || !fbimg)
 		return;
 
-	{ extern void qsv3d_bind_fbo(void); qsv3d_bind_fbo(); }  /* read from our FBO, not FB0 */
+	{ extern void phxgl_bind_fbo(void); phxgl_bind_fbo(); }  /* read from our FBO, not FB0 */
 	glReadBuffer(GL_COLOR_ATTACHMENT0);
 	ts_a = Sys_DoubleTime();
 	glFinish();   /* submit + synchronously render the frame */
@@ -523,7 +523,7 @@ void GL_EndRendering(void)
 		 * still no CPU readback. The frame lands UPRIGHT: both FBOs are full-screen so Mesa
 		 * forced Y_0_TOP on both, and the (0..h)->(0..h) blit copies verbatim onto the y-down
 		 * scanout. */
-		qsv3d_resolve();
+		phxgl_resolve();
 		ts_c = ts_b;
 		ts_d = Sys_DoubleTime();
 	}

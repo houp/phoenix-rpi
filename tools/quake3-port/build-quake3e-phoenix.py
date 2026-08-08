@@ -85,6 +85,9 @@ BOTLIB_CFLAGS = CFLAGS + ["-DBOTLIB"]
 MESA   = f"{ROOT}/external/mesa"
 MCOMPAT = f"{ROOT}/tools/v3d-driver-port/phoenix_mesa_compat.h"
 GLUE   = f"{ROOT}/sources/phoenix-rtos-ports/sdl2/glue/sdl_phoenix_glctx.c"
+# Shared libc/Mesa gap-filler (Zlib). Was a per-port copy (platform/pl_phoenix_stubs.c);
+# deduped onto the SDL2 port's glstubs, which provides the same pthread_getcpuclockid.
+GLSTUBS = f"{ROOT}/sources/phoenix-rtos-ports/sdl2/glue/sdl_phoenix_glstubs.c"
 MFLAGS = ["-c", "-O2", "-g", "-ffreestanding", "-fno-strict-aliasing", "-Wno-error",
           "-Wno-undef", "-DUTIL_ARCH_LITTLE_ENDIAN=1", "-DUTIL_ARCH_BIG_ENDIAN=0",
           "-DHAVE_STRUCT_TIMESPEC", "-include", MCOMPAT,
@@ -160,8 +163,9 @@ SDLBK = ["sdl_glimp", "sdl_gamma", "sdl_input", "sdl_snd"]
 UNIX_KEEP = ["linux_signals"]
 
 # Phoenix backend (platform/): forks of unix_main.c + unix_shared.c with the
-# dlopen seam stubbed and the unused SysV/pwd headers dropped.
-PHOENIX = ["pl_phoenix_main", "pl_phoenix_sys", "pl_phoenix_stubs"]
+# dlopen seam stubbed and the unused SysV/pwd headers dropped. The libc/Mesa
+# gap-filler (pthread_getcpuclockid) is the shared Zlib GLSTUBS, not a per-port copy.
+PHOENIX = ["pl_phoenix_main", "pl_phoenix_sys"]
 
 
 def run(cmd):
@@ -230,7 +234,11 @@ def main():
     glue_o, glue_err = compile_one("sdl_phoenix_glctx", GLUE, MFLAGS)
     (objs.append(glue_o) if glue_o else fail.append(("sdl_phoenix_glctx", glue_err)))
 
-    total = sum(len(g[0]) for g in groups) + 1
+    # Shared libc/Mesa gap-filler (Zlib) — plain CFLAGS, from sources/.
+    stubs_o, stubs_err = compile_one("sdl_phoenix_glstubs", GLSTUBS, CFLAGS)
+    (objs.append(stubs_o) if stubs_o else fail.append(("sdl_phoenix_glstubs", stubs_err)))
+
+    total = sum(len(g[0]) for g in groups) + 2
     print(f"\n=== compile: {len(objs)}/{total} TUs OK ===")
     if fail:
         print(f"--- {len(fail)} FAILED ---")

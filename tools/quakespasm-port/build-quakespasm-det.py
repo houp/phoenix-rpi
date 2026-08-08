@@ -46,19 +46,24 @@ CORE = ["strlcat", "strlcpy", "net_dgrm", "net_loop", "net_main", "net_udp",
 PLAT = f"{ROOT}/tools/quakespasm-port/platform"
 MESA = f"{ROOT}/external/mesa"
 COMPAT = f"{ROOT}/tools/v3d-driver-port/phoenix_mesa_compat.h"
+# Shared GL-context glue (Zlib). Was a byte-identical per-port copy
+# (platform/pl_phoenix_glctx.c); deduped onto the SDL2 port's copy. Its entry
+# points are phxgl_* (the callers in pl_phoenix_vid.c / gl_screen.c were renamed
+# qsv3d_* -> phxgl_* to match).
+GLUE = f"{ROOT}/sources/phoenix-rtos-ports/sdl2/glue/sdl_phoenix_glctx.c"
 GPU_LIBS = f"{ROOT}/tools/.gpu-libs"  # stable home for the prebuilt engine archives (was /tmp)
 GLLIB = f"{GPU_LIBS}/libGL-phoenix.a"
 V3DLIB = f"{GPU_LIBS}/libv3d-phoenix.a"
 ELF = "/tmp/quakespasm-det"
 
-# QSS_PHOENIX enables gl_screen.c's Phoenix screen-capture path (qsv3d_capture_gl):
+# QSS_PHOENIX enables gl_screen.c's Phoenix screen-capture path (phxgl_capture_gl):
 # the visual-regression harness that blits the scanout FBO + glReadPixels a full
 # 1920x1080 frame per captured demo frame. That per-frame uncached readback is
 # EXPENSIVE (drags rendering to ~7 fps when scr_capture>0), so the capture harness
 # is OPT-IN: default builds ship WITHOUT it (stock SCR path, full render speed).
 # Re-enable for visual debugging with `QS_CAPTURE=1 python3 build-quakespasm-phoenix.py`
 # (then set scr_capture/scr_capture_host in autoexec to drive it).
-CAPTURE = True  # DET: always build QSS_PHOENIX so qsv3d_capture_gl + SCR_DetTick are compiled
+CAPTURE = True  # DET: always build QSS_PHOENIX so phxgl_capture_gl + SCR_DetTick are compiled
 _cap_def = ["-DQSS_PHOENIX=1"] if CAPTURE else []
 
 # Quake-side flags (Quake TUs + the Quake-facing platform shims).
@@ -80,7 +85,7 @@ MFLAGS = ["-c", "-O2", "-g", "-ffreestanding", "-fno-strict-aliasing", "-Wno-err
 
 QUAKE_SHIMS = ["pl_phoenix_sys", "pl_phoenix_snd", "pl_phoenix_in",
                "pl_phoenix_main", "pl_phoenix_vid", "pl_phoenix_stubs"]  # Quake-side flags
-MESA_SHIMS = ["pl_phoenix_glctx"]                     # Mesa-side flags
+# GL-context glue: the shared Zlib GLUE, compiled with Mesa-side flags (below).
 
 def compile_one(src, flags, obj):
     r = subprocess.run([TC] + flags + ["-o", obj, src], capture_output=True, text=True)
@@ -103,11 +108,10 @@ def main():
     for u in QUAKE_SHIMS:
         e = compile_one(f"{PLAT}/{u}.c", QFLAGS, f"{OBJ}/{u}.o")
         (fail.append((u, e)) if e else objs.append(f"{OBJ}/{u}.o"))
-    for u in MESA_SHIMS:
-        e = compile_one(f"{PLAT}/{u}.c", MFLAGS, f"{OBJ}/{u}.o")
-        (fail.append((u, e)) if e else objs.append(f"{OBJ}/{u}.o"))
+    e = compile_one(GLUE, MFLAGS, f"{OBJ}/sdl_phoenix_glctx.o")
+    (fail.append(("sdl_phoenix_glctx", e)) if e else objs.append(f"{OBJ}/sdl_phoenix_glctx.o"))
 
-    total = len(units) + len(QUAKE_SHIMS) + len(MESA_SHIMS)
+    total = len(units) + len(QUAKE_SHIMS) + 1
     print(f"\n=== compile: {len(objs)}/{total} TUs OK ===")
     if fail:
         print(f"--- {len(fail)} FAILED ---")

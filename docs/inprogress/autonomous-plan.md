@@ -387,6 +387,21 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 ★ PRIORITY #2 — NFS Linux-vs-Phoenix comparison → DECISIVE: Phoenix NFS is a FIXABLE SOFTWARE bug (2
+leads pinpointed). Used the new Linux reference box: identical cold NFS-root read bench (100MB ×3, drop_caches),
+same host nfsd + 100Mbps link. **Linux-Pi4: 11.3-11.4 MB/s, 0 errors, NFSv3.** That's 91% of the 100Mbps line rate
+= the practical ceiling → the LINK is not the problem. **Phoenix: ~8 MB/s + read flakiness, NFSv4.** Per the owner's
+rule (Linux fine → Phoenix bug), Phoenix's NFS is software, not infra; 100Mbps is plenty for game assets, the real
+gating issue was the flakiness Linux (v3) doesn't have. **Two pinpointed leads:** (1) ★ RELIABILITY = NFSv4
+statefulness — Phoenix's whole RENEW-thread + NFS4ERR_EXPIRED-reclaim machinery exists only for v4 leases; the
+version is ALREADY selectable (`nfs-fs` argv[4], default `v4`; `v3`→NFS_V3, srv.c:761/768) so **switching the
+netboot nfs-fs launch to `v3` should kill the flakiness class with no code change** (NEXT: find the launch in the
+netboot plo/overlay config, flip v4→v3, boot Phoenix NFSv3-root, verify reliability+throughput; host has
+rpcbind/mountd for v3 — the Linux v3 mount used them; rollback = revert the arg); (2) THROUGHPUT/latency = the
+Phoenix socket **poll() doesn't wake on data-ready** (srv.c:398-404 — worked around with a 1ms poll spin; the real
+fix = lwip-port poll/select readiness, benefits all apps). Full detail [[project_pi4_nfs_linux_comparison]].
+Reusable bench kept on the Linux box (/root/nfsbench.{sh,dat}); Phoenix netboot default restored; Pi FREE.
+
 2026-08-08 ★ PRIORITY #1 DONE — Linux-Pi4 NFS-root reference env BOOTS to an autologin root shell (the owner's
 "always compare with Linux on Pi4" foundation). HW-verified over netboot: DHCP (10.42.0.12) → `VFS: Mounted root
 (nfs filesystem)` @~9s → systemd (Debian trixie 13) → `raspberrypi login: root (automatic login)` → `root@raspberrypi:~#`

@@ -387,6 +387,17 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 (Two parallel subagents launched — advancing the NFS + SDL priorities without burning flaky Pi cycles):
+Rather than spend many flaky Pi cycles quantifying the v3-mount timeout, launched two independent no-Pi code tasks
+in parallel (owner "use subagents"): (A) a READ-ONLY root-cause analysis of the intermittent v3 MOUNT-RPC timeout
+— trace libnfs's v3 mount path (portmapper/mountd transport UDP vs TCP; whether it reuses the poll_timeout=1ms
+context) + the lwip-port poll()/UDP RX behavior, cross-check vs Linux's reliable `mountproto=tcp`, and rank
+concrete fixes (force-TCP-mount / poll-readiness); (B) SDL consolidation C2+C3 — dedup the now-relicensed shared
+glue across the Quake ports (C3: point yquake2/quake3 at the shared Zlib glstubs + drop their GPL copies; C2: fold
+quakespasm onto the shared phxgl_ glctx), build-verifying each game links (no commit — I review). Both running;
+review + commit/act on completion. NEXT: land SDL C2/C3, then apply the top-ranked v3-mount fix + a multi-boot
+quantification bench. Pi FREE (no Pi cycle this turn).
+
 2026-08-08 ⚠️ CORRECTION + deeper finding on the NFSv3 switch (do NOT trust the "validated" claim in the entry
 below — it was premature, based on 1 boot). Ran yquake2 (26MB ELF + 50MB pak) over the v3 root across 3 boots to
 validate the payoff. Result is MIXED and honest: **v3 reads work** — 2/3 boots mounted v3 cleanly (`mounted …

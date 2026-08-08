@@ -387,6 +387,20 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 (E3 cert-verify diagnosed — bounded; verified-HTTPS is a polish, unverified already works). Verbose
+curl (`curl -v --cacert /etc/ssl/certs/ca-certificates.crt https://example.com/`): **mbedTLS handshake COMPLETES**
+(cipher TLS-ECDHE-ECDSA-CHACHA20-POLY1305) then `curl: (60) cert not OK` — cert VERIFICATION fails post-handshake,
+but mbedTLS-curl does NOT surface the specific reason. Narrowed (not fully resolved): CA bundle is VALID (121
+certs, proper PEM — NOT the cause); remaining candidates = (a) Pi CLOCK (no RTC → wrong boot time → cert
+date-check; no clock/ntp/date tool staged + psh has no `date`), or (b) an mbedTLS cert-PROFILE rejection (the
+bundle's first root is sha1WithRSA; mbedTLS may reject SHA-1-signed CAs by default). Fix directions (deferred as a
+polish): build+stage `ntpclient` and NTP-sync (we now have internet) to fix the clock; and/or check the mbedTLS
+verify-profile (allow the needed sig algs) — a small program printing the mbedTLS x509 verify flags would
+disambiguate. **Unverified HTTPS (`curl -k`) works end-to-end (proven last entry), so the crypto+internet path is
+solid.** Been on the E2/E3 net thread several turns → NEXT: DIVERSIFY to another owner task for breadth (SDL C4-C6
+consolidation, NFS-load-perf, the TFU tiling-striping rendering-correctness fix, or an unstarted port), and treat
+E3 (verified HTTPS + the big Dillo build/X11/render integration) as a scoped follow-up. Pi FREE.
+
 2026-08-08 ★ E3 PRECURSOR — Phoenix Pi4 fetches a LIVE HTTPS page over the internet (mbedTLS TLS + real 200 OK).
 Decomposed E3's risk: before the big Dillo+X11 integration, validated the HTTPS/TLS-over-internet path with the
 staged `curl` (built w/ mbedTLS). Staged the host CA bundle → export /etc/ssl/certs/ca-certificates.crt.

@@ -387,6 +387,18 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 (NFS PERF #2 cont'd — demand-paging probe: userspace mmap is EAGER, not a valid exec probe). Added an
+mmap-touch mode to nfs-read-bench and ran read-vs-mmap on a 4 MiB file: read()=8.19 MiB/s (matches bulk), but the
+post-mmap page-touch loop = 0.000 s ⇒ **Phoenix userspace file-backed mmap populates EAGERLY at map time** (pages
+already resident when touched), so a userspace mmap+touch does NOT replicate the KERNEL exec/ELF-loader
+demand-paging path (vm/object.c object_fetch-on-fault) — my assumption was wrong. Fixed the bench to time mmap()
+inclusively + documented the caveat (committed 94b510e). So the game-load (312s) demand-paging cost can't be
+measured from userspace mmap. **NEXT (decisive, Pi-free first): READ sources/phoenix-rtos-kernel/vm/object.c —
+does read-ahead CLUSTERING (object_fetchCluster, kernel 8834eaf3, SD-proven quake 68s→5.5s) engage for
+NFS-backed objects, or only SD/flash?** If it doesn't cover NFS, wiring it is the game-load unblock (kernel work,
+owner-sanctioned). Then measure a REAL large-exec load (spawn→running marker) as the ground-truth game-load
+metric. Bulk read (8.2) + poll-fix-is-latency-only stand. [[project_pi4_poll_readiness]] [[project_sdboot_largeexec_slowstart]]
+
 2026-08-08 (NFS PERF #2 — measured, decisive reframe). Built a reusable throughput probe
 `tools/nfs-bench/nfs-read-bench.c` (committed; sequential read, CLOCK_MONOTONIC, MiB/s) + rebuilt `--scope core`
 so the poll-readiness fix (kernel 9a6d4743 + lwip 00067ac) is GUARANTEED in the image (the prior 10:37 image's

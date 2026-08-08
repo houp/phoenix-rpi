@@ -387,6 +387,22 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 (Poll-perf quantification ATTEMPT — BLOCKED by an unrelated bug; important reframe). Tried to time
+yquake2's NFS load over the poll-fixed v4 root to measure the fix's benefit. Result: yquake2 (26MB ELF) produced
+**ZERO output in 240s** — it never printed its banner. This is NOT a poll regression: the prior boot-regression run
+(pollfix) booted + `ls`-read fine, boot execs many binaries over NFS, and yquake2 DID print over v3 earlier — so
+small/normal execs+reads work post-fix. It's the **pre-existing INTERMITTENT large-binary-NFS-exec hang** (F1:
+yquake2 is 26MB > the ~19MB whole-file-map -ENOMEM threshold at process_load; flagships were historically bundled
+in loader.disk for exactly this). **REFRAME: the actual blocker for loading big games over NFS is this large-exec
+hang, NOT NFS throughput/poll latency.** So the poll fix stands **verified-safe + functional, but its perf benefit
+is UNMEASURED** (a clean bench needs nfs-smoke, which is only built in the netboot variant; yquake2 is too big to
+exec reliably + too noisy). Honest status: poll fix shipped + safe + theoretically sound; not perf-validated.
+**NEXT (higher-value, owner's compare-with-Linux method): the large-binary-NFS-exec hang (F1)** — Linux execs big
+binaries over NFS fine, so it's a Phoenix bug (the whole-file mmap for ELF validation at process_load hitting
+-ENOMEM / the eager-commit path); fixing it is what actually unblocks loading yquake2/vkquake/STK over NFS. I've
+spent many turns on the NFS/net thread — after F1 (or if it's deep), DIVERSIFY to another owner task (X11 GPU,
+Dillo E2 internet, SuperTuxKart, Quake1 MP). Pi FREE.
+
 2026-08-08 ★ POLL-READINESS FIX IMPLEMENTED + HW-verified-safe + pushed (the real NFS/socket perf root cause).
 Implemented design (B): for a poll on exactly ONE `ftInetSocket` fd, the kernel now passes a per-iteration block
 timeout (packed in the high bits of the atPollStatus attr val, above the 16-bit event mask) to the socket server,

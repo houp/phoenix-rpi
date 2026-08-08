@@ -387,6 +387,20 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 (Committed to the E3-Dillo-UI BIG task — kicked off the foundational X11 + Dillo builds in parallel).
+Low-hanging fruit exhausted → committing to a big multi-turn integration: **a web browser (Dillo) rendering a live
+page on the Pi over netboot** (HTTPS foundation done). Assessed: NEITHER X11 nor Dillo is currently staged in the
+netboot export, and X11 isn't even built in the buildroot (only tools/x11-port/build-x11-phoenix.sh exists). The
+X11 stack is the SHARED SUBSTRATE for the whole GUI cluster (E3-Dillo, D1/D2 X11-GPU/glxgears, D3 XFce), so it's
+the high-leverage foundation. Launched two parallel build subagents (owner: use subagents): (A) build the X11
+stack (build-x11-phoenix.sh → Xphoenix kdrive fbdev server + libs + xeyes) + report a staging assessment for
+running it over the netboot NFS root; (B) build Dillo (build-dillo.sh, mbedTLS HTTPS) + report its staging. Both
+watch for stale-toolchain link gaps (libphoenix was re-synced this session). NEXT (multi-turn): stage the X11
+runtime (server + libs + fonts + config + /tmp/.X11-unix) into /srv/phoenix-rpi4-nfs, launch Xphoenix + xeyes over
+netboot + HDMI-verify (the GUI-over-netboot substrate + a regression guard post my kernel changes), THEN stage +
+launch Dillo under X + load a live HTTPS page → E3 headline. Big binaries load slow over NFS (the known perf axis)
+but exec-able now (lazy-BSS). Pi FREE.
+
 2026-08-08 (E2 host-NAT persistence wired; boot-NTP + several leads assessed/deferred — honest small turn). Made
 E2's host NAT persistent/reproducible: `netboot-server-up.sh` now calls the idempotent `scripts/pi-internet-nat.sh`
 (auto-applies MASQUERADE 10.42.0.0/24→enp1s0f0 + FORWARD on every server bring-up), pairing with the DHCP opt3/6

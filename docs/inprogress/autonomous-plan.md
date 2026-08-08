@@ -387,6 +387,23 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 ★ SDL consolidation C2/C3 LANDED + stale-toolchain-libm blocker FIXED (both parallel subagents reaped).
+**C2/C3 (owner priority #3, coord 5bcd1a8):** removed per-game DUPLICATES of the now-relicensed shared SDL2 glue
+(−336 lines, 3 GPL headers dropped): quake3+yquake2 now compile the shared Zlib `sdl_phoenix_glstubs.c` (deleted
+their GPL stubs; also killed a stale `lroundf` multiple-def in yquake2), and quakespasm compiles the shared
+`sdl_phoenix_glctx.c` (deleted its byte-identical GPL copy; renamed its `qsv3d_`→`phxgl_` callers). All 3 games
+build-verified compile+link. **Stale-toolchain-libm FIXED:** the residual `U scalbn/scalbnf` (which also blocked
+the sdl2 gltest + E4) was the `.toolchain` libm.a (2026-07-22) predating this session's libphoenix libm additions
+(exp2/log2f/scalbn). Synced the fresh buildroot `libm.a`+`libphoenix.a` → `.toolchain/.../lib/` (backups
+`.pre-libmsync-20260808`; `.toolchain` is gitignored = local-env fix, not a repo commit; the Docker clean-build
+already builds these fresh so it was never affected). **Verified: yquake2 now `LINK OK` 0-undefined.** GOTCHA for
+future libphoenix libm/libc additions: after `--scope core`, also sync buildroot libm.a/libphoenix.a into
+`.toolchain` or local port relinks fail on the new symbols [[project_libphoenix_libm]]. Follow-ups: (1) the
+QS_CAPTURE `gl_screen.c` `phxgl_` rename lives in the pinned external/quakespasm clone → needs the quakespasm
+patch regenerated to persist (default build unaffected); (2) SDL C4-C6 (migrate quakespasm/vkquake off their
+sdl-shim onto real libSDL2.a) remain. NEXT: NFS fix-1 (pin mountport/nfsport + stable Pi IP) + multi-boot
+quantify bench (vs Linux-Pi4). Pi FREE.
+
 2026-08-08 (Two parallel subagents launched — advancing the NFS + SDL priorities without burning flaky Pi cycles):
 Rather than spend many flaky Pi cycles quantifying the v3-mount timeout, launched two independent no-Pi code tasks
 in parallel (owner "use subagents"): (A) a READ-ONLY root-cause analysis of the intermittent v3 MOUNT-RPC timeout

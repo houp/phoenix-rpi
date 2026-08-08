@@ -387,6 +387,23 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 ★★ KEYSTONE FIX — large-binary-NFS-exec hang RESOLVED (lazy .bss); yquake2 (26MB) now execs+loads.
+Followed the reframe: the real blocker for loading big games/apps over netboot was NOT NFS speed but the F1
+exec-hang. Root cause found in the kernel exec path: `process_load{32,64}` (proc/process.c) eager-`hal_memset`'d
+the ENTIRE .bss at exec ([p_filesz,p_memsz)) — for yquake2's ~26MB .bss that touched ~14k pages under map->lock,
+a long exec window that intermittently hung over flaky netboot NFS. But the bulk .bss beyond the last file page is
+an ANON mapping the VM already demand-zeroes per fault (verified amap.c:299 zeroes new anon pages). FIX (like
+Linux): memset ONLY the .bss tail sharing the last file-backed page (COW garbage past p_filesz); demand-zero the
+anon .bss lazily. Both load32/load64. `--scope core` clean. **HW-verified over netboot: boots to psh 0 faults
+(every binary execs → lazy .bss correct), and yquake2 (26MB .bss — was TOTALLY SILENT last turn) now execs →
+banner → pak0 → ref_gl1 → "Yamagi Quake II Initialized" (T+38s) → loaded ALL map models ("models done" T+226s).**
+The exec-hang keystone that gated the whole game/app runtime cluster is FIXED. Pushed kernel **b446114f**; manifest
+2026-08-08-lazy-bss-exec-fixed; rollback 2026-08-08-pre-lazy-bss. [[project_large_binary_exec_hang]]. Remaining:
+yquake2's model-load took ~190s (many small NFS reads + verbose YQ2DIAG probes) — that's the NFS-read-speed axis
+(the poll fix territory + YQ2DIAG cleanup), NOT exec. NEXT: let yquake2 finish to a 3D render (longer capture) to
+close C4-over-netboot, and/or now that big-exec works, drive other runtime tasks; the poll-fix perf is now
+measurable via a game that actually execs. Pi FREE.
+
 2026-08-08 (Poll-perf quantification ATTEMPT — BLOCKED by an unrelated bug; important reframe). Tried to time
 yquake2's NFS load over the poll-fixed v4 root to measure the fix's benefit. Result: yquake2 (26MB ELF) produced
 **ZERO output in 240s** — it never printed its banner. This is NOT a poll regression: the prior boot-regression run

@@ -194,9 +194,26 @@ int main(void)
 
 	int screen = DefaultScreen(dpy);
 	Window root = RootWindow(dpy, screen);
-	Window win = XCreateSimpleWindow(dpy, root, 0, 0, W, H, 0,
+	/* Place at a fixed offset (not 0,0) so it's clearly a windowed, WM-decorated
+	 * client rather than a fullscreen root paint. */
+	int wx = 300, wy = 180;
+	Window win = XCreateSimpleWindow(dpy, root, wx, wy, W, H, 0,
 	                                 BlackPixel(dpy, screen), BlackPixel(dpy, screen));
 	XStoreName(dpy, win, "Phoenix V3D GL");
+	/* WM size hints with USPosition|USSize: a window manager (twm) honours the
+	 * user-specified position and decorates + places the window IMMEDIATELY, instead
+	 * of triggering twm's interactive rubber-band placement (which would need a mouse
+	 * click and is useless for an automated HDMI grab). Harmless with no WM running. */
+	XSizeHints *hints = XAllocSizeHints();
+	if (hints != NULL) {
+		hints->flags = USPosition | USSize | PPosition | PSize | PMinSize | PMaxSize;
+		hints->x = wx; hints->y = wy;
+		hints->width = W; hints->height = H;
+		hints->min_width = hints->max_width = W;   /* fixed-size (no resize) — the FBO is W x H */
+		hints->min_height = hints->max_height = H;
+		XSetWMNormalHints(dpy, win, hints);
+		XFree(hints);
+	}
 	XSelectInput(dpy, win, ExposureMask);
 	XMapWindow(dpy, win);
 	GC gc = XCreateGC(dpy, win, 0, NULL);

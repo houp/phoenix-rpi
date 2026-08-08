@@ -296,6 +296,18 @@ int main(int argc, char *argv[])
 			n_client_extra[1] = 2;
 			n_clients = 2;
 		}
+		else if (strcmp(client, "glwin") == 0) {
+			/* twm (WM) + gl-x11-window (a V3D-accelerated GL client rendering into a
+			 * normal window). The GPU app sets its OWN USPosition WM size-hints, so twm
+			 * decorates + places it immediately (no -geometry arg needed here). Proves
+			 * accelerated OpenGL as a managed, decorated X window under a window manager
+			 * — the substrate for a GPU-capable desktop (XFce, D1/D2/D3). */
+			resolve_client(cp_bufs[0], sizeof(cp_bufs[0]), prefix, "twm");
+			resolve_client(cp_bufs[1], sizeof(cp_bufs[1]), prefix, "gl-x11-window");
+			client_path[0] = cp_bufs[0];
+			client_path[1] = cp_bufs[1];
+			n_clients = 2;
+		}
 		else {
 			resolve_client(cp_bufs[0], sizeof(cp_bufs[0]), prefix, client);
 			client_path[0] = cp_bufs[0];

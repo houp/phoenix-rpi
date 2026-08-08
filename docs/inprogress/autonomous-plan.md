@@ -387,6 +387,19 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (NFS PERF — open-once opt is REDUNDANT; NFS effectively concluded in software → PIVOT). Checked the
+nfs-fs open/read/close coupling (sources/phoenix-rtos-filesystems/nfs/nfs_ops.c): it ALREADY has **lazy-close /
+fh-reuse (#156)** — `nfs_ops_close` parks the NFSv4 filehandle instead of nfs_close'ing it, and `nfs_ops_open`
+reuses the parked fh on the idle path (skips nfs_open + re-stat). So object_fetchCluster's per-cluster
+proc_open/proc_close already avoid NFSv4 OPEN/CLOSE RPCs (cheap local IPC) → a kernel open-once would save almost
+nothing. **CONCLUSION: NFS exec/demand-paging is well-optimized (clustering 8834eaf3 + lazy-close #156); bulk read
+is link-bound (8.2 vs 11.4, the 28% gap = deep libnfs async pipelining — the only remaining SOFTWARE lever, big
+rework, deferred); game-load = 100Mbps physical link + runtime app I/O. No easy kernel win left — NFS-perf is
+concluded in software.** PIVOT to the graphics/desktop thread (builds on proven D1/D2 windowed-GPU + X11):
+run gl-x11-window as a twm-MANAGED decorated/placed window — a concrete step toward "X11 GPU/windowed + XFce".
+Plan: add USPosition WM size-hints to gl_x11_window.c + a launcher mode (twm + gl-x11-window), build, HW-test
+(HDMI = decorated GPU window under a WM). [[project_pi4_nfs_linux_comparison]] [[project_x11_gpu_windowed_feasibility]]
+
 2026-08-08 (NFS PERF #2 — DECISIVE code analysis of vm/object.c: the game-load bottleneck model was WRONG).
 Read `object_fetchCluster` (vm/object.c:178-308): read-ahead clustering is GENERIC and ALREADY covers NFS (one
 proc_open + one bulk proc_read looping short reads + one proc_close fills a 16-page/64 KB window, cached into

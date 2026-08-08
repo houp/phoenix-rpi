@@ -387,6 +387,19 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (SDL consolidation #3 AUDIT + multi-app desktop showcase). Audited owner directive #3 ("refactor ALL
+Quake ports to the SDL port"): **Quake3 (quake3e) = fully on the REAL SDL2 port** (libSDL2.a + code/sdl backend +
+sdl_phoenix_glctx phxgl_ glue); **Quake2 (yquake2) = on SDL2**; **Quake1 (quakespasm) = the HOLDOUT** — uses a
+minimal sdl-shim/ + per-game pl_phoenix_{sys,snd,in,vid} backends (GL glue already deduped to phxgl_). So #3 is
+2/3 done; moving quakespasm to real SDL is a full platform-layer swap of the PROVEN 40fps GLQuake flagship =
+high regression risk + maintainability-only + unwise unattended without owner sign-off → SCOPED + DEFERRED (not
+risking the flagship). Then, building on the proven WM-managed GPU, implemented a `showcase` launcher mode =
+twm + gl-x11-window (GPU) + xclock + xcalc + xeyes (5 clients; MAX_CLIENTS 4→6), each -geometry-placed →
+a real multi-window DESKTOP proving the X server concurrently multiplexes a GPU-presenting client + several
+software clients + a WM (toward XFce/D3). Launched the HW cycle. NEXT: read the HDMI grab (multi-window desktop
+w/ live GPU window) → then D3 XFce feasibility or a fresh owner task. [[project_x11_gpu_windowed_feasibility]]
+[[project_sdl2_port]]
+
 2026-08-09 ★★★ WM-MANAGED WINDOWED GPU PROVEN — accelerated V3D OpenGL as a twm-DECORATED window on the Pi.
 HW-validated over netboot (`/bin/startx glwin` → twm + gl-x11-window; the first attempt hit the ~50% netboot
 psh input flake = command echoed but Enter not submitted, a retry cleared it). HDMI grab

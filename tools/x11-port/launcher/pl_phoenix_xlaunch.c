@@ -71,7 +71,7 @@
 #define POLL_MAX_TICKS    (POLL_TIMEOUT_MS / POLL_INTERVAL_MS)
 
 /* Most clients we ever launch in one session (window manager + apps). */
-#define MAX_CLIENTS       4
+#define MAX_CLIENTS       6
 
 extern char **environ;
 
@@ -295,6 +295,28 @@ int main(int argc, char *argv[])
 			client_extra[1] = xterm_geom;
 			n_client_extra[1] = 2;
 			n_clients = 2;
+		}
+		else if (strcmp(client, "showcase") == 0) {
+			/* A multi-window DESKTOP: twm (WM) + the V3D GPU window + an analog clock +
+			 * a calculator + mouse-tracking eyes, each placed via -geometry (USPosition)
+			 * so twm decorates + auto-places them. Proves the X server concurrently
+			 * multiplexes a GPU-presenting client AND several software clients AND a
+			 * window manager at once — the real desktop substrate (toward XFce/D3). The
+			 * GPU window (gl-x11-window) self-hints its own position. */
+			static char *const clk_geom[2]  = { "-geometry", "164x164+1120+110" };
+			static char *const calc_geom[2] = { "-geometry", "+1120+330" };
+			static char *const eyes_geom[2] = { "-geometry", "220x160+1120+720" };
+			resolve_client(cp_bufs[0], sizeof(cp_bufs[0]), prefix, "twm");
+			resolve_client(cp_bufs[1], sizeof(cp_bufs[1]), prefix, "gl-x11-window");
+			resolve_client(cp_bufs[2], sizeof(cp_bufs[2]), prefix, "xclock");
+			resolve_client(cp_bufs[3], sizeof(cp_bufs[3]), prefix, "xcalc");
+			resolve_client(cp_bufs[4], sizeof(cp_bufs[4]), prefix, "xeyes");
+			client_path[0] = cp_bufs[0];
+			client_path[1] = cp_bufs[1];
+			client_path[2] = cp_bufs[2]; client_extra[2] = clk_geom;  n_client_extra[2] = 2;
+			client_path[3] = cp_bufs[3]; client_extra[3] = calc_geom; n_client_extra[3] = 2;
+			client_path[4] = cp_bufs[4]; client_extra[4] = eyes_geom; n_client_extra[4] = 2;
+			n_clients = 5;
 		}
 		else if (strcmp(client, "glwin") == 0) {
 			/* twm (WM) + gl-x11-window (a V3D-accelerated GL client rendering into a

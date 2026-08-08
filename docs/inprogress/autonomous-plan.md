@@ -387,6 +387,18 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 (Regression guard PASSES — the poll + lazy-BSS kernel changes did NOT break graphics). After two
+high-blast-radius kernel changes (poll-readiness + lazy-BSS exec), responsibly re-verified the working render
+pipeline + honored the standing vkQuake-HDMI ask. vkQuake over netboot: sustained render (present→3330,
+drawIndirect=80 world path, 0 faults); HDMI pixel-stats match the known-good `map start` signature (full mean
+19.42/std 13.25 vs ~19.6/~14; center 13.89/9.67) → healthy, not regressed. NOTE: the first attempt hit a
+**transient netboot firmware miss** (Pi firmware requested the per-serial TFTP subdir `b75b156a/start4.elf`,
+not-found, never fell back to flat → OS never loaded); a plain retry booted fine (known transient per
+[[project_vkquake_bringup_mechanics]] — watch it; if it recurs often, add a `b75b156a`→flat TFTP symlink or re-set
+the EEPROM TFTP_PREFIX). Kernel changes confirmed safe for graphics. NEXT: let yquake2 finish to a full 3D render
+(longer capture, closes C4-over-netboot) now that big-exec works; and/or measure the poll-fix perf now that games
+exec; and/or diversify to another runtime task. Pi FREE.
+
 2026-08-08 ★★ KEYSTONE FIX — large-binary-NFS-exec hang RESOLVED (lazy .bss); yquake2 (26MB) now execs+loads.
 Followed the reframe: the real blocker for loading big games/apps over netboot was NOT NFS speed but the F1
 exec-hang. Root cause found in the kernel exec path: `process_load{32,64}` (proc/process.c) eager-`hal_memset`'d

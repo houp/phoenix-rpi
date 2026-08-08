@@ -387,6 +387,18 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 ★★★ WM-MANAGED WINDOWED GPU PROVEN — accelerated V3D OpenGL as a twm-DECORATED window on the Pi.
+HW-validated over netboot (`/bin/startx glwin` → twm + gl-x11-window; the first attempt hit the ~50% netboot
+psh input flake = command echoed but Enter not submitted, a retry cleared it). HDMI grab
+(`20260808-224929-glwin2-final.png`) shows the V3D-rendered animated pinwheel inside a **twm-decorated window**
+— teal titlebar "Phoenix V3D GL", WM buttons/border, placed at ~300,180 (NOT fullscreen root); gl-x11 animated
+frame 2850/20000. So a GPU-accelerated GL app runs as a managed, decorated, placed X window under a window
+manager = the substrate for a GPU-capable DESKTOP (toward D3/XFce). Added USPosition WM size-hints to
+gl_x11_window.c + a `glwin` launcher mode (twm + gl-x11-window); committed 5825ec4. NEXT candidates: (a) D3 XFce
+feasibility (now that WM-managed GPU windows work + X11 desktop is proven); (b) generalize into an SDL2-X windowed
+backend so ALL SDL games go windowed; (c) a fresh owner task (SuperTuxKart, Quake 1 MP, ffmpeg player, SDL
+consolidation audit). [[project_x11_gpu_windowed_feasibility]] [[project_x11_lib_port]]
+
 2026-08-09 (NFS PERF — open-once opt is REDUNDANT; NFS effectively concluded in software → PIVOT). Checked the
 nfs-fs open/read/close coupling (sources/phoenix-rtos-filesystems/nfs/nfs_ops.c): it ALREADY has **lazy-close /
 fh-reuse (#156)** — `nfs_ops_close` parks the NFSv4 filehandle instead of nfs_close'ing it, and `nfs_ops_open`

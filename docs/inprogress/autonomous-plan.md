@@ -387,6 +387,19 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 ★ PRIORITY #2 FIX SHIPPED — Phoenix netboot root switched NFSv4→NFSv3; HW-verified. Acting on the
+comparison finding (Linux v3 = 11.4MB/s 0-errors vs Phoenix v4 flaky), flipped the nfsroot boot launch
+(user.plo.yaml:129) `nfs;/;10.42.0.1;/;v4;takeover` → `…;/srv/phoenix-rpi4-nfs;v3;takeover` (v3 has no fsid=0
+pseudo-root so it mounts the real export path; the nfs-fs server already reads the version from argv[4], srv.c:768,
+so NO code change). De-risked first: host allows a v3 mount of /srv/phoenix-rpi4-nfs (rpcbind+mountd verified).
+Snapshotted rollback (manifest 2026-08-08-pre-nfsv3-switch), rebuilt the netboot image (loader.disk embeds the v3
+line, verified via strings). **HW boot-verify: Phoenix boots on the NFSv3 root, `nfs-fs: start (… v3 takeover)` →
+`registered / (takeover)` → 3× `ls` reads returned real data (incl. the 18MB pak0.pak dir), ZERO NFS4ERR/EIO/
+ENOENT/faults** (only benign Pi-firmware *.sig TFTP probes). The whole v4 lease-expiry/reclaim flakiness class is
+now structurally gone (matches Linux's rock-solid v3). Pushed project c89945a; manifest 2026-08-08-nfsv3-root-validated;
+rollback = 2026-08-08-pre-nfsv3-switch. [[project_pi4_nfs_linux_comparison]]. NEXT: quantify the reliability win with
+a multi-boot game-exec bench (v3) + optionally lead #2 (lwip poll() readiness); continue SDL consolidation C2/C3.
+
 2026-08-08 ★ PRIORITY #2 — NFS Linux-vs-Phoenix comparison → DECISIVE: Phoenix NFS is a FIXABLE SOFTWARE bug (2
 leads pinpointed). Used the new Linux reference box: identical cold NFS-root read bench (100MB ×3, drop_caches),
 same host nfsd + 100Mbps link. **Linux-Pi4: 11.3-11.4 MB/s, 0 errors, NFSv3.** That's 91% of the 100Mbps line rate

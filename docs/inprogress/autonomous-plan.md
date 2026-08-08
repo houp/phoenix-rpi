@@ -387,6 +387,24 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 (NFS PERF #2 — DECISIVE code analysis of vm/object.c: the game-load bottleneck model was WRONG).
+Read `object_fetchCluster` (vm/object.c:178-308): read-ahead clustering is GENERIC and ALREADY covers NFS (one
+proc_open + one bulk proc_read looping short reads + one proc_close fills a 16-page/64 KB window, cached into
+o->pages[]; explicit NFSv4 OPEN-state retry). So ELF exec demand-paging is clustered+cached (~5 s for 26 MB) — NOT
+the game-load pain. **The 312 s game load = runtime ASSET I/O** (hundreds of texture/lump reads) over the **100
+Mbps PHYSICAL link** (crossover cable = 2 pairs, a hard hardware cap — [[project_pi4_netboot_100mbps_cable]]; no
+software fix) + GPU TFU uploads. On that same link Phoenix bulk read = 8.2 vs Linux 11.4 MiB/s = a real ~28%
+Phoenix-specific software gap = **NFS read PIPELINING** (Phoenix runs one outstanding read RPC; Linux pipelines
+many). Secondary lever found: object_fetchCluster does open+close PER 64 KB cluster (406 opens for a 26 MB exec) →
+reducible to open-once-per-object (less NFSv4 OPEN/CLOSE churn = perf + reliability two-fer). **NET: NFS-perf is
+largely LINK-bound (physical), not one kernel bug; the poll fix (latency) + clustering (exec) are both already
+fine.** Concrete NEXT options (owner-sanctioned): (A) object_fetchCluster open-once-per-object — the most
+tractable Phoenix kernel win (moderate, needs full file-backed-fault boot-regression = ALL exec/mmap; NFSv4
+handle-lifetime care); (B) NFS read pipelining in nfs-fs/libnfs (deep, closes the 28% but big async rework); (C)
+owner's workaround for games = RAM-disk pre-download of assets at boot (no NFS/kernel dep) OR a gigabit
+cable/switch (owner physical). RECOMMEND (A) next (bounded kernel win) with fresh context. [[project_pi4_poll_readiness]]
+[[project_pi4_nfs_linux_comparison]]
+
 2026-08-08 (NFS PERF #2 cont'd — demand-paging probe: userspace mmap is EAGER, not a valid exec probe). Added an
 mmap-touch mode to nfs-read-bench and ran read-vs-mmap on a 4 MiB file: read()=8.19 MiB/s (matches bulk), but the
 post-mmap page-touch loop = 0.000 s ⇒ **Phoenix userspace file-backed mmap populates EAGERLY at map time** (pages

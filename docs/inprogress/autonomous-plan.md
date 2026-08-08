@@ -387,6 +387,24 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 ★ POLL-READINESS FIX IMPLEMENTED + HW-verified-safe + pushed (the real NFS/socket perf root cause).
+Implemented design (B): for a poll on exactly ONE `ftInetSocket` fd, the kernel now passes a per-iteration block
+timeout (packed in the high bits of the atPollStatus attr val, above the 16-bit event mask) to the socket server,
+whose dedicated per-socket thread BLOCKS in `lwip_select` until readiness (netconn callback) instead of the kernel
+spin-polling every 20ms POLL_INTERVAL. Safe by construction: gated to a single inet socket (only the lwip server
+decodes the timeout; multi-fd/AF_UNIX/non-inet unchanged), a busy-loop-safe belt sleeps any unused remainder, and
+it degrades to legacy behavior worst-case. De-risked first: each socket has its OWN port+thread, so blocking one
+poll stalls only that socket. Kernel posix.c (do_poll_iteration gains block_ms + posix_poll single-inet path) +
+lwip sockets.c (decode+block). `--scope core` built clean. **HW-verified over netboot: boots to psh, NFS-root
+takeover + `ls` reads work, USB enumerates, 0 faults/hangs** — poll (used everywhere in boot) is not broken.
+Pushed: kernel **9a6d4743** (publish master, FF); lwip **67df3d1** (publish master — via the mandatory cherry-pick
+-onto-scrubbed-tip worktree, NOT a force-push, no WiFi-blob leak [[project_git_topology]]). Manifest
+2026-08-08-poll-readiness-single-inet; rollback 2026-08-08-pre-poll-readiness. **NOT yet quantified** (honest): the
+change is functionally verified + theoretically sound (server returns the instant data arrives vs up-to-20ms/1ms
+poll floor), but I have NOT measured the speedup. NEXT: quantify — re-run the yquake2 full-3D load over NFS (it
+stalled at slow init before) + an NFS read timing, compare vs the pre-fix baseline + Linux-Pi4 11.4MB/s.
+[[project_pi4_poll_readiness]]. Pi FREE.
+
 2026-08-08 (Poll-readiness root cause NAILED via code-read; the fix is a careful system-wide change — designed +
 queued, not rushed). Traced Phoenix `poll()`/`select()`: implemented in the KERNEL (posix.c `posix_poll`/
 `do_poll_iteration`), it sends per-fd `mtGetAttr(atPollStatus)` SNAPSHOTS and, if not ready, loops with a

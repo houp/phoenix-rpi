@@ -387,6 +387,19 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 ★★ X11 GUI RENDERS OVER NETBOOT — the E3/D1-D2/XFce substrate is UP (+ a passing kernel-regression
+guard). Reaped the X11 build (build-x11-phoenix.sh clean, 0 undef — fresh-libm resync resolved the scalbn/hypot/
+getpw* gaps; Xphoenix 7.2MB + xeyes/twm static ELFs). Staged into the netboot root: Xphoenix/xeyes/twm/startx +
+the runtime assets (locale, 409 misc fonts, encodings) via tools/x11-port/stage-x11-runtime.sh. HW-verified over
+netboot: **`/bin/startx` → xlaunch starts `Xphoenix :0` + `xeyes` → Xphoenix opens /dev/fb0 (1920x1080 HDMI),
+takes the fbcon, kbd0+mouse0 active (mouse events flowing), periodic HDMI flush; HDMI grab shows classic XEYES
+(white eyes on the X root), 0 faults.** So the full X11 stack (server + client + input + fbdev→HDMI) runs over
+netboot — the shared GUI substrate for E3-Dillo, D1/D2 (X11-GPU/glxgears), D3 (XFce), and X11 apps. Also a clean
+regression guard: my exec-keystone + poll kernel changes did NOT break X11. [[project_x11_lib_port]]. Dillo is
+already built+staged+config-ready (prev entry). NEXT: launch Dillo under X (Xphoenix + `HOME=/root dillo
+https://<page>` — figure out how xlaunch/startx takes a non-xeyes client, or launch Xphoenix + dillo manually) +
+HDMI → the E3 headline (a live web page on the Pi). Pi FREE.
+
 2026-08-08 (E3: DILLO BUILD DONE + launch-ready; X11 substrate still building). Reaped the Dillo build subagent:
 build-dillo.sh clean (0 undefined, the fresh-libm resync caused no gaps). **dillo = a FULLY-STATIC 5.8MB ELF at
 `/srv/phoenix-rpi4-nfs/bin/dillo`** (X11 + mbedTLS linked — `a_Tls_mbedtls_connect` present = HTTPS-capable), no

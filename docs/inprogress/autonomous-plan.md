@@ -387,6 +387,17 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 ★★★ MULTI-WINDOW DESKTOP ON PHOENIX/PI 4 — concurrent GPU app + software apps + WM. HW-validated
+(`/bin/startx showcase`): HDMI grab (`20260808-234203-showcase-final.png`) shows THREE twm-decorated windows at
+once — the **"Phoenix V3D GL"** window (live V3D GPU pinwheel, animating frame 2130), a full **"Calculator"**
+(xcalc, all scientific buttons rendered), and **xeyes** — all managed by twm, on HDMI simultaneously. Proves the
+X server concurrently multiplexes a GPU-presenting client + multiple software clients + a WM = the real desktop
+substrate (toward XFce/D3). (xclock at 1120,110 didn't appear — minor placement/launch nit, not chased.) Committed
+68e63a1 (showcase launcher mode). **The graphics/desktop thread is now a compelling capstone: GPU (Quake/vkQuake)
++ windowed GPU + a live browser (Dillo/HTTPS) + a multi-app WM desktop, all HW-proven.** NEXT: D3 XFce feasibility
+(GTK/glib scale — likely large), OR a fresh owner task (SuperTuxKart / Quake 1 MP / ffmpeg player), OR the
+banked quakespasm→real-SDL swap (attended, flagship risk). [[project_x11_gpu_windowed_feasibility]] [[project_x11_lib_port]]
+
 2026-08-09 (SDL consolidation #3 AUDIT + multi-app desktop showcase). Audited owner directive #3 ("refactor ALL
 Quake ports to the SDL port"): **Quake3 (quake3e) = fully on the REAL SDL2 port** (libSDL2.a + code/sdl backend +
 sdl_phoenix_glctx phxgl_ glue); **Quake2 (yquake2) = on SDL2**; **Quake1 (quakespasm) = the HOLDOUT** — uses a

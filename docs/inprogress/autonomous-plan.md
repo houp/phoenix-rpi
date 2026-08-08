@@ -387,6 +387,23 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 (D1/D2 X11-GPU feasibility DECIDED — read-only analysis, no code). Verdict: **true GLX/DRI/glamor
+under X is STRUCTURALLY BLOCKED** on this port by 3 independent facts — (1) no DRM device (only /dev/fb0; GPU =
+in-process V3D MMIO mmap), (2) no inter-process buffer sharing (v3d_libdrm_shim PRIME→-1, single-client winsys),
+(3) no dynamic loader (dlopen is a no-op stub; DRI/glamor/AIGLX all `dlopen` .so modules). X server is built
+--disable-glx/dri/dri2/dri3/glamor; Mesa libGL is a static in-process archive w/ ZERO glX* syms; swrast/llvmpipe
+not in the build. So glxgears-via-GLX = blocked (and would be CPU-only anyway). **THE ONE TRACTABLE PATH: a
+single process linking libX11 + libGL-phoenix.a that renders with V3D to an OFFSCREEN BO then presents into its
+own X window via XPutImage/XShmPutImage** — sidesteps all 3 blockers (same proc → no PRIME/DRM/dlopen), needs NO
+xserver rebuild + NO Mesa reconfigure, composes 2 HW-proven stacks. ~few days for a triangle-in-a-window; core
+change = v3d_phoenix_winsys.c render-to-offscreen-BO + a new GL-under-X harness (XCreateWindow+XPutImage loop).
+Full detail + the 5 files in memory [[project_x11_gpu_windowed_feasibility]]. **NEXT (pick one, fresh context):**
+(A) implement the D1/D2 offscreen-GL→X-window path (well-scoped, low regression risk, no kernel/build surgery),
+or (B) owner priority #2 — NFS/netboot perf: validate + extend the poll()-readiness kernel fix (partially landed
+this session: kernel 9a6d4743 + lwip 67df3d1) to speed ALL netboot loads (gates Quake 2/3 full runtime + the
+~312s big-binary loads); higher leverage but deep+risky kernel work needing measurement cycles vs Linux-Pi4.
+Recommend (A) first (tractable win, builds today's X11+GPU+Dillo momentum), then (B). Pi FREE.
+
 2026-08-08 ★★★★ E3 HEADLINE ACHIEVED — PHOENIX-RTOS/PI 4 BROWSES THE LIVE HTTPS INTERNET WITH A GRAPHICAL
 BROWSER. Cycle e3https (`route add default gw 10.42.0.1 dev en1` → `ntpclient -s pool.ntp.org` →
 `pl_phoenix_xlaunch ... /bin/dillo https://example.com/`). UART proved the whole chain: NTP synced the clock

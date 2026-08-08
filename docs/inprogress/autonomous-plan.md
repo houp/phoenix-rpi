@@ -387,6 +387,23 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 (E2 host-NAT persistence wired; boot-NTP + several leads assessed/deferred — honest small turn). Made
+E2's host NAT persistent/reproducible: `netboot-server-up.sh` now calls the idempotent `scripts/pi-internet-nat.sh`
+(auto-applies MASQUERADE 10.42.0.0/24→enp1s0f0 + FORWARD on every server bring-up), pairing with the DHCP opt3/6
+so Pi internet "just works" after a restart — verified (NAT re-applied + server up). **Assessed several diversify
+leads, most deferred with reasons (honest — the session has picked the low-hanging fruit):** (a) boot-time NTP
+persistence — DEFERRED: needs an nfsroot psh-rc-model change (`-x psh`→`-i /etc/rc.nfsroot.psh`) which risks the
+duplicate-bind BRICK hazard the plo config warns about + a boot everything depends on; manual `ntpclient -s
+pool.ntp.org` works for tests; approach documented for an attended/careful turn (a SEPARATE minimal nfsroot rc with
+ONLY ntpclient+`X /bin/psh`, not re-binding). (b) SDL C4 — MOOT (C2/C3 already removed the dup glue; the remaining
+per-game pl_phoenix_{sys,main,hunk} are legit game OS-backends, not SDL-superseded). (c) TFU-perf — the vcheck
+diagnostic is GATED (first 12 + every 1024th), NOT the game-load bottleneck. (d) A1 Batch3 — low-value (cosmetic
+copyright/diacritics incoming) vs high-effort (35-file careful merge); board already deprioritized. **Remaining
+work is genuinely BIG/multi-turn:** E3 Dillo UI (build+stage the big binary + X11 + render a page), X11 GPU/windowed
+(D1/D2), SuperTuxKart (C6), the NFS/TFU game-load-perf (muddy), the V3D TFU tiling-striping (deep/silicon-adjacent).
+NEXT: commit to advancing ONE big task across turns — likely E3 Dillo UI (headline: a browser on Phoenix; HTTPS
+foundation done) starting with the Dillo build+stage, or X11 glxgears. Pi FREE.
+
 2026-08-08 ★★ E3 VERIFIED HTTPS ACHIEVED — clock was the cause (1970 epoch, no RTC), fixed via NTP over E2.
 Root-caused + fixed the cert-verify failure decisively (after diversification leads TFU-perf/SDL-C4 turned out
 moot/deep — see note). psh has an `ntpclient` applet + the kernel supports settimeofday (proc_settime). One Pi

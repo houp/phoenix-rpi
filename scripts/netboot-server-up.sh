@@ -43,4 +43,10 @@ export RPI4B_NETBOOT_STATE_DIR="${RPI4B_NETBOOT_STATE_DIR:-$repo/artifacts/netbo
 # the export drifts and stale userspace hits syscall/errno ABI mismatches vs the fresh kernel.
 "$repo/scripts/sync-netboot-tree.sh" || printf 'netboot-server-up.sh: WARN sync-netboot-tree failed (continuing)\n'
 
+# E2: enable outbound internet for the netboot Pi (host NAT for the lab subnet).
+# Idempotent + additive + non-fatal (netboot works fine without it). Pairs with the
+# DHCP router/DNS options (option 3/6) baked into netboot-server.sh so the Pi
+# auto-configures gateway+DNS and can reach the internet. See project_pi4_internet_e2.
+"$repo/scripts/pi-internet-nat.sh" || printf 'netboot-server-up.sh: WARN pi-internet-nat failed (Pi internet unavailable; netboot OK)\n'
+
 exec "$repo/scripts/netboot-server.sh" up

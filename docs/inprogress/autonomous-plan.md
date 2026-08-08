@@ -387,6 +387,17 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 (E3: DILLO BUILD DONE + launch-ready; X11 substrate still building). Reaped the Dillo build subagent:
+build-dillo.sh clean (0 undefined, the fresh-libm resync caused no gaps). **dillo = a FULLY-STATIC 5.8MB ELF at
+`/srv/phoenix-rpi4-nfs/bin/dillo`** (X11 + mbedTLS linked — `a_Tls_mbedtls_connect` present = HTTPS-capable), no
+.so staging needed. Prepped its launch env on the netboot root: CA bundle already at dillo's hardcoded path
+(/etc/ssl/certs/ca-certificates.crt); staged `dillorc` → `/srv/phoenix-rpi4-nfs/root/.dillo/dillorc` (dillo reads
+`$HOME/.dillo/` first, so launch with `HOME=/root`); fonts = X11 core (served by Xphoenix, nothing to stage); dpid
+(cookies/file://) optional/deferred. **Dillo is LAUNCH-READY pending only the X11 substrate.** The X11 build
+subagent (Xphoenix + libs + xeyes) is still running. NEXT: reap X11 → stage the X11 runtime into the netboot root
+→ launch Xphoenix + xeyes (substrate + regression guard) → then `HOME=/root dillo https://<page>` under X + HDMI
+→ E3 headline. Pi FREE.
+
 2026-08-08 (Committed to the E3-Dillo-UI BIG task — kicked off the foundational X11 + Dillo builds in parallel).
 Low-hanging fruit exhausted → committing to a big multi-turn integration: **a web browser (Dillo) rendering a live
 page on the Pi over netboot** (HTTPS foundation done). Assessed: NEITHER X11 nor Dillo is currently staged in the

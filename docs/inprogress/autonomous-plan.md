@@ -387,6 +387,19 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 ★ QUAKE II RENDERS THE FULL 3D GAME OVER NETBOOT — the visible payoff of the keystone exec fix; C4-over-
+netboot CLOSED. Two turns ago yquake2 (26MB) was totally exec-blocked over netboot; with the lazy-BSS exec fix it
+now loads end-to-end: banner → pak0 → ref_gl1 → all models (T+226) → TFU texture uploads → **`DIAG: ca_active`
+(T+312.8)** → demo playing (demo1→demo2). **HDMI (20260808-104104-yq2render-final.png) confirms the full 3D game:
+Strogg base interior — textured walls/floor/pillars, TWO enemy Strogg, weapon viewmodel, crosshair, HUD
+(health 67 / ammo 19).** 0 faults. So the exec keystone fix delivers a real, VISIBLE, playable big game over
+netboot NFS. Caveats (separate, known): (a) load was NFS-bound ~312s to active (many small model/skin reads + TFU
+uploads — the NFS-read-perf axis, [[project_pi4_poll_readiness]]); (b) TFU uploads log the known winsys
+VERTICAL-MISMATCH/LINEAR tiling-striping (cosmetic, shared w/ vkQuake). [[project_quake2_port]]
+[[project_large_binary_exec_hang]]. NEXT: the exec keystone now unblocks the whole big-game/app runtime cluster —
+drive the NFS-load-perf down (poll-perf measure + skin-search/TFU), OR diversify to another runtime task now that
+big binaries load. Pi FREE.
+
 2026-08-08 (Regression guard PASSES — the poll + lazy-BSS kernel changes did NOT break graphics). After two
 high-blast-radius kernel changes (poll-readiness + lazy-BSS exec), responsibly re-verified the working render
 pipeline + honored the standing vkQuake-HDMI ask. vkQuake over netboot: sustained render (present→3330,

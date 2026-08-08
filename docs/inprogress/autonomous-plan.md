@@ -387,6 +387,23 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 ⚠️ CORRECTION + deeper finding on the NFSv3 switch (do NOT trust the "validated" claim in the entry
+below — it was premature, based on 1 boot). Ran yquake2 (26MB ELF + 50MB pak) over the v3 root across 3 boots to
+validate the payoff. Result is MIXED and honest: **v3 reads work** — 2/3 boots mounted v3 cleanly (`mounted …
+via v3`, `registered / (takeover)`), yquake2 opened pak0.pak (1106 files) with 0 NFS4ERR — BUT on **1/3 boots the
+v3 takeover MOUNT timed out entirely** (21 retries/120s → fell back to RAM root; genet+DHCP were UP that boot, so
+it's the v3 MOUNT-protocol RPCs (portmapper→mountd), which v4 doesn't use, timing out on Phoenix). So the NFSv3
+switch is **NOT a validated clean win**: it plausibly fixes the v4 runtime-read/expiry flakiness but introduces (or
+exposes) an intermittent v3-MOUNT-RPC failure at takeover. Linux does the v3 mount reliably over `mountproto=tcp`
+→ Phoenix's v3 MOUNT-RPC handling is the suspect (likely UDP portmapper + the same poll()-not-waking issue as
+lead #2; libnfs's plain nfs_mount exposes no transport knob → needs deeper libnfs/transport work). Also: yquake2
+init over NFS is SLOW (didn't reach renderer in 120s even when mounted) — consistent with the latency-bound
+poll() issue. **Kept v3 in place (rollback ready: manifest 2026-08-08-pre-nfsv3-switch; owner sanctions
+instability) — NOT reverting on 1 sample, NOT claiming a win on 2.** NEXT (decisive): multi-boot bench to quantify
+v3-mount vs v4-mount pass-rate (test-cycle-netboot ×N, grep takeover vs abort); if v3-mount is genuinely flakier,
+fix the v3 MOUNT-RPC transport (force TCP) and/or the underlying lwip poll()-readiness (lead #2, helps both
+versions + the slow init). [[project_pi4_nfs_linux_comparison]]
+
 2026-08-08 ★ PRIORITY #2 FIX SHIPPED — Phoenix netboot root switched NFSv4→NFSv3; HW-verified. Acting on the
 comparison finding (Linux v3 = 11.4MB/s 0-errors vs Phoenix v4 flaky), flipped the nfsroot boot launch
 (user.plo.yaml:129) `nfs;/;10.42.0.1;/;v4;takeover` → `…;/srv/phoenix-rpi4-nfs;v3;takeover` (v3 has no fsid=0

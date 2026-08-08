@@ -387,6 +387,21 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 (D1/D2 X11-GPU IMPLEMENTATION STARTED — and the task is SMALLER than the feasibility report feared).
+KEY finding: the offscreen GPU render + CPU readback path is **ALREADY PROVEN + HW-validated** by
+`tools/v3d-driver-port/gl_det_harness.c` — it does v3d_screen_create → st_create_context(API_OPENGL_COMPAT) →
+a DRAM RGBA8+DEPTH24 **FBO** (NOT scanout) → render → `glReadPixels` from the CPU-mapped BO. So NO
+v3d_phoenix_winsys.c change is needed (the report's "render-to-offscreen-BO" core change already exists as a
+standard GL FBO). And libX11 client ELFs already link+run on Phoenix (xeyes/twm). So D1/D2 reduces to ONE new
+harness that combines them: gl_det_harness's GL-offscreen setup + `XCreateWindow`/`XPutImage` present. Delegated
+to a subagent (background): writes `tools/x11-port/gl_x11_window.c` (animated V3D triangle → offscreen FBO →
+glReadPixels → XPutImage into an X window on :0, own code / Zlib-licensed, no Quake/GPL) + `build-gl-x11-window.sh`
+(static-links libGL-phoenix.a + libv3d-phoenix.a + libX11/xcb/Xau/Xdmcp from /tmp/x11-phoenix, model =
+build-quakespasm-phoenix.py link recipe, toolchain aarch64-phoenix-gcc). NEXT: reap the subagent → stage the ELF
+to the netboot export → launch under Xphoenix via `pl_phoenix_xlaunch /bin/Xphoenix .../misc /bin/gl-x11-window`
+→ HDMI grab should show a GPU-rendered animated triangle in an X window = D1/D2 windowed-GPU PROVEN. Pi FREE.
+[[project_x11_gpu_windowed_feasibility]] [[project_pi4_v3d_scout]] [[project_x11_lib_port]]
+
 2026-08-08 (D1/D2 X11-GPU feasibility DECIDED — read-only analysis, no code). Verdict: **true GLX/DRI/glamor
 under X is STRUCTURALLY BLOCKED** on this port by 3 independent facts — (1) no DRM device (only /dev/fb0; GPU =
 in-process V3D MMIO mmap), (2) no inter-process buffer sharing (v3d_libdrm_shim PRIME→-1, single-client winsys),

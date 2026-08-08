@@ -387,6 +387,20 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 ★ E3 PRECURSOR — Phoenix Pi4 fetches a LIVE HTTPS page over the internet (mbedTLS TLS + real 200 OK).
+Decomposed E3's risk: before the big Dillo+X11 integration, validated the HTTPS/TLS-over-internet path with the
+staged `curl` (built w/ mbedTLS). Staged the host CA bundle → export /etc/ssl/certs/ca-certificates.crt.
+HW-verified: **`curl -k -sI https://example.com/` → `HTTP/1.1 200 OK`** + real Cloudflare headers (`CF-RAY:
+…-WAW` Warsaw edge, Date 2026-08-08) = full stack works — E2 internet + DNS + TLS handshake (mbedTLS) + HTTPS GET
++ real server response. **Caveat:** CA-VERIFIED fetch failed `SSL peer certificate not OK` — the TLS TRANSPORT is
+fine (transport reached cert-check), it's VERIFICATION: most likely the Pi CLOCK (no RTC → wrong boot time →
+cert date-validation fails; psh has no `date` applet to check/set — needs a clock-set/NTP path) or a CA-bundle/
+mbedTLS-path detail. GOTCHA: psh has NO shell quoting — a curl `-w 'a b'` arg with spaces/braces gets split
+(mangled the host); keep curl args space/brace-free. [[project_dillo_https_tls]] [[project_pi4_internet_e2_feasibility]].
+NEXT for E3: (a) fix cert-verify (get the Pi clock right, or diagnose the CA path) for verified HTTPS; (b) the
+real E3 = Dillo (NOT staged → build+stage the big binary, now exec-able post lazy-BSS, + X11 + render + HDMI) — a
+multi-step integration. HTTPS crypto+internet foundation is now PROVEN. Pi FREE.
+
 2026-08-08 ★★ E2 COMPLETE — Phoenix Pi4 has full INTERNET (DNS + HTTP), persistent/auto-configured. Finished E2:
 added the DHCP side so the Pi auto-gets gateway+DNS (no manual per-boot route). Edited the netboot dnsmasq
 (scripts/netboot-server.sh) `dhcp-option=3,10.42.0.1` (router=host NAT) + `dhcp-option=6,8.8.8.8` (public DNS via

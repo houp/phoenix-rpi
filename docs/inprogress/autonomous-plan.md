@@ -387,6 +387,23 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 (NFS PERF #2 — measured, decisive reframe). Built a reusable throughput probe
+`tools/nfs-bench/nfs-read-bench.c` (committed; sequential read, CLOCK_MONOTONIC, MiB/s) + rebuilt `--scope core`
+so the poll-readiness fix (kernel 9a6d4743 + lwip 00067ac) is GUARANTEED in the image (the prior 10:37 image's
+freshness was uncertain). Measured Phoenix bulk sequential NFS read of a 64 MiB host-cached file: **8.15/8.17/8.19
+MiB/s (3/3 stable)**. This ~= the documented pre-fix ~8 MiB/s and is ~28% below the Linux-Pi4 reference (11.4
+MiB/s NFSv3). **CONCLUSION: the single-fd poll-readiness fix does NOT move bulk-read throughput** (expected — it's
+a latency fix, not a bandwidth fix). The bulk-read gap to Linux is RPC PIPELINING / rsize (Phoenix looks like one
+outstanding read RPC at a time; Linux pipelines to ~line rate), NOT the socket poll tax. **KEY REFRAME:** bulk
+read at 8.2 MiB/s is actually fine for X/Dillo/media; the real pain is the GAME-LOAD path = **demand-paging** a
+large ELF/mmap over NFS (yquake2 ~312 s/26 MB ⇒ ~47 ms *per 4 KiB page* vs ~0.5 ms/4 KiB in the bulk path). That
+~46 ms/page overhead is where the poll fix + read-ahead CLUSTERING matter — a DIFFERENT path than my bench tested.
+NEXT: (1) measure the demand-paging path on the poll-fixed image (time a large exec load, clean methodology) to
+see if the poll fix cut it; (2) check whether vm/object.c read-ahead clustering (kernel 8834eaf3, proved on SD:
+quake main 68s→5.5s) actually engages for NFS-backed exec/mmap — if not, wiring it is the big game-load unblock;
+(3) optionally close the 8.2→11.4 bulk gap via NFS read pipelining (modest value). [[project_pi4_poll_readiness]]
+[[project_pi4_nfs_linux_comparison]] [[project_sdboot_largeexec_slowstart]]
+
 2026-08-08 ★★★ D1/D2 ACHIEVED — ACCELERATED V3D GPU RENDERING IN AN X WINDOW ON THE PI 4. HW-validated over
 netboot: `pl_phoenix_xlaunch /bin/Xphoenix .../misc /bin/gl-x11-window` → UART: `GL up; 2.1 Mesa 26.2.0 /
 V3D 4.2.14.0`, offscreen FBO 640x480 complete, X window depth=24 masks r=0xff/g=0xff00/b=0xff0000, and it

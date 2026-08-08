@@ -387,6 +387,21 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-08 ★★ E3 VERIFIED HTTPS ACHIEVED — clock was the cause (1970 epoch, no RTC), fixed via NTP over E2.
+Root-caused + fixed the cert-verify failure decisively (after diversification leads TFU-perf/SDL-C4 turned out
+moot/deep — see note). psh has an `ntpclient` applet + the kernel supports settimeofday (proc_settime). One Pi
+cycle: **`ntpclient -s pool.ntp.org`** (DNS-resolved via E2) → UART: `System time in UTC was Thu Jan 1 00:00:16
+1970` (CONFIRMED: no-RTC epoch clock = why certs were "not yet valid") → `System time set to UTC Sat Aug 8
+15:37:15 2026`; then **`curl --cacert /etc/ssl/certs/ca-certificates.crt -sI https://example.com/` → `HTTP/1.1 200
+OK`** = full CA-VERIFIED HTTPS (no -k). So E3's crypto/internet stack is fully proven: E2 internet + DNS + NTP
+clock-sync + verified TLS (mbedTLS) + HTTPS 200. Bonus: correct system time (helps NFS timestamps/logs/TLS).
+[[project_dillo_https_tls]] [[project_pi4_internet_e2_feasibility]]. Persistence follow-up: the clock-sync is a
+manual psh cmd → bake `ntpclient -s pool.ntp.org` into a Phoenix boot step (plo launch after lwip+DHCP, or an rc
+line) so every boot auto-corrects the clock (small plo-config change + rebuild). **Remaining E3 = Dillo itself**
+(the browser UI: build+stage the big binary — exec-able post lazy-BSS — + X11 + render a page to HDMI); the whole
+HTTPS foundation under it is now DONE. NEXT: bake the boot-time NTP + then the Dillo integration, OR diversify.
+Pi FREE.
+
 2026-08-08 (E3 cert-verify diagnosed — bounded; verified-HTTPS is a polish, unverified already works). Verbose
 curl (`curl -v --cacert /etc/ssl/certs/ca-certificates.crt https://example.com/`): **mbedTLS handshake COMPLETES**
 (cipher TLS-ECDHE-ECDSA-CHACHA20-POLY1305) then `curl: (60) cert not OK` — cert VERIFICATION fails post-handshake,

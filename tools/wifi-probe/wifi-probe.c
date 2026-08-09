@@ -553,6 +553,160 @@ static int diag_sdioCmd53Read(volatile uint8_t *sdhci, int fn,
 }
 
 
+/* CMD53 (IO_RW_EXTENDED) BYTE-mode transfers: a single transaction of `nbytes`
+ * (<=512), no SDIO block-count. brcmf/MMC use byte mode for sub-block control
+ * frames (a block-mode CMD53 whose size mismatches the function's configured
+ * block size stalls the data phase). Differs from the block helpers only in:
+ * arg bit27(block_mode)=0 + byte count in arg[8:0]; TRANSFER_MODE has no
+ * BLOCK_COUNT_EN / MULTI_BLK. nbytes is rounded up to 4 for the PIO word loop. */
+static int diag_sdioCmd53ReadByteMode(volatile uint8_t *sdhci, int fn,
+	int incr_addr, uint32_t reg_addr, uint32_t nbytes, uint8_t *buf)
+{
+	uint32_t arg, cmd_word, st, data;
+	uint32_t words_total = (nbytes + 3u) / 4u;
+	uint32_t i;
+	int deadline;
+
+	for (deadline = 100000; deadline > 0; --deadline) {
+		if ((*(volatile uint32_t *)(sdhci + SDHCI_PRES_STATE) & SDHCI_PRES_CMD_INHIBIT) == 0u) {
+			break;
+		}
+	}
+	if (deadline == 0) {
+		return -1;
+	}
+	*(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS) = 0xFFFFFFFFu;
+	*(volatile uint32_t *)(sdhci + SDHCI_BLOCK_SIZE_CNT) = (1u << 16) | (nbytes & 0xFFFu);
+	arg = (0u << 31) | ((uint32_t)(fn & 7u) << 28) | /* block_mode bit27 = 0 */
+		((incr_addr ? 1u : 0u) << 26) |
+		((reg_addr & 0x1FFFFu) << 9) | (nbytes & 0x1FFu);
+	*(volatile uint32_t *)(sdhci + SDHCI_ARGUMENT_1) = arg;
+	cmd_word = (1u << 4) | ((uint32_t)0x3Au << 16) | ((uint32_t)53u << 24); /* read dir, no BLK_CNT_EN */
+	*(volatile uint32_t *)(sdhci + SDHCI_TRANS_CMD) = cmd_word;
+
+	for (deadline = 100000; deadline > 0; --deadline) {
+		st = *(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS);
+		if ((st & SDHCI_INT_ERR_ANY) != 0u) {
+			return -2;
+		}
+		if ((st & SDHCI_INT_CMD_COMPLETE) != 0u) {
+			break;
+		}
+	}
+	if (deadline == 0) {
+		return -3;
+	}
+	*(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS) = SDHCI_INT_CMD_COMPLETE;
+
+	for (deadline = 100000; deadline > 0; --deadline) {
+		st = *(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS);
+		if ((st & SDHCI_INT_ERR_ANY) != 0u) {
+			return -4;
+		}
+		if ((st & SDHCI_INT_BUF_RD_READY) != 0u) {
+			break;
+		}
+	}
+	if (deadline == 0) {
+		return -5;
+	}
+	for (i = 0; i < words_total; ++i) {
+		data = *(volatile uint32_t *)(sdhci + SDHCI_DATA_PORT);
+		if (buf != NULL) {
+			buf[i * 4 + 0] = (uint8_t)(data & 0xffu);
+			buf[i * 4 + 1] = (uint8_t)((data >> 8) & 0xffu);
+			buf[i * 4 + 2] = (uint8_t)((data >> 16) & 0xffu);
+			buf[i * 4 + 3] = (uint8_t)((data >> 24) & 0xffu);
+		}
+	}
+	for (deadline = 100000; deadline > 0; --deadline) {
+		st = *(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS);
+		if ((st & SDHCI_INT_ERR_ANY) != 0u) {
+			return -6;
+		}
+		if ((st & SDHCI_INT_XFER_COMPLETE) != 0u) {
+			break;
+		}
+	}
+	if (deadline == 0) {
+		return -7;
+	}
+	*(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS) = 0xFFFFFFFFu;
+	return 0;
+}
+
+static int diag_sdioCmd53WriteByteMode(volatile uint8_t *sdhci, int fn,
+	int incr_addr, uint32_t reg_addr, uint32_t nbytes, const uint8_t *buf)
+{
+	uint32_t arg, cmd_word, st, data;
+	uint32_t words_total = (nbytes + 3u) / 4u;
+	uint32_t i;
+	int deadline;
+
+	for (deadline = 100000; deadline > 0; --deadline) {
+		if ((*(volatile uint32_t *)(sdhci + SDHCI_PRES_STATE) & SDHCI_PRES_CMD_INHIBIT) == 0u) {
+			break;
+		}
+	}
+	if (deadline == 0) {
+		return -1;
+	}
+	*(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS) = 0xFFFFFFFFu;
+	*(volatile uint32_t *)(sdhci + SDHCI_BLOCK_SIZE_CNT) = (1u << 16) | (nbytes & 0xFFFu);
+	arg = (1u << 31) | ((uint32_t)(fn & 7u) << 28) | /* write; block_mode bit27 = 0 */
+		((incr_addr ? 1u : 0u) << 26) |
+		((reg_addr & 0x1FFFFu) << 9) | (nbytes & 0x1FFu);
+	*(volatile uint32_t *)(sdhci + SDHCI_ARGUMENT_1) = arg;
+	cmd_word = ((uint32_t)0x3Au << 16) | ((uint32_t)53u << 24); /* write dir, no BLK_CNT_EN */
+	*(volatile uint32_t *)(sdhci + SDHCI_TRANS_CMD) = cmd_word;
+
+	for (deadline = 100000; deadline > 0; --deadline) {
+		st = *(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS);
+		if ((st & SDHCI_INT_ERR_ANY) != 0u) {
+			return -2;
+		}
+		if ((st & SDHCI_INT_CMD_COMPLETE) != 0u) {
+			break;
+		}
+	}
+	if (deadline == 0) {
+		return -3;
+	}
+	*(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS) = SDHCI_INT_CMD_COMPLETE;
+
+	for (deadline = 100000; deadline > 0; --deadline) {
+		st = *(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS);
+		if ((st & SDHCI_INT_ERR_ANY) != 0u) {
+			return -4;
+		}
+		if ((st & SDHCI_INT_BUF_WR_READY) != 0u) {
+			break;
+		}
+	}
+	if (deadline == 0) {
+		return -5;
+	}
+	for (i = 0; i < words_total; ++i) {
+		data = (uint32_t)buf[i * 4 + 0] | ((uint32_t)buf[i * 4 + 1] << 8) |
+			((uint32_t)buf[i * 4 + 2] << 16) | ((uint32_t)buf[i * 4 + 3] << 24);
+		*(volatile uint32_t *)(sdhci + SDHCI_DATA_PORT) = data;
+	}
+	for (deadline = 100000; deadline > 0; --deadline) {
+		st = *(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS);
+		if ((st & SDHCI_INT_ERR_ANY) != 0u) {
+			return -6;
+		}
+		if ((st & SDHCI_INT_XFER_COMPLETE) != 0u) {
+			break;
+		}
+	}
+	if (deadline == 0) {
+		return -7;
+	}
+	*(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS) = 0xFFFFFFFFu;
+	return 0;
+}
+
 /* CMD53 (IO_RW_EXTENDED) block-mode WRITE via SDHCI PIO. Mirror of the
  * read: arg bit31 = 1, TRANSFER_MODE bit4 = 0, polls BUFFER_WRITE_READY,
  * writes DATA_PORT. Source is a little-endian byte buffer of at least
@@ -1032,6 +1186,8 @@ static int g_ioctl_send_rc = -100, g_ioctl_read_rc = -100;
 static uint32_t g_ioctl_is_pre = 0u, g_ioctl_is_post = 0u;
 static int g_ioctl_is_iters = -1;
 static uint8_t g_ioctl_reply[64];
+static uint8_t g_ioctl_pending[64];
+static int g_ioctl_pending_rc = -100;
 static int g_ioctl_reply_valid = 0;
 static uint16_t g_ioctl_hwlen = 0u, g_ioctl_hwchk = 0u;
 static uint8_t g_ioctl_doff = 0u, g_ioctl_channel = 0xffu;
@@ -1080,16 +1236,23 @@ static void diag_bcdcGetVersion(volatile uint8_t *sdhci, uint32_t sdio_core)
 	frame[22] = 0x01u;
 	/* status @24 = 0; payload @28 = 0 (4-byte scratch) */
 
-	/* F2 block size = 64 via CCCR FBR fn2 (0x210 LSB / 0x211 MSB). */
-	(void)diag_sdioCmd52(sdhci, 1, 0, 0x210u, 0x40u, NULL);
-	(void)diag_sdioCmd52(sdhci, 1, 0, 0x211u, 0x00u, NULL);
+	for (i = 0; i < 64; ++i) {
+		g_ioctl_pending[i] = 0u;
+	}
 
 	g_ioctl_is_pre = diag_bpRead32(sdhci, sdio_core + 0x20u);
 
-	/* Send the control frame over F2 (window 0x18000000, addr 0x8000, incr). */
+	/* A frame is already pending at boot (I_HMB_FRAME_IND set). Read it from
+	 * the F2 FIFO first (byte mode) -- proves F2 RX independent of our TX. */
 	diag_setWindow18(sdhci);
-	g_ioctl_send_rc = diag_sdioCmd53Write(sdhci, 2, /*incr=*/1,
-		IOCTL_F2_ADDR, /*block_count=*/1u, /*block_size=*/64u, frame);
+	g_ioctl_pending_rc = diag_sdioCmd53ReadByteMode(sdhci, 2, /*incr=*/0,
+		IOCTL_F2_ADDR, 64u, g_ioctl_pending);
+
+	/* Send the control frame over F2 (window 0x18000000, addr 0x8000, incr,
+	 * byte mode -- a small control frame is sub-block). */
+	diag_setWindow18(sdhci);
+	g_ioctl_send_rc = diag_sdioCmd53WriteByteMode(sdhci, 2, /*incr=*/1,
+		IOCTL_F2_ADDR, 32u, frame);
 
 	/* Poll SDIO-core intstatus for I_HMB_FRAME_IND (0x40). */
 	for (i = 0; i < 250; ++i) {
@@ -1105,10 +1268,10 @@ static void diag_bcdcGetVersion(volatile uint8_t *sdhci, uint32_t sdio_core)
 		diag_bpWrite32(sdhci, sdio_core + 0x20u, g_ioctl_is_post);
 	}
 
-	/* Read the reply from the F2 FIFO (fixed address). */
+	/* Read the reply from the F2 FIFO (fixed address, byte mode). */
 	diag_setWindow18(sdhci);
-	g_ioctl_read_rc = diag_sdioCmd53Read(sdhci, 2, /*incr=*/0,
-		IOCTL_F2_ADDR, /*block_count=*/1u, /*block_size=*/64u, g_ioctl_reply);
+	g_ioctl_read_rc = diag_sdioCmd53ReadByteMode(sdhci, 2, /*incr=*/0,
+		IOCTL_F2_ADDR, 64u, g_ioctl_reply);
 
 	/* Parse SDPCM HW header + SW data_offset, then BCDC. */
 	g_ioctl_hwlen = (uint16_t)(g_ioctl_reply[0] | (g_ioctl_reply[1] << 8));
@@ -1995,6 +2158,27 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 			(unsigned)g_ioctl_version);
 		if (r > 0 && (size_t)r < cap - off) {
 			off += r;
+		}
+		{
+			uint16_t plen = (uint16_t)(g_ioctl_pending[0] | (g_ioctl_pending[1] << 8));
+			uint16_t pchk = (uint16_t)(g_ioctl_pending[2] | (g_ioctl_pending[3] << 8));
+			r = snprintf(buf + off, cap - off,
+				"  boot-pending F2 frame: rc=%d HWlen=%u chk=0x%04x valid=%d  bytes:",
+				g_ioctl_pending_rc, (unsigned)plen, (unsigned)pchk,
+				(plen != 0u && (uint16_t)(~(plen ^ pchk)) == 0u) ? 1 : 0);
+			if (r > 0 && (size_t)r < cap - off) {
+				off += r;
+			}
+			for (bi = 0; bi < 24 && (size_t)(off + 4) < cap; ++bi) {
+				r = snprintf(buf + off, cap - off, " %02x", g_ioctl_pending[bi]);
+				if (r > 0 && (size_t)r < cap - off) {
+					off += r;
+				}
+			}
+			r = snprintf(buf + off, cap - off, "\n");
+			if (r > 0 && (size_t)r < cap - off) {
+				off += r;
+			}
 		}
 		r = snprintf(buf + off, cap - off, "  reply[0..31]:");
 		if (r > 0 && (size_t)r < cap - off) {

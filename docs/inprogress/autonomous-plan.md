@@ -421,6 +421,16 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (BT Tier-0 started; HCI_RESET on PL011 silent → resolving UART routing). Built tools/bt-probe/ (mailbox
+BT_REG_ON expgpio0/mbox128 + PL011 init + H4 HCI_RESET/READ_LOCAL_VERSION). First HW run (bttier0): BT_REG_ON set
+ok (=1), TX not blocked, but HCI_RESET got NO response ("controller silent"). Likely mis-targeted the UART: the RPi
+OFFICIAL definition of `dtoverlay=miniuart-bt` is the OPPOSITE of docs/todo/bluetooth-bringup-plan.md's note — it
+puts **BT on the MINI-UART** and restores PL011 to GPIO14/15 (= the console), so the probe drove the console UART.
+Added a read-only routing dump (GPFSEL 14/15 + 30-33, AUX mini-UART enable/baud/cntl, PL011 state) — cycle bf9a6rilm
+— to determine empirically which UART reaches the BT chip + its fw-set baud. NEXT: retarget the correct UART (if
+mini-UART, reuse AUX_MU_BAUD for the fw-set divisor since the mini-UART baud tracks the variable core clock). No
+.hcd in .firmware/ yet (Tier-2 patchram needs it; fetch from linux-firmware). [[project_bluetooth_bringup]]
+
 2026-08-09 (2nd code-review pass DONE + fixes applied; BT teed up). Owner #2 complete: adversarial review of the
 ~2600-line WiFi driver found one memory-safety issue + cleanups; all fixed (commit 7108d7c, built clean, staged),
 behavior-preserving on the proven scan/ioctl path: (#1) diag_f2RecvFrame now clamps the fw-controlled frame len to

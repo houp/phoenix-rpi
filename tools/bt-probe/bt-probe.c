@@ -1,18 +1,17 @@
 /*
  * bt-probe — Bluetooth Tier-0 bring-up probe for the BCM43455 combo chip on
  * the Raspberry Pi 4, under Phoenix-RTOS. Standalone one-shot userspace tool
- * (mirrors tools/wifi-probe): mmaps the PL011 UART0 (0xfe201000, reserved for
- * BT by `dtoverlay=miniuart-bt`) and the VideoCore mailbox (0xfe00b880), raises
- * BT_REG_ON (expgpio[0], mailbox GPIO 128), then speaks H4 HCI over the UART:
+ * (mirrors tools/wifi-probe).
  *
- *   1. HCI_RESET (opcode 0x0c03) — the BT ROM answers this with NO firmware
- *      patch, so it validates the whole UART<->controller path.
- *   2. READ_LOCAL_VERSION_INFORMATION (opcode 0x1001) — tells us the LMP
- *      version + which .hcd patch to bundle later (BCM4345C0 vs C5).
- *
- * Console-safe: with miniuart-bt the serial console is on the mini-UART, so
- * driving PL011 here does not touch the debug console. All fw-facing bytes are
- * H4-framed: 0x01=command, 0x02=ACL, 0x04=event.
+ * HW routing truth (established 2026-08-09 via the read-only dump below): the
+ * VideoCore firmware routes NO UART to the BT chip -- GPIO30-33 are plain
+ * inputs and the mini-UART is disabled; PL011 is the debug CONSOLE on GPIO14/15
+ * (dtoverlay=miniuart-bt did not take at runtime). So this probe routes BT to
+ * the AUX mini-UART itself (PL011 stays the console): sets GPIO32/33[+30/31] to
+ * ALT5, enables+configures the AUX mini-UART (baud from the CORE clock read via
+ * mailbox), raises BT_REG_ON (expgpio[0]=mbox GPIO 128), then speaks H4 HCI:
+ *   1. HCI_RESET (0x0c03)  -- ROM answers with no .hcd => UART<->BT alive.
+ *   2. READ_LOCAL_VERSION (0x1001) -- LMP subver picks the .hcd for Tier-2.
  *
  * Copyright 2026 Phoenix Systems
  * SPDX-License-Identifier: BSD-3-Clause
@@ -24,7 +23,7 @@
 #include <string.h>
 #include <unistd.h>
 
-/* ---- VideoCore mailbox (property channel) — BT_REG_ON via SET_GPIO_STATE --- */
+/* ---- VideoCore mailbox (property channel) ------------------------------- */
 #define RPI_PI4_MAILBOX_BASE 0xfe00b880u
 #define VC_MBOX_READ 0x00u
 #define VC_MBOX_STATUS 0x18u
@@ -34,9 +33,13 @@
 #define VC_MBOX_RESP_OK 0x80000000u
 #define VC_MBOX_PROP_CHANNEL 8u
 #define VC_PROP_SET_GPIO_STATE 0x00038041u
-#define EXPGPIO_BT_ON 128u /* expgpio[0] = "BT_ON" per Pi 4 DT (WL_ON=129=expgpio[1]) */
+#define VC_PROP_GET_CLOCK_RATE 0x00030002u
+#define VC_CLK_CORE 4u                 /* the mini-UART is clocked by the CORE clock */
+#define EXPGPIO_BT_ON 128u             /* expgpio[0]="BT_ON" (WL_ON=129=expgpio[1]) */
 
-static uint32_t diag_mboxPower(uint32_t tag, uint32_t device_id, uint32_t state)
+/* Generic property-channel call: msg[5]=arg0, msg[6]=arg1 in/out; returns
+ * msg[6] (the second response word) on success, 0xFFFFFFFF on failure. */
+static uint32_t diag_mbox2(uint32_t tag, uint32_t arg0, uint32_t arg1)
 {
 	addr_t pa_base = (addr_t)RPI_PI4_MAILBOX_BASE & ~(addr_t)(_PAGE_SIZE - 1);
 	addr_t pa_offs = (addr_t)RPI_PI4_MAILBOX_BASE & (addr_t)(_PAGE_SIZE - 1);
@@ -68,8 +71,8 @@ static uint32_t diag_mboxPower(uint32_t tag, uint32_t device_id, uint32_t state)
 	msg[2] = tag;
 	msg[3] = 8;
 	msg[4] = 0;
-	msg[5] = device_id;
-	msg[6] = state;
+	msg[5] = arg0;
+	msg[6] = arg1;
 	msg[7] = 0;
 
 	msg_pa = (uintptr_t)va2pa(msg);
@@ -98,100 +101,22 @@ static uint32_t diag_mboxPower(uint32_t tag, uint32_t device_id, uint32_t state)
 	return result;
 }
 
-/* ---- PL011 UART0 (0xfe201000) ------------------------------------------- */
-#define PL011_BASE 0xfe201000u
-#define PL_DR 0x00u
-#define PL_FR 0x18u
-#define PL_IBRD 0x24u
-#define PL_FBRD 0x28u
-#define PL_LCRH 0x2Cu
-#define PL_CR 0x30u
-#define PL_IMSC 0x38u
-#define PL_ICR 0x44u
-#define FR_BUSY (1u << 3)
-#define FR_RXFE (1u << 4) /* RX FIFO empty */
-#define FR_TXFF (1u << 5) /* TX FIFO full */
-
-/* 115200 8N1 on the 48 MHz UART clock: IBRD=48e6/(16*115200)=26, FBRD=round(.04*64)=3.
- * HW flow control (RTSEN|CTSEN) as the BT UART expects; callers use timeouts so
- * a deasserted CTS (chip not ready) is reported, not hung. */
-static void pl011_init(volatile uint8_t *u)
+/* ---- BCM2711 GPIO ------------------------------------------------------- */
+#define GPIO_BASE 0xfe200000u
+static void gpio_fsel(volatile uint8_t *g, unsigned pin, unsigned fn)
 {
-	*(volatile uint32_t *)(u + PL_CR) = 0u;            /* disable */
-	*(volatile uint32_t *)(u + PL_ICR) = 0x7FFu;       /* clear all irqs */
-	*(volatile uint32_t *)(u + PL_IBRD) = 26u;
-	*(volatile uint32_t *)(u + PL_FBRD) = 3u;
-	*(volatile uint32_t *)(u + PL_LCRH) = 0x70u;       /* 8 bits, FIFO enable */
-	*(volatile uint32_t *)(u + PL_IMSC) = 0u;
-	*(volatile uint32_t *)(u + PL_CR) =
-		(1u << 0) | (1u << 8) | (1u << 9) | (1u << 14) | (1u << 15); /* UARTEN|TXE|RXE|RTSEN|CTSEN */
+	volatile uint32_t *reg = (volatile uint32_t *)(g + (pin / 10u) * 4u);
+	unsigned shift = (pin % 10u) * 3u;
+	uint32_t v = *reg;
+	v &= ~(0x7u << shift);
+	v |= ((fn & 0x7u) << shift);
+	*reg = v;
 }
-
-/* Send one byte; returns 0 on success, -1 if TX FIFO stayed full (CTS never
- * asserted => controller not ready/absent). */
-static int pl011_putc(volatile uint8_t *u, uint8_t c)
+static unsigned gpio_getfsel(volatile uint8_t *g, unsigned pin)
 {
-	int d;
-	for (d = 0; d < 2000000; ++d) {
-		if ((*(volatile uint32_t *)(u + PL_FR) & FR_TXFF) == 0u) {
-			*(volatile uint32_t *)(u + PL_DR) = c;
-			return 0;
-		}
-	}
-	return -1;
+	uint32_t v = *(volatile uint32_t *)(g + (pin / 10u) * 4u);
+	return (v >> ((pin % 10u) * 3u)) & 0x7u;
 }
-
-/* Read one byte within ~timeout_ms; returns the byte (0..255) or -1 on timeout. */
-static int pl011_getc(volatile uint8_t *u, int timeout_ms)
-{
-	int t;
-	for (t = 0; t < timeout_ms * 20; ++t) {
-		if ((*(volatile uint32_t *)(u + PL_FR) & FR_RXFE) == 0u) {
-			return (int)(*(volatile uint32_t *)(u + PL_DR) & 0xffu);
-		}
-		usleep(50);
-	}
-	return -1;
-}
-
-/* Send an H4 HCI command (0x01 + opcode LE16 + plen + params) and collect the
- * reply bytes into `resp` (up to cap) with an inter-byte idle timeout. Returns
- * the number of bytes received (>=0), or -1 if the command could not be sent. */
-static int hci_cmd(volatile uint8_t *u, uint16_t opcode, const uint8_t *params,
-	uint8_t plen, uint8_t *resp, int cap)
-{
-	int i, b, n = 0;
-
-	if (pl011_putc(u, 0x01u) != 0) {
-		return -1; /* TX blocked (CTS low) */
-	}
-	(void)pl011_putc(u, (uint8_t)(opcode & 0xffu));
-	(void)pl011_putc(u, (uint8_t)((opcode >> 8) & 0xffu));
-	(void)pl011_putc(u, plen);
-	for (i = 0; i < (int)plen; ++i) {
-		(void)pl011_putc(u, params[i]);
-	}
-	/* First byte can take a while (controller processing); later bytes are
-	 * back-to-back — use a generous first timeout then a short inter-byte one. */
-	b = pl011_getc(u, 500);
-	while (b >= 0 && n < cap) {
-		resp[n++] = (uint8_t)b;
-		b = pl011_getc(u, 40);
-	}
-	return n;
-}
-
-static void hexdump(const char *label, const uint8_t *p, int n)
-{
-	int i;
-	printf("%s (%d):", label, n);
-	for (i = 0; i < n; ++i) {
-		printf(" %02x", p[i]);
-	}
-	printf("\n");
-}
-
-/* fsel 3-bit code -> name (0 in,1 out,4 ALT0,5 ALT1,6 ALT2,7 ALT3,3 ALT4,2 ALT5) */
 static const char *fsel_name(unsigned f)
 {
 	switch (f) {
@@ -206,101 +131,171 @@ static const char *fsel_name(unsigned f)
 	default: return "?";
 	}
 }
+#define GPIO_FN_ALT5 2u  /* mini-UART (TXD1/RXD1/CTS1/RTS1) */
 
-/* Read-only dump of the UART routing so we know empirically which UART is wired
- * to the BT chip: GPIO14/15 (header/console) + GPIO30-33 (BT chip side) fsels,
- * the AUX mini-UART enable+baud+cntl, and the PL011 state. On Pi4, ALT0 on
- * 14/15 = PL011; ALT5 = mini-UART. Whichever UART's pins reach the BT chip
- * (30-33) is the one to drive; if it's the mini-UART, AUX_MU_BAUD gives the
- * fw-set divisor (avoids guessing the variable core clock). */
-static void dump_routing(void)
+/* ---- AUX mini-UART (BCM2835 aux @ 0xfe215000) --------------------------- */
+#define AUX_BASE 0xfe215000u
+#define AUX_ENABLES 0x04u
+#define AUX_MU_IO 0x40u
+#define AUX_MU_IER 0x44u
+#define AUX_MU_IIR 0x48u
+#define AUX_MU_LCR 0x4Cu
+#define AUX_MU_MCR 0x50u
+#define AUX_MU_LSR 0x54u
+#define AUX_MU_CNTL 0x60u
+#define AUX_MU_BAUD 0x68u
+#define LSR_RX_RDY (1u << 0)
+#define LSR_TX_EMPTY (1u << 5)
+
+static void aux_init(volatile uint8_t *a, uint32_t baud_reg)
 {
-	void *gpio_p = mmap(NULL, _PAGE_SIZE, PROT_READ | PROT_WRITE,
-		MAP_DEVICE | MAP_UNCACHED | MAP_PHYSMEM | MAP_ANONYMOUS, -1, 0xfe200000u);
-	void *aux_p = mmap(NULL, _PAGE_SIZE, PROT_READ | PROT_WRITE,
-		MAP_DEVICE | MAP_UNCACHED | MAP_PHYSMEM | MAP_ANONYMOUS, -1, 0xfe215000u);
-	if (gpio_p != MAP_FAILED) {
-		volatile uint8_t *g = gpio_p;
-		uint32_t fsel1 = *(volatile uint32_t *)(g + 0x04u); /* GPIO10-19 */
-		uint32_t fsel3 = *(volatile uint32_t *)(g + 0x0Cu); /* GPIO30-39 */
-		unsigned f14 = (fsel1 >> ((14 % 10) * 3)) & 7u;
-		unsigned f15 = (fsel1 >> ((15 % 10) * 3)) & 7u;
-		unsigned f30 = (fsel3 >> ((30 % 10) * 3)) & 7u;
-		unsigned f31 = (fsel3 >> ((31 % 10) * 3)) & 7u;
-		unsigned f32 = (fsel3 >> ((32 % 10) * 3)) & 7u;
-		unsigned f33 = (fsel3 >> ((33 % 10) * 3)) & 7u;
-		printf("routing: GPIO14=%s 15=%s (header/console)  GPIO30=%s 31=%s 32=%s 33=%s (BT-chip side)\n",
-			fsel_name(f14), fsel_name(f15), fsel_name(f30), fsel_name(f31),
-			fsel_name(f32), fsel_name(f33));
-		printf("  ALT0 on 14/15 => PL011 on header; ALT5 on 32/33 => mini-UART to BT; ALT3 on 32/33 => PL011 to BT\n");
-		munmap(gpio_p, _PAGE_SIZE);
+	uint32_t en = *(volatile uint32_t *)(a + AUX_ENABLES);
+	*(volatile uint32_t *)(a + AUX_ENABLES) = en | 1u;    /* enable mini-UART */
+	*(volatile uint32_t *)(a + AUX_MU_CNTL) = 0u;         /* disable TX/RX during setup */
+	*(volatile uint32_t *)(a + AUX_MU_IER) = 0u;
+	*(volatile uint32_t *)(a + AUX_MU_LCR) = 3u;          /* 8-bit (BCM erratum: 0x3) */
+	*(volatile uint32_t *)(a + AUX_MU_MCR) = 0u;
+	*(volatile uint32_t *)(a + AUX_MU_IIR) = 0xC6u;       /* clear RX+TX FIFOs */
+	*(volatile uint32_t *)(a + AUX_MU_BAUD) = baud_reg;
+	*(volatile uint32_t *)(a + AUX_MU_CNTL) = 3u;         /* enable TX+RX (no auto-flow) */
+}
+static int aux_putc(volatile uint8_t *a, uint8_t c)
+{
+	int d;
+	for (d = 0; d < 2000000; ++d) {
+		if ((*(volatile uint32_t *)(a + AUX_MU_LSR) & LSR_TX_EMPTY) != 0u) {
+			*(volatile uint32_t *)(a + AUX_MU_IO) = c;
+			return 0;
+		}
 	}
-	if (aux_p != MAP_FAILED) {
-		volatile uint8_t *a = aux_p;
-		uint32_t en = *(volatile uint32_t *)(a + 0x04u);   /* AUX_ENABLES */
-		uint32_t baud = *(volatile uint32_t *)(a + 0x68u); /* AUX_MU_BAUD */
-		uint32_t cntl = *(volatile uint32_t *)(a + 0x60u); /* AUX_MU_CNTL */
-		uint32_t lcr = *(volatile uint32_t *)(a + 0x4Cu);  /* AUX_MU_LCR */
-		printf("mini-UART(AUX@0xfe215000): ENABLES=0x%08x (bit0=mu_en) BAUD=%u CNTL=0x%02x LCR=0x%02x\n",
-			en, baud, cntl & 0xffu, lcr & 0xffu);
-		munmap(aux_p, _PAGE_SIZE);
+	return -1;
+}
+static int aux_getc(volatile uint8_t *a, int timeout_ms)
+{
+	int t;
+	for (t = 0; t < timeout_ms * 20; ++t) {
+		if ((*(volatile uint32_t *)(a + AUX_MU_LSR) & LSR_RX_RDY) != 0u) {
+			return (int)(*(volatile uint32_t *)(a + AUX_MU_IO) & 0xffu);
+		}
+		usleep(50);
 	}
+	return -1;
+}
+
+/* Send an H4 HCI command and collect the reply. Returns bytes received, or -1
+ * if the command could not be sent. */
+static int hci_cmd(volatile uint8_t *a, uint16_t opcode, const uint8_t *params,
+	uint8_t plen, uint8_t *resp, int cap)
+{
+	int i, b, n = 0;
+	if (aux_putc(a, 0x01u) != 0) {
+		return -1;
+	}
+	(void)aux_putc(a, (uint8_t)(opcode & 0xffu));
+	(void)aux_putc(a, (uint8_t)((opcode >> 8) & 0xffu));
+	(void)aux_putc(a, plen);
+	for (i = 0; i < (int)plen; ++i) {
+		(void)aux_putc(a, params[i]);
+	}
+	b = aux_getc(a, 500);
+	while (b >= 0 && n < cap) {
+		resp[n++] = (uint8_t)b;
+		b = aux_getc(a, 40);
+	}
+	return n;
+}
+
+static void hexdump(const char *label, const uint8_t *p, int n)
+{
+	int i;
+	printf("%s (%d):", label, n);
+	for (i = 0; i < n; ++i) {
+		printf(" %02x", p[i]);
+	}
+	printf("\n");
 }
 
 int main(void)
 {
-	void *pl_page;
-	volatile uint8_t *u;
+	void *gpio_page, *aux_page;
+	volatile uint8_t *g, *a;
 	uint8_t resp[64];
+	uint32_t core_hz, baud_reg;
 	int n, bton;
 
-	printf("PHX-BT/0 tier0-hci-probe\n");
-	dump_routing();
+	printf("PHX-BT/0 tier0-hci-probe (mini-UART)\n");
 
-	/* Raise BT_REG_ON (expgpio[0]) via the VideoCore mailbox: power-cycle it
-	 * like the WiFi WL_REG_ON, then let the BT ROM boot. */
-	(void)diag_mboxPower(VC_PROP_SET_GPIO_STATE, EXPGPIO_BT_ON, 0u);
-	usleep(50 * 1000);
-	bton = (int)diag_mboxPower(VC_PROP_SET_GPIO_STATE, EXPGPIO_BT_ON, 1u);
-	usleep(250 * 1000); /* BT ROM boot */
-	printf("BT_REG_ON(expgpio0/mbox128) set -> %d\n", bton);
-
-	pl_page = mmap(NULL, _PAGE_SIZE, PROT_READ | PROT_WRITE,
-		MAP_DEVICE | MAP_UNCACHED | MAP_PHYSMEM | MAP_ANONYMOUS, -1, PL011_BASE);
-	if (pl_page == MAP_FAILED) {
-		printf("error: mmap PL011 failed\n.\n");
+	gpio_page = mmap(NULL, _PAGE_SIZE, PROT_READ | PROT_WRITE,
+		MAP_DEVICE | MAP_UNCACHED | MAP_PHYSMEM | MAP_ANONYMOUS, -1, GPIO_BASE);
+	aux_page = mmap(NULL, _PAGE_SIZE, PROT_READ | PROT_WRITE,
+		MAP_DEVICE | MAP_UNCACHED | MAP_PHYSMEM | MAP_ANONYMOUS, -1, AUX_BASE);
+	if (gpio_page == MAP_FAILED || aux_page == MAP_FAILED) {
+		printf("error: mmap failed\n.\n");
 		return 1;
 	}
-	u = (volatile uint8_t *)pl_page;
-	pl011_init(u);
+	g = (volatile uint8_t *)gpio_page;
+	a = (volatile uint8_t *)aux_page;
 
-	/* Drain any stale RX bytes. */
-	while (pl011_getc(u, 5) >= 0) {
+	printf("routing before: GPIO14=%s 15=%s  30=%s 31=%s 32=%s 33=%s\n",
+		fsel_name(gpio_getfsel(g, 14)), fsel_name(gpio_getfsel(g, 15)),
+		fsel_name(gpio_getfsel(g, 30)), fsel_name(gpio_getfsel(g, 31)),
+		fsel_name(gpio_getfsel(g, 32)), fsel_name(gpio_getfsel(g, 33)));
+
+	/* Core clock -> mini-UART baud divisor for 115200. */
+	core_hz = diag_mbox2(VC_PROP_GET_CLOCK_RATE, VC_CLK_CORE, 0u);
+	if (core_hz == 0u || core_hz == 0xFFFFFFFFu) {
+		core_hz = 500000000u; /* fall back to a common Pi4 core freq */
+		printf("GET_CLOCK_RATE(core) failed; assuming %u Hz\n", core_hz);
+	}
+	baud_reg = core_hz / (8u * 115200u);
+	if (baud_reg > 0u) {
+		baud_reg -= 1u;
+	}
+	printf("core_clk=%u Hz -> AUX_MU_BAUD=%u (target 115200)\n", core_hz, baud_reg);
+
+	/* Raise BT_REG_ON (expgpio[0]) and let the BT ROM boot. */
+	(void)diag_mbox2(VC_PROP_SET_GPIO_STATE, EXPGPIO_BT_ON, 0u);
+	usleep(50 * 1000);
+	bton = (int)diag_mbox2(VC_PROP_SET_GPIO_STATE, EXPGPIO_BT_ON, 1u);
+	usleep(250 * 1000);
+	printf("BT_REG_ON(expgpio0/mbox128) set -> %d\n", bton);
+
+	/* Route the BT-chip UART pins to the mini-UART (ALT5) and bring it up. */
+	gpio_fsel(g, 30, GPIO_FN_ALT5); /* CTS1 */
+	gpio_fsel(g, 31, GPIO_FN_ALT5); /* RTS1 */
+	gpio_fsel(g, 32, GPIO_FN_ALT5); /* TXD1 */
+	gpio_fsel(g, 33, GPIO_FN_ALT5); /* RXD1 */
+	aux_init(a, baud_reg);
+	printf("routing after:  30=%s 31=%s 32=%s 33=%s  AUX_ENABLES=0x%08x CNTL=0x%02x\n",
+		fsel_name(gpio_getfsel(g, 30)), fsel_name(gpio_getfsel(g, 31)),
+		fsel_name(gpio_getfsel(g, 32)), fsel_name(gpio_getfsel(g, 33)),
+		*(volatile uint32_t *)(a + AUX_ENABLES),
+		*(volatile uint32_t *)(a + AUX_MU_CNTL) & 0xffu);
+
+	while (aux_getc(a, 5) >= 0) {
 	}
 
-	/* 1. HCI_RESET (0x0c03), no params -> Command Complete (04 0e 04 01 03 0c 00). */
-	n = hci_cmd(u, 0x0c03u, NULL, 0u, resp, sizeof(resp));
+	/* 1. HCI_RESET (0x0c03) -> Command Complete 04 0e 04 01 03 0c 00. */
+	n = hci_cmd(a, 0x0c03u, NULL, 0u, resp, sizeof(resp));
 	if (n < 0) {
-		printf("HCI_RESET: TX BLOCKED (CTS not asserted -- controller not ready/powered?)\n");
+		printf("HCI_RESET: TX blocked (mini-UART TX FIFO never empty?)\n");
 	}
 	else {
 		hexdump("HCI_RESET reply", resp, n);
 		if (n >= 7 && resp[0] == 0x04u && resp[1] == 0x0eu &&
 			resp[3] == 0x03u && resp[4] == 0x0cu && resp[6] == 0x00u) {
-			printf("  -> RESET OK: Command Complete, status=0 -- UART<->BT controller ALIVE!\n");
+			printf("  -> RESET OK: Command Complete, status=0 -- mini-UART<->BT controller ALIVE!\n");
 		}
 		else if (n > 0) {
-			printf("  -> got %d bytes but not a clean RESET Command-Complete (see hex)\n", n);
+			printf("  -> got %d bytes, not a clean RESET Command-Complete (baud? see hex)\n", n);
 		}
 		else {
 			printf("  -> no response (controller silent)\n");
 		}
 	}
 
-	/* 2. READ_LOCAL_VERSION_INFORMATION (0x1001). Reply payload after the 6-byte
-	 * event/CmdComplete header: status, hci_ver, hci_rev(2), lmp_ver,
-	 * manuf(2), lmp_subver(2). */
-	n = hci_cmd(u, 0x1001u, NULL, 0u, resp, sizeof(resp));
+	/* 2. READ_LOCAL_VERSION_INFORMATION (0x1001). */
+	n = hci_cmd(a, 0x1001u, NULL, 0u, resp, sizeof(resp));
 	if (n > 0) {
 		hexdump("READ_LOCAL_VERSION reply", resp, n);
 		if (n >= 15 && resp[0] == 0x04u && resp[1] == 0x0eu) {
@@ -309,7 +304,7 @@ int main(void)
 			unsigned manuf = (unsigned)resp[11] | ((unsigned)resp[12] << 8);
 			unsigned lmp_sub = (unsigned)resp[13] | ((unsigned)resp[14] << 8);
 			printf("  -> HCI_ver=%u LMP_ver=%u manufacturer=0x%04x LMP_subver=0x%04x "
-				"(manuf 0x000f=Broadcom; LMP_subver picks the .hcd)\n",
+				"(0x000f=Broadcom; LMP_subver picks the .hcd)\n",
 				hci_ver, lmp_ver, manuf, lmp_sub);
 		}
 	}
@@ -317,7 +312,8 @@ int main(void)
 		printf("READ_LOCAL_VERSION: no response\n");
 	}
 
-	munmap(pl_page, _PAGE_SIZE);
+	munmap(aux_page, _PAGE_SIZE);
+	munmap(gpio_page, _PAGE_SIZE);
 	printf(".\n");
 	return 0;
 }

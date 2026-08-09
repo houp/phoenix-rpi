@@ -421,6 +421,17 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (★★ BLUETOOTH FUNCTIONAL — patchram + real MAC + HCI Inquiry). Cycle btpatchram: PATCHRAM 323/323
+records acked (full 63806-byte BCM4345C0.raspberrypi,4-model-b.hcd, 0 failures) over the mini-UART; READ_BD_ADDR
+= dc:a6:32:3c:dd:f5 (REAL Broadcom/RPi MAC -- pre-patch it's all-zero; adjacent to the WiFi MAC ...dd:f3, same
+board); HCI Inquiry runs to clean completion (Inquiry Complete status=0x00). 0 devices seen = RF environment
+(classic BT only answers Inquiry in discoverable mode; none nearby) -- the scan MACHINERY works. Patchram mirrors
+Linux btbcm_patchram. **BOTH BCM43455 radios now fully up under Phoenix** (WiFi: 16 APs over SDIO; BT: patched +
+real MAC + Inquiry over mini-UART) -- completes the owner's 'fully bring WiFi up, THEN Bluetooth'. (post-patch
+LMP_subver stayed 0x6119 -- this part doesn't bump it; the real BD_ADDR is the patch-success signal.) Optional
+future: a host stack (NimBLE/BTstack) or make the Pi discoverable + scan from a phone. [[project_bluetooth_bringup]]
+
+
 2026-08-09 (BT Tier-2 patchram implemented; HW test running). Built the patch-RAM uploader (mirrors Linux
 btbcm_patchram: Download_Minidriver 0xfc2e -> replay each .hcd record waiting for Command Complete -> settle;
 final record = Launch_RAM 0xfc4e). Firmware = BCM4345C0.raspberrypi,4-model-b.hcd (63806B, from the netboot Linux

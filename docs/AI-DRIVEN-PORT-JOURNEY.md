@@ -223,8 +223,11 @@ powered the radio on through the firmware mailbox. The first HCI command came ba
 one-line insight — the flow-control line was deasserted, so the controller had processed the command but was
 politely holding its reply until told the host was ready — turned out to be exactly right, and once the agent
 asserted it, **the Bluetooth controller answered**: an HCI reset acknowledged clean, and a version query identifying
-a Broadcom Bluetooth 4.1 core. Both radios of the combo chip were now reachable from a from-scratch RTOS that, weeks
-earlier, could not get the chip's firmware to execute a single instruction.
+a Broadcom Bluetooth 4.1 core. From there the agent uploaded the controller's ~64 KB patch-RAM firmware — all 323
+records acknowledged over that hand-brought-up serial link — after which the radio reported a real Bluetooth MAC
+address (adjacent to the Wi-Fi one, the same silicon) and ran a clean device-discovery inquiry. Both radios of the
+combo chip were now fully up from a from-scratch RTOS that, weeks earlier, could not get the chip's firmware to
+execute a single instruction.
 
 The limits it hit were *physical or judgment* boundaries, not cognitive ones: a 100 Mbps link it
 couldn't rewire, an SD card it couldn't insert, and a host network it judged too risky to

@@ -1016,6 +1016,117 @@ static void diag_readShared(volatile uint8_t *sdhci, uint32_t ram_size)
 	}
 }
 
+/* ---- #91 BCDC control ioctl round-trip over F2 ---------------------------
+ * First real driver protocol: send one BCDC GET (WLC_GET_VERSION=1) wrapped in
+ * an SDPCM control frame over SDIO function 2, poll the SDIO-core intstatus for
+ * I_HMB_FRAME_IND, read the reply back from the F2 FIFO, strip SDPCM+BCDC, and
+ * report the returned u32 version. Spec derived byte-for-byte from brcmfmac
+ * (bcdc.c/sdio.c/bcmsdh.c). F2 frame addressing: backplane window 0x18000000,
+ * CMD53 addr 0x8000; write=incrementing, read=fixed FIFO. Small frame padded to
+ * a 64-byte block (F2 blocksize set to 64 via CCCR FBR to reuse block-mode). */
+#define IOCTL_F2_ADDR 0x8000u
+#define WLC_GET_VERSION 1u
+static int g_ioctl_mode = 0;
+static int g_ioctl_ran = 0;
+static int g_ioctl_send_rc = -100, g_ioctl_read_rc = -100;
+static uint32_t g_ioctl_is_pre = 0u, g_ioctl_is_post = 0u;
+static int g_ioctl_is_iters = -1;
+static uint8_t g_ioctl_reply[64];
+static int g_ioctl_reply_valid = 0;
+static uint16_t g_ioctl_hwlen = 0u, g_ioctl_hwchk = 0u;
+static uint8_t g_ioctl_doff = 0u, g_ioctl_channel = 0xffu;
+static uint32_t g_ioctl_bcdc_flags = 0u, g_ioctl_bcdc_status = 0u, g_ioctl_version = 0u;
+
+static uint32_t diag_le32(const uint8_t *p)
+{
+	return (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
+		((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
+
+static void diag_setWindow18(volatile uint8_t *sdhci)
+{
+	(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Au, 0x00u, NULL);
+	(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Bu, 0x00u, NULL);
+	(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Cu, 0x18u, NULL);
+}
+
+static void diag_bcdcGetVersion(volatile uint8_t *sdhci, uint32_t sdio_core)
+{
+	uint8_t frame[64];
+	uint16_t flen = 32u; /* 12 SDPCM + 16 BCDC + 4 payload */
+	int i;
+
+	g_ioctl_ran = 1;
+	for (i = 0; i < 64; ++i) {
+		frame[i] = 0u;
+		g_ioctl_reply[i] = 0u;
+	}
+	/* SDPCM HW header: len + ~len */
+	frame[0] = (uint8_t)(flen & 0xffu);
+	frame[1] = (uint8_t)((flen >> 8) & 0xffu);
+	frame[2] = (uint8_t)((~flen) & 0xffu);
+	frame[3] = (uint8_t)(((~flen) >> 8) & 0xffu);
+	/* SDPCM SW header: seq=0, channel=0 (control), nextlen=0, data_offset=12 */
+	frame[4] = 0x00u;
+	frame[5] = 0x00u;
+	frame[6] = 0x00u;
+	frame[7] = 12u;
+	/* word1 [8..11] = 0 */
+	/* BCDC @12: cmd=WLC_GET_VERSION(1) */
+	frame[12] = (uint8_t)WLC_GET_VERSION;
+	/* len @16 = 4 (output buflen) */
+	frame[16] = 0x04u;
+	/* flags @20 = 0x00010000 (reqid=1, ifidx=0, GET: SET bit clear) */
+	frame[22] = 0x01u;
+	/* status @24 = 0; payload @28 = 0 (4-byte scratch) */
+
+	/* F2 block size = 64 via CCCR FBR fn2 (0x210 LSB / 0x211 MSB). */
+	(void)diag_sdioCmd52(sdhci, 1, 0, 0x210u, 0x40u, NULL);
+	(void)diag_sdioCmd52(sdhci, 1, 0, 0x211u, 0x00u, NULL);
+
+	g_ioctl_is_pre = diag_bpRead32(sdhci, sdio_core + 0x20u);
+
+	/* Send the control frame over F2 (window 0x18000000, addr 0x8000, incr). */
+	diag_setWindow18(sdhci);
+	g_ioctl_send_rc = diag_sdioCmd53Write(sdhci, 2, /*incr=*/1,
+		IOCTL_F2_ADDR, /*block_count=*/1u, /*block_size=*/64u, frame);
+
+	/* Poll SDIO-core intstatus for I_HMB_FRAME_IND (0x40). */
+	for (i = 0; i < 250; ++i) {
+		g_ioctl_is_post = diag_bpRead32(sdhci, sdio_core + 0x20u);
+		if ((g_ioctl_is_post & 0x40u) != 0u) {
+			g_ioctl_is_iters = i;
+			break;
+		}
+		usleep(2000);
+	}
+	/* Clear intstatus (write value back). */
+	if (g_ioctl_is_post != 0u && g_ioctl_is_post != 0xffffffffu) {
+		diag_bpWrite32(sdhci, sdio_core + 0x20u, g_ioctl_is_post);
+	}
+
+	/* Read the reply from the F2 FIFO (fixed address). */
+	diag_setWindow18(sdhci);
+	g_ioctl_read_rc = diag_sdioCmd53Read(sdhci, 2, /*incr=*/0,
+		IOCTL_F2_ADDR, /*block_count=*/1u, /*block_size=*/64u, g_ioctl_reply);
+
+	/* Parse SDPCM HW header + SW data_offset, then BCDC. */
+	g_ioctl_hwlen = (uint16_t)(g_ioctl_reply[0] | (g_ioctl_reply[1] << 8));
+	g_ioctl_hwchk = (uint16_t)(g_ioctl_reply[2] | (g_ioctl_reply[3] << 8));
+	if (g_ioctl_hwlen != 0u &&
+		(uint16_t)(~(g_ioctl_hwlen ^ g_ioctl_hwchk)) == 0u &&
+		g_ioctl_hwlen >= 12u) {
+		g_ioctl_reply_valid = 1;
+		g_ioctl_doff = g_ioctl_reply[7];
+		g_ioctl_channel = (uint8_t)(g_ioctl_reply[5] & 0x0fu);
+		if ((int)g_ioctl_doff + 20 <= 64) {
+			g_ioctl_bcdc_flags = diag_le32(g_ioctl_reply + g_ioctl_doff + 8);
+			g_ioctl_bcdc_status = diag_le32(g_ioctl_reply + g_ioctl_doff + 12);
+			g_ioctl_version = diag_le32(g_ioctl_reply + g_ioctl_doff + 16);
+		}
+	}
+}
+
 /* #91 "trivial-program test" mode. When set (argv "trivial"), the 643 KB
  * production firmware is replaced by cr4tiny_blob (a ~20-byte Thumb-2 counter
  * whose reset vector is the REAL fw's verbatim B.W into rambase+0x80). The
@@ -1547,6 +1658,11 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 		if (!g_trivial_mode) {
 			diag_readShared(sdhci, ram_size);
 		}
+
+		/* #91: BCDC control-ioctl round-trip over F2 (real fw + argv ioctl). */
+		if (!g_trivial_mode && g_ioctl_mode) {
+			diag_bcdcGetVersion(sdhci, sdio_core);
+		}
 	}
 
 	munmap(sdhci_page, _PAGE_SIZE);
@@ -1863,6 +1979,39 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 		}
 	}
 
+	/* #91 BCDC ioctl round-trip report. */
+	if (g_ioctl_ran) {
+		int bi;
+		r = snprintf(buf + off, cap - off,
+			"BCDC ioctl WLC_GET_VERSION: send_rc=%d read_rc=%d  intstatus pre=0x%08x post=0x%08x (I_HMB_FRAME_IND=0x40 @iter=%d)\n"
+			"  reply HW len=%u chk=0x%04x valid=%d  doff=%u channel=%u\n"
+			"  BCDC flags=0x%08x (id=%u err=%d) status=0x%08x  VERSION=%u\n",
+			g_ioctl_send_rc, g_ioctl_read_rc,
+			(unsigned)g_ioctl_is_pre, (unsigned)g_ioctl_is_post, g_ioctl_is_iters,
+			(unsigned)g_ioctl_hwlen, (unsigned)g_ioctl_hwchk, g_ioctl_reply_valid,
+			(unsigned)g_ioctl_doff, (unsigned)g_ioctl_channel,
+			(unsigned)g_ioctl_bcdc_flags, (unsigned)(g_ioctl_bcdc_flags >> 16),
+			(int)(g_ioctl_bcdc_flags & 0x1u), (unsigned)g_ioctl_bcdc_status,
+			(unsigned)g_ioctl_version);
+		if (r > 0 && (size_t)r < cap - off) {
+			off += r;
+		}
+		r = snprintf(buf + off, cap - off, "  reply[0..31]:");
+		if (r > 0 && (size_t)r < cap - off) {
+			off += r;
+		}
+		for (bi = 0; bi < 32 && (size_t)(off + 4) < cap; ++bi) {
+			r = snprintf(buf + off, cap - off, " %02x", g_ioctl_reply[bi]);
+			if (r > 0 && (size_t)r < cap - off) {
+				off += r;
+			}
+		}
+		r = snprintf(buf + off, cap - off, "\n");
+		if (r > 0 && (size_t)r < cap - off) {
+			off += r;
+		}
+	}
+
 	r = snprintf(buf + off, cap - off, ".\n");
 	if (r > 0 && (size_t)r < cap - off) {
 		off += r;
@@ -1880,6 +2029,9 @@ int main(int argc, char **argv)
 	for (ai = 1; ai < argc; ++ai) {
 		if (strcmp(argv[ai], "trivial") == 0) {
 			g_trivial_mode = 1;
+		}
+		else if (strcmp(argv[ai], "ioctl") == 0) {
+			g_ioctl_mode = 1;
 		}
 	}
 

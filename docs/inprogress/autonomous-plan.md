@@ -429,6 +429,25 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (post-WiFi/BT rotation: SDL de-Quake confirmed DONE, netboot reliability characterized, B2 kernel-
+backtrace scoped). With the WiFi+BT headline complete, surveyed the remaining owner tasks:
+- **SDL de-Quake (owner directive part 1) = ALREADY DONE.** Verified sources/phoenix-rtos-ports/sdl2 has ZERO
+  'quake' refs and NO GPL in glue/overlay; the GL glue (sdl_phoenix_glctx.c) is SPDX Zlib / Phoenix-copyright
+  (relicensed 2026-08-08 from the old GPL). Corrected the stale project_sdl2_port memory. Part 2 (refactor Quake
+  1/2/3 to USE the SDL port) stays banked at the deep V3D TFU-striping wedge.
+- **Netboot/NFS reliability characterized from this session's data: ~90%+ reliable** (only 2/~40 cycles had
+  takeover-mount timeouts, 1 self-inflicted grace exec-34 from restart-then-run-too-soon). Root is partly HOST
+  nfsd stale-state (accumulates over many rapid reboots; would affect Linux too), mitigated by nfsd restart. So
+  NOT the crisis it felt like -> deprioritized a deep kernel NFS hunt; the pragmatic fix is host-side (harness
+  auto-restart+grace-wait) if it recurs.
+- **B2 (kernel-side backtrace, owner UN-BANKED 2026-08-07) SCOPED.** Insertion point = hal_exceptionsDumpContext
+  (hal/aarch64/exceptions.c:130, already dumps fp=x[29]/lr/sp/pc/esr/far). Design: walk the AAPCS64 x29 chain
+  ([fp]=caller fp, [fp+8]=ret), SAFE via: validate starting fp in [sp, sp+~32KiB), 16-aligned, monotonically
+  ascending, depth<=12 (a corrupt fp can't fault a nested read -> no double-fault hang). Needs
+  -fno-omit-frame-pointer on the kernel aarch64 CFLAGS. Verifying needs a controlled kernel fault trigger ->
+  a focused burst. [[project_libdbg_facility]] (B2 recipe). NEXT: implement B2 + a temp fault-trigger to verify.
+
+
 2026-08-09 (★★ BLUETOOTH FUNCTIONAL — patchram + real MAC + HCI Inquiry). Cycle btpatchram: PATCHRAM 323/323
 records acked (full 63806-byte BCM4345C0.raspberrypi,4-model-b.hcd, 0 failures) over the mini-UART; READ_BD_ADDR
 = dc:a6:32:3c:dd:f5 (REAL Broadcom/RPi MAC -- pre-patch it's all-zero; adjacent to the WiFi MAC ...dd:f3, same

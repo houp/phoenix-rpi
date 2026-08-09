@@ -418,6 +418,18 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (★★★★★ WiFi #91 — BCDC CONTROL IOCTL ROUND-TRIP WORKS; the fw answers). Cycle wifif2diag2:
+WLC_GET_VERSION over SDIO F2 → send_rc=0 read_rc=0, reply a byte-perfect SDPCM control frame (HW len=32/~32, SW
+doff=12 chan0, BCDC cmd=1 echoed, flags id=1 = MY reqid echoed, err=0, status=0, payload=0x00000002 = WLC ioctl
+version 2). Raw: 20 00 df ff 01 00 00 0c 00 15 00 00 01 00 00 00 04 00 00 00 00 00 01 00 00 00 00 00 02 00 00 00.
+The host can now issue ioctls and read replies both directions over F2 — the gateway to scan/join/DHCP. The F2
+transport fix was an SDHCI DAT/CMD software reset (diag_sdhciResetDatCmd, reg 0x2C bits 25/26): the first F2 access
+wedges the controller (post-reads = 0x18181818), so without a reset every later transfer got -5; the reset unwedges
+it. Card R5=0x00001000 (IO_CURRENT_STATE only, no NAK). Instrumented diag captured this (commit 3056e1c). Minor:
+the boot-pending async-event read still errors (DATA_CRC) because I read a fixed 64B of an unknown-length frame —
+must read the 4B HW header then exactly len bytes; and the probe now needs --idle-secs>=120. NEXT: clean F2 RX +
+reset placement → brcmf_c_preinit_dcmds init ioctls → WLC_SCAN/escan → join/WPA2 → DHCP. [[project_wifi_fw_exec_gate_91]]
+
 2026-08-09 (WiFi #91 — F2 data-transfer transport bug isolated; NOT block-vs-byte; next = capture SDHCI error bit).
 Byte-mode CMD53 (commit 9a29d5b) ALSO fails: cycle wifiioctl4 — boot-pending F2 read rc=-4 (SDHCI error interrupt
 in the data phase), GET_VERSION send/reply rc=-5 (data phase never started), post-intstatus=0x18181818 = the failed

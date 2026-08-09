@@ -12,7 +12,22 @@
  * pl_phoenix_main.c — Phoenix entry point + host loop for Quakespasm: replaces
  * main_sdl.c. No SDL init; just COM_InitArgv -> Sys_Init -> Host_Init, then the
  * Host_Frame loop driven by Sys_DoubleTime.
+ *
+ * USE_SDL2 build (build-quakespasm-sdl-phoenix.py, the real-SDL variant) ONLY:
+ * this file is shared with the proven flagship build, which does NOT define
+ * USE_SDL2 and is therefore completely unaffected by every USE_SDL2 block below.
+ * SDL_MAIN_HANDLED is defined before any SDL header is pulled in (quakedef.h
+ * includes <SDL2/SDL.h> under -DNO_SDL_CONFIG -DUSE_SDL2) so SDL never rewrites
+ * our main() to SDL_main. main() then does the global SDL_Init(0) that stock
+ * main_sdl.c's Sys_InitSDL did; the compiled-in gl_vidsdl/in_sdl/snd_sdl call
+ * SDL_InitSubSystem for their own subsystems as upstream. PL_VID_Shutdown /
+ * PL_SetWindowIcon (stock hooks gl_vidsdl.c references, normally in the excluded
+ * pl_linux.c) are provided here as no-ops.
  */
+#ifdef USE_SDL2
+#define SDL_MAIN_HANDLED
+#endif
+
 #include "quakedef.h"
 
 #include <stdlib.h>
@@ -66,6 +81,14 @@ static void wait_for_gamedata(void)
 	Sys_Printf("quakespasm: pak0.pak not found after wait (continuing; Host_Init will report)\n");
 }
 
+#ifdef USE_SDL2
+/* Stock platform hooks gl_vidsdl.c calls (upstream live in pl_linux.c, which this
+ * build excludes). No-ops: this port owns no SDL window icon and needs no extra
+ * VID teardown beyond gl_vidsdl.c's own SDL_GL_DeleteContext/DestroyWindow. */
+void PL_VID_Shutdown(void) {}
+void PL_SetWindowIcon(void) {}
+#endif
+
 int main(int argc, char *argv[])
 {
 	double time, oldtime, newtime;
@@ -108,6 +131,16 @@ int main(int argc, char *argv[])
 	COM_InitArgv(parms.argc, parms.argv);
 
 	isDedicated = (COM_CheckParm("-dedicated") != 0);
+
+#ifdef USE_SDL2
+	/* Global SDL init, matching stock main_sdl.c's Sys_InitSDL (SDL_Init(0) with no
+	 * subsystems; gl_vidsdl/in_sdl/snd_sdl SDL_InitSubSystem their own). SDL_SetMainReady
+	 * tells SDL this app owns main() (paired with SDL_MAIN_HANDLED at the top). */
+	SDL_SetMainReady();
+	if (SDL_Init(0) < 0)
+		Sys_Error("Couldn't init SDL: %s", SDL_GetError());
+	atexit(SDL_Quit);
+#endif
 
 	Sys_Init();
 

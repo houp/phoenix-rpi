@@ -403,6 +403,19 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (#3 part 2 — burst 1 DONE: real-SDL quakespasm LINKS clean; burst 2 HW-validation running). Burst 1
+success: `/tmp/quakespasm-sdl-phoenix` (24.9MB, **0 undefined**) with real SDL2 wired across video/GL/audio/input
+(SDL_CreateWindow/GL_CreateContext/OpenAudio/PollEvent all defined from libSDL2.a); **no SDL-API gaps**; the
+Mesa-vs-SDL GL header clash resolved by design (quakedef.h's NO_SDL_CONFIG+USE_SDL2 branch includes Mesa GL first,
+sharing the __gl_h_ guard). **Flagship verified byte-identical after the shared-file edit** (the SDL_Init lives
+under `#ifdef USE_SDL2` in pl_phoenix_main.c → compiles out for the old build). Footprint = 2 files:
+build-quakespasm-sdl-phoenix.py (NEW parallel build) + the guarded pl_phoenix_main.c edit. Staged as a NEW binary
+`/bin/quakespasm-sdl` (flagship `/bin/quakespasm` kept). Burst 2 (running): `/bin/quakespasm-sdl -basedir
+/usr/share/quake` on HW → expect SDL video init (V3D GL) + GLQuake demo-loop render, 0 faults. This is also the
+first FULL end-to-end HW exercise of the real-SDL Phoenix backend for a GLQuake-lineage game (yquake2 proved the
+GL path; this adds quakespasm's usage). NEXT: read HDMI grab — if it renders, #3 part 2 core is proven; then
+input/audio/timedemo checks + fold into rpi4-quake. [[project_sdl2_port]] [[project_quakespasm_port]]
+
 2026-08-09 (#3 part 2 — migration plan received; burst 1 (parallel SDL artifact → LINK OK) delegated). Analysis
 verdict: quakespasm currently FAKES SDL (sdl-shim/ + pl_phoenix_{vid,in,snd} Phoenix backends); migration =
 re-enable its stock SDL TUs (gl_vidsdl/in_sdl/snd_sdl), drop those 3 backends, link the real libSDL2.a — the SAME

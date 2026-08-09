@@ -429,6 +429,30 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-10 (★ B2 KERNEL-SIDE EXCEPTION BACKTRACE — IMPLEMENTED, HW-VERIFIED, COMMITTED + PUSHED). Kernel
+`d8baae66` (rpi-phoenix-rtos/phoenix-rtos-kernel, pushed to publish/main; manifest 2026-08-10-b2-kernel-backtrace).
+A kernel fault now prints a `backtrace:` block after the register dump: `pc=`, `lr=`, then the AAPCS64 x29
+frame-pointer chain (resolve offline with `aarch64-phoenix-addr2line -f -e phoenix-aarch64a72-generic.elf <addr>`).
+Design points, all landed:
+- **pc + lr printed explicitly** so a crash in a LEAF function (no frame of its own) is still traceable — its
+  caller is only in lr, which a bare x29 walk would skip. lr is labelled (stale for non-leaf faults).
+- **-fno-omit-frame-pointer forced kernel-only** (phoenix-rtos-kernel/Makefile, aarch64 TARGET_FAMILY filter),
+  overriding the target's global -fomit-frame-pointer; userspace ports unaffected.
+- **Walk is a SEPARATE step (hal_exceptionsBacktrace), called AFTER the register dump is already printed** — the
+  advisor caught that the original single-buffer design would lose the REGISTER dump too if the walk nested-faulted
+  on a stack-corruption crash (our exact bug history, #152). Now a walk-fault costs only the backtrace. Walk guards:
+  16-aligned fp, ascending, inside a 16KiB window anchored on the first fp (validated within 64KiB of sp), depth<=16.
+  Residual (documented in the commit): the guards can't PROVE pages are mapped — which is precisely why it runs last.
+- Only the 3 aarch64 kernel handlers (default/SError/watchpoint) call it; the shared user-fault path is untouched
+  (user code is -fomit-frame-pointer → a user x29 walk would be meaningless).
+Verified on real Pi 4 via a temporary controlled-fault self-test (bl-linked A→B→C faulting in leaf C): dump showed
+the full registers, then backtrace pc(C)/lr(→B)/ret(→A)/ret(→main), and addr2line mapped every frame to the right
+function. Self-test then REMOVED (a gated kernel-crasher in main.c is a footgun + hurts upstreaming; recipe is in
+the commit msg). Clean boot after removal reached psh + networking, 0 faults. [[project_libdbg_facility]] B2 now DONE.
+NEXT: rotate to another open task — A1 upstream-sync batch 3, or another NEEDS-HW kernel review item (B4 main.c
+SMP-gate is the headline from project_rpi4_upstream_review), or perf.
+
+
 2026-08-09 (post-WiFi/BT rotation: SDL de-Quake confirmed DONE, netboot reliability characterized, B2 kernel-
 backtrace scoped). With the WiFi+BT headline complete, surveyed the remaining owner tasks:
 - **SDL de-Quake (owner directive part 1) = ALREADY DONE.** Verified sources/phoenix-rtos-ports/sdl2 has ZERO

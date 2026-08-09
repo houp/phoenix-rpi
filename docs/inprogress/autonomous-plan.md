@@ -387,6 +387,17 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (Starting owner directive #3 part 2 — migrate quakespasm→real SDL port — as a bounded multi-burst
+project). With the heartbeat-tractable features delivered, picked the boldest OWNER-EXPLICIT remaining task that's
+ROLLBACK-SAFE: complete #3 part 2 (Q2/Q3 already on the real SDL port; Q1 quakespasm is the holdout on a fake
+sdl-shim + per-game pl_phoenix_{vid,in,snd} backends). Rollback discipline: the working quakespasm build (libquakespasm.a
++ staged /bin/quakespasm) + git are the fallback; keep the proven binary until the migrated one is HW-validated
+(renders + demos + 0 faults) — matches the owner's "take risks with git rollback". Spawned a read-only migration
+analysis (quakespasm's SDL-call surface via sdl-shim vs the real SDL port + the Q2/Q3 link template → a concrete
+numbered plan + SDL-API-gap list + risk verdict). NEXT: implement per the plan (remove sdl-shim + pl_phoenix video/
+input/audio backends, link real libSDL2.a, resolve compile/link, HW-validate the flagship still renders), or
+reassess if the analysis shows quakespasm's platform layer diverges too much to be safe. [[project_sdl2_port]] [[project_quakespasm_port]]
+
 2026-08-09 (SuperTuxKart feasibility DECIDED → not heartbeat-tractable; the owner list is now systematically
 worked through). STK verdict: **modern STK (1.x) STRUCTURALLY BLOCKED** — needs GL 3.3/GLES3; the port's Mesa
 frontend is GL 2.1 compat (`API_OPENGL_COMPAT`) and the maintainers explicitly reject >GL2.1 renderers (quake3

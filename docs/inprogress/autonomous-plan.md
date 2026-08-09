@@ -387,6 +387,19 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 ★★★ WINDOW MAKER DESKTOP PROVEN — a real desktop environment on Phoenix/Pi 4. HW-validated
+(`/bin/startx wmaker`; a netboot input-flake retry cleared the first attempt). HDMI grab
+(`20260809-045255-wmaker2-tick.png`) shows a genuine DE: Window Maker's mauve root + **Workspace clip** (top-left)
++ **dock app-icon** (top-right) + a **fully populated cascading app menu** (Window Maker → Applications →
+Terminals/Internet/Mathematics/Editors/… — the flagged cpp-menu blocker did NOT bite) + TWO **WM-decorated app
+windows**: "Phoenix V3D GL" (V3D GPU pinwheel, full titlebar/buttons/border) and "Phoenix ffmpeg video"
+(ffmpeg video, GREEN frame = motion vs mediadesk's BLUE); video ran 65 passes/2730 frames/0 faults. So a real WM
+(dock/clip/menu/decorations) hosts a GPU app + a live video concurrently = the closest achievable milestone to the
+owner's XFce goal (full XFce impractical: unported GTK/dbus stack). Committed `wmaker` launcher mode (0340be3).
+**Desktop capstone COMPLETE: twm + Window Maker desktops, both with concurrent GPU + video, plus Dillo HTTPS
+browsing — all HW-proven.** NEXT: fresh direction (revisit a banked item, SuperTuxKart feasibility, or more
+publication/docs). [[project_x11_gpu_windowed_feasibility]] [[project_x11_lib_port]]
+
 2026-08-09 (DESKTOP-ENVIRONMENT verdict → Window Maker as the shell). DE-feasibility scan verdict: **full XFce
 is IMPRACTICAL** on this static/no-dlopen port (needs ~10 unported libs — GTK/gdk-pixbuf/cairo/pango/dbus/xfce
 libs; only glib partially ported + crashes in mc; GModule/dlopen degrades plugins) — labor-blocked, many-session

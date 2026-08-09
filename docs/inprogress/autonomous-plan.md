@@ -416,6 +416,23 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (WiFi re-analysis DONE + quakespasm wedge = BOUNDED caps-fix; both verdicts in). (1) **quakespasm→SDL
+wedge is BOUNDED, not deep** — the SDL video render-target/scanout is byte-identical to the flagship (same
+sdl_phoenix_glctx glue + winsys + scanout_init + 1920x1080 dims). The wedge = auto-detected GL caps: stock
+gl_vidsdl enables glsl_gamma (per-frame full-screen texture-copy+sampler pass) + NPOT (tile-list inflation) →
+V3D binner overflow (mmu_ill ~0xf831f000, INT_OUTOMEM class), whereas pl_phoenix_vid hand-curates them OFF.
+**Fix = 3 launch flags `-noglslgamma -notexturenpot -nopackedpixels`** (zero rebuild; flagship proves the reduced
+caps run clean). Testing now (cycle qssdlcaps) — if clean, #3 part 2 core is proven; if it still wedges → DEEP
+(winsys binner-overflow rework) → bank. (2) **WiFi critical re-analysis DONE → decomposed plan in
+[[project_wifi_fw_exec_gate_91]].** Headline corrections: old notes WRONGLY closed NVRAM (never confirmed on-chip
+— the check used block_size=16 vs 64-byte F1 → -EIO → uninitialized-buffer zeros; ram-top hardcoded not from CR4
+bankinfo) + the CR4 core/base is AMBIGUOUS (two ARM wrappers, opposite POR states, notes disagree). All live WiFi
+code DELETED (recover from lwip a078a5c:port/diag-udp.c). The DECISIVE never-run experiment = the trivial-program
+test (10-instr counter blob vs the 643KB fw → bisects release-works vs release-broken in 1 cycle). New debug
+facilities DON'T see across SDIO (honest); the real asset is repeatability. Likely a tractable SW bug. NEXT: reap
+the caps test (finish #3 part2), then WiFi burst 1 = reintroduce the downloader as a standalone SDIO probe +
+trivial-program test. [[project_sdl2_port]]
+
 2026-08-09 ★ OWNER LEFT A NEW DIRECTIVE (commit 54329a1) → PIVOT TO WiFi. Discovered via a push-rejection: the
 owner pushed "New comments from the operator" to publish/main. New 2026-08-09 comments (now in the board's
 "Comments from operator" section): keep going; if no low-risk quick-wins, pick a risky-long task + decompose;

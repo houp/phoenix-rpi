@@ -244,11 +244,12 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 **★★★ 2026-08-09 OWNER UPDATE (Witold, commit 54329a1 — see "## Comments from human operator / owner (2026-08-09)"
 above). NEW PRIORITIES (owner back Aug 19 late eve — stay busy the whole time):**
-1. **★ REVIVE WiFi (BCM43455 SDIO, #91) — the headline.** ★★★ 2026-08-09 MAJOR: the trivial-program test PROVED
-   the **CR4 release path WORKS** (chip executes released code — counter live+climbing on HW, 2 boots). The
-   long-stuck gate was NEVER the release. **NOW: fw preconditions** — prime suspect NVRAM ram-top (hardcoded
-   0x238000 vs the true value from CR4 bankinfo). Add bankinfo read → true ram-top → NVRAM placement → real fw →
-   HT_AVAIL. THEN clock/PMU if still stalled, then the real driver, then Bluetooth. [[project_wifi_fw_exec_gate_91]]
+1. **★ REVIVE WiFi (BCM43455 SDIO, #91) — the headline.** ★★★★ 2026-08-09 **FIRMWARE BOOTS!** The real 643KB fw
+   now RUNS on Phoenix (HT_AVAIL + HMB_FWREADY + F2-ready + mem-writes). Root cause solved: NVRAM was misplaced by
+   160KB (ram-top hardcoded 0x238000 vs TRUE 0x260000 from CR4 bankinfo) + missing intstatus-clear + wrong mailbox
+   base — found via the trivial-program test (release always OK) then the EROM walk. **NEXT PHASE = the real driver:
+   SDPCM/BCDC over F2 → init ioctls (brcmf_c_preinit_dcmds) → WLC_SCAN/escan → join/WPA2 → DHCP; then Bluetooth.**
+   [[project_wifi_fw_exec_gate_91]]
 2. **Second CODE-REVIEW pass** on all the recent system changes / ports / new items (the vacation-run additions).
 3. **Mine docs/inprogress/ + docs/todo/** for re-explorable tasks; extend the task list with past-considered
    not-yet-done work.
@@ -416,6 +417,19 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-09 (★★★★ WiFi #91 — the BCM43455 FIRMWARE BOOTS ON PHOENIX). Decisive HW run (cycle bdkykc09s, real 643KB
+fw): ALL firmware-alive signals positive + concordant — HMB tohostmailboxdata@0x1800404c=0x00040008 (FWREADY set),
+CHIPCLKCSR=0xc8 (HT_AVAIL asserted — fw requested+got the HT clock), F2 SDPCM data channel ready@iter50, image-scan
+2/6 points changed (fw writing runtime data). fw_alive=1. After a years-long block at "fw won't execute," root
+cause is now proven: (1) the CR4 RELEASE PATH WAS ALWAYS FINE (trivial-program test: our counter ran ~12M
+increments); (2) the REAL fw died because **NVRAM was misplaced by 160KB** — ram-top hardcoded 0x238000 vs the TRUE
+0x260000 from CR4 bankinfo (ramsize 0xC8000) — so the bootloader never found NVRAM; plus the missing SDIO-core
+intstatus-clear and the fw-ready mailbox read at the wrong base (0x18005000 vs the EROM-enumerated 0x18004000).
+Method that cracked it: trivial-program test (bisected release-vs-preconditions) → EROM/DMP walk (real core bases)
+→ bankinfo ramsize → NVRAM at true ram-top. All in the standalone tools/wifi-probe/ (commits c252d50, 904cdf8,
+4773c24, 96c81a5, 43816a1; pushed). **NEXT PHASE: the real driver — SDPCM/BCDC over F2 → init ioctls → scan → join
+→ DHCP (reuse brcmfmac fwil/bcdc), then Bluetooth.** [[project_wifi_fw_exec_gate_91]]
 
 2026-08-09 (★★★ WiFi #91 FLIPPED — the CR4 RELEASE PATH WORKS + code-review triage DONE). The trivial-program
 test (tools/wifi-probe/ `trivial` mode: 8KB blob reusing the real fw's verbatim Thumb-2 reset vector `0xb83ef198`

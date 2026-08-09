@@ -244,7 +244,15 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 **★★★ 2026-08-09 OWNER UPDATE (Witold, commit 54329a1 — see "## Comments from human operator / owner (2026-08-09)"
 above). NEW PRIORITIES (owner back Aug 19 late eve — stay busy the whole time):**
-1. **★ REVIVE WiFi (BCM43455 SDIO, #91) — the headline.** ★★★★★★ 2026-08-09 **SCAN WORKS — the radio found 16 real
+1. **★ WiFi + Bluetooth (BCM43455 combo) — the headline — BOTH RADIOS UP (2026-08-09).** WiFi: SCAN WORKS (16 real
+   APs, full SDIO→fw→BCDC→escan chain). Bluetooth: FUNCTIONAL (controller alive + patchram 323/323 + real BD_ADDR
+   + HCI Inquiry, over a self-routed mini-UART). The owner's "fully bring WiFi up, THEN Bluetooth" is DONE.
+   Remaining WiFi (real-network join) is a credential-gated 1-step owner follow-up; remaining BT (host stack /
+   discoverable) needs a port or external devices — both documented + banked. tools/wifi-probe/ + tools/bt-probe/.
+   → **ROTATE to other open tasks next** (SDL de-Quake refactor, Quake 1 MP, Quake 2/3 runtime, X11/XFce, upstream
+   sync, perf, kernel fixes). [[project_wifi_fw_exec_gate_91]] [[project_bluetooth_bringup]]
+
+   (historical) ★★★★★★ 2026-08-09 **SCAN WORKS — the radio found 16 real
    APs** (SSID/BSSID/RSSI/channel, done_status=0). Full chain proven, driven entirely by Phoenix: SDIO → fw boot
    (NVRAM ram-top 0x260000) → F2 (SDHCI reset) → BCDC ioctl API (RX demux) → iovars → CLM regulatory blob load
    (the NOTUP fix) → escan → WLC_E_ESCAN_RESULT event parse. tools/wifi-probe/ `scan`. **NEXT (advisor-scoped,

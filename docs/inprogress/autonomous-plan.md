@@ -416,6 +416,9 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (WiFi burst 1 DONE — probe built+committed+staged; HW baseline running). Recovered the deleted BCM43455 downloader verbatim from lwip a078a5c (11 SDIO helpers + the 583-line diag_format_sdio_fwrelease) into a STANDALONE probe tools/wifi-probe/ (0 undefined, fw embedded, zero lwip coupling; mmaps SDHCI@0xfe300000/GPIO@0xfe200000/mailbox WL_ON; runs once+exits, prints fw_alive telemetry). Committed wifi-probe.c+build.sh. Staged /bin/wifi-probe. HW baseline cycle running (reproduce fw_alive=0 on the stable system). Code-review pass also running (parallel). NEXT: read the probe telemetry (baseline) → then the DECISIVE trivial-program test (10-instr counter blob vs 643KB fw → bisects release-works vs broken). [[project_wifi_fw_exec_gate_91]]
+
+
 2026-08-09 (WiFi burst 1 in progress + 2nd code-review pass spawned — parallel owner directives). WiFi burst-1 subagent progressing well (recovered the deleted SDIO downloader from lwip a078a5c; confirmed the WiFi bring-up path has ZERO lwip coupling → a clean standalone probe is viable; verified the standalone aarch64-phoenix toolchain build + sys/mman/MAP_PHYSMEM/va2pa resolve). Also spawned the owner-directed 2nd code-review pass (#2 of the 2026-08-09 comments) over the recent core kernel/lwip changes (poll fix 9a6d4743, lazy-BSS b446114f, NFSv4 exec re-drive) + the new tools/ ports/harnesses + the psh-interact fix — ranked real-defect + upstreamability findings. NEXT: reap WiFi burst-1 → HW baseline + trivial-program test (burst 2); triage the code-review findings. [[project_wifi_fw_exec_gate_91]]
 
 

@@ -421,6 +421,16 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (BT Tier-2 patchram implemented; HW test running). Built the patch-RAM uploader (mirrors Linux
+btbcm_patchram: Download_Minidriver 0xfc2e -> replay each .hcd record waiting for Command Complete -> settle;
+final record = Launch_RAM 0xfc4e). Firmware = BCM4345C0.raspberrypi,4-model-b.hcd (63806B, from the netboot Linux
+rootfs, embedded via gen-bt-hcd.py, EULA->gitignored). Then post-patch HCI_RESET + READ_LOCAL_VERSION (subver
+should change from ROM 0x6119), READ_BD_ADDR (non-zero MAC = patch loaded), and HCI Inquiry (0x0401 GIAC) parsing
+Inquiry Result BD_ADDRs = the classic-BT device scan (BT analog of the WiFi scan). Cycle btpatchram running (~30s:
+~500 records over the 115200 mini-UART + ~10s inquiry). Result discriminates: real BD_ADDR + devices => BT
+functional; all-zero MAC => patch didn't apply (record acks?). [[project_bluetooth_bringup]]
+
+
 2026-08-09 (★ BT TIER-0 DONE — the BT controller is ALIVE under Phoenix). Cycle btrts: asserting RTS (mini-UART
 AUX_MU_MCR bit1, active-low; MCR=0 had left it "host not ready" so the chip held its reply — advisor's lead) made
 it work. HCI_RESET → `04 0e 04 01 03 0c 00` (Command Complete, opcode 0x0c03, status 0); READ_LOCAL_VERSION →

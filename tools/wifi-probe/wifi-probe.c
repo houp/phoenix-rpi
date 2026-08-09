@@ -1485,6 +1485,7 @@ static void diag_bcdcGetVersion(volatile uint8_t *sdhci, uint32_t sdio_core)
 
 static int g_scan_mode = 0;
 static int g_scan_ran = 0;
+static uint32_t g_ram_size = 0u; /* set in the main flow; used to re-read the fw console after scan */
 static int g_scan_em_rc = -100, g_scan_up_rc = -100, g_scan_mpc_rc = -100, g_scan_escan_rc = -100;
 static int g_scan_ap_count = 0, g_scan_evt_total = 0, g_scan_escan_events = 0;
 static int g_scan_done_status = -1;
@@ -1651,6 +1652,9 @@ static void diag_wifiScan(volatile uint8_t *sdhci, uint32_t sdio_core)
 			g_scan_ap_count++;
 		}
 	}
+
+	/* Re-read the fw console: any escan rejection is logged there by the fw. */
+	diag_readShared(sdhci, g_ram_size);
 }
 
 /* #91 "trivial-program test" mode. When set (argv "trivial"), the 643 KB
@@ -1860,6 +1864,7 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 		}
 		/* True TCM ramsize from CR4 bankinfo (fw is halted here — safe). */
 		ram_size = diag_cr4RamSize(sdhci, cr4_core);
+		g_ram_size = ram_size;
 
 		while (fw_offset < fw_target_bytes && rc_hs == 0) {
 			uint32_t addr = 0x00198000u + (uint32_t)window_idx * 0x8000u;

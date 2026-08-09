@@ -53,13 +53,11 @@
 #include <string.h>
 #include <unistd.h>
 
-
 /* ------------------------------------------------------------------ */
 /* BCM2711 GPIO block (function-select for the SDIO alt-function). */
 
 #define BCM2711_GPIO_BASE   0xfe200000u
 #define GPIO_GPFSEL0        0x00u   /* +4*n for GPFSEL1..5 */
-
 
 /* Set pin function-select (3 bits). pin: 0..53, fn: 0..7. Read-
  * modify-write of GPFSEL(pin/10). Routes GPIO 34..39 to ALT3 for SDIO. */
@@ -73,7 +71,6 @@ static void diag_gpioSetFsel(volatile uint8_t *base, unsigned pin, unsigned fn)
 	v |= ((fn & 0x7u) << shift);
 	*reg = v;
 }
-
 
 /* ------------------------------------------------------------------ */
 /* VideoCore mailbox (property channel). Used only for the WL_ON expander
@@ -93,7 +90,6 @@ static void diag_gpioSetFsel(volatile uint8_t *base, unsigned pin, unsigned fn)
 #define VC_PROP_SET_GPIO_STATE  0x00038041u
 
 #define EXPGPIO_WL_ON           129u  /* expgpio[1] = "WL_ON" per Pi 4 DT */
-
 
 /* Get / set VideoCore device power state (here: an expander GPIO via
  * SET_GPIO_STATE). Returns the resulting state on success, 0xFFFFFFFF on
@@ -166,7 +162,6 @@ static uint32_t diag_mboxPower(uint32_t tag, uint32_t device_id, uint32_t state)
 	return result;
 }
 
-
 /* Cold-power-cycle the BCM43455 WiFi chip via its WL_REG_ON line (a Pi 4
  * expander GPIO driven through the VideoCore mailbox): drop it, wait,
  * re-assert, settle. NB: a 20x-longer power-down was tested and did NOT
@@ -179,7 +174,6 @@ static void diag_wifiPowerCycle(void)
 	(void)diag_mboxPower(VC_PROP_SET_GPIO_STATE, EXPGPIO_WL_ON, 1u);
 	usleep(150 * 1000);
 }
-
 
 /* ------------------------------------------------------------------ */
 /* SDHCI 3.0 controller (Arasan @ 0xfe300000). Register offsets and
@@ -226,7 +220,6 @@ static void diag_wifiPowerCycle(void)
 #define SDHCI_INT_XFER_COMPLETE  0x00000002u
 #define SDHCI_INT_BUF_RD_READY   0x00000020u
 #define SDHCI_INT_BUF_WR_READY   0x00000010u
-
 
 /* Program SDHCI to a target SD-bus clock by dividing the 250 MHz base.
  * Per SDHCI 3.0 §2.2.13: divisor is 10-bit, output_hz = base / (2*N). */
@@ -285,7 +278,6 @@ static int diag_sdhciSetClockKHz(volatile uint8_t *base, unsigned target_khz)
 	return 0;
 }
 
-
 /* Soft-reset the CMD and DAT lines without disturbing CLOCK_CTL /
  * TIMEOUT_CTL (which firmware has already set up). 32-bit RMW. */
 static int diag_sdhciResetCmdDat(volatile uint8_t *base)
@@ -305,7 +297,6 @@ static int diag_sdhciResetCmdDat(volatile uint8_t *base)
 	}
 	return -1;
 }
-
 
 /* Issue an SDHCI command. Returns 0 on success, negative on error. On
  * success, response_out[0..3] is filled from RESPONSE_0..3 (caller must
@@ -370,7 +361,6 @@ static int diag_sdhciCmd(volatile uint8_t *base, uint8_t cmd_index,
 	return 0;
 }
 
-
 /* CMD52 (IO_RW_DIRECT). arg layout: bit31 R/W, bits30:28 FN, bits25:9
  * 17-bit REG, bits7:0 DATA. resp_out must be a 4-element uint32_t array
  * (diag_sdhciCmd unconditionally dumps all four response slots). */
@@ -387,7 +377,6 @@ static int diag_sdioCmd52(volatile uint8_t *sdhci, int write, int fn,
 	}
 	return diag_sdhciCmd(sdhci, 52u, arg, SDHCI_RESP_R5, resp_out);
 }
-
 
 /* Switch SDIO to High-Speed (25 MHz) on a 4-bit data bus. Call after
  * CMD0/5/3/7 + F1 enable + IORDY. Sequence per BCM43455c0 / SDIO 2.0:
@@ -437,7 +426,6 @@ static int diag_sdioGoHighSpeed(volatile uint8_t *sdhci)
 	return 0;
 }
 
-
 /* CMD53 (IO_RW_EXTENDED) block-mode READ via SDHCI PIO. buf must point
  * to a 4-byte-aligned destination of at least block_count*block_size
  * bytes. */
@@ -450,7 +438,6 @@ static int diag_sdioCmd53Read(volatile uint8_t *sdhci, int fn,
 	uint32_t st;
 	uint32_t bytes_total = block_count * block_size;
 	uint32_t words_total = bytes_total / 4u;
-	uint32_t block_words = block_size / 4u;
 	uint32_t bytes_in_block = 0;
 	uint32_t i;
 	int deadline;
@@ -534,7 +521,6 @@ static int diag_sdioCmd53Read(volatile uint8_t *sdhci, int fn,
 			bytes_in_block = 0u;
 			*(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS) = SDHCI_INT_BUF_RD_READY;
 		}
-		(void)block_words;
 	}
 
 	for (deadline = 100000; deadline > 0; --deadline) {
@@ -552,7 +538,6 @@ static int diag_sdioCmd53Read(volatile uint8_t *sdhci, int fn,
 	*(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS) = 0xFFFFFFFFu;
 	return 0;
 }
-
 
 /* CMD53 (IO_RW_EXTENDED) BYTE-mode transfers: a single transaction of `nbytes`
  * (<=512), no SDIO block-count. brcmf/MMC use byte mode for sub-block control
@@ -812,7 +797,6 @@ static int diag_sdioCmd53Write(volatile uint8_t *sdhci, int fn,
 	*(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS) = 0xFFFFFFFFu;
 	return 0;
 }
-
 
 /* ------------------------------------------------------------------ */
 /* ---- #91 EROM (DMP) walk -------------------------------------------------
@@ -1187,86 +1171,6 @@ static void diag_sdhciResetDatCmd(volatile uint8_t *sdhci)
 	}
 }
 
-/* Fully-instrumented single F2 (or any-fn) byte-mode CMD53 READ, for diagnosing
- * why F2 data transfers fail: captures the R5 response (card's verdict on the
- * CMD53 -- NAK/invalid-function/out-of-range live in R5 bits [15:8]), the exact
- * INT_STATUS on error (which SDHCI error bit), and whether the command phase vs
- * the data phase is the failure. Resets the DAT/CMD lines afterwards. */
-static uint32_t g_f2_r5 = 0u, g_f2_errst = 0u;
-static int g_f2_cmd_rc = -100, g_f2_data_rc = -100;
-__attribute__((unused))
-static void diag_f2ReadDiag(volatile uint8_t *sdhci, int fn, int incr_addr,
-	uint32_t reg_addr, uint32_t nbytes, uint8_t *buf)
-{
-	uint32_t arg, cmd_word, st, data;
-	uint32_t words_total = (nbytes + 3u) / 4u, i;
-	int deadline;
-
-	g_f2_r5 = 0u;
-	g_f2_errst = 0u;
-	g_f2_cmd_rc = -100;
-	g_f2_data_rc = -100;
-
-	for (deadline = 100000; deadline > 0; --deadline) {
-		if ((*(volatile uint32_t *)(sdhci + SDHCI_PRES_STATE) & SDHCI_PRES_CMD_INHIBIT) == 0u) {
-			break;
-		}
-	}
-	*(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS) = 0xFFFFFFFFu;
-	*(volatile uint32_t *)(sdhci + SDHCI_BLOCK_SIZE_CNT) = (1u << 16) | (nbytes & 0xFFFu);
-	arg = (0u << 31) | ((uint32_t)(fn & 7u) << 28) |
-		((incr_addr ? 1u : 0u) << 26) |
-		((reg_addr & 0x1FFFFu) << 9) | (nbytes & 0x1FFu);
-	*(volatile uint32_t *)(sdhci + SDHCI_ARGUMENT_1) = arg;
-	cmd_word = (1u << 4) | ((uint32_t)0x3Au << 16) | ((uint32_t)53u << 24);
-	*(volatile uint32_t *)(sdhci + SDHCI_TRANS_CMD) = cmd_word;
-
-	for (deadline = 100000; deadline > 0; --deadline) {
-		st = *(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS);
-		if ((st & SDHCI_INT_ERR_ANY) != 0u) {
-			g_f2_errst = st;
-			g_f2_cmd_rc = -2;
-			break;
-		}
-		if ((st & SDHCI_INT_CMD_COMPLETE) != 0u) {
-			g_f2_cmd_rc = 0;
-			break;
-		}
-	}
-	g_f2_r5 = *(volatile uint32_t *)(sdhci + SDHCI_RESPONSE_0); /* card's CMD53 verdict */
-	if (g_f2_cmd_rc != 0) {
-		diag_sdhciResetDatCmd(sdhci);
-		return;
-	}
-	*(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS) = SDHCI_INT_CMD_COMPLETE;
-
-	for (deadline = 100000; deadline > 0; --deadline) {
-		st = *(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS);
-		if ((st & SDHCI_INT_ERR_ANY) != 0u) {
-			g_f2_errst = st;
-			g_f2_data_rc = -4;
-			break;
-		}
-		if ((st & SDHCI_INT_BUF_RD_READY) != 0u) {
-			g_f2_data_rc = 0;
-			break;
-		}
-	}
-	if (g_f2_data_rc == 0) {
-		for (i = 0; i < words_total; ++i) {
-			data = *(volatile uint32_t *)(sdhci + SDHCI_DATA_PORT);
-			if (buf != NULL) {
-				buf[i * 4 + 0] = (uint8_t)(data & 0xffu);
-				buf[i * 4 + 1] = (uint8_t)((data >> 8) & 0xffu);
-				buf[i * 4 + 2] = (uint8_t)((data >> 16) & 0xffu);
-				buf[i * 4 + 3] = (uint8_t)((data >> 24) & 0xffu);
-			}
-		}
-	}
-	diag_sdhciResetDatCmd(sdhci);
-	*(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS) = 0xFFFFFFFFu;
-}
-
 /* ---- #91 BCDC control ioctl round-trip over F2 ---------------------------
  * First real driver protocol: send one BCDC GET (WLC_GET_VERSION=1) wrapped in
  * an SDPCM control frame over SDIO function 2, poll the SDIO-core intstatus for
@@ -1332,6 +1236,14 @@ static int diag_f2RecvFrame(volatile uint8_t *sdhci, uint8_t *buf,
 		diag_sdhciResetDatCmd(sdhci);
 		return -31;
 	}
+	/* Clamp the fw-claimed length to what we actually read (512): `len` is a
+	 * fw-controlled 16-bit field, and every downstream offset check (event
+	 * stack: ehdr = sdoff + 4 + 4*data_offset, bss = ehdr+84, ...) is bounded
+	 * against *outlen -- an unclamped len would let a malformed large frame
+	 * drive those indices past g_rxf[512]. We only ever read one 512B frame. */
+	if (len > (uint16_t)F2_FRAME_MAX) {
+		len = (uint16_t)F2_FRAME_MAX;
+	}
 	*outlen = len;
 	*outchan = (uint8_t)(buf[5] & 0x0fu);
 	return 0;
@@ -1360,7 +1272,7 @@ static int diag_bcdcCmd(volatile uint8_t *sdhci, uint32_t sdio_core, int is_set,
 		*rxlen = 0u;
 	}
 	if (total > F2_FRAME_MAX) {
-		return -40;
+		return -1040; /* transport errors use <= -1000 so they can't be mistaken for a fw BCME_* status */
 	}
 	for (i = 0; i < F2_FRAME_MAX; ++i) {
 		g_txf[i] = 0u;
@@ -1393,7 +1305,7 @@ static int diag_bcdcCmd(volatile uint8_t *sdhci, uint32_t sdio_core, int is_set,
 	rc = diag_sdioCmd53WriteByteMode(sdhci, 2, /*incr=*/1, IOCTL_F2_ADDR, wlen, g_txf);
 	if (rc != 0) {
 		diag_sdhciResetDatCmd(sdhci);
-		return -41;
+		return -1041; /* transport error range (<= -1000), distinct from fw BCME_* */
 	}
 
 	/* Drain the F2 RX FIFO directly rather than one-frame-per-interrupt: the fw
@@ -1449,7 +1361,7 @@ static int diag_bcdcCmd(volatile uint8_t *sdhci, uint32_t sdio_core, int is_set,
 		}
 		/* data channel -- ignore */
 	}
-	return -42; /* no matching reply */
+	return -1042; /* no matching reply (transport error range, distinct from fw BCME_*) */
 }
 
 /* Validate the RX demux: a single GET_VERSION that must skip any queued async
@@ -1726,6 +1638,9 @@ static void diag_wifiScan(volatile uint8_t *sdhci, uint32_t sdio_core)
 		if (ehdr + 48u > (uint32_t)len) {
 			continue;
 		}
+		/* event_type==69 (below) is the effective filter for escan results; the
+		 * brcm_ethhdr OUI (00:10:18) check from SCAN-SPEC is intentionally
+		 * omitted (marginal, and a wrong offset would drop valid events). */
 		if (diag_be16(g_rxf + ehdr + 12u) != 0x886Cu) {
 			continue; /* not an event (h_proto != ETH_P_LINK_CTL) */
 		}
@@ -1858,6 +1773,10 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 			"error: firmware blob not staged\n.\n");
 		return off + (r > 0 ? r : 0);
 	}
+	/* Round down to the 64-byte block: the CR4 image is loaded verbatim to
+	 * rambase with no end-of-image trailer, so dropping the <64-byte tail
+	 * (643651 % 64 = 3) is benign and the fw boots+scans. (NVRAM IS 64-aligned
+	 * = 27*64, so its ram-top magic token is transferred in full.) */
 	fw_target_bytes = (fw_img_len / blk_size) * blk_size;
 
 	gpio_page = mmap(NULL, _PAGE_SIZE, PROT_READ | PROT_WRITE,
@@ -2707,7 +2626,6 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 	}
 	return off;
 }
-
 
 int main(int argc, char **argv)
 {

@@ -1,0 +1,1297 @@
+/*
+ * Phoenix-RTOS --- Raspberry Pi 4 WiFi (BCM43455 SDIO) bring-up probe
+ *
+ * Standalone userspace probe that reproduces the 2026-06-04 WiFi
+ * firmware-download + ARM-CR4-release baseline on the Pi 4's BCM43455
+ * SDIO chip, then reports whether the firmware came alive.
+ *
+ * PROVENANCE
+ * ----------
+ * The SDIO/SDHCI/GPIO/mailbox helpers and the firmware-release sequence
+ * below were extracted VERBATIM from the lwip-port diagnostic UDP
+ * responder (`port/diag-udp.c`) as it existed at commit a078a5c — the
+ * last commit before the whole live WiFi bring-up path was deleted in
+ * f0973b5. The original ran this sequence from a UDP 'G' command handler
+ * (`diag_format_sdio_fwrelease`), which had to run inside the lwip-port
+ * process because post-fbcon Pi 4 boots did not capture userspace stdout
+ * over the pl011 UART. That coupling — a second owner of the UART/xHCI
+ * path sharing the lwip process — is exactly what motivated the removal.
+ *
+ * This probe drops the UDP responder entirely and instead runs the
+ * bring-up ONCE from `main()`, printing the identical telemetry to
+ * stdout. It has NO lwip dependency: the WiFi path only ever used
+ * mmap()/va2pa()/usleep()/snprintf() plus the two firmware C-arrays, so
+ * it extracts cleanly into a self-contained binary. Run it from the psh
+ * prompt on the Pi and read the report over the console.
+ *
+ * NB: the original 'G' reply was capped at one UDP datagram (1472 B),
+ * which truncated the later telemetry lines. This probe uses a large
+ * heap buffer, so its output is a SUPERSET of the old 'G' — same values,
+ * nothing truncated.
+ *
+ * MMIO / GPIO TOUCHED (all via userspace mmap of physical pages, the
+ * same MAP_PHYSMEM|MAP_DEVICE|MAP_UNCACHED pattern the ported
+ * thermal/hwrng/vcmbox drivers use):
+ *   - SDHCI (Arasan) @ 0xfe300000     — the controller the 43455 sits on
+ *   - BCM2711 GPIO   @ 0xfe200000     — routes GPIO 34..39 to ALT3 (SDIO)
+ *   - VideoCore mbox @ 0xfe00b880     — SET_GPIO_STATE(WL_ON) power cycle
+ *
+ * Copyright 2026 Phoenix Systems
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+#include "wifi-fw-43455.h"
+#include "wifi-nvram-43455.h"
+
+#include <sys/mman.h>
+
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+
+/* ------------------------------------------------------------------ */
+/* BCM2711 GPIO block (function-select for the SDIO alt-function). */
+
+#define BCM2711_GPIO_BASE   0xfe200000u
+#define GPIO_GPFSEL0        0x00u   /* +4*n for GPFSEL1..5 */
+
+
+/* Set pin function-select (3 bits). pin: 0..53, fn: 0..7. Read-
+ * modify-write of GPFSEL(pin/10). Routes GPIO 34..39 to ALT3 for SDIO. */
+static void diag_gpioSetFsel(volatile uint8_t *base, unsigned pin, unsigned fn)
+{
+	unsigned bank = pin / 10u;
+	unsigned shift = (pin % 10u) * 3u;
+	volatile uint32_t *reg = (volatile uint32_t *)(base + GPIO_GPFSEL0 + bank * 4u);
+	uint32_t v = *reg;
+	v &= ~(0x7u << shift);
+	v |= ((fn & 0x7u) << shift);
+	*reg = v;
+}
+
+
+/* ------------------------------------------------------------------ */
+/* VideoCore mailbox (property channel). Used only for the WL_ON expander
+ * GPIO power cycle. Pi 4 mailbox base hardcoded (the port has no
+ * board_config.h include path). */
+
+#define RPI_PI4_MAILBOX_BASE  0xfe00b880u
+
+#define VC_MBOX_READ          0x00u
+#define VC_MBOX_STATUS        0x18u
+#define VC_MBOX_WRITE         0x20u
+#define VC_MBOX_STATUS_FULL   0x80000000u
+#define VC_MBOX_STATUS_EMPTY  0x40000000u
+#define VC_MBOX_RESP_OK       0x80000000u
+#define VC_MBOX_PROP_CHANNEL  8u
+
+#define VC_PROP_SET_GPIO_STATE  0x00038041u
+
+#define EXPGPIO_WL_ON           129u  /* expgpio[1] = "WL_ON" per Pi 4 DT */
+
+
+/* Get / set VideoCore device power state (here: an expander GPIO via
+ * SET_GPIO_STATE). Returns the resulting state on success, 0xFFFFFFFF on
+ * failure. */
+static uint32_t diag_mboxPower(uint32_t tag, uint32_t device_id, uint32_t state)
+{
+	addr_t pa_base = (addr_t)RPI_PI4_MAILBOX_BASE & ~(addr_t)(_PAGE_SIZE - 1);
+	addr_t pa_offs = (addr_t)RPI_PI4_MAILBOX_BASE & (addr_t)(_PAGE_SIZE - 1);
+	volatile uint32_t *mbox;
+	uint32_t *msg;
+	uintptr_t msg_pa;
+	uint32_t request;
+	uint32_t result = 0xFFFFFFFFu;
+	void *mbox_page;
+	void *msg_page;
+
+	mbox_page = mmap(NULL, _PAGE_SIZE, PROT_READ | PROT_WRITE,
+		MAP_DEVICE | MAP_UNCACHED | MAP_PHYSMEM | MAP_ANONYMOUS,
+		-1, pa_base);
+	if (mbox_page == MAP_FAILED) {
+		return 0xFFFFFFFFu;
+	}
+	mbox = (volatile uint32_t *)((volatile uint8_t *)mbox_page + pa_offs);
+
+	msg_page = mmap(NULL, _PAGE_SIZE, PROT_READ | PROT_WRITE,
+		MAP_UNCACHED | MAP_CONTIGUOUS | MAP_ANONYMOUS, -1, 0);
+	if (msg_page == MAP_FAILED) {
+		munmap(mbox_page, _PAGE_SIZE);
+		return 0xFFFFFFFFu;
+	}
+	msg = msg_page;
+
+	/* GET takes (device_id) and returns (device_id, state).
+	 * SET takes (device_id, state) and returns (device_id, state). */
+	msg[0] = 32;
+	msg[1] = 0;
+	msg[2] = tag;
+	msg[3] = 8;
+	msg[4] = 0;
+	msg[5] = device_id;
+	msg[6] = state;
+	msg[7] = 0;
+
+	msg_pa = (uintptr_t)va2pa(msg);
+	if (msg_pa == (uintptr_t)-1) {
+		munmap(msg_page, _PAGE_SIZE);
+		munmap(mbox_page, _PAGE_SIZE);
+		return 0xFFFFFFFFu;
+	}
+	request = ((uint32_t)msg_pa & ~0xFu) | VC_MBOX_PROP_CHANNEL;
+
+	while ((mbox[VC_MBOX_STATUS / 4] & VC_MBOX_STATUS_FULL) != 0u) {
+	}
+	mbox[VC_MBOX_WRITE / 4] = request;
+
+	for (;;) {
+		while ((mbox[VC_MBOX_STATUS / 4] & VC_MBOX_STATUS_EMPTY) != 0u) {
+		}
+		if (mbox[VC_MBOX_READ / 4] == request) {
+			break;
+		}
+	}
+
+	if (msg[1] == VC_MBOX_RESP_OK) {
+		result = msg[6];  /* returned state */
+	}
+
+	munmap(msg_page, _PAGE_SIZE);
+	munmap(mbox_page, _PAGE_SIZE);
+	return result;
+}
+
+
+/* Cold-power-cycle the BCM43455 WiFi chip via its WL_REG_ON line (a Pi 4
+ * expander GPIO driven through the VideoCore mailbox): drop it, wait,
+ * re-assert, settle. NB: a 20x-longer power-down was tested and did NOT
+ * make the 43455 firmware execute (the fw-exec gate is not a reset-timing
+ * issue); 50/150 ms is the established, enumeration-tested baseline. */
+static void diag_wifiPowerCycle(void)
+{
+	(void)diag_mboxPower(VC_PROP_SET_GPIO_STATE, EXPGPIO_WL_ON, 0u);
+	usleep(50 * 1000);
+	(void)diag_mboxPower(VC_PROP_SET_GPIO_STATE, EXPGPIO_WL_ON, 1u);
+	usleep(150 * 1000);
+}
+
+
+/* ------------------------------------------------------------------ */
+/* SDHCI 3.0 controller (Arasan @ 0xfe300000). Register offsets and
+ * command/response encodings per the SD Host Controller Simplified
+ * Specification 3.0. */
+
+#define SDHCI_ARGUMENT_1   0x08u
+#define SDHCI_TRANS_CMD    0x0Cu
+#define SDHCI_RESPONSE_0   0x10u
+#define SDHCI_PRES_STATE   0x24u
+#define SDHCI_INT_STATUS   0x30u
+
+#define SDHCI_PRES_CMD_INHIBIT  0x00000001u
+#define SDHCI_INT_CMD_COMPLETE  0x00000001u
+#define SDHCI_INT_ERR_ANY       0x00008000u  /* ERR_INT bits live in the upper 16 */
+
+/* SOFT_RESET_* live in bits 24..26 of the 32-bit dword at offset 0x2C
+ * (CLOCK_CTL + TIMEOUT_CTL + SOFT_RESET). Write 1 to start the reset;
+ * the bit clears when done. */
+#define SDHCI_CLK_TIMEOUT_RESET 0x2Cu
+#define SDHCI_SOFT_RESET_ALL    (1u << 24)
+#define SDHCI_SOFT_RESET_CMD    (1u << 25)
+#define SDHCI_SOFT_RESET_DAT    (1u << 26)
+
+/* Command-register RESPONSE_TYPE + check-bit encodings (bits 0..5 of the
+ * COMMAND half of the TRANS_CMD dword):
+ *   R0  (no resp)  = 0x00
+ *   R1             = 0x1a  (resp=2, CRC, index)
+ *   R1b            = 0x1b
+ *   R3  (CMD41)    = 0x02  (resp=2, no CRC, no index)
+ *   R4  (CMD5)     = 0x02
+ *   R5  (CMD52,53) = 0x1a
+ *   R6  (CMD3)     = 0x1a */
+#define SDHCI_RESP_R0   0x00u
+#define SDHCI_RESP_R1   0x1au
+#define SDHCI_RESP_R1b  0x1bu
+#define SDHCI_RESP_R3   0x02u
+#define SDHCI_RESP_R4   0x02u
+#define SDHCI_RESP_R5   0x1au
+#define SDHCI_RESP_R6   0x1au
+
+#define SDHCI_BLOCK_SIZE_CNT  0x04u  /* BLOCK_SIZE (low 16) + BLOCK_COUNT (high 16) */
+#define SDHCI_DATA_PORT       0x20u  /* PIO FIFO */
+#define SDHCI_INT_XFER_COMPLETE  0x00000002u
+#define SDHCI_INT_BUF_RD_READY   0x00000020u
+#define SDHCI_INT_BUF_WR_READY   0x00000010u
+
+
+/* Program SDHCI to a target SD-bus clock by dividing the 250 MHz base.
+ * Per SDHCI 3.0 §2.2.13: divisor is 10-bit, output_hz = base / (2*N). */
+static int diag_sdhciSetClockKHz(volatile uint8_t *base, unsigned target_khz)
+{
+	uint32_t base_hz = 250000000u;
+	uint32_t target_hz = (uint32_t)target_khz * 1000u;
+	uint32_t divisor;
+	uint32_t clkctl;
+	uint32_t i;
+
+	if (target_hz == 0u || target_hz > base_hz) {
+		return -1;
+	}
+	divisor = (base_hz + (2u * target_hz) - 1u) / (2u * target_hz);
+	if (divisor > 0x3FFu) {
+		divisor = 0x3FFu;
+	}
+
+	/* Disable SD clock first. RMW the low 16 (CLOCK_CTL) only. */
+	clkctl = *(volatile uint32_t *)(base + SDHCI_CLK_TIMEOUT_RESET);
+	clkctl &= 0xFFFF0000u;
+	*(volatile uint32_t *)(base + SDHCI_CLK_TIMEOUT_RESET) = clkctl;
+
+	/* Build new CLOCK_CTL: INTERNAL_CLOCK_EN=1, SD_CLOCK_EN=0 for now,
+	 * divisor high bits [9:8] at [7:6], low bits [7:0] at [15:8]. */
+	{
+		uint16_t cctl = (uint16_t)(
+			(uint16_t)(divisor & 0xFFu) << 8 |
+			(uint16_t)((divisor >> 8) & 0x3u) << 6 |
+			(1u << 0));
+		uint32_t hi = *(volatile uint32_t *)(base + SDHCI_CLK_TIMEOUT_RESET) &
+			0xFFFF0000u;
+		*(volatile uint32_t *)(base + SDHCI_CLK_TIMEOUT_RESET) =
+			hi | (uint32_t)cctl;
+	}
+
+	/* Wait for INTERNAL_CLOCK_STABLE (bit 1). */
+	for (i = 0; i < 100000u; ++i) {
+		uint32_t v = *(volatile uint32_t *)(base + SDHCI_CLK_TIMEOUT_RESET);
+		if ((v & (1u << 1)) != 0u) {
+			break;
+		}
+	}
+	if (i == 100000u) {
+		return -2;
+	}
+
+	/* Enable SD_CLOCK (bit 2). */
+	{
+		uint32_t v = *(volatile uint32_t *)(base + SDHCI_CLK_TIMEOUT_RESET);
+		v |= (1u << 2);
+		*(volatile uint32_t *)(base + SDHCI_CLK_TIMEOUT_RESET) = v;
+	}
+
+	return 0;
+}
+
+
+/* Soft-reset the CMD and DAT lines without disturbing CLOCK_CTL /
+ * TIMEOUT_CTL (which firmware has already set up). 32-bit RMW. */
+static int diag_sdhciResetCmdDat(volatile uint8_t *base)
+{
+	uint32_t orig = *(volatile uint32_t *)(base + SDHCI_CLK_TIMEOUT_RESET);
+	uint32_t deadline = 100000u;
+	uint32_t i;
+
+	*(volatile uint32_t *)(base + SDHCI_CLK_TIMEOUT_RESET) =
+		(orig & 0x00FFFFFFu) | SDHCI_SOFT_RESET_CMD | SDHCI_SOFT_RESET_DAT;
+
+	for (i = 0; i < deadline; ++i) {
+		uint32_t v = *(volatile uint32_t *)(base + SDHCI_CLK_TIMEOUT_RESET);
+		if ((v & (SDHCI_SOFT_RESET_CMD | SDHCI_SOFT_RESET_DAT)) == 0u) {
+			return 0;
+		}
+	}
+	return -1;
+}
+
+
+/* Issue an SDHCI command. Returns 0 on success, negative on error. On
+ * success, response_out[0..3] is filled from RESPONSE_0..3 (caller must
+ * allocate a 4-element array). */
+static int diag_sdhciCmd(volatile uint8_t *base, uint8_t cmd_index,
+	uint32_t arg, uint16_t resp_type, uint32_t response_out[4])
+{
+	uint32_t deadline = 100000u;
+	uint32_t i;
+
+	/* Clear stale INT_STATUS bits (W1C). */
+	*(volatile uint32_t *)(base + SDHCI_INT_STATUS) = 0xFFFFFFFFu;
+
+	/* Wait for CMD_INHIBIT clear. */
+	for (i = 0; i < deadline; ++i) {
+		if ((*(volatile uint32_t *)(base + SDHCI_PRES_STATE) &
+				SDHCI_PRES_CMD_INHIBIT) == 0u) {
+			break;
+		}
+	}
+	if (i == deadline) {
+		return -1;  /* CMD_INHIBIT stuck */
+	}
+
+	/* Program ARGUMENT then COMMAND. 32-bit write to TRANS_CMD (offset
+	 * 0x0C): low 16 = TRANSFER_MODE = 0 (no data), high 16 = COMMAND.
+	 * The Arasan controller requires the combined 32-bit write. COMMAND
+	 * layout in the upper dword: CMD_NUMBER at 31:24, RESPONSE_TYPE +
+	 * check bits at 21:16. */
+	*(volatile uint32_t *)(base + SDHCI_ARGUMENT_1) = arg;
+	{
+		uint32_t cmd_word =
+			((uint32_t)resp_type << 16) |
+			((uint32_t)cmd_index << 24);
+		*(volatile uint32_t *)(base + SDHCI_TRANS_CMD) = cmd_word;
+	}
+
+	/* Wait for CMD_COMPLETE (or any error bit). */
+	for (i = 0; i < deadline; ++i) {
+		uint32_t st = *(volatile uint32_t *)(base + SDHCI_INT_STATUS);
+		if ((st & SDHCI_INT_ERR_ANY) != 0u) {
+			return -2;  /* error reported */
+		}
+		if ((st & SDHCI_INT_CMD_COMPLETE) != 0u) {
+			break;
+		}
+	}
+	if (i == deadline) {
+		return -3;  /* cmd_complete didn't assert */
+	}
+
+	if (response_out != NULL) {
+		response_out[0] = *(volatile uint32_t *)(base + SDHCI_RESPONSE_0 + 0x0);
+		response_out[1] = *(volatile uint32_t *)(base + SDHCI_RESPONSE_0 + 0x4);
+		response_out[2] = *(volatile uint32_t *)(base + SDHCI_RESPONSE_0 + 0x8);
+		response_out[3] = *(volatile uint32_t *)(base + SDHCI_RESPONSE_0 + 0xC);
+	}
+
+	/* W1C the CMD_COMPLETE bit. */
+	*(volatile uint32_t *)(base + SDHCI_INT_STATUS) = SDHCI_INT_CMD_COMPLETE;
+
+	return 0;
+}
+
+
+/* CMD52 (IO_RW_DIRECT). arg layout: bit31 R/W, bits30:28 FN, bits25:9
+ * 17-bit REG, bits7:0 DATA. resp_out must be a 4-element uint32_t array
+ * (diag_sdhciCmd unconditionally dumps all four response slots). */
+static int diag_sdioCmd52(volatile uint8_t *sdhci, int write, int fn,
+	uint32_t reg, uint8_t data, uint32_t *resp_out)
+{
+	uint32_t arg = 0;
+
+	arg |= (write ? 1u : 0u) << 31;
+	arg |= ((uint32_t)fn & 7u) << 28;
+	arg |= ((uint32_t)reg & 0x1ffffu) << 9;
+	if (write) {
+		arg |= (uint32_t)data;
+	}
+	return diag_sdhciCmd(sdhci, 52u, arg, SDHCI_RESP_R5, resp_out);
+}
+
+
+/* Switch SDIO to High-Speed (25 MHz) on a 4-bit data bus. Call after
+ * CMD0/5/3/7 + F1 enable + IORDY. Sequence per BCM43455c0 / SDIO 2.0:
+ * CCCR 0x13 SHS check + EHS set, CCCR 0x07 4-bit width, SDHCI HCTL1
+ * 4BIT+HIGH_SPEED, reprogram clock to 25 MHz. */
+static int diag_sdioGoHighSpeed(volatile uint8_t *sdhci)
+{
+	uint32_t hs_resp[4] = {0};
+	uint32_t bic_resp[4] = {0};
+	int rc;
+
+	rc = diag_sdioCmd52(sdhci, 0, 0, 0x13u, 0u, hs_resp);
+	if (rc != 0) {
+		return -1;
+	}
+	if ((hs_resp[0] & 0x01u) == 0u) {
+		return -2;  /* SHS not set */
+	}
+
+	rc = diag_sdioCmd52(sdhci, 1, 0, 0x13u,
+		(uint8_t)((hs_resp[0] | 0x02u) & 0xffu), NULL);
+	if (rc != 0) {
+		return -3;
+	}
+
+	rc = diag_sdioCmd52(sdhci, 0, 0, 0x07u, 0u, bic_resp);
+	if (rc != 0) {
+		return -4;
+	}
+	rc = diag_sdioCmd52(sdhci, 1, 0, 0x07u,
+		(uint8_t)((bic_resp[0] & 0xFCu) | 0x02u), NULL);
+	if (rc != 0) {
+		return -5;
+	}
+
+	{
+		uint32_t hctl = *(volatile uint32_t *)(sdhci + 0x28u);
+		hctl &= 0xFFFFFF00u;
+		hctl |= (1u << 1) | (1u << 2);
+		*(volatile uint32_t *)(sdhci + 0x28u) = hctl;
+	}
+
+	rc = diag_sdhciSetClockKHz(sdhci, 25000u);
+	if (rc != 0) {
+		return -6;
+	}
+	return 0;
+}
+
+
+/* CMD53 (IO_RW_EXTENDED) block-mode READ via SDHCI PIO. buf must point
+ * to a 4-byte-aligned destination of at least block_count*block_size
+ * bytes. */
+static int diag_sdioCmd53Read(volatile uint8_t *sdhci, int fn,
+	int incr_addr, uint32_t reg_addr,
+	uint32_t block_count, uint32_t block_size,
+	uint8_t *buf)
+{
+	uint32_t arg, cmd_word;
+	uint32_t st;
+	uint32_t bytes_total = block_count * block_size;
+	uint32_t words_total = bytes_total / 4u;
+	uint32_t block_words = block_size / 4u;
+	uint32_t bytes_in_block = 0;
+	uint32_t i;
+	int deadline;
+
+	/* Wait for CMD line idle. */
+	for (deadline = 100000; deadline > 0; --deadline) {
+		if ((*(volatile uint32_t *)(sdhci + SDHCI_PRES_STATE) &
+			SDHCI_PRES_CMD_INHIBIT) == 0u) {
+			break;
+		}
+	}
+	if (deadline == 0) {
+		return -1;
+	}
+
+	*(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS) = 0xFFFFFFFFu;
+
+	*(volatile uint32_t *)(sdhci + SDHCI_BLOCK_SIZE_CNT) =
+		(block_count << 16) | (block_size & 0xFFFu);
+
+	arg = (0u << 31) |
+		((uint32_t)(fn & 7u) << 28) |
+		(1u << 27) |  /* block_mode */
+		((incr_addr ? 1u : 0u) << 26) |
+		((reg_addr & 0x1FFFFu) << 9) |
+		(block_count & 0x1FFu);
+	*(volatile uint32_t *)(sdhci + SDHCI_ARGUMENT_1) = arg;
+
+	/* TRANSFER_MODE + COMMAND dword at 0x0C: BLOCK_COUNT_EN, DAT_XFER_DIR
+	 * = read, MULTI_BLK if >1, R5 resp + CRC/index, DATA_PRESENT, CMD53. */
+	cmd_word =
+		(1u << 1) |
+		(1u << 4) |
+		((block_count > 1u ? 1u : 0u) << 5) |
+		((uint32_t)0x3Au << 16) |
+		((uint32_t)53u << 24);
+	*(volatile uint32_t *)(sdhci + SDHCI_TRANS_CMD) = cmd_word;
+
+	for (deadline = 100000; deadline > 0; --deadline) {
+		st = *(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS);
+		if ((st & SDHCI_INT_ERR_ANY) != 0u) {
+			return -2;
+		}
+		if ((st & SDHCI_INT_CMD_COMPLETE) != 0u) {
+			break;
+		}
+	}
+	if (deadline == 0) {
+		return -3;
+	}
+	*(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS) = SDHCI_INT_CMD_COMPLETE;
+
+	/* PIO read loop: drain DATA_PORT one word at a time; clear
+	 * BUFFER_READ_READY after each block-worth. */
+	for (i = 0; i < words_total; ++i) {
+		for (deadline = 100000; deadline > 0; --deadline) {
+			st = *(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS);
+			if ((st & SDHCI_INT_ERR_ANY) != 0u) {
+				return -4;
+			}
+			if ((st & SDHCI_INT_BUF_RD_READY) != 0u) {
+				break;
+			}
+		}
+		if (deadline == 0) {
+			return -5;
+		}
+
+		{
+			uint32_t data = *(volatile uint32_t *)(sdhci + SDHCI_DATA_PORT);
+			if (buf != NULL) {
+				buf[i * 4 + 0] = (uint8_t)(data & 0xffu);
+				buf[i * 4 + 1] = (uint8_t)((data >> 8) & 0xffu);
+				buf[i * 4 + 2] = (uint8_t)((data >> 16) & 0xffu);
+				buf[i * 4 + 3] = (uint8_t)((data >> 24) & 0xffu);
+			}
+		}
+
+		bytes_in_block += 4u;
+		if (bytes_in_block >= block_size) {
+			bytes_in_block = 0u;
+			*(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS) = SDHCI_INT_BUF_RD_READY;
+		}
+		(void)block_words;
+	}
+
+	for (deadline = 100000; deadline > 0; --deadline) {
+		st = *(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS);
+		if ((st & SDHCI_INT_ERR_ANY) != 0u) {
+			return -6;
+		}
+		if ((st & SDHCI_INT_XFER_COMPLETE) != 0u) {
+			break;
+		}
+	}
+	if (deadline == 0) {
+		return -7;
+	}
+	*(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS) = 0xFFFFFFFFu;
+	return 0;
+}
+
+
+/* CMD53 (IO_RW_EXTENDED) block-mode WRITE via SDHCI PIO. Mirror of the
+ * read: arg bit31 = 1, TRANSFER_MODE bit4 = 0, polls BUFFER_WRITE_READY,
+ * writes DATA_PORT. Source is a little-endian byte buffer of at least
+ * block_count*block_size bytes. */
+static int diag_sdioCmd53Write(volatile uint8_t *sdhci, int fn,
+	int incr_addr, uint32_t reg_addr,
+	uint32_t block_count, uint32_t block_size,
+	const uint8_t *buf)
+{
+	uint32_t arg, cmd_word;
+	uint32_t st;
+	uint32_t bytes_total = block_count * block_size;
+	uint32_t words_total = bytes_total / 4u;
+	uint32_t bytes_in_block = 0;
+	uint32_t i;
+	int deadline;
+
+	for (deadline = 100000; deadline > 0; --deadline) {
+		if ((*(volatile uint32_t *)(sdhci + SDHCI_PRES_STATE) &
+			SDHCI_PRES_CMD_INHIBIT) == 0u) {
+			break;
+		}
+	}
+	if (deadline == 0) {
+		return -1;
+	}
+
+	*(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS) = 0xFFFFFFFFu;
+	*(volatile uint32_t *)(sdhci + SDHCI_BLOCK_SIZE_CNT) =
+		(block_count << 16) | (block_size & 0xFFFu);
+
+	arg = (1u << 31) |
+		((uint32_t)(fn & 7u) << 28) |
+		(1u << 27) |
+		((incr_addr ? 1u : 0u) << 26) |
+		((reg_addr & 0x1FFFFu) << 9) |
+		(block_count & 0x1FFu);
+	*(volatile uint32_t *)(sdhci + SDHCI_ARGUMENT_1) = arg;
+
+	cmd_word =
+		(1u << 1) |
+		((block_count > 1u ? 1u : 0u) << 5) |
+		((uint32_t)0x3Au << 16) |
+		((uint32_t)53u << 24);
+	*(volatile uint32_t *)(sdhci + SDHCI_TRANS_CMD) = cmd_word;
+
+	for (deadline = 100000; deadline > 0; --deadline) {
+		st = *(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS);
+		if ((st & SDHCI_INT_ERR_ANY) != 0u) {
+			return -2;
+		}
+		if ((st & SDHCI_INT_CMD_COMPLETE) != 0u) {
+			break;
+		}
+	}
+	if (deadline == 0) {
+		return -3;
+	}
+	*(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS) = SDHCI_INT_CMD_COMPLETE;
+
+	for (i = 0; i < words_total; ++i) {
+		for (deadline = 100000; deadline > 0; --deadline) {
+			st = *(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS);
+			if ((st & SDHCI_INT_ERR_ANY) != 0u) {
+				return -4;
+			}
+			if ((st & SDHCI_INT_BUF_WR_READY) != 0u) {
+				break;
+			}
+		}
+		if (deadline == 0) {
+			return -5;
+		}
+
+		{
+			uint32_t data = (uint32_t)buf[i * 4 + 0] |
+				((uint32_t)buf[i * 4 + 1] << 8) |
+				((uint32_t)buf[i * 4 + 2] << 16) |
+				((uint32_t)buf[i * 4 + 3] << 24);
+			*(volatile uint32_t *)(sdhci + SDHCI_DATA_PORT) = data;
+		}
+
+		bytes_in_block += 4u;
+		if (bytes_in_block >= block_size) {
+			bytes_in_block = 0u;
+			*(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS) = SDHCI_INT_BUF_WR_READY;
+		}
+	}
+
+	for (deadline = 100000; deadline > 0; --deadline) {
+		st = *(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS);
+		if ((st & SDHCI_INT_ERR_ANY) != 0u) {
+			return -6;
+		}
+		if ((st & SDHCI_INT_XFER_COMPLETE) != 0u) {
+			break;
+		}
+	}
+	if (deadline == 0) {
+		return -7;
+	}
+	*(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS) = 0xFFFFFFFFu;
+	return 0;
+}
+
+
+/* ------------------------------------------------------------------ */
+/* WiFi P3 final: full-firmware load + release ARM-CR4 + look for fw boot.
+ *
+ * Load pipeline: enum (CMD0/5/3/7) -> F1 enable -> KSO -> HS-mode ->
+ * ALP-only backplane clock -> walk 643 KB firmware into SOCRAM at
+ * chip-internal 0x198000 -> load NVRAM at 0x238000-len, then:
+ *
+ *   1. Write the firmware reset vector (first word) to chip-internal 0.
+ *   2. Re-window to ARM-CR4 wrapper (0x18100000) and do the brcmfmac AXI
+ *      resetcore toggle to release the CR4 (BCMA_IOCTL/RESET_CTL pokes).
+ *   3. Enable Function 2 (SDPCM data channel) and wait for F2-ready.
+ *   4. Sleep, then read back SOCRAM head + several scan points, HT_AVAIL
+ *      (CHIPCLKCSR), SDHCI CARD_INTR, the SOCRAM NVRAM trailer, and the
+ *      SDIOD tohostmailboxdata HMB_DATA_FWREADY word.
+ *
+ * "fw_alive" = HT_AVAIL asserted OR CARD_INTR asserted. See the inline
+ * comments (kept verbatim) for the brcmfmac references behind each step. */
+static int diag_format_sdio_fwrelease(char *buf, size_t cap)
+{
+	static uint8_t pre_buf[64];
+	static uint8_t post_buf[64];
+	int off = 0, r;
+	void *gpio_page, *sdhci_page;
+	uint32_t ocr_resp[4] = {0}, claim_resp[4] = {0};
+	uint32_t rca_resp[4] = {0}, sel_resp[4] = {0};
+	uint32_t ioen_pre_resp[4] = {0}, iordy_resp[4] = {0};
+	uint32_t rc_pre_resp[4] = {0}, rc_post_resp[4] = {0};
+	int rc_ocr = -1, rc_claim = -1, rc_sel = -1, rc_iordy = -1;
+	int rc_hs = -100;
+	int ready_iters = 0, rdy_iters = 0;
+	uint16_t rca = 0;
+	int rc_w, rc_r_pre = -100, rc_r_post = -100;
+	int rc_nvram_w = -100;
+	int rc_tail = -100;
+	uint8_t chipclk_samples[8] = {0};
+	uint8_t socram_tail[16] = {0};
+	uint8_t scan_buf[64];
+	int scan_rc[6] = {0};
+	int scan_diff[6] = {0};
+	int scan_changed_pts = -1;
+	uint8_t ht_clk_csr = 0u;
+	uint8_t f2_ready = 0u;
+	int f2_ready_iters = -1;
+	uint8_t rstvec_rb[4] = {0};
+	uint32_t hmb_data = 0u;
+	unsigned card_intr = 0u;
+	int worst_rc_w = 0;
+	int i, pre_match, post_match, diff_count;
+	uint32_t bytes_written = 0u;
+	int window_idx = 0;
+	size_t fw_offset = 0u;
+	size_t fw_target_bytes;
+	const uint32_t window_bytes = 32u * 1024u;
+	const uint32_t blk_size = 64u;
+	const uint32_t blk_count = 64u;
+
+	for (i = 0; i < (int)sizeof(pre_buf); ++i) {
+		pre_buf[i] = 0;
+		post_buf[i] = 0;
+	}
+
+	r = snprintf(buf + off, cap - off, "PHX-DIAG/1 sdio-fwrelease\n");
+	if (r < 0 || (size_t)r >= cap - off) {
+		return -1;
+	}
+	off += r;
+
+	if (wifi_fw_43455_len == 0u) {
+		r = snprintf(buf + off, cap - off,
+			"error: firmware blob not staged\n.\n");
+		return off + (r > 0 ? r : 0);
+	}
+	fw_target_bytes = (wifi_fw_43455_len / blk_size) * blk_size;
+
+	gpio_page = mmap(NULL, _PAGE_SIZE, PROT_READ | PROT_WRITE,
+		MAP_DEVICE | MAP_UNCACHED | MAP_PHYSMEM | MAP_ANONYMOUS,
+		-1, BCM2711_GPIO_BASE);
+	sdhci_page = mmap(NULL, _PAGE_SIZE, PROT_READ | PROT_WRITE,
+		MAP_DEVICE | MAP_UNCACHED | MAP_PHYSMEM | MAP_ANONYMOUS,
+		-1, 0xfe300000u);
+
+	if (gpio_page == MAP_FAILED || sdhci_page == MAP_FAILED) {
+		r = snprintf(buf + off, cap - off, "error: mmap failed\n.\n");
+		if (gpio_page != MAP_FAILED) {
+			munmap(gpio_page, _PAGE_SIZE);
+		}
+		if (sdhci_page != MAP_FAILED) {
+			munmap(sdhci_page, _PAGE_SIZE);
+		}
+		return off + (r > 0 ? r : 0);
+	}
+
+	{
+		volatile uint8_t *gpio = (volatile uint8_t *)gpio_page;
+		volatile uint8_t *sdhci = (volatile uint8_t *)sdhci_page;
+
+		for (i = 34; i <= 39; ++i) {
+			diag_gpioSetFsel(gpio, (unsigned)i, 7u);
+		}
+		diag_wifiPowerCycle();
+		(void)diag_sdhciSetClockKHz(sdhci, 400u);
+		(void)diag_sdhciResetCmdDat(sdhci);
+
+		(void)diag_sdhciCmd(sdhci, 0u, 0u, SDHCI_RESP_R0, NULL);
+		usleep(1000);
+		rc_ocr = diag_sdhciCmd(sdhci, 5u, 0u, SDHCI_RESP_R4, ocr_resp);
+		for (ready_iters = 0; ready_iters < 50; ++ready_iters) {
+			rc_claim = diag_sdhciCmd(sdhci, 5u, ocr_resp[0] & 0x00ffffffu,
+				SDHCI_RESP_R4, claim_resp);
+			if (rc_claim != 0) {
+				break;
+			}
+			if ((claim_resp[0] & 0x80000000u) != 0u) {
+				ready_iters++;
+				break;
+			}
+			usleep(1000);
+		}
+		(void)diag_sdhciCmd(sdhci, 3u, 0u, SDHCI_RESP_R6, rca_resp);
+		rca = (uint16_t)((rca_resp[0] >> 16) & 0xFFFFu);
+		rc_sel = diag_sdhciCmd(sdhci, 7u, (uint32_t)rca << 16, SDHCI_RESP_R1, sel_resp);
+
+		(void)diag_sdioCmd52(sdhci, 0, 0, 0x02u, 0u, ioen_pre_resp);
+		(void)diag_sdioCmd52(sdhci, 1, 0, 0x02u,
+			(uint8_t)((ioen_pre_resp[0] | 0x02u) & 0xffu), NULL);
+		for (rdy_iters = 0; rdy_iters < 50; ++rdy_iters) {
+			rc_iordy = diag_sdioCmd52(sdhci, 0, 0, 0x03u, 0u, iordy_resp);
+			if (rc_iordy != 0) {
+				break;
+			}
+			if ((iordy_resp[0] & 0x02u) != 0u) {
+				rdy_iters++;
+				break;
+			}
+			usleep(1000);
+		}
+
+		/* KSO (Keep-SDIO-On) enable. SDIO core rev >= 12 (43455 qualifies)
+		 * gates the backplane clock on KSO; without it the device can
+		 * drop the clock and HT_AVAIL never latches. SLEEPCSR (F1
+		 * 0x1001F) bit 0 = KSO_EN. RMW. */
+		{
+			uint32_t kso[4] = {0};
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x1001Fu, 0u, kso);
+			(void)diag_sdioCmd52(sdhci, 1, 1, 0x1001Fu,
+				(uint8_t)((kso[0] | 0x01u) & 0xffu), NULL);
+		}
+
+		rc_hs = diag_sdioGoHighSpeed(sdhci);
+
+		/* Backplane clock bring-up before CR4 release: ALP ONLY.
+		 * Per brcmfmac brcmf_sdio_load_firmware(), the host sets
+		 * alp_only=true for the whole firmware-download + CR4-release
+		 * window and brings the backplane up on ALP only
+		 * (SBSDIO_ALP_AVAIL_REQ 0x08; wait SBSDIO_ALP_AVAIL 0x40). The
+		 * firmware running on the CR4 brings HT up itself once executing;
+		 * forcing HT here cannot work (the CR4 has no HT clock until fw
+		 * requests it). HT_AVAIL is polled AFTER release below as the
+		 * firmware-alive tell. */
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Eu, 0x08u, NULL);
+		for (i = 0; i < 250; ++i) {
+			uint32_t cc[4] = {0};
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x1000Eu, 0u, cc);
+			ht_clk_csr = (uint8_t)(cc[0] & 0xffu);
+			if ((ht_clk_csr & 0x40u) != 0u) {
+				break;
+			}
+			usleep(2000);
+		}
+
+		(void)diag_sdioCmd52(sdhci, 1, 0, 0x110u, 0x40u, NULL);
+		(void)diag_sdioCmd52(sdhci, 1, 0, 0x111u, 0x00u, NULL);
+
+		while (fw_offset < fw_target_bytes && rc_hs == 0) {
+			uint32_t addr = 0x00198000u + (uint32_t)window_idx * 0x8000u;
+			uint8_t  lo  = (uint8_t)(((addr >> 15) & 1u) ? 0x80u : 0x00u);
+			uint8_t  mid = (uint8_t)((addr >> 16) & 0xffu);
+			uint8_t  hi  = (uint8_t)((addr >> 24) & 0xffu);
+			size_t   remaining = fw_target_bytes - fw_offset;
+			size_t   this_window = (remaining > window_bytes) ? window_bytes : remaining;
+			uint32_t bytes_per_cmd = blk_count * blk_size;
+			uint32_t chunks = (uint32_t)(this_window / bytes_per_cmd);
+			uint32_t leftover_blocks = (uint32_t)((this_window % bytes_per_cmd) / blk_size);
+			uint32_t ci;
+
+			(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Au, lo,  NULL);
+			(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Bu, mid, NULL);
+			(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Cu, hi,  NULL);
+
+			for (ci = 0; ci < chunks; ++ci) {
+				rc_w = diag_sdioCmd53Write(sdhci, 1, /*incr=*/1,
+					/*reg_addr=*/ci * bytes_per_cmd,
+					/*block_count=*/blk_count,
+					/*block_size=*/blk_size,
+					wifi_fw_43455 + fw_offset + ci * bytes_per_cmd);
+				if (rc_w != 0) {
+					if (worst_rc_w == 0) worst_rc_w = rc_w;
+					break;
+				}
+				bytes_written += bytes_per_cmd;
+			}
+			if (rc_w != 0) break;
+
+			if (leftover_blocks > 0) {
+				rc_w = diag_sdioCmd53Write(sdhci, 1, /*incr=*/1,
+					/*reg_addr=*/chunks * bytes_per_cmd,
+					/*block_count=*/leftover_blocks,
+					/*block_size=*/blk_size,
+					wifi_fw_43455 + fw_offset + chunks * bytes_per_cmd);
+				if (rc_w != 0) {
+					if (worst_rc_w == 0) worst_rc_w = rc_w;
+					break;
+				}
+				bytes_written += leftover_blocks * blk_size;
+			}
+
+			fw_offset += this_window;
+			window_idx++;
+		}
+
+		/* NVRAM load: chip-ready blob goes at chip-internal
+		 * (rambase + ramsize - wifi_nvram_43455_len) = 0x238000 - len,
+		 * inside SBADDR window 19, padded to a 64-byte boundary so it
+		 * lands as a single CMD53 multi-block write. */
+		{
+			uint32_t nv_start = 0x238000u - (uint32_t)wifi_nvram_43455_len;
+			uint8_t  nv_lo  = (uint8_t)(((nv_start >> 15) & 1u) ? 0x80u : 0x00u);
+			uint8_t  nv_mid = (uint8_t)((nv_start >> 16) & 0xffu);
+			uint8_t  nv_hi  = (uint8_t)((nv_start >> 24) & 0xffu);
+			uint32_t nv_f1_offset = nv_start & 0x7FFFu;
+			uint32_t nv_blocks = (uint32_t)(wifi_nvram_43455_len / 64u);
+
+			(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Au, nv_lo,  NULL);
+			(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Bu, nv_mid, NULL);
+			(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Cu, nv_hi,  NULL);
+
+			rc_nvram_w = diag_sdioCmd53Write(sdhci, 1, /*incr=*/1,
+				/*reg_addr=*/nv_f1_offset,
+				/*block_count=*/nv_blocks,
+				/*block_size=*/64u, wifi_nvram_43455);
+		}
+
+		/* Snapshot SOCRAM[0..63] BEFORE release — should match source
+		 * firmware byte-identically. */
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Au, 0x80u, NULL);
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Bu, 0x19u, NULL);
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Cu, 0x00u, NULL);
+		rc_r_pre = diag_sdioCmd53Read(sdhci, 1, /*incr=*/1,
+			/*reg_addr=*/0u, /*block_count=*/1u, /*block_size=*/64u, pre_buf);
+
+		/* brcmfmac CR4 activation, step 1: write the firmware reset
+		 * vector (first word of the blob) to chip-internal address 0.
+		 * The low 32 bytes of address 0 are a writable vector-table
+		 * overlay; the CR4 fetches its reset vector from here when it
+		 * leaves reset. */
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Au, 0x00u, NULL);
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Bu, 0x00u, NULL);
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Cu, 0x00u, NULL);
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x0u, wifi_fw_43455[0], NULL);
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1u, wifi_fw_43455[1], NULL);
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x2u, wifi_fw_43455[2], NULL);
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x3u, wifi_fw_43455[3], NULL);
+
+		/* Read addr 0 back to VERIFY the rstvec landed at TRUE backplane
+		 * address 0. A mismatch means the addr-0 write is landing in
+		 * TCM/0x198000 (SBADDR window / address-mask bug) and the CR4
+		 * fetches a garbage reset vector. */
+		{
+			uint32_t v0[4] = {0}, v1[4] = {0}, v2[4] = {0}, v3[4] = {0};
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x0u, 0u, v0);
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x1u, 0u, v1);
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x2u, 0u, v2);
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x3u, 0u, v3);
+			rstvec_rb[0] = (uint8_t)(v0[0] & 0xffu);
+			rstvec_rb[1] = (uint8_t)(v1[0] & 0xffu);
+			rstvec_rb[2] = (uint8_t)(v2[0] & 0xffu);
+			rstvec_rb[3] = (uint8_t)(v3[0] & 0xffu);
+		}
+
+		/* Re-window to ARM-CR4 wrapper window 0x18100000:
+		 *   F1 0x2408 = chip-internal 0x18102408 = BCMA_IOCTL
+		 *   F1 0x2800 = chip-internal 0x18102800 = BCMA_RESET_CTL */
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Au, 0x00u, NULL);
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Bu, 0x10u, NULL);
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Cu, 0x18u, NULL);
+
+		/* Read IOCTL pre (POR observed 0x21 = CPUHALT|CLK). */
+		(void)diag_sdioCmd52(sdhci, 0, 1, 0x2408u, 0u, rc_pre_resp);
+
+		/* brcmfmac CR4 activation, step 2: full AXI resetcore toggle,
+		 * resetcore(core, prereset=CPUHALT(0x20), reset=0, postreset=0):
+		 *   coredisable: IOCTL=0x23; RESET_CTL=0x01; IOCTL=0x03
+		 *   deassert:    RESET_CTL=0 (poll until clear)
+		 *   finalize:    IOCTL=0x01 (CLK only, CPU runs) */
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x2408u, 0x23u, NULL);   /* IOCTL CPUHALT|FGC|CLK */
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x2800u, 0x01u, NULL);   /* RESET_CTL assert */
+		(void)diag_sdioCmd52(sdhci, 0, 1, 0x2800u, 0u, NULL);      /* readback settle */
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x2408u, 0x03u, NULL);   /* IOCTL FGC|CLK (reset=0) */
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x2800u, 0x00u, NULL);   /* RESET_CTL deassert */
+		for (i = 0; i < 50; ++i) {
+			uint32_t rcv[4] = {0};
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x2800u, 0u, rcv);
+			if ((rcv[0] & 0x01u) == 0u) {
+				break;
+			}
+			usleep(1000);
+		}
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x2408u, 0x01u, NULL);   /* IOCTL CLK (CPU runs) */
+
+		/* Post-release SDIO handshake (brcmf_sdio_bus_init): once the CR4
+		 * is running, enable Function 2 (SDPCM data channel) via CCCR
+		 * IOEN bit 2 (0x04) and wait for F2-ready in CCCR IOR bit 2. */
+		{
+			uint32_t ioen_resp[4] = {0};
+			(void)diag_sdioCmd52(sdhci, 0, 0, 0x02u, 0u, ioen_resp);
+			(void)diag_sdioCmd52(sdhci, 1, 0, 0x02u,
+				(uint8_t)((ioen_resp[0] | 0x04u) & 0xffu), NULL);  /* IOEN F2 */
+			for (i = 0; i < 500; ++i) {
+				uint32_t ior_resp[4] = {0};
+				(void)diag_sdioCmd52(sdhci, 0, 0, 0x03u, 0u, ior_resp);
+				f2_ready = (uint8_t)(ior_resp[0] & 0xffu);
+				if ((f2_ready & 0x04u) != 0u) {
+					f2_ready_iters = i;
+					break;
+				}
+				usleep(2000);
+			}
+		}
+
+		usleep(300 * 1000);  /* firmware init: NVRAM parse + chip-self-test */
+
+		/* Read IOCTL post (expect 0x01 = CLK only, CPU running). */
+		(void)diag_sdioCmd52(sdhci, 0, 1, 0x2408u, 0u, rc_post_resp);
+
+		/* Re-window to SOCRAM and capture post-release snapshot. */
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Au, 0x80u, NULL);
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Bu, 0x19u, NULL);
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Cu, 0x00u, NULL);
+		rc_r_post = diag_sdioCmd53Read(sdhci, 1, /*incr=*/1,
+			/*reg_addr=*/0u, /*block_count=*/1u, /*block_size=*/64u, post_buf);
+
+		/* fw-execution disambiguation (#91): SOCRAM[0..63] is entry/vector
+		 * code a running fw need not modify, so it is a weak "alive" tell.
+		 * Scan several points spread across the loaded image and compare
+		 * the post-release on-chip bytes to the source blob. ANY changed
+		 * point => the CR4 IS executing; zero change everywhere => fw
+		 * genuinely not running. */
+		{
+			static const uint32_t scan_off[6] = {
+				0x02000u, 0x10000u, 0x30000u, 0x60000u, 0x90000u, 0x9C000u
+			};
+			unsigned s;
+			int k;
+			scan_changed_pts = 0;
+			for (s = 0u; s < 6u; ++s) {
+				uint32_t a = 0x198000u + scan_off[s];
+				uint8_t lo = (uint8_t)(((a >> 15) & 1u) ? 0x80u : 0x00u);
+				uint8_t mid = (uint8_t)((a >> 16) & 0xffu);
+				uint8_t hi = (uint8_t)((a >> 24) & 0xffu);
+				uint32_t f1 = a & 0x7FFFu;
+				int d = 0;
+				(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Au, lo, NULL);
+				(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Bu, mid, NULL);
+				(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Cu, hi, NULL);
+				scan_rc[s] = diag_sdioCmd53Read(sdhci, 1, /*incr=*/1,
+					/*reg_addr=*/f1, /*block_count=*/1u, /*block_size=*/64u,
+					scan_buf);
+				if (scan_rc[s] == 0) {
+					for (k = 0; k < 64; ++k) {
+						if (scan_buf[k] != wifi_fw_43455[scan_off[s] + (uint32_t)k]) {
+							++d;
+						}
+					}
+					scan_diff[s] = d;
+					if (d > 0) {
+						++scan_changed_pts;
+					}
+				}
+				else {
+					scan_diff[s] = -1;
+				}
+			}
+		}
+
+		/* Firmware-running probes:
+		 * 1. CHIPCLKCSR (F1 0x1000E): HT_AVAIL (bit 7, 0x80) goes high
+		 *    once the booted firmware requests the HT backplane clock.
+		 * 2. SDHCI CARD_INTR (INT_STATUS bit 8): the chip asserts its SDIO
+		 *    interrupt line when firmware has a mailbox message.
+		 * 3. SOCRAM trailer at chip-internal 0x237FFC (the NVRAM
+		 *    length-magic word): firmware overwrites this after parsing
+		 *    NVRAM. */
+		for (i = 0; i < 8; ++i) {
+			uint32_t ccsr[4] = {0};
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x1000Eu, 0u, ccsr);
+			chipclk_samples[i] = (uint8_t)(ccsr[0] & 0xffu);
+			usleep(30 * 1000);
+		}
+
+		card_intr = (*(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS)
+			>> 8) & 1u;
+
+		/* SOCRAM tail trailer: window 19 (0x230000), F1 offset 0x7FF0
+		 * = chip-internal 0x237FF0. Read 16 bytes ending at 0x237FFF. */
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Au, 0x00u, NULL);
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Bu, 0x23u, NULL);
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Cu, 0x00u, NULL);
+		rc_tail = diag_sdioCmd53Read(sdhci, 1, /*incr=*/1,
+			/*reg_addr=*/0x7FF0u, /*block_count=*/1u, /*block_size=*/16u,
+			socram_tail);
+
+		/* DEFINITIVE fw-ready probe: read the SDIO-DEV core's
+		 * tohostmailboxdata (SDIOD_CORE_BASE + 0x4C). brcmfmac/WHD treat
+		 * HMB_DATA_FWREADY (0x0008) here as THE "firmware booted" signal.
+		 * For the 43455 the SDIOD core base is hypothesized at 0x18005000.
+		 * Window=0x18000000, so F1 offset 0x504C reaches 0x1800504C. */
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Au, 0x00u, NULL);
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Bu, 0x00u, NULL);
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Cu, 0x18u, NULL);
+		{
+			uint32_t m0[4] = {0}, m1[4] = {0}, m2[4] = {0}, m3[4] = {0};
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x504Cu, 0u, m0);
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x504Du, 0u, m1);
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x504Eu, 0u, m2);
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x504Fu, 0u, m3);
+			hmb_data = (m0[0] & 0xffu) | ((m1[0] & 0xffu) << 8) |
+				((m2[0] & 0xffu) << 16) | ((m3[0] & 0xffu) << 24);
+		}
+	}
+
+	munmap(sdhci_page, _PAGE_SIZE);
+	munmap(gpio_page, _PAGE_SIZE);
+
+	r = snprintf(buf + off, cap - off,
+		"enum: CMD5=%d/%d C=%d RCA=0x%04x CMD7=%d IORDY=0x%02x rdy=%d\n",
+		rc_ocr, rc_claim,
+		(int)((claim_resp[0] >> 31) & 1u),
+		(unsigned)rca, rc_sel,
+		(unsigned)(iordy_resp[0] & 0xff), rdy_iters);
+	if (r > 0 && (size_t)r < cap - off) {
+		off += r;
+	}
+	(void)rc_iordy;
+
+	r = snprintf(buf + off, cap - off,
+		"fw_load: staged %u bytes across %d windows  HS=%d  worst rc_w=%d\n",
+		bytes_written, window_idx, rc_hs, worst_rc_w);
+	if (r > 0 && (size_t)r < cap - off) {
+		off += r;
+	}
+
+	r = snprintf(buf + off, cap - off,
+		"nvram: %zu bytes -> chip 0x%06x  rc_nvram_w=%d  HT_clk_csr=0x%02x (HT_AVAIL=0x80)\n",
+		wifi_nvram_43455_len,
+		(unsigned)(0x238000u - (uint32_t)wifi_nvram_43455_len),
+		rc_nvram_w, (unsigned)ht_clk_csr);
+	if (r > 0 && (size_t)r < cap - off) {
+		off += r;
+	}
+
+	r = snprintf(buf + off, cap - off,
+		"ARMCR4 IoCtrl pre=0x%02x  post=0x%02x  (expect pre=0x21 CPUHALT+clk, post=0x01 clk-only)\n",
+		(unsigned)(rc_pre_resp[0] & 0xff),
+		(unsigned)(rc_post_resp[0] & 0xff));
+	if (r > 0 && (size_t)r < cap - off) {
+		off += r;
+	}
+
+	r = snprintf(buf + off, cap - off,
+		"rstvec@addr0 readback: %02x %02x %02x %02x  vs fw[0..3]: %02x %02x %02x %02x  -> %s\n",
+		rstvec_rb[0], rstvec_rb[1], rstvec_rb[2], rstvec_rb[3],
+		wifi_fw_43455[0], wifi_fw_43455[1], wifi_fw_43455[2], wifi_fw_43455[3],
+		(rstvec_rb[0] == wifi_fw_43455[0] && rstvec_rb[1] == wifi_fw_43455[1] &&
+			rstvec_rb[2] == wifi_fw_43455[2] && rstvec_rb[3] == wifi_fw_43455[3])
+			? "MATCH (vector placed at true backplane 0)"
+			: "MISMATCH (addr-0 write landed elsewhere -- CR4 fetches garbage!)");
+	if (r > 0 && (size_t)r < cap - off) {
+		off += r;
+	}
+
+	if (rc_r_pre == 0 && rc_r_post == 0) {
+		pre_match = 0;
+		post_match = 0;
+		diff_count = 0;
+		for (i = 0; i < (int)sizeof(pre_buf); ++i) {
+			if (pre_buf[i] == wifi_fw_43455[i]) ++pre_match;
+			if (post_buf[i] == wifi_fw_43455[i]) ++post_match;
+			if (pre_buf[i] != post_buf[i]) ++diff_count;
+		}
+		r = snprintf(buf + off, cap - off,
+			"SOCRAM[0..63] pre vs fw: %d/64 match (load check)\n",
+			pre_match);
+		if (r > 0 && (size_t)r < cap - off) {
+			off += r;
+		}
+		r = snprintf(buf + off, cap - off,
+			"SOCRAM[0..63] post vs fw: %d/64 match  pre-vs-post diff: %d/64 bytes\n",
+			post_match, diff_count);
+		if (r > 0 && (size_t)r < cap - off) {
+			off += r;
+		}
+		r = snprintf(buf + off, cap - off,
+			"  fw[0..7]   %02x %02x %02x %02x %02x %02x %02x %02x\n"
+			"  pre[0..7]  %02x %02x %02x %02x %02x %02x %02x %02x\n"
+			"  post[0..7] %02x %02x %02x %02x %02x %02x %02x %02x\n",
+			wifi_fw_43455[0], wifi_fw_43455[1], wifi_fw_43455[2], wifi_fw_43455[3],
+			wifi_fw_43455[4], wifi_fw_43455[5], wifi_fw_43455[6], wifi_fw_43455[7],
+			pre_buf[0], pre_buf[1], pre_buf[2], pre_buf[3],
+			pre_buf[4], pre_buf[5], pre_buf[6], pre_buf[7],
+			post_buf[0], post_buf[1], post_buf[2], post_buf[3],
+			post_buf[4], post_buf[5], post_buf[6], post_buf[7]);
+		if (r > 0 && (size_t)r < cap - off) {
+			off += r;
+		}
+		if (diff_count > 0) {
+			r = snprintf(buf + off, cap - off,
+				"  -> SOCRAM CHANGED after release: firmware appears to be running\n");
+			if (r > 0 && (size_t)r < cap - off) {
+				off += r;
+			}
+		}
+		else {
+			r = snprintf(buf + off, cap - off,
+				"  -> SOCRAM unchanged: firmware may not have started (need NVRAM?)\n");
+			if (r > 0 && (size_t)r < cap - off) {
+				off += r;
+			}
+		}
+	}
+
+	if (scan_changed_pts >= 0) {
+		r = snprintf(buf + off, cap - off,
+			"image-scan post vs fw (changed bytes/64 @ +off): "
+			"+0x02000=%d +0x10000=%d +0x30000=%d +0x60000=%d +0x90000=%d +0x9C000=%d\n",
+			scan_diff[0], scan_diff[1], scan_diff[2], scan_diff[3], scan_diff[4], scan_diff[5]);
+		if (r > 0 && (size_t)r < cap - off) {
+			off += r;
+		}
+		r = snprintf(buf + off, cap - off,
+			"  -> %d/6 points changed => %s\n",
+			scan_changed_pts,
+			(scan_changed_pts > 0)
+				? "CR4 IS EXECUTING (writing memory) -- gate is observability/early-stall"
+				: "no memory writes anywhere -- fw genuinely not running (chase rstvec/activate)");
+		if (r > 0 && (size_t)r < cap - off) {
+			off += r;
+		}
+	}
+
+	r = snprintf(buf + off, cap - off,
+		"F2 enable: IOR=0x%02x ready=%s @iter=%d (F2_RDY=bit2 0x04)\n",
+		f2_ready, ((f2_ready & 0x04u) != 0u) ? "YES" : "no", f2_ready_iters);
+	if (r > 0 && (size_t)r < cap - off) {
+		off += r;
+	}
+
+	r = snprintf(buf + off, cap - off,
+		"SDIOD tohostmailboxdata=0x%08x -> %s (HMB_DATA_FWREADY=0x0008; SDIOD base hyp 0x18005000)\n",
+		hmb_data,
+		((hmb_data & 0x0008u) != 0u) ? "FWREADY set -- FIRMWARE BOOTED!"
+			: ((hmb_data == 0xffffffffu || hmb_data == 0u) ? "0/0xff (no fw signal, or wrong SDIOD base)"
+				: "nonzero but no FWREADY bit"));
+	if (r > 0 && (size_t)r < cap - off) {
+		off += r;
+	}
+
+	r = snprintf(buf + off, cap - off,
+		"CHIPCLKCSR poll: %02x %02x %02x %02x %02x %02x %02x %02x (HT_AVAIL=bit7 0x80)\n",
+		chipclk_samples[0], chipclk_samples[1], chipclk_samples[2],
+		chipclk_samples[3], chipclk_samples[4], chipclk_samples[5],
+		chipclk_samples[6], chipclk_samples[7]);
+	if (r > 0 && (size_t)r < cap - off) {
+		off += r;
+	}
+
+	r = snprintf(buf + off, cap - off,
+		"SDHCI CARD_INTR=%u  SOCRAM-tail rc=%d  trailer[12..15]=%02x %02x %02x %02x (blob trailer=%02x %02x %02x %02x)\n",
+		card_intr, rc_tail,
+		socram_tail[12], socram_tail[13], socram_tail[14], socram_tail[15],
+		wifi_nvram_43455[wifi_nvram_43455_len - 4], wifi_nvram_43455[wifi_nvram_43455_len - 3],
+		wifi_nvram_43455[wifi_nvram_43455_len - 2], wifi_nvram_43455[wifi_nvram_43455_len - 1]);
+	if (r > 0 && (size_t)r < cap - off) {
+		off += r;
+	}
+
+	{
+		int fw_alive = 0;
+		for (i = 0; i < 8; ++i) {
+			if ((chipclk_samples[i] & 0x80u) != 0u) {
+				fw_alive = 1;
+			}
+		}
+		if (card_intr != 0u) {
+			fw_alive = 1;
+		}
+		r = snprintf(buf + off, cap - off,
+			"  -> fw_alive=%d %s\n", fw_alive,
+			fw_alive ? "(HT_AVAIL or CARD_INTR asserted -- firmware booted!)"
+				: "(no HT_AVAIL / no CARD_INTR -- firmware not confirmed running)");
+		if (r > 0 && (size_t)r < cap - off) {
+			off += r;
+		}
+	}
+
+	r = snprintf(buf + off, cap - off, ".\n");
+	if (r > 0 && (size_t)r < cap - off) {
+		off += r;
+	}
+	return off;
+}
+
+
+int main(void)
+{
+	enum { REPORT_CAP = 16u * 1024u };
+	char *report;
+	int n;
+
+	report = malloc(REPORT_CAP);
+	if (report == NULL) {
+		fprintf(stderr, "wifi-probe: out of memory\n");
+		return 1;
+	}
+
+	n = diag_format_sdio_fwrelease(report, REPORT_CAP);
+	if (n < 0) {
+		fprintf(stderr, "wifi-probe: report formatting failed (%d)\n", n);
+		free(report);
+		return 1;
+	}
+
+	fwrite(report, 1, (size_t)n, stdout);
+	fflush(stdout);
+
+	free(report);
+	return 0;
+}

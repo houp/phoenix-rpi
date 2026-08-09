@@ -418,6 +418,16 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (WiFi #91 — F2 transport CONFIRMED CLEAN; RX needs SDPCM channel demux). Cycle wifi2ioctl: two
+GET_VERSION back-to-back, one reset up front, NO reset between → ALL 4 F2 transfers rc=0, no wedge. So NO
+per-transfer reset needed; the earlier wedge was purely the WRONG-LENGTH read (advisor's hypothesis confirmed).
+The probe's auto-verdict "second ioctl failed" is a FALSE NEGATIVE: RX is a FIFO queue and a pending async EVENT
+(SDPCM channel 1, a 12-byte header-only frame `0c 00 f3 ff 00 01 00 0c`) sat at the head, shifting replies by one —
+read[0]=event, read[1]=ioctl#1 reply (chan 0, id=1, VERSION=2). Conclusion: transport clean + the fw event channel
+is live (escan results will arrive there). NEXT: RX demux loop (read frame → chan1=event dispatch/skip, chan0=match
+BCDC reqid; read HW-header-then-exact-length for >64B frames) + a reusable diag_bcdcGet() ioctl API → then
+brcmf_c_preinit_dcmds init ioctls → WLC_SCAN/escan → join/WPA2 → DHCP. Commit d9e52fb. [[project_wifi_fw_exec_gate_91]]
+
 2026-08-09 (★★★★★ WiFi #91 — BCDC CONTROL IOCTL ROUND-TRIP WORKS; the fw answers). Cycle wifif2diag2:
 WLC_GET_VERSION over SDIO F2 → send_rc=0 read_rc=0, reply a byte-perfect SDPCM control frame (HW len=32/~32, SW
 doff=12 chan0, BCDC cmd=1 echoed, flags id=1 = MY reqid echoed, err=0, status=0, payload=0x00000002 = WLC ioctl

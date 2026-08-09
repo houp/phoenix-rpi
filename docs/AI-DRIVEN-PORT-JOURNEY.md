@@ -181,6 +181,27 @@ an HDMI capture and a serial console for autonomous ground truth, visually-verif
 a desktop, a playing video) was what it could confirm alone — and that quietly shaped which of the open
 tasks it chose to advance.
 
+A third wave took on the port's oldest open wound: **Wi-Fi**. The on-board Broadcom BCM43455 had been stuck
+for months at a single stubborn symptom — the firmware downloaded into the chip byte-perfectly, its reset
+vector was resident, the ARM core was released from halt, and yet *the firmware never ran*. Round after round
+of notes had blamed the reset vector, the core-release sequence, the wrong ARM core. The agent threw all of
+that out and ran the one experiment nobody had: it **replaced the 643 KB firmware with a twenty-byte program
+of its own** — a hand-assembled counter loop reusing the real firmware's exact reset vector — released the
+core, and read the counter back. It was climbing at ~9 million increments a second. *The release path had
+been correct all along;* the chip had been ready to run released code the whole time. That single bisection
+flipped the entire problem: the bug was not the release, it was a **firmware precondition**. From there the
+agent ported the chip's enumeration ROM walk to discover the real on-die core addresses (finding, along the
+way, that a hard-coded mailbox address had been off by 0x1000 — a status read at the wrong place, masquerading
+as "no signal"), read the true RAM size from the core's bank registers, and found the actual fault: the NVRAM
+image the firmware needs at boot had been placed **160 KB below the true top of RAM**, so the bootloader's
+search for it came up empty. One address fix later, **the BCM43455 firmware booted** — clock up, mailbox
+signalling `FWREADY`, data path enabled — and the agent, having just ported the driver's shared-memory
+structure, **read the firmware's own console log back over the SDIO bus**: `Broadcom BCM4345 802.11 Wireless
+Controller 7.45.234 … sdpcmd_dpc: Enable`. A from-scratch RTOS had brought a Wi-Fi chip's firmware to life,
+and could now *watch it think*. Every step here was a small, decisive experiment chosen to bisect a large
+unknown — and, notably, an early over-confident guess (that the RAM top was "probably fine") was overturned
+by reading the hardware's own answer rather than trusting the inference.
+
 The limits it hit were *physical or judgment* boundaries, not cognitive ones: a 100 Mbps link it
 couldn't rewire, an SD card it couldn't insert, and a host network it judged too risky to
 reconfigure unattended (reconfiguring the netboot infrastructure everything depended on was not

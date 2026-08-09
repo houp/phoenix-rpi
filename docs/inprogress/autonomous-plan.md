@@ -387,6 +387,16 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (SDL de-Quake #3 part-1 VERIFIED clean + SuperTuxKart feasibility scan spawned). Verified owner
+directive #3 part 1 ("strip all Quake/Quakespasm names from the SDL port"): rg over BOTH sources/phoenix-rtos-ports/
+sdl2 AND tools/sdl2-port (incl. the copied glue sdl_phoenix_glctx.c, now phxgl_-prefixed) = **ZERO** residual
+quake/qsv3d references → publication-clean, part 1 DONE. Part 2 ("all Quake ports use the SDL port") = 2/3 (Q2
+yquake2 + Q3 quake3e on the real SDL port; Q1 quakespasm still on its sdl-shim + pl_phoenix backends — the deferred
+flagship-swap risk, revisit attended). Spawned a read-only SuperTuxKart feasibility scan (the last unexplored
+owner-listed game): STK version vs the port's GL 2.1, dep surface, no-dlopen/static, asset-size-over-100Mbps-NFS.
+NEXT: act on the STK verdict (likely huge given GL 3.3 + Irrlicht/bullet deps + hundreds-of-MB assets over the slow
+link — or a tractable older-STK path) or continue hardening/publication. [[project_sdl2_port]]
+
 2026-08-09 (JOURNEY-ARTICLE CAPSTONE — extended docs/AI-DRIVEN-PORT-JOURNEY.md with the vacation-run's SECOND
 WAVE; owner-explicitly-valued, HW-free). The feature space is richly capstoned + Q1 MP banked, so this burst
 captured the achievements in the narrative capstone the owner wanted. Extended "## The autonomous phase" with the

@@ -244,10 +244,11 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 **★★★ 2026-08-09 OWNER UPDATE (Witold, commit 54329a1 — see "## Comments from human operator / owner (2026-08-09)"
 above). NEW PRIORITIES (owner back Aug 19 late eve — stay busy the whole time):**
-1. **★ REVIVE WiFi (BCM43455 SDIO, #91) — the headline.** Re-analyze ALL past WiFi work CRITICALLY (old notes may
-   be WRONG); leverage the now-stable system + new debug facilities (libdbg, HW watchpoint, diag-udp). Fully bring
-   WiFi up. THEN Bluetooth. (Re-analysis subagent spawned this turn.) This is the "risky, long task — decompose it"
-   the owner asked for.
+1. **★ REVIVE WiFi (BCM43455 SDIO, #91) — the headline.** ★★★ 2026-08-09 MAJOR: the trivial-program test PROVED
+   the **CR4 release path WORKS** (chip executes released code — counter live+climbing on HW, 2 boots). The
+   long-stuck gate was NEVER the release. **NOW: fw preconditions** — prime suspect NVRAM ram-top (hardcoded
+   0x238000 vs the true value from CR4 bankinfo). Add bankinfo read → true ram-top → NVRAM placement → real fw →
+   HT_AVAIL. THEN clock/PMU if still stalled, then the real driver, then Bluetooth. [[project_wifi_fw_exec_gate_91]]
 2. **Second CODE-REVIEW pass** on all the recent system changes / ports / new items (the vacation-run additions).
 3. **Mine docs/inprogress/ + docs/todo/** for re-explorable tasks; extend the task list with past-considered
    not-yet-done work.
@@ -415,6 +416,23 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-09 (★★★ WiFi #91 FLIPPED — the CR4 RELEASE PATH WORKS + code-review triage DONE). The trivial-program
+test (tools/wifi-probe/ `trivial` mode: 8KB blob reusing the real fw's verbatim Thumb-2 reset vector `0xb83ef198`
+→ B.W to rambase+0x80, a ~20-byte counter loop writing seed `0xC0DE0001`++ to 0x199000) RAN ON HW, TWO boots,
+reproducible: counter@0x199000 pre=`0x0` → post1=`0xc198231e` → post2 (+50ms)=`0xc19f463e`, **delta=467,744
+(~9.3M/s), changed=1 climbing=1**. `0xC198231E−0xC0DE0001≈12.2M` = our seed free-ran ~12M increments → **the CR4
+executes OUR released code**. CR4-identity cross-check settled the core question (IOCTL@0x18102408=0x21
+CPUHALT-capable = the CR4; 0x18103408=0x00) → right core, no EROM walk needed. Vector model confirmed vs
+external/linux brcmfmac (R4 executes the instruction at addr 0; llvm-mc: `b.w #0x19807c`). CONSEQUENCE: every prior
+"CR4 won't execute / release broken" note is WRONG; the real 643KB fw loads byte-exact AND the release runs it, but
+stalls before HT_AVAIL on a fw PRECONDITION the trivial blob doesn't need. Commits c252d50 (trivial mode) + 904cdf8
+(verdict fix + double-read). ALSO: 2nd code-review pass closed — all 4 high-risk kernel/lwip changes CONFIRMED
+correct; fixed the 2 real findings (X11/ffmpeg shift-by-negative UB latent fix cca0e9d; kernel NFS-OPEN re-drive
+log/comment cleanup b74db0da). **NEXT (pivot, un-started): the fw-precondition branch — prime suspect NVRAM ram-top
+HARDCODED 0x238000; brcmfmac reads ramsize from CR4 bankinfo (ARMCR4_CAP/BANKIDX/BANKINFO). Add a bankinfo read to
+the probe → compute the TRUE ram-top → place NVRAM there → re-run real fw → watch HT_AVAIL/HMB_FWREADY.**
+[[project_wifi_fw_exec_gate_91]]
 
 2026-08-09 (WiFi burst 1 DONE — probe built+committed+staged; HW baseline running). Recovered the deleted BCM43455 downloader verbatim from lwip a078a5c (11 SDIO helpers + the 583-line diag_format_sdio_fwrelease) into a STANDALONE probe tools/wifi-probe/ (0 undefined, fw embedded, zero lwip coupling; mmaps SDHCI@0xfe300000/GPIO@0xfe200000/mailbox WL_ON; runs once+exits, prints fw_alive telemetry). Committed wifi-probe.c+build.sh. Staged /bin/wifi-probe. HW baseline cycle running (reproduce fw_alive=0 on the stable system). Code-review pass also running (parallel). NEXT: read the probe telemetry (baseline) → then the DECISIVE trivial-program test (10-instr counter blob vs 643KB fw → bisects release-works vs broken). [[project_wifi_fw_exec_gate_91]]
 

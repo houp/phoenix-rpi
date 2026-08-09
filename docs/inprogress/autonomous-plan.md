@@ -244,12 +244,15 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 **★★★ 2026-08-09 OWNER UPDATE (Witold, commit 54329a1 — see "## Comments from human operator / owner (2026-08-09)"
 above). NEW PRIORITIES (owner back Aug 19 late eve — stay busy the whole time):**
-1. **★ REVIVE WiFi (BCM43455 SDIO, #91) — the headline.** ★★★★ 2026-08-09 **FIRMWARE BOOTS!** The real 643KB fw
-   now RUNS on Phoenix (HT_AVAIL + HMB_FWREADY + F2-ready + mem-writes). Root cause solved: NVRAM was misplaced by
-   160KB (ram-top hardcoded 0x238000 vs TRUE 0x260000 from CR4 bankinfo) + missing intstatus-clear + wrong mailbox
-   base — found via the trivial-program test (release always OK) then the EROM walk. **NEXT PHASE = the real driver:
-   SDPCM/BCDC over F2 → init ioctls (brcmf_c_preinit_dcmds) → WLC_SCAN/escan → join/WPA2 → DHCP; then Bluetooth.**
-   [[project_wifi_fw_exec_gate_91]]
+1. **★ REVIVE WiFi (BCM43455 SDIO, #91) — the headline.** ★★★★★★ 2026-08-09 **SCAN WORKS — the radio found 16 real
+   APs** (SSID/BSSID/RSSI/channel, done_status=0). Full chain proven, driven entirely by Phoenix: SDIO → fw boot
+   (NVRAM ram-top 0x260000) → F2 (SDHCI reset) → BCDC ioctl API (RX demux) → iovars → CLM regulatory blob load
+   (the NOTUP fix) → escan → WLC_E_ESCAN_RESULT event parse. tools/wifi-probe/ `scan`. **NEXT (advisor-scoped,
+   credential-free + infra-free): (a) fix the GET-iovar reply parse (verify vs cur_etheraddr); (b) validate the
+   join/auth CONTROL PATH via events against a MADE-UP test SSID (wsec/wpa_auth/wsec_pmk + WLC_SET_SSID → read
+   WLC_E_SET_SSID/ASSOC/LINK). HARD CONSTRAINTS: do NOT scrape host PSK to join owner's AP (consent); do NOT run
+   hostapd/dnsmasq on the netboot host (unrecoverable). Real-network join = 1-step owner-triggered follow-up.**
+   Then Bluetooth. [[project_wifi_fw_exec_gate_91]]
 2. **Second CODE-REVIEW pass** on all the recent system changes / ports / new items (the vacation-run additions).
 3. **Mine docs/inprogress/ + docs/todo/** for re-explorable tasks; extend the task list with past-considered
    not-yet-done work.

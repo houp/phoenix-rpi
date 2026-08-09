@@ -403,6 +403,20 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (#3 part 2 — burst 2: SDL build RENDERS but WEDGES the V3D → diagnosing bounded-vs-deep). HW result:
+`/bin/quakespasm-sdl` links+runs+attempts to render (mechanical migration works), BUT the V3D repeatedly WEDGES —
+`BIN TIMEOUT` + `mmu_ill=0x800f831f` + climbing frame-drops — and HDMI shows a corrupted striped/partial GLQuake
+frame (brown palette + text, top ~25%, rest black). vs the flagship (pl_phoenix_vid, direct phxgl_ scanout,
+triple-buffer page-flip) which renders clean 40fps. So the SDL video backend's GL-context/render-target/scanout
+setup differs in a way that produces a bad render target (the mmu_ill = GPU accessed an unmapped/wrong BO) + the
+known TFU LINEAR-tiling striping. **Flagship UNTOUCHED (no regression; /bin/quakespasm + rpi4-quake still the
+proven 40fps; rollback intact).** This is the load-bearing HW-behavior risk the analysis predicted, realized.
+Delegated a bounded diagnosis: compare the SDL phoenix video backend (sources/phoenix-rtos-ports/sdl2/overlay/
+src/video/phoenix/) render-target/scanout setup vs pl_phoenix_vid.c → wedge root cause + bounded-config-fix vs
+deep-winsys verdict. NEXT: if bounded → fix (burst 3); if deep → BANK #3-part-2 at "links+runs, SDL-video wedges,
+flagship safe, needs attended winsys debug" (maintainability-only value on a working flagship = don't rabbit-hole
+unattended). Burst-1 clean-link work committed + pushed regardless (valid increment). [[project_sdl2_port]] [[project_pi4_v3d_scout]]
+
 2026-08-09 (#3 part 2 — burst 1 DONE: real-SDL quakespasm LINKS clean; burst 2 HW-validation running). Burst 1
 success: `/tmp/quakespasm-sdl-phoenix` (24.9MB, **0 undefined**) with real SDL2 wired across video/GL/audio/input
 (SDL_CreateWindow/GL_CreateContext/OpenAudio/PollEvent all defined from libSDL2.a); **no SDL-API gaps**; the

@@ -242,6 +242,19 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 ## Active task
 
+**★★★ 2026-08-09 OWNER UPDATE (Witold, commit 54329a1 — see "## Comments from human operator / owner (2026-08-09)"
+above). NEW PRIORITIES (owner back Aug 19 late eve — stay busy the whole time):**
+1. **★ REVIVE WiFi (BCM43455 SDIO, #91) — the headline.** Re-analyze ALL past WiFi work CRITICALLY (old notes may
+   be WRONG); leverage the now-stable system + new debug facilities (libdbg, HW watchpoint, diag-udp). Fully bring
+   WiFi up. THEN Bluetooth. (Re-analysis subagent spawned this turn.) This is the "risky, long task — decompose it"
+   the owner asked for.
+2. **Second CODE-REVIEW pass** on all the recent system changes / ports / new items (the vacation-run additions).
+3. **Mine docs/inprogress/ + docs/todo/** for re-explorable tasks; extend the task list with past-considered
+   not-yet-done work.
+Owner validated the risky-long-task approach; quakespasm→SDL (#3 part 2) is now LOWER priority than WiFi — its
+burst-2 revealed a deep V3D wedge in the SDL video path (flagship safe/untouched) → BANK it (diagnosis pending)
+and pivot to WiFi. Continue the 2026-08-07 aggressive posture below (take risks, kernel-OK, git-rollback).
+
 **★★ 2026-08-08 OWNER OVERRIDE (Witold, commit 11f02d8 — see "## Comments from human operator / owner (2026-08-07)"
 above): BACK TO AGGRESSIVE WORK. The backlog is NOT drained; the earlier "saturated / maintenance / lighter-cadence
 / defer-risky" posture (2026-08-06→08, superseded note kept below for history) is OVERRIDDEN.** Owner's standing
@@ -402,6 +415,17 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-09 ★ OWNER LEFT A NEW DIRECTIVE (commit 54329a1) → PIVOT TO WiFi. Discovered via a push-rejection: the
+owner pushed "New comments from the operator" to publish/main. New 2026-08-09 comments (now in the board's
+"Comments from operator" section): keep going; if no low-risk quick-wins, pick a risky-long task + decompose;
+**do a 2nd code-review pass** on recent changes/ports; **mine inprogress/ + todo/ docs** for re-explorable tasks;
+and the headline — **go back to WiFi (#91), re-analyze critically, fully bring it up, then Bluetooth**; owner back
+Aug 19 late eve, stay busy. Integrated his commit (rebased my burst-1/2 commits on top, stashed the pre-existing
+vkQuake WIP, pushed). Updated the Active task with the new priorities. Spawned a critical WiFi re-analysis
+(all past WiFi work + the deleted-diag-udp downloader from git history + the untracked wifi-fw/nvram lwip files →
+a decomposed bring-up plan leveraging the new debug facilities). quakespasm→SDL banked (deep V3D wedge, flagship
+safe) — WiFi is now the priority. NEXT: reap the WiFi re-analysis → start burst 1 of WiFi bring-up. [[feedback_owner_directive_aggressive_2026_08_07]] [[project_wifi_fw_exec_gate_91]]
 
 2026-08-09 (#3 part 2 — burst 2: SDL build RENDERS but WEDGES the V3D → diagnosing bounded-vs-deep). HW result:
 `/bin/quakespasm-sdl` links+runs+attempts to render (mechanical migration works), BUT the V3D repeatedly WEDGES —

@@ -105,6 +105,16 @@ static int mask_width(unsigned long mask)
 	return w;
 }
 
+/* Rescale an 8-bit channel value to a mask of width `wd`, without ever shifting
+ * by a negative count: wd<8 shifts down (the fbdev's 8-bit channels), wd==8 is
+ * identity, wd>8 (a >8bpc visual) shifts up. */
+static unsigned long scale8_to_width(unsigned v, int wd)
+{
+	if (wd >= 8)
+		return (unsigned long)v << (wd - 8);
+	return (unsigned long)v >> (8 - wd);
+}
+
 /* Shared play state carried on the decode thread's stack via its arg. */
 struct play_ctx {
 	const char *path;
@@ -265,9 +275,9 @@ static int show_frame(struct play_ctx *pc, const AVFrame *fr)
 			unsigned r = srow[x * 4 + 0];
 			unsigned g = srow[x * 4 + 1];
 			unsigned b = srow[x * 4 + 2];
-			unsigned long pr = ((unsigned long)r >> (8 - pc->rwd)) << pc->rsh;
-			unsigned long pg = ((unsigned long)g >> (8 - pc->gwd)) << pc->gsh;
-			unsigned long pb = ((unsigned long)b >> (8 - pc->bwd)) << pc->bsh;
+			unsigned long pr = scale8_to_width(r, pc->rwd) << pc->rsh;
+			unsigned long pg = scale8_to_width(g, pc->gwd) << pc->gsh;
+			unsigned long pb = scale8_to_width(b, pc->bwd) << pc->bsh;
 			drow[x] = (uint32_t)((pr & pc->rmask) | (pg & pc->gmask) | (pb & pc->bmask));
 		}
 	}

@@ -104,6 +104,16 @@ static int mask_width(unsigned long mask)
 	return w;
 }
 
+/* Rescale an 8-bit channel value to a mask of width `wd`. Handles wd<8 (the
+ * fbdev's 8-bit TrueColor channels: shift down), wd==8 (identity) and wd>8
+ * (a >8bpc visual: shift up) without ever shifting by a negative count. */
+static unsigned long scale8_to_width(unsigned v, int wd)
+{
+	if (wd >= 8)
+		return (unsigned long)v << (wd - 8);
+	return (unsigned long)v >> (8 - wd);
+}
+
 /* An animated, depth-tested scene into the currently-bound FBO. A rotating pinwheel
  * of coloured triangles placed at varied depths, so LEQUAL depth-test accepts/rejects
  * across the fan (exercises the same EZ/tile path the GL frontend drives). `angle` is
@@ -264,10 +274,10 @@ int main(void)
 				unsigned r = srow[x * 4 + 0];
 				unsigned g = srow[x * 4 + 1];
 				unsigned b = srow[x * 4 + 2];
-				/* scale 8-bit channel down to the mask's width, then shift into place */
-				unsigned long pr = ((unsigned long)r >> (8 - rwd)) << rsh;
-				unsigned long pg = ((unsigned long)g >> (8 - gwd)) << gsh;
-				unsigned long pb = ((unsigned long)b >> (8 - bwd)) << bsh;
+				/* scale 8-bit channel to the mask's width, then shift into place */
+				unsigned long pr = scale8_to_width(r, rwd) << rsh;
+				unsigned long pg = scale8_to_width(g, gwd) << gsh;
+				unsigned long pb = scale8_to_width(b, bwd) << bsh;
 				drow[x] = (uint32_t)((pr & rmask) | (pg & gmask) | (pb & bmask));
 			}
 		}

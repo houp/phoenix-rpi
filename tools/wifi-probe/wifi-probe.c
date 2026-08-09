@@ -1474,6 +1474,185 @@ static void diag_bcdcGetVersion(volatile uint8_t *sdhci, uint32_t sdio_core)
 	}
 }
 
+/* ---- #91 WiFi scan (escan) over the BCDC ioctl API ------------------------
+ * Prelude (event_msgs bit69 -> WLC_UP -> mpc0) then SET_VAR "escan" (V1 108B
+ * broadcast active), then read WLC_E_ESCAN_RESULT (type 69) events off SDPCM
+ * channel 1 and extract each AP. See tools/wifi-probe/SCAN-SPEC.md. */
+#define WLC_UP_CMD 2u
+#define SET_VAR_CMD 263u
+#define GET_VAR_CMD 262u
+#define SCAN_MAX_APS 16
+
+static int g_scan_mode = 0;
+static int g_scan_ran = 0;
+static int g_scan_em_rc = -100, g_scan_up_rc = -100, g_scan_mpc_rc = -100, g_scan_escan_rc = -100;
+static int g_scan_ap_count = 0, g_scan_evt_total = 0, g_scan_escan_events = 0;
+static int g_scan_done_status = -1;
+static struct {
+	uint8_t bssid[6];
+	uint8_t ssid_len;
+	char ssid[33];
+	int16_t rssi;
+	uint8_t chan;
+} g_scan_aps[SCAN_MAX_APS];
+
+static uint16_t diag_be16(const uint8_t *p) { return (uint16_t)(((uint16_t)p[0] << 8) | p[1]); }
+static uint32_t diag_be32(const uint8_t *p)
+{
+	return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | p[3];
+}
+
+/* Issue an iovar (SET if is_set, else GET): payload = "name\0" + data. */
+static uint8_t g_iov[300];
+static int diag_iovar(volatile uint8_t *sdhci, uint32_t sdio_core, int is_set,
+	const char *name, const uint8_t *data, uint32_t dlen,
+	uint8_t *rx, uint32_t rxcap, uint32_t *rxlen, uint32_t reqid, uint8_t seq)
+{
+	uint32_t nl = 0u, i;
+	while (name[nl] != '\0') {
+		nl++;
+	}
+	nl++; /* include the NUL */
+	if (nl + dlen > sizeof(g_iov)) {
+		return -50;
+	}
+	for (i = 0u; i < nl; ++i) {
+		g_iov[i] = (uint8_t)name[i];
+	}
+	for (i = 0u; i < dlen; ++i) {
+		g_iov[nl + i] = (data != NULL) ? data[i] : 0u;
+	}
+	return diag_bcdcCmd(sdhci, sdio_core, is_set,
+		is_set ? SET_VAR_CMD : GET_VAR_CMD, g_iov, nl + dlen,
+		rx, rxcap, rxlen, reqid, seq);
+}
+
+static void diag_wifiScan(volatile uint8_t *sdhci, uint32_t sdio_core)
+{
+	uint8_t emask[16];
+	uint8_t up[4] = { 0, 0, 0, 0 };
+	uint8_t mpc[4] = { 0, 0, 0, 0 };
+	uint8_t escan[108];
+	uint32_t reqid = 1u;
+	uint8_t seq = 0u;
+	int i, t, done = 0;
+
+	g_scan_ran = 1;
+	diag_sdhciResetDatCmd(sdhci);
+
+	/* event_msgs: enable WLC_E_ESCAN_RESULT (69): mask[8] |= 0x20 */
+	for (i = 0; i < 16; ++i) {
+		emask[i] = 0u;
+	}
+	emask[8] = 0x20u;
+	g_scan_em_rc = diag_iovar(sdhci, sdio_core, 1, "event_msgs", emask, 16u,
+		NULL, 0u, NULL, reqid++, seq++);
+
+	/* WLC_UP */
+	g_scan_up_rc = diag_bcdcCmd(sdhci, sdio_core, 1, WLC_UP_CMD, up, 4u,
+		NULL, 0u, NULL, reqid++, seq++);
+
+	/* mpc = 0 (keep radio awake on SDIO parts) */
+	g_scan_mpc_rc = diag_iovar(sdhci, sdio_core, 1, "mpc", mpc, 4u,
+		NULL, 0u, NULL, reqid++, seq++);
+
+	/* escan params (V1, broadcast active, all channels) */
+	for (i = 0; i < 108; ++i) {
+		escan[i] = 0u;
+	}
+	escan[0] = 1u;                 /* version = 1 */
+	escan[4] = 1u;                 /* action = WL_ESCAN_ACTION_START */
+	escan[6] = 0x34u; escan[7] = 0x12u; /* sync_id = 0x1234 */
+	/* ssid_len @8 = 0; ssid[32] @12 = 0 */
+	for (i = 44; i < 50; ++i) {
+		escan[i] = 0xffu;          /* bssid = broadcast */
+	}
+	escan[50] = 2u;                /* bss_type = ANY */
+	escan[51] = 0u;                /* scan_type = ACTIVE */
+	for (i = 52; i < 68; ++i) {
+		escan[i] = 0xffu;          /* nprobes/active/passive/home = -1 (default) */
+	}
+	escan[70] = 1u;                /* channel_num = 0x00010000: n_channels=0(all), n_ssids=1 */
+	/* ssid_le[0] @72 = 36 zero bytes = one wildcard SSID (active broadcast) */
+	g_scan_escan_rc = diag_iovar(sdhci, sdio_core, 1, "escan", escan, 108u,
+		NULL, 0u, NULL, reqid++, seq++);
+
+	/* Read WLC_E_ESCAN_RESULT events off channel 1 until a non-PARTIAL status. */
+	for (t = 0; t < 2000 && !done; ++t) {
+		uint16_t len;
+		uint8_t chan;
+		int fr;
+		uint32_t sdoff, ehdr, etype, status, bss;
+
+		fr = diag_f2RecvFrame(sdhci, g_rxf, &len, &chan);
+		if (fr == 1) {
+			usleep(3000);
+			continue;
+		}
+		if (fr < 0) {
+			usleep(2000);
+			continue;
+		}
+		{
+			uint32_t st = diag_bpRead32(sdhci, sdio_core + 0x20u);
+			if (st != 0u && st != 0xffffffffu) {
+				diag_bpWrite32(sdhci, sdio_core + 0x20u, st);
+			}
+		}
+		if (chan != 1u) {
+			continue;
+		}
+		g_scan_evt_total++;
+
+		sdoff = g_rxf[7];
+		if (sdoff + 4u > len) {
+			continue;
+		}
+		ehdr = sdoff + 4u + 4u * (uint32_t)g_rxf[sdoff + 3u]; /* skip BDC hdr */
+		if (ehdr + 48u > (uint32_t)len) {
+			continue;
+		}
+		if (diag_be16(g_rxf + ehdr + 12u) != 0x886Cu) {
+			continue; /* not an event (h_proto != ETH_P_LINK_CTL) */
+		}
+		etype = diag_be32(g_rxf + ehdr + 28u);
+		if (etype != 69u) {
+			continue; /* not WLC_E_ESCAN_RESULT */
+		}
+		g_scan_escan_events++;
+		status = diag_be32(g_rxf + ehdr + 32u);
+		if (status != 8u) {          /* not PARTIAL => scan done (SUCCESS/ABORT) */
+			g_scan_done_status = (int)status;
+			done = 1;
+			continue;
+		}
+		bss = ehdr + 84u;            /* brcmf_bss_info_le */
+		if (bss + 90u > (uint32_t)len) {
+			continue;
+		}
+		if (g_scan_ap_count < SCAN_MAX_APS) {
+			int k;
+			uint8_t sl;
+			for (k = 0; k < 6; ++k) {
+				g_scan_aps[g_scan_ap_count].bssid[k] = g_rxf[bss + 8u + k];
+			}
+			sl = g_rxf[bss + 18u];
+			if (sl > 32u) {
+				sl = 32u;
+			}
+			g_scan_aps[g_scan_ap_count].ssid_len = sl;
+			for (k = 0; k < (int)sl; ++k) {
+				g_scan_aps[g_scan_ap_count].ssid[k] = (char)g_rxf[bss + 19u + k];
+			}
+			g_scan_aps[g_scan_ap_count].ssid[sl] = '\0';
+			g_scan_aps[g_scan_ap_count].rssi =
+				(int16_t)(g_rxf[bss + 78u] | (g_rxf[bss + 79u] << 8));
+			g_scan_aps[g_scan_ap_count].chan = g_rxf[bss + 72u]; /* chanspec low byte */
+			g_scan_ap_count++;
+		}
+	}
+}
+
 /* #91 "trivial-program test" mode. When set (argv "trivial"), the 643 KB
  * production firmware is replaced by cr4tiny_blob (a ~20-byte Thumb-2 counter
  * whose reset vector is the REAL fw's verbatim B.W into rambase+0x80). The
@@ -2010,6 +2189,10 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 		if (!g_trivial_mode && g_ioctl_mode) {
 			diag_bcdcGetVersion(sdhci, sdio_core);
 		}
+		/* #91: WiFi scan (real fw + argv scan). */
+		if (!g_trivial_mode && g_scan_mode) {
+			diag_wifiScan(sdhci, sdio_core);
+		}
 	}
 
 	munmap(sdhci_page, _PAGE_SIZE);
@@ -2363,6 +2546,39 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 		}
 	}
 
+	/* #91 WiFi scan report. */
+	if (g_scan_ran) {
+		int ap;
+		r = snprintf(buf + off, cap - off,
+			"WiFi SCAN: event_msgs rc=%d  UP rc=%d  mpc rc=%d  escan rc=%d\n"
+			"  chan1 frames=%d  escan-events(type69)=%d  APs=%d  done_status=%d\n",
+			g_scan_em_rc, g_scan_up_rc, g_scan_mpc_rc, g_scan_escan_rc,
+			g_scan_evt_total, g_scan_escan_events, g_scan_ap_count, g_scan_done_status);
+		if (r > 0 && (size_t)r < cap - off) {
+			off += r;
+		}
+		for (ap = 0; ap < g_scan_ap_count; ++ap) {
+			r = snprintf(buf + off, cap - off,
+				"  AP[%d] %02x:%02x:%02x:%02x:%02x:%02x  ch=%u  rssi=%d dBm  ssid(%u)=\"%s\"\n",
+				ap,
+				g_scan_aps[ap].bssid[0], g_scan_aps[ap].bssid[1], g_scan_aps[ap].bssid[2],
+				g_scan_aps[ap].bssid[3], g_scan_aps[ap].bssid[4], g_scan_aps[ap].bssid[5],
+				(unsigned)g_scan_aps[ap].chan, (int)g_scan_aps[ap].rssi,
+				(unsigned)g_scan_aps[ap].ssid_len, g_scan_aps[ap].ssid);
+			if (r > 0 && (size_t)r < cap - off) {
+				off += r;
+			}
+		}
+		r = snprintf(buf + off, cap - off,
+			"  -> %s\n",
+			(g_scan_ap_count > 0)
+				? "SCAN FOUND APs -- the radio works! (SSID/RSSI/channel above)"
+				: "no APs parsed (see rc/event counts)");
+		if (r > 0 && (size_t)r < cap - off) {
+			off += r;
+		}
+	}
+
 	r = snprintf(buf + off, cap - off, ".\n");
 	if (r > 0 && (size_t)r < cap - off) {
 		off += r;
@@ -2383,6 +2599,9 @@ int main(int argc, char **argv)
 		}
 		else if (strcmp(argv[ai], "ioctl") == 0) {
 			g_ioctl_mode = 1;
+		}
+		else if (strcmp(argv[ai], "scan") == 0) {
+			g_scan_mode = 1;
 		}
 	}
 

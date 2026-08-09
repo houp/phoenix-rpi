@@ -421,6 +421,15 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (BT Tier-0 — HW routing dump: fw routes NO UART to BT; must route it myself via the mini-UART). Cycle
+btroute: GPIO14/15=ALT0 → PL011 is the CONSOLE (my first probe drove the console, not BT); GPIO30-33 = all INPUT +
+mini-UART DISABLED → the fw left the BT-chip UART pins unrouted (dtoverlay=miniuart-bt did NOT take at runtime).
+BT_REG_ON (mailbox expgpio0/128) works (=1). FIX: route BT to the AUX mini-UART myself (PL011 stays console): set
+GPIO32/33[+30/31] to ALT5, enable+configure AUX mini-UART (LCR=0x3 8-bit, FIFO clear, BAUD=core_clk/(8*115200)-1
+with core_clk read via mailbox GET_CLOCK_RATE(4)), then H4 HCI over AUX (LSR@0x54: bit5 TX-empty, bit0 RX-ready).
+NEXT: implement the mini-UART BT path in tools/bt-probe/ + retry HCI_RESET → READ_LOCAL_VERSION → (Tier-2) fetch
+.hcd. [[project_bluetooth_bringup]]
+
 2026-08-09 (BT Tier-0 started; HCI_RESET on PL011 silent → resolving UART routing). Built tools/bt-probe/ (mailbox
 BT_REG_ON expgpio0/mbox128 + PL011 init + H4 HCI_RESET/READ_LOCAL_VERSION). First HW run (bttier0): BT_REG_ON set
 ok (=1), TX not blocked, but HCI_RESET got NO response ("controller silent"). Likely mis-targeted the UART: the RPi

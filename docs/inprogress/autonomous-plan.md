@@ -387,6 +387,19 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (#3 part 2 — migration plan received; burst 1 (parallel SDL artifact → LINK OK) delegated). Analysis
+verdict: quakespasm currently FAKES SDL (sdl-shim/ + pl_phoenix_{vid,in,snd} Phoenix backends); migration =
+re-enable its stock SDL TUs (gl_vidsdl/in_sdl/snd_sdl), drop those 3 backends, link the real libSDL2.a — the SAME
+shape as Q2/Q3, and the Phoenix SDL backend has the FULL chain wired (window/GL create+swap/audio). Gaps (gamma,
+SDL_TEXTINPUT, relative-mouse-hook) are non-blocking/graceful. The analysis called the SDL backend "HW-unproven,"
+but **yquake2 rendered full 3D on real HW this session via that same real-SDL GL path → the video/GL/input backend
+IS HW-proven**, lowering the risk. Effort ~2-3 bursts, risk medium (mechanical link is low-risk; HW behavior is
+the load-bearing validation; flagship is the artifact at stake). Burst 1 (delegated, in progress): a NEW parallel
+`build-quakespasm-sdl-phoenix.py` → `libquakespasm-sdl.a` + `/tmp/quakespasm-sdl-phoenix`, `#ifdef USE_SDL2`-guarded
+SDL_Init in pl_phoenix_main.c (old build untouched), reach 0-undefined link. The proven `libquakespasm.a`/`/bin/
+quakespasm`/`rpi4-quake` stay the shipped flagship until the SDL build is HW-validated (renders + demo + input +
+0 faults). Rollback = git-revert (additive only). NEXT: reap the build → stage → HW-validate (burst 2). [[project_sdl2_port]] [[project_quakespasm_port]]
+
 2026-08-09 (Starting owner directive #3 part 2 — migrate quakespasm→real SDL port — as a bounded multi-burst
 project). With the heartbeat-tractable features delivered, picked the boldest OWNER-EXPLICIT remaining task that's
 ROLLBACK-SAFE: complete #3 part 2 (Q2/Q3 already on the real SDL port; Q1 quakespasm is the holdout on a fake

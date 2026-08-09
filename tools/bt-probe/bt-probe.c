@@ -297,8 +297,10 @@ int main(void)
 	}
 	else {
 		hexdump("HCI_RESET reply", resp, n);
+		/* Command Complete: [0]=04 evt [1]=0e code [2]=plen [3]=num_cmd_pkts
+		 * [4..5]=opcode echo (03 0c = HCI_RESET) [6]=status. */
 		if (n >= 7 && resp[0] == 0x04u && resp[1] == 0x0eu &&
-			resp[3] == 0x03u && resp[4] == 0x0cu && resp[6] == 0x00u) {
+			resp[4] == 0x03u && resp[5] == 0x0cu && resp[6] == 0x00u) {
 			printf("  -> RESET OK: Command Complete, status=0 -- mini-UART<->BT controller ALIVE!\n");
 		}
 		else if (n > 0) {

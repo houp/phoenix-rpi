@@ -215,6 +215,17 @@ layer of that stack (firmware boot, SDIO transport, the control-message protocol
 regulatory upload, the scan) was implemented from datasheets and the Linux driver's source as the reference, and
 verified on the hardware one decisive experiment at a time.
 
+Then it woke the chip's *other* radio. The BCM43455 is a Wi-Fi + Bluetooth combo part, and the agent turned to
+Bluetooth next. A read-only dump of the pin-muxing revealed the firmware had wired no UART to the Bluetooth
+controller at all — the debug console occupied the stable UART, and the alternate (mini) UART sat disabled — so the
+agent routed that mini-UART to the Bluetooth pins itself, derived its baud rate from the live core clock, and
+powered the radio on through the firmware mailbox. The first HCI command came back silent; a stronger reviewer's
+one-line insight — the flow-control line was deasserted, so the controller had processed the command but was
+politely holding its reply until told the host was ready — turned out to be exactly right, and once the agent
+asserted it, **the Bluetooth controller answered**: an HCI reset acknowledged clean, and a version query identifying
+a Broadcom Bluetooth 4.1 core. Both radios of the combo chip were now reachable from a from-scratch RTOS that, weeks
+earlier, could not get the chip's firmware to execute a single instruction.
+
 The limits it hit were *physical or judgment* boundaries, not cognitive ones: a 100 Mbps link it
 couldn't rewire, an SD card it couldn't insert, and a host network it judged too risky to
 reconfigure unattended (reconfiguring the netboot infrastructure everything depended on was not

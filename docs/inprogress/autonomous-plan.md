@@ -421,6 +421,17 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (★ BT TIER-0 DONE — the BT controller is ALIVE under Phoenix). Cycle btrts: asserting RTS (mini-UART
+AUX_MU_MCR bit1, active-low; MCR=0 had left it "host not ready" so the chip held its reply — advisor's lead) made
+it work. HCI_RESET → `04 0e 04 01 03 0c 00` (Command Complete, opcode 0x0c03, status 0); READ_LOCAL_VERSION →
+`04 0e 0c 01 01 10 00 07 00 00 07 0f 00 19 61` = HCI/LMP ver 7 (BT 4.1), **manufacturer 0x000f = Broadcom**, LMP
+subver 0x6119. Working config: fw routes NO UART to BT, so bt-probe routes GPIO30-33→ALT5 mini-UART itself (PL011
+stays console) + AUX_ENABLES=1/LCR=3/MCR=2/CNTL=3, baud 270 (250MHz core), BT_REG_ON(expgpio0/mbox128)=1
+(GET_GPIO_STATE readback confirmed). **A SECOND radio on the BCM43455 is now reachable** (WiFi scans over SDIO; BT
+HCI over mini-UART). Fixed a cosmetic opcode-echo offset in the verdict. NEXT: Tier-2 patchram — fetch the .hcd for
+LMP subver 0x6119 (BCM4345C0/C5, linux-firmware, EULA→gitignore) → Write_RAM/Launch_RAM → READ_BD_ADDR → HCI
+Inquiry (BT device scan). [[project_bluetooth_bringup]]
+
 2026-08-09 (BT Tier-0 — mini-UART routed+configured but HCI silent; advisor-guided RTS+liveness diagnostic running).
 Cycle btminiuart: GPIO30-33=ALT5, AUX_ENABLES=1, CNTL=3, core_clk=250MHz->baud270, BT_REG_ON=1 — all confirmed via
 register readback — yet HCI_RESET got 0 bytes. Advisor's lead: RTS was DEASSERTED (MCR=0, no auto-flow => active-low

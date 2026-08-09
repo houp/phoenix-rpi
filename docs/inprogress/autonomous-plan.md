@@ -421,6 +421,16 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (BT Tier-0 — mini-UART routed+configured but HCI silent; advisor-guided RTS+liveness diagnostic running).
+Cycle btminiuart: GPIO30-33=ALT5, AUX_ENABLES=1, CNTL=3, core_clk=250MHz->baud270, BT_REG_ON=1 — all confirmed via
+register readback — yet HCI_RESET got 0 bytes. Advisor's lead: RTS was DEASSERTED (MCR=0, no auto-flow => active-low
+RTS high = "host not ready") so the chip held its reply. Fix + one maximally-diagnostic cycle (btrts): assert RTS
+(MCR bit1=2); confirm BT_ON latched via GET_GPIO_STATE(128); read GPLEV0 bit30 (our CTS = chip's RTS) as a
+UART-framing-independent liveness signal; 500ms settle. Discriminator: reply=>Tier-0 done; silent+CTS asserted=>
+chase baud; CTS never asserts+BT_ON high=>power/clock/pin. SCOPE (advisor): BT gets ~1-2 more focused cycles (no
+.hcd, self-routed mini-UART) then BANK at the recorded state + rotate to another owner task if unresolved — same
+clean-stopping standard as WiFi scan. [[project_bluetooth_bringup]]
+
 2026-08-09 (BT Tier-0 — implemented the mini-UART BT path; HW test running). Per the routing finding, rewrote
 tools/bt-probe/ to route BT itself: sets GPIO30-33 → ALT5 (mini-UART CTS1/RTS1/TXD1/RXD1), enables+configures the
 AUX mini-UART @0xfe215000 (8-bit, FIFO clear, baud=core_clk/(8*115200)-1 with core_clk via mailbox

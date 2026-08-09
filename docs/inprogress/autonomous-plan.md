@@ -387,6 +387,15 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (PIVOT from Q1 MP → ffmpeg VIDEO-IN-AN-X-WINDOW). Per last burst's ROI call, pivoted off Q1 MP (deep
+Quake +connect internals, marginal payoff — banked ready) to a fresher fully-validatable capability: a windowed
+video player. Composes 2 proven stacks — E4's H.264 decode (tools/ffmpeg-port/e4_play.c, 8MB-thread parse+decode
++ YUV420→RGBX) + gl-x11-window's XPutImage present. Delegated a subagent to build `tools/ffmpeg-port/e4_x11_play.c`
+(decode → present each frame into an X window sized to the video, WM-hinted) + a build script linking libav* +
+libX11. Test clip already staged (`/usr/share/e4/clip.h264`, 320x240 color-cycling H.264). NEXT: reap the build →
+stage → launch under Xphoenix (`pl_phoenix_xlaunch .../misc /bin/e4-x11-play`) → HDMI grab = video playing in a
+window (advances ffmpeg/video + X11-windowed). [[project_ffmpeg_e4_feasibility]] [[project_x11_gpu_windowed_feasibility]]
+
 2026-08-09 (Quake 1 MP #68 — CORRECTED diagnosis via tcpdump + code: connect never FIRES; NOT a net bug; PIVOT
 recommended). Ran a Pi connect cycle with host tcpdump on the netboot iface: **0 packets on UDP 26000** (while
 TFTP/NFS flowed — iface was capturing). Client log: `UDP Initialized` → IMMEDIATELY `Playing demo from demo1.dem`

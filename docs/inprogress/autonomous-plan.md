@@ -421,6 +421,19 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (PIVOT from WiFi: dispatched 2nd code-review pass on the WiFi driver + mined docs/todo + de-risked
+Bluetooth). WiFi scan headline done. (1) OWNER #2 (2nd code-review pass): spawned an adversarial review subagent on
+the whole tools/wifi-probe/wifi-probe.c (~2600 lines of fast-written HW-protocol C, unreviewed since it's all new
+this session) — bounds/overflow, byte-mode CMD53, CLM chunking, endianness, RX demux, event-stack offset math.
+Will triage/fix its findings. (2) OWNER #3 (mine docs): docs/todo/ has 7 concrete plans — bluetooth-bringup-plan,
+bluetooth-bcm43455-impl, gpu-quake-bringup, gpu-vc6-impl, pi4-audio-impl, tinyx-x11-demo, userspace-demo-apps.
+(3) **Bluetooth (owner's "then BT") DE-RISKED + teed up:** BT side of the BCM43455 is a standard UART H4 HCI
+controller (much simpler than WiFi SDIO). CONSOLE-SAFE confirmed — active config.txt has dtoverlay=miniuart-bt, so
+the console is on the mini-UART and PL011/UART0 @0xfe201000 is free for BT; Tier-0 (HCI_RESET loopback) is
+firmware-free. [[project_bluetooth_bringup]]. NEXT: fix the code-review findings, then start BT Tier-0 (standalone
+tools/bt-probe/ mirroring the wifi-probe: PL011 init + BT_REG_ON via mailbox SET_GPIO_STATE + HCI_RESET →
+Command-Complete + READ_LOCAL_VERSION).
+
 2026-08-09 (WiFi #91 — GET_VAR path validated + scan reproduced 2/2; WiFi scan milestone SOLID, pivoting). Cycle
 wifigetvar: GET_VAR cur_etheraddr rc=0 → MAC dc:a6:32:3c:dd:f3 (dc:a6:32 = Raspberry Pi OUI ✓); chanspecs=36
 channels (fixed the earlier -1 = undersized GET output → BUFTOOSHORT); scan reproduced (16 APs, done_status=0).

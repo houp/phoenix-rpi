@@ -727,8 +727,8 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 	/* #91 trivial-program test extras (baseline path ignores these). */
 	const uint8_t *fw_img = g_trivial_mode ? cr4tiny_blob : wifi_fw_43455;
 	const size_t fw_img_len = g_trivial_mode ? (size_t)cr4tiny_blob_len : (size_t)wifi_fw_43455_len;
-	uint8_t cnt_pre[4] = { 0 }, cnt_post[4] = { 0 };
-	int rc_cnt_pre = -100, rc_cnt_post = -100;
+	uint8_t cnt_pre[4] = { 0 }, cnt_post[4] = { 0 }, cnt_post2[4] = { 0 };
+	int rc_cnt_pre = -100, rc_cnt_post = -100, rc_cnt_post2 = -100;
 	uint32_t ioctl_w2 = 0u, ioctl_w3 = 0u; /* dual ARM-wrapper CR4-identity cross-check */
 
 	for (i = 0; i < (int)sizeof(pre_buf); ++i) {
@@ -1047,8 +1047,12 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 			/*reg_addr=*/0u, /*block_count=*/1u, /*block_size=*/64u, post_buf);
 
 		/* #91 trivial test: counter POST-release at CR4TINY_COUNTER_ADDR.
-		 * Same 0x198000 window; F1 offset 0x1000. A value with the 0xC0DE
-		 * magic in its high half => the CR4 executed our loop. */
+		 * Same 0x198000 window; F1 offset 0x1000. The counter free-runs at
+		 * ~MHz, so we do NOT expect the exact seed magic back -- we expect a
+		 * value that (a) differs from the known-zero pre-state and (b) keeps
+		 * CLIMBING between two reads a short delay apart. read2 >> read1 is
+		 * unambiguous live execution (kills any static-artifact hypothesis in
+		 * one boot). The 0xC0/0xC1 top byte corroborates our seed. */
 		{
 			uint32_t c0[4] = {0}, c1[4] = {0}, c2[4] = {0}, c3[4] = {0};
 			(void)diag_sdioCmd52(sdhci, 0, 1, 0x1000u, 0u, c0);
@@ -1060,6 +1064,18 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 			cnt_post[2] = (uint8_t)(c2[0] & 0xffu);
 			cnt_post[3] = (uint8_t)(c3[0] & 0xffu);
 			rc_cnt_post = 0;
+
+			usleep(50 * 1000); /* let the free-running counter advance */
+
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x1000u, 0u, c0);
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x1001u, 0u, c1);
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x1002u, 0u, c2);
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x1003u, 0u, c3);
+			cnt_post2[0] = (uint8_t)(c0[0] & 0xffu);
+			cnt_post2[1] = (uint8_t)(c1[0] & 0xffu);
+			cnt_post2[2] = (uint8_t)(c2[0] & 0xffu);
+			cnt_post2[3] = (uint8_t)(c3[0] & 0xffu);
+			rc_cnt_post2 = 0;
 		}
 
 		/* fw-execution disambiguation (#91): SOCRAM[0..63] is entry/vector
@@ -1340,16 +1356,31 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 			((uint32_t)cnt_pre[2] << 16) | ((uint32_t)cnt_pre[3] << 24);
 		uint32_t cq = (uint32_t)cnt_post[0] | ((uint32_t)cnt_post[1] << 8) |
 			((uint32_t)cnt_post[2] << 16) | ((uint32_t)cnt_post[3] << 24);
-		int ran = ((cq & 0xFFFF0000u) == (CR4TINY_COUNTER_MAGIC & 0xFFFF0000u)) &&
-			(cq != cp);
+		uint32_t cq2 = (uint32_t)cnt_post2[0] | ((uint32_t)cnt_post2[1] << 8) |
+			((uint32_t)cnt_post2[2] << 16) | ((uint32_t)cnt_post2[3] << 24);
+		/* Correct predicate: a known-zero cell that changed => the CR4
+		 * executed released code. A second read that CLIMBED => it is still
+		 * live (not a static artifact). The seed's top byte (0xC0/0xC1)
+		 * corroborates but is NOT required (the counter laps past 0xC0DExxxx
+		 * within milliseconds at MHz). */
+		int changed = (cq != cp);
+		int climbing = (cq2 != cq);
+		int seed_corrob = (((cq >> 24) == 0xC0u) || ((cq >> 24) == 0xC1u));
 		r = snprintf(buf + off, cap - off,
-			"TRIVIAL-PROGRAM TEST (counter @0x%08x, magic 0x%08x):\n"
-			"  pre=0x%08x (rc=%d, expect 0)  post=0x%08x (rc=%d)\n"
+			"TRIVIAL-PROGRAM TEST (counter @0x%08x, seed 0x%08x):\n"
+			"  pre=0x%08x (rc=%d, expect 0)\n"
+			"  post1=0x%08x (rc=%d)  post2=0x%08x (rc=%d, +50ms)  delta=%u\n"
+			"  changed=%d climbing=%d seed_top_byte_corrob=%d\n"
 			"  -> %s\n",
 			(unsigned)CR4TINY_COUNTER_ADDR, (unsigned)CR4TINY_COUNTER_MAGIC,
-			(unsigned)cp, rc_cnt_pre, (unsigned)cq, rc_cnt_post,
-			ran ? "CR4 EXECUTED our code (release path WORKS -- chase fw preconditions: NVRAM ram-top, clocks)"
-			    : "counter DEAD (release path broken -- wrong core / reset semantics; use EROM walk next)");
+			(unsigned)cp, rc_cnt_pre,
+			(unsigned)cq, rc_cnt_post, (unsigned)cq2, rc_cnt_post2,
+			(unsigned)(cq2 - cq), changed, climbing, seed_corrob,
+			(changed && climbing)
+				? "CR4 IS EXECUTING released code (counter live) -- RELEASE PATH WORKS; gate is fw preconditions (NVRAM ram-top/clocks)"
+			: changed
+				? "counter CHANGED from zero (executed) but 2nd read did not climb -- likely executed then stopped; confirm"
+				: "counter unchanged (0) -- CR4 did NOT execute (release path / reset semantics)");
 		if (r > 0 && (size_t)r < cap - off) {
 			off += r;
 		}

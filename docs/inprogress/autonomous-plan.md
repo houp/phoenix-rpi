@@ -421,6 +421,15 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (BT Tier-0 — implemented the mini-UART BT path; HW test running). Per the routing finding, rewrote
+tools/bt-probe/ to route BT itself: sets GPIO30-33 → ALT5 (mini-UART CTS1/RTS1/TXD1/RXD1), enables+configures the
+AUX mini-UART @0xfe215000 (8-bit, FIFO clear, baud=core_clk/(8*115200)-1 with core_clk via mailbox
+GET_CLOCK_RATE(CORE=4), 500MHz fallback), raises BT_REG_ON, then H4 HCI_RESET/READ_LOCAL_VERSION over AUX
+(LSR@0x54 TX/RX). PL011 stays the console (untouched). Reports routing before/after + core clock + baud + raw reply.
+Cycle btminiuart running. If HCI_RESET → Command Complete (04 0e 04 01 03 0c 00): Tier-0 DONE (BT radio reachable).
+If garbage bytes back: baud mismatch (adjust the core-clock divisor). If silent: revisit routing/BT_REG_ON.
+[[project_bluetooth_bringup]]
+
 2026-08-09 (BT Tier-0 — HW routing dump: fw routes NO UART to BT; must route it myself via the mini-UART). Cycle
 btroute: GPIO14/15=ALT0 → PL011 is the CONSOLE (my first probe drove the console, not BT); GPIO30-33 = all INPUT +
 mini-UART DISABLED → the fw left the BT-chip UART pins unrouted (dtoverlay=miniuart-bt did NOT take at runtime).

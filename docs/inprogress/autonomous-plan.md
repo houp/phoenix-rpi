@@ -418,6 +418,16 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (WiFi #91 — ioctl API VALIDATED + scan implemented; escan rejected -4, diagnosing via fw console).
+RX demux validated: GET_VERSION returns version=2 in ONE call (drains the queued event, matches the reqid'd control
+reply). Built the full scan (tools/wifi-probe/ `scan` mode + SCAN-SPEC.md): prelude event_msgs->UP->mpc then escan
+SET then WLC_E_ESCAN_RESULT event parse. HW cycle wifiscan: **prelude ALL succeeded (event_msgs/UP/mpc rc=0 — the
+ioctl API drives the fw)** but escan SET returned BCDC status -4 (fw rejected; 0 events, 0 APs). Added a post-escan
+fw-console re-read to see the fw's own reason (cycle b2glv9xms). Likely causes: escan struct version (V1 vs V2 for
+7.45.234), or a missing precondition (SET_INFRA / interface role / band). Commits c7f8386 (scan) + ff2cb7e
+(console diag). The ioctl+iovar mechanism is proven end-to-end; only the escan command shape/precondition remains.
+[[project_wifi_fw_exec_gate_91]]
+
 2026-08-09 (WiFi #91 — F2 transport CONFIRMED CLEAN; RX needs SDPCM channel demux). Cycle wifi2ioctl: two
 GET_VERSION back-to-back, one reset up front, NO reset between → ALL 4 F2 transfers rc=0, no wedge. So NO
 per-transfer reset needed; the earlier wedge was purely the WRONG-LENGTH read (advisor's hypothesis confirmed).

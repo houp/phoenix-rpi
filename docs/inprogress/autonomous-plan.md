@@ -418,6 +418,19 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (WiFi #91 driver phase — BCDC ioctl round-trip IN PROGRESS; F2 transport bug found+fixed, retest
+pending). A source-study subagent returned a byte-level SDPCM+BCDC spec (cited to brcmfmac bcdc.c/sdio.c/bcmsdh.c);
+implemented an `ioctl` mode (WLC_GET_VERSION over F2) — frame layout + F2 addressing VERIFIED correct vs
+brcmf_sdiod_send_buf (window 0x18000000, addr 0x8000, func2). First HW run (bpd80cf0g): send/read rc=-5 = SDHCI
+data phase never started; NOT frame content. Clues: intstatus@0x18004020 pre=0x008000c0 (sdio_core 0x18004000
+CONFIRMED; I_HMB_FRAME_IND 0x40 ALREADY set at boot = a frame waiting in F2 RX FIFO), post=0x18181818 (failed CMD53
+wedged the bus). Diagnosis: forced BLOCK-mode CMD53 w/ block_size=64, but a sub-block control frame needs BYTE
+mode. FIX (commit 9a29d5b): added diag_sdioCmd53{Read,Write}ByteMode; F2 TX/RX now byte-mode; also read the
+boot-pending frame first to prove F2 RX independent of TX. Retest cycle bk0oqqygn running. Also documented the WiFi
+arc in docs/AI-DRIVEN-PORT-JOURNEY.md (c26429a). NEXT: read bk0oqqygn — does the boot-pending F2 read return a
+valid SDPCM frame + does GET_VERSION reply with a version? then preinit ioctls → scan → join → DHCP.
+[[project_wifi_fw_exec_gate_91]]
+
 2026-08-09 (★★★★ WiFi #91 — FW CONSOLE READABLE + boot REPRODUCED 2/2). Built diag_readShared (port of
 brcmf_sdio_readshared): the booted fw overwrites the word at ram_top-4 (0x25FFFC, old NVRAM-token slot) with its
 sdpcm_shared pointer -> console ring buffer. Cycle bd4zixpf7: sdpcm_shared @0x00208ac0 VALID (3rd independent boot

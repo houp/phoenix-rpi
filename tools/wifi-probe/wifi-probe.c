@@ -1479,6 +1479,7 @@ static void diag_bcdcGetVersion(volatile uint8_t *sdhci, uint32_t sdio_core)
  * broadcast active), then read WLC_E_ESCAN_RESULT (type 69) events off SDPCM
  * channel 1 and extract each AP. See tools/wifi-probe/SCAN-SPEC.md. */
 #define WLC_UP_CMD 2u
+#define BRCMF_C_SET_INFRA 20u
 #define SET_VAR_CMD 263u
 #define GET_VAR_CMD 262u
 #define SCAN_MAX_APS 16
@@ -1486,7 +1487,7 @@ static void diag_bcdcGetVersion(volatile uint8_t *sdhci, uint32_t sdio_core)
 static int g_scan_mode = 0;
 static int g_scan_ran = 0;
 static uint32_t g_ram_size = 0u; /* set in the main flow; used to re-read the fw console after scan */
-static int g_scan_em_rc = -100, g_scan_up_rc = -100, g_scan_mpc_rc = -100, g_scan_escan_rc = -100;
+static int g_scan_em_rc = -100, g_scan_infra_rc = -100, g_scan_up_rc = -100, g_scan_mpc_rc = -100, g_scan_escan_rc = -100;
 static int g_scan_escan_tries = 0;
 static int g_scan_ap_count = 0, g_scan_evt_total = 0, g_scan_escan_events = 0;
 static int g_scan_done_status = -1;
@@ -1550,7 +1551,16 @@ static void diag_wifiScan(volatile uint8_t *sdhci, uint32_t sdio_core)
 	g_scan_em_rc = diag_iovar(sdhci, sdio_core, 1, "event_msgs", emask, 16u,
 		NULL, 0u, NULL, reqid++, seq++);
 
-	/* WLC_UP */
+	/* SET_INFRA 1 (STA / infrastructure mode) -- brcmf does this before UP;
+	 * without it WLC_UP does not bring the radio "up" for scan. */
+	{
+		uint8_t infra[4] = { 1, 0, 0, 0 };
+		g_scan_infra_rc = diag_bcdcCmd(sdhci, sdio_core, 1, BRCMF_C_SET_INFRA,
+			infra, 4u, NULL, 0u, NULL, reqid++, seq++);
+	}
+
+	/* WLC_UP with value 1 (brcmf passes 1, not 0 -- value 0 left it "down"). */
+	up[0] = 1u;
 	g_scan_up_rc = diag_bcdcCmd(sdhci, sdio_core, 1, WLC_UP_CMD, up, 4u,
 		NULL, 0u, NULL, reqid++, seq++);
 
@@ -2567,9 +2577,9 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 	if (g_scan_ran) {
 		int ap;
 		r = snprintf(buf + off, cap - off,
-			"WiFi SCAN: event_msgs rc=%d  UP rc=%d  mpc rc=%d  escan rc=%d (tries=%d)\n"
+			"WiFi SCAN: event_msgs rc=%d  infra rc=%d  UP rc=%d  mpc rc=%d  escan rc=%d (tries=%d)\n"
 			"  chan1 frames=%d  escan-events(type69)=%d  APs=%d  done_status=%d\n",
-			g_scan_em_rc, g_scan_up_rc, g_scan_mpc_rc, g_scan_escan_rc, g_scan_escan_tries,
+			g_scan_em_rc, g_scan_infra_rc, g_scan_up_rc, g_scan_mpc_rc, g_scan_escan_rc, g_scan_escan_tries,
 			g_scan_evt_total, g_scan_escan_events, g_scan_ap_count, g_scan_done_status);
 		if (r > 0 && (size_t)r < cap - off) {
 			off += r;

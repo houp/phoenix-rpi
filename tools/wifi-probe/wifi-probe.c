@@ -1395,19 +1395,27 @@ static int diag_bcdcCmd(volatile uint8_t *sdhci, uint32_t sdio_core, int is_set,
 		return -41;
 	}
 
-	for (tries = 0; tries < 400; ++tries) {
+	/* Drain the F2 RX FIFO directly rather than one-frame-per-interrupt: the fw
+	 * asserts I_HMB_FRAME_IND once for "frames available", so after reading the
+	 * queued event the reply would be missed if we waited for a fresh IND. Read
+	 * frames until the matching reply arrives or the FIFO stays empty. */
+	for (tries = 0; tries < 600; ++tries) {
 		uint16_t len;
 		uint8_t chan;
 		int fr;
-		st = diag_bpRead32(sdhci, sdio_core + 0x20u);
-		if ((st & 0x40u) == 0u) {
-			usleep(2000);
+		fr = diag_f2RecvFrame(sdhci, g_rxf, &len, &chan);
+		if (fr == 1) {
+			usleep(2000); /* FIFO empty -- wait for the reply to land */
 			continue;
 		}
-		diag_bpWrite32(sdhci, sdio_core + 0x20u, st); /* clear */
-		fr = diag_f2RecvFrame(sdhci, g_rxf, &len, &chan);
-		if (fr != 0) {
-			continue; /* none ready / transient */
+		if (fr < 0) {
+			usleep(1000); /* transient transport hiccup */
+			continue;
+		}
+		/* clear the frame-ready indication as we drain */
+		st = diag_bpRead32(sdhci, sdio_core + 0x20u);
+		if (st != 0u && st != 0xffffffffu) {
+			diag_bpWrite32(sdhci, sdio_core + 0x20u, st);
 		}
 		if (chan == 1u) {
 			g_evt_seen++;

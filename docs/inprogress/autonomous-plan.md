@@ -421,6 +421,17 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (WiFi #91 — GET_VAR path validated + scan reproduced 2/2; WiFi scan milestone SOLID, pivoting). Cycle
+wifigetvar: GET_VAR cur_etheraddr rc=0 → MAC dc:a6:32:3c:dd:f3 (dc:a6:32 = Raspberry Pi OUI ✓); chanspecs=36
+channels (fixed the earlier -1 = undersized GET output → BUFTOOSHORT); scan reproduced (16 APs, done_status=0).
+Full WiFi ioctl stack proven+reproducible: fw boot → F2 → BCDC SET+GET ioctls → iovars → CLM → escan → events. This
+is a clean "WiFi fully up" milestone per the advisor (radio+scan+full ioctl/GET/event machinery proven);
+credential-free join CONTROL-PATH validation (test SSID → WLC_E_* events) + real-network join (credential-gated,
+1-step owner follow-up) remain documented in [[project_wifi_fw_exec_gate_91]]. After an entire session single-
+threaded on WiFi (advisor flagged the opportunity cost), NEXT HEARTBEAT: PIVOT to another open task (Quake 1 MP /
+Quake2-3 runtime / X11 / upstream sync / perf) to broaden progress; WiFi join + Bluetooth are well-scoped resumable
+bursts. Commits through GET_VAR fix, pushed.
+
 2026-08-09 (★★★★★★ WiFi #91 — SCAN WORKS! The radio found 16 REAL access points). Cycle wifiscan5, after loading
 the CLM regulatory blob: clmload(13 chunks, rc=0) → escan rc=0 (accepted!) → chan1 frames=21, escan-events=21,
 APs=16, done_status=0(SUCCESS). Real nearby networks: "DIRECT-FF-HP OfficeJet 6950" (ch8 -43dBm), "BrandNewHope"

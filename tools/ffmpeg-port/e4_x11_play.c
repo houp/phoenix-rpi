@@ -66,8 +66,9 @@
 
 /* Fixed window placement offset (not 0,0), so it's clearly a windowed, WM-decorated
  * client rather than a fullscreen root paint. */
-#define WIN_X 200
-#define WIN_Y 120
+/* bottom-right — clear of the GPU window (left) + clock (top-right) in the mediadesk layout */
+#define WIN_X 1150
+#define WIN_Y 650
 
 /* H.264's DPB/deblock/deep chains overflow the small main-thread stack. */
 #define DECODE_STACK_SIZE (8 * 1024 * 1024)

@@ -318,6 +318,24 @@ int main(int argc, char *argv[])
 			client_path[4] = cp_bufs[4]; client_extra[4] = eyes_geom; n_client_extra[4] = 2;
 			n_clients = 5;
 		}
+		else if (strcmp(client, "mediadesk") == 0) {
+			/* A RICH MEDIA DESKTOP: twm (WM) + the V3D GPU window (gl-x11-window) + a
+			 * PLAYING VIDEO (e4-x11-play, ffmpeg H.264 decode) + an analog clock, all at
+			 * once. Proves the X server concurrently multiplexes HETEROGENEOUS rendering
+			 * clients — GPU (V3D) and CPU-decoded video — plus a WM, on one screen (toward
+			 * a real media-capable desktop / D3 XFce). GPU + video windows self-place /
+			 * -geometry-place so twm decorates them immediately. */
+			static char *const clk_geom[2] = { "-geometry", "150x150+1120+120" };
+			resolve_client(cp_bufs[0], sizeof(cp_bufs[0]), prefix, "twm");
+			resolve_client(cp_bufs[1], sizeof(cp_bufs[1]), prefix, "gl-x11-window");
+			resolve_client(cp_bufs[2], sizeof(cp_bufs[2]), prefix, "e4-x11-play");
+			resolve_client(cp_bufs[3], sizeof(cp_bufs[3]), prefix, "xclock");
+			client_path[0] = cp_bufs[0];
+			client_path[1] = cp_bufs[1];
+			client_path[2] = cp_bufs[2];
+			client_path[3] = cp_bufs[3]; client_extra[3] = clk_geom; n_client_extra[3] = 2;
+			n_clients = 4;
+		}
 		else if (strcmp(client, "glwin") == 0) {
 			/* twm (WM) + gl-x11-window (a V3D-accelerated GL client rendering into a
 			 * normal window). The GPU app sets its OWN USPosition WM size-hints, so twm

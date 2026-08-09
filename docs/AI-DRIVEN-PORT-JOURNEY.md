@@ -202,6 +202,19 @@ and could now *watch it think*. Every step here was a small, decisive experiment
 unknown — and, notably, an early over-confident guess (that the RAM top was "probably fine") was overturned
 by reading the hardware's own answer rather than trusting the inference.
 
+From a live, observable firmware, the agent then built an actual driver on top of it — entirely in raw SDIO
+transactions, with no operating-system Wi-Fi stack underneath. It brought up the SDPCM/BCDC control protocol over
+the chip's data function (fixing a data-line wedge with a targeted controller reset, and a subtle receive-queue
+bug where an asynchronous event sat ahead of the reply), and got the firmware to answer its first control command.
+When the scan request was rejected — *"can not scan while driver is down"* — the readable firmware console again
+turned a dead end into a precise next step: the chip's regulatory/channel table hadn't been uploaded, so the radio
+had no channels to come up on. The agent added the channel-blob download, and **the Wi-Fi radio scanned the air and
+returned sixteen real access points** — neighbouring home networks and an HP printer, each with its MAC address,
+signal strength, and channel — a from-scratch RTOS seeing the wireless world around it for the first time. Every
+layer of that stack (firmware boot, SDIO transport, the control-message protocol, the event channel, the
+regulatory upload, the scan) was implemented from datasheets and the Linux driver's source as the reference, and
+verified on the hardware one decisive experiment at a time.
+
 The limits it hit were *physical or judgment* boundaries, not cognitive ones: a 100 Mbps link it
 couldn't rewire, an SD card it couldn't insert, and a host network it judged too risky to
 reconfigure unattended (reconfiguring the netboot infrastructure everything depended on was not

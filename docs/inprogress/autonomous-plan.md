@@ -418,6 +418,17 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (★★★★★★ WiFi #91 — SCAN WORKS! The radio found 16 REAL access points). Cycle wifiscan5, after loading
+the CLM regulatory blob: clmload(13 chunks, rc=0) → escan rc=0 (accepted!) → chan1 frames=21, escan-events=21,
+APs=16, done_status=0(SUCCESS). Real nearby networks: "DIRECT-FF-HP OfficeJet 6950" (ch8 -43dBm), "BrandNewHope"
+(ch8 -37dBm), "domowy.anuszkiewicz" (ch4 -77dBm), real BSSIDs, sensible RSSI. The BCM43455, driven ENTIRELY by
+Phoenix (raw SDIO→fw boot→BCDC ioctls→CLM load→escan→WLC_E_ESCAN_RESULT event parse), functions as a radio.
+Root of the earlier NOTUP: the 43455's channel/regulatory data lives in brcmfmac43455-sdio.clm_blob, which brcmf
+downloads via "clmload" BEFORE WLC_UP; without it WLC_UP returns OK but the radio has no channels. Added diag_clmLoad
+(brcmf_dload_data_le hdr, 384B chunks for the 512B byte-mode CMD53 cap). Full chain proven end-to-end. Commit
+(clmload). Minor: chanspecs GET diag returned -1 (cosmetic); escan reports duplicate APs per-beacon (no dedup yet).
+NEXT: join/auth (WPA2) → DHCP → actual internet over WiFi; then Bluetooth. [[project_wifi_fw_exec_gate_91]]
+
 2026-08-09 (WiFi #91 — scan blocked ONLY on wlc "up"; everything else works; fw console guiding it). The BCDC ioctl
 API is fully proven: GET_VERSION=2 in one call (RX demux drains events + matches reqid), iovar SETs work
 (event_msgs/mpc rc=0), SET_INFRA 1 rc=0, WLC_UP 1 rc=0. But escan is rejected BCME_NOTUP(-4); fw console:

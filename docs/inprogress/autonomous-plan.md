@@ -387,6 +387,18 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (DOCS CONSOLIDATION for publication — matrix updated to reflect the session's proven capabilities;
+DE-feasibility scan running). The graphics/media/desktop feature space is richly capstoned + the big remaining
+owner tasks are huge (XFce/STK) / risky (quakespasm→SDL flagship swap) / banked (Q1 MP), so this burst: (1) updated
+docs/inprogress/pi4-hardware-support-matrix.md — 5 stale rows corrected to reality: **Dillo E2/E3 = live HTTPS
+internet browsing DONE**; **X11 = windowed GPU + WM-managed GPU + multi-app + media desktop ACHIEVED** (was "GPU-X
+is a research stretch"); **ffmpeg = also plays in an X window**; **RTC/NTP = validated end-to-end via E2**; **SD =
+reads ~38MB/s DDR50-SDMA + writes correct #154, SDMA-write gated at sdcard.c:1625 HW-blocked** (was "PIO reads").
+Reflects ~20 bursts of work in the to-be-published repo (owner values publication). (2) Spawned a read-only
+feasibility scan for the most tractable path to a richer/real desktop environment (Window Maker vs XFce components
+vs full XFce, given the no-dlopen/static + GL-2.1 constraints) → informs the next big direction. NEXT: act on the
+DE-scan verdict, or a fresh frontier / revisit a banked item. [[project_x11_gpu_windowed_feasibility]]
+
 2026-08-09 ★★★ RICH MEDIA DESKTOP PROVEN — concurrent GPU app + playing video + WM on Phoenix/Pi 4. HW-validated
 (`/bin/startx mediadesk` → twm + gl-x11-window + e4-x11-play + xclock). HDMI grab
 (`20260809-034428-mediadesk2-tick.png`) shows TWO twm-decorated windows rendering AT ONCE: **"Phoenix V3D GL"**

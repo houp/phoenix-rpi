@@ -416,6 +416,21 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (#3 part 2 caps-test: wedge FIXED, render still TFU-striped → BANK migration-proven; PIVOT to WiFi).
+`quakespasm-sdl -noglslgamma -notexturenpot -nopackedpixels`: the V3D wedge dropped from dozens → 2 events (caps
+fix worked — the auto-detected glsl_gamma/NPOT were the wedge cause) and the client RUNS + cycles the demo loop
+(demo1→2→3→1). BUT the HDMI is still heavily TFU-LINEAR-tiling STRIPED (garbled top band, rest black) — the
+pre-existing V3D winsys striping bug (shared with yquake2/vkQuake), so not a clean render like the flagship
+(pl_phoenix_vid, clean 40fps). Note a discrepancy worth a future look: the wedge-diagnosis claimed the SDL and
+flagship GL paths are byte-identical, yet the flagship renders clean while the SDL build stripes — so either a
+subtle present-path difference or the striping is content/path-sensitive. **#3 part 2 VERDICT: migration MECHANISM
+PROVEN** (real SDL2 linked + correct caps + runs + wedge-fixed — a real advance) but a CLEAN render is blocked on
+the deep TFU-tiling winsys fix (a pre-existing shared bug, not a migration bug). Flagship UNTOUCHED (shipped clean
+binary; rollback intact). **BANK #3 part 2 here** (migration-proven, clean-render deferred to the TFU-winsys fix)
+and PIVOT to the owner's WiFi headline. Committed: build-quakespasm-sdl-phoenix.py + guarded pl_phoenix_main.c.
+NEXT: WiFi burst 1 (reintroduce the downloader as a standalone SDIO probe from lwip a078a5c → trivial-program test).
+[[project_sdl2_port]] [[project_pi4_v3d_scout]]
+
 2026-08-09 (WiFi re-analysis DONE + quakespasm wedge = BOUNDED caps-fix; both verdicts in). (1) **quakespasm→SDL
 wedge is BOUNDED, not deep** — the SDL video render-target/scanout is byte-identical to the flagship (same
 sdl_phoenix_glctx glue + winsys + scanout_init + 1920x1080 dims). The wedge = auto-detected GL caps: stock

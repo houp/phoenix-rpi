@@ -1193,6 +1193,7 @@ static void diag_sdhciResetDatCmd(volatile uint8_t *sdhci)
  * the data phase is the failure. Resets the DAT/CMD lines afterwards. */
 static uint32_t g_f2_r5 = 0u, g_f2_errst = 0u;
 static int g_f2_cmd_rc = -100, g_f2_data_rc = -100;
+__attribute__((unused))
 static void diag_f2ReadDiag(volatile uint8_t *sdhci, int fn, int incr_addr,
 	uint32_t reg_addr, uint32_t nbytes, uint8_t *buf)
 {
@@ -1277,16 +1278,15 @@ static void diag_f2ReadDiag(volatile uint8_t *sdhci, int fn, int incr_addr,
 #define WLC_GET_VERSION 1u
 static int g_ioctl_mode = 0;
 static int g_ioctl_ran = 0;
-static int g_ioctl_send_rc = -100, g_ioctl_read_rc = -100;
-static uint32_t g_ioctl_is_pre = 0u, g_ioctl_is_post = 0u;
-static int g_ioctl_is_iters = -1;
-static uint8_t g_ioctl_reply[64];
-static uint8_t g_ioctl_pending[64];
-static int g_ioctl_pending_rc = -100;
-static int g_ioctl_reply_valid = 0;
-static uint16_t g_ioctl_hwlen = 0u, g_ioctl_hwchk = 0u;
-static uint8_t g_ioctl_doff = 0u, g_ioctl_channel = 0xffu;
-static uint32_t g_ioctl_bcdc_flags = 0u, g_ioctl_bcdc_status = 0u, g_ioctl_version = 0u;
+static int g_ioctl_n = 0;             /* how many ioctls issued (2 for the test) */
+static uint32_t g_ioctl_is_pre = 0u;  /* intstatus before the sequence */
+/* per-ioctl results, indexed by slot 0/1 */
+static int g_io_send_rc[2] = { -100, -100 }, g_io_read_rc[2] = { -100, -100 };
+static int g_io_iters[2] = { -1, -1 }, g_io_valid[2] = { 0, 0 };
+static uint16_t g_io_hwlen[2] = { 0, 0 };
+static uint8_t g_io_doff[2] = { 0, 0 }, g_io_chan[2] = { 0xff, 0xff };
+static uint32_t g_io_flags[2] = { 0, 0 }, g_io_status[2] = { 0, 0 }, g_io_ver[2] = { 0, 0 };
+static uint8_t g_io_reply[2][32];
 
 static uint32_t diag_le32(const uint8_t *p)
 {
@@ -1301,89 +1301,83 @@ static void diag_setWindow18(volatile uint8_t *sdhci)
 	(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Cu, 0x18u, NULL);
 }
 
-static void diag_bcdcGetVersion(volatile uint8_t *sdhci, uint32_t sdio_core)
+/* One BCDC GET(WLC_GET_VERSION) round-trip over F2 into result slot 0/1, with
+ * the given reqid + SDPCM seq. Does NOT reset the SDHCI -- the caller controls
+ * reset placement (so we can test whether back-to-back ioctls need one). */
+static void diag_bcdcOne(volatile uint8_t *sdhci, uint32_t sdio_core,
+	int slot, uint32_t reqid, uint8_t seq)
 {
 	uint8_t frame[64];
-	uint16_t flen = 32u; /* 12 SDPCM + 16 BCDC + 4 payload */
+	uint8_t reply[64];
+	uint16_t flen = 32u, hwlen, hwchk;
+	uint32_t st;
 	int i;
 
-	g_ioctl_ran = 1;
 	for (i = 0; i < 64; ++i) {
 		frame[i] = 0u;
-		g_ioctl_reply[i] = 0u;
+		reply[i] = 0u;
 	}
-	/* SDPCM HW header: len + ~len */
 	frame[0] = (uint8_t)(flen & 0xffu);
 	frame[1] = (uint8_t)((flen >> 8) & 0xffu);
 	frame[2] = (uint8_t)((~flen) & 0xffu);
 	frame[3] = (uint8_t)(((~flen) >> 8) & 0xffu);
-	/* SDPCM SW header: seq=0, channel=0 (control), nextlen=0, data_offset=12 */
-	frame[4] = 0x00u;
-	frame[5] = 0x00u;
-	frame[6] = 0x00u;
-	frame[7] = 12u;
-	/* word1 [8..11] = 0 */
-	/* BCDC @12: cmd=WLC_GET_VERSION(1) */
+	frame[4] = seq;      /* SDPCM seq */
+	frame[7] = 12u;      /* data_offset */
 	frame[12] = (uint8_t)WLC_GET_VERSION;
-	/* len @16 = 4 (output buflen) */
-	frame[16] = 0x04u;
-	/* flags @20 = 0x00010000 (reqid=1, ifidx=0, GET: SET bit clear) */
-	frame[22] = 0x01u;
-	/* status @24 = 0; payload @28 = 0 (4-byte scratch) */
+	frame[16] = 0x04u;   /* BCDC len = 4 */
+	frame[22] = (uint8_t)(reqid & 0xffu);        /* flags = reqid << 16 */
+	frame[23] = (uint8_t)((reqid >> 8) & 0xffu);
 
-	for (i = 0; i < 64; ++i) {
-		g_ioctl_pending[i] = 0u;
-	}
-
-	g_ioctl_is_pre = diag_bpRead32(sdhci, sdio_core + 0x20u);
-
-	/* A frame is already pending at boot (I_HMB_FRAME_IND set). Read it from
-	 * the F2 FIFO first with the FULLY-INSTRUMENTED reader (captures R5 + error
-	 * bits) -- diagnoses why F2 data transfers fail, independent of our TX. */
 	diag_setWindow18(sdhci);
-	diag_f2ReadDiag(sdhci, 2, /*incr=*/0, IOCTL_F2_ADDR, 64u, g_ioctl_pending);
-	g_ioctl_pending_rc = (g_f2_cmd_rc == 0 && g_f2_data_rc == 0) ? 0 : -1;
-
-	/* Send the control frame over F2 (window 0x18000000, addr 0x8000, incr,
-	 * byte mode -- a small control frame is sub-block). */
-	diag_setWindow18(sdhci);
-	g_ioctl_send_rc = diag_sdioCmd53WriteByteMode(sdhci, 2, /*incr=*/1,
+	g_io_send_rc[slot] = diag_sdioCmd53WriteByteMode(sdhci, 2, /*incr=*/1,
 		IOCTL_F2_ADDR, 32u, frame);
 
-	/* Poll SDIO-core intstatus for I_HMB_FRAME_IND (0x40). */
 	for (i = 0; i < 250; ++i) {
-		g_ioctl_is_post = diag_bpRead32(sdhci, sdio_core + 0x20u);
-		if ((g_ioctl_is_post & 0x40u) != 0u) {
-			g_ioctl_is_iters = i;
+		st = diag_bpRead32(sdhci, sdio_core + 0x20u);
+		if ((st & 0x40u) != 0u) {
+			g_io_iters[slot] = i;
+			diag_bpWrite32(sdhci, sdio_core + 0x20u, st); /* clear */
 			break;
 		}
 		usleep(2000);
 	}
-	/* Clear intstatus (write value back). */
-	if (g_ioctl_is_post != 0u && g_ioctl_is_post != 0xffffffffu) {
-		diag_bpWrite32(sdhci, sdio_core + 0x20u, g_ioctl_is_post);
+
+	diag_setWindow18(sdhci);
+	g_io_read_rc[slot] = diag_sdioCmd53ReadByteMode(sdhci, 2, /*incr=*/0,
+		IOCTL_F2_ADDR, 64u, reply);
+	for (i = 0; i < 32; ++i) {
+		g_io_reply[slot][i] = reply[i];
 	}
 
-	/* Read the reply from the F2 FIFO (fixed address, byte mode). */
-	diag_setWindow18(sdhci);
-	g_ioctl_read_rc = diag_sdioCmd53ReadByteMode(sdhci, 2, /*incr=*/0,
-		IOCTL_F2_ADDR, 64u, g_ioctl_reply);
-
-	/* Parse SDPCM HW header + SW data_offset, then BCDC. */
-	g_ioctl_hwlen = (uint16_t)(g_ioctl_reply[0] | (g_ioctl_reply[1] << 8));
-	g_ioctl_hwchk = (uint16_t)(g_ioctl_reply[2] | (g_ioctl_reply[3] << 8));
-	if (g_ioctl_hwlen != 0u &&
-		(uint16_t)(~(g_ioctl_hwlen ^ g_ioctl_hwchk)) == 0u &&
-		g_ioctl_hwlen >= 12u) {
-		g_ioctl_reply_valid = 1;
-		g_ioctl_doff = g_ioctl_reply[7];
-		g_ioctl_channel = (uint8_t)(g_ioctl_reply[5] & 0x0fu);
-		if ((int)g_ioctl_doff + 20 <= 64) {
-			g_ioctl_bcdc_flags = diag_le32(g_ioctl_reply + g_ioctl_doff + 8);
-			g_ioctl_bcdc_status = diag_le32(g_ioctl_reply + g_ioctl_doff + 12);
-			g_ioctl_version = diag_le32(g_ioctl_reply + g_ioctl_doff + 16);
+	hwlen = (uint16_t)(reply[0] | (reply[1] << 8));
+	hwchk = (uint16_t)(reply[2] | (reply[3] << 8));
+	if (hwlen != 0u && (uint16_t)(~(hwlen ^ hwchk)) == 0u && hwlen >= 12u) {
+		g_io_valid[slot] = 1;
+		g_io_hwlen[slot] = hwlen;
+		g_io_doff[slot] = reply[7];
+		g_io_chan[slot] = (uint8_t)(reply[5] & 0x0fu);
+		if ((int)reply[7] + 20 <= 64) {
+			g_io_flags[slot] = diag_le32(reply + reply[7] + 8);
+			g_io_status[slot] = diag_le32(reply + reply[7] + 12);
+			g_io_ver[slot] = diag_le32(reply + reply[7] + 16);
 		}
 	}
+}
+
+/* Discriminating test (advisor): ONE deliberate DAT/CMD reset up front (clean
+ * slate -- NOT relying on an accidental reset from a failing read), then TWO
+ * ioctls back-to-back with NO reset between. Both echoing their reqid => the F2
+ * transport is genuinely clean (the earlier wedge was the wrong-length read),
+ * so scan can be built without a per-transfer reset. Second one wedging => a
+ * reset is needed per transfer. */
+static void diag_bcdcGetVersion(volatile uint8_t *sdhci, uint32_t sdio_core)
+{
+	g_ioctl_ran = 1;
+	diag_sdhciResetDatCmd(sdhci);
+	g_ioctl_is_pre = diag_bpRead32(sdhci, sdio_core + 0x20u);
+	diag_bcdcOne(sdhci, sdio_core, 0, 1u, 0u);
+	diag_bcdcOne(sdhci, sdio_core, 1, 2u, 1u);
+	g_ioctl_n = 2;
 }
 
 /* #91 "trivial-program test" mode. When set (argv "trivial"), the 643 KB
@@ -2240,33 +2234,38 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 
 	/* #91 BCDC ioctl round-trip report. */
 	if (g_ioctl_ran) {
-		int bi;
+		int slot, bi;
+		int both_ok = 1;
 		r = snprintf(buf + off, cap - off,
-			"BCDC ioctl WLC_GET_VERSION: send_rc=%d read_rc=%d  intstatus pre=0x%08x post=0x%08x (I_HMB_FRAME_IND=0x40 @iter=%d)\n"
-			"  reply HW len=%u chk=0x%04x valid=%d  doff=%u channel=%u\n"
-			"  BCDC flags=0x%08x (id=%u err=%d) status=0x%08x  VERSION=%u\n",
-			g_ioctl_send_rc, g_ioctl_read_rc,
-			(unsigned)g_ioctl_is_pre, (unsigned)g_ioctl_is_post, g_ioctl_is_iters,
-			(unsigned)g_ioctl_hwlen, (unsigned)g_ioctl_hwchk, g_ioctl_reply_valid,
-			(unsigned)g_ioctl_doff, (unsigned)g_ioctl_channel,
-			(unsigned)g_ioctl_bcdc_flags, (unsigned)(g_ioctl_bcdc_flags >> 16),
-			(int)(g_ioctl_bcdc_flags & 0x1u), (unsigned)g_ioctl_bcdc_status,
-			(unsigned)g_ioctl_version);
+			"BCDC 2x WLC_GET_VERSION (one reset up front, NO reset between): intstatus pre=0x%08x\n",
+			(unsigned)g_ioctl_is_pre);
 		if (r > 0 && (size_t)r < cap - off) {
 			off += r;
 		}
-		{
-			uint16_t plen = (uint16_t)(g_ioctl_pending[0] | (g_ioctl_pending[1] << 8));
-			uint16_t pchk = (uint16_t)(g_ioctl_pending[2] | (g_ioctl_pending[3] << 8));
+		for (slot = 0; slot < g_ioctl_n && slot < 2; ++slot) {
+			int idok = (g_io_valid[slot] &&
+				((g_io_flags[slot] >> 16) == (uint32_t)(slot + 1)));
+			if (!(g_io_send_rc[slot] == 0 && g_io_read_rc[slot] == 0 && idok)) {
+				both_ok = 0;
+			}
 			r = snprintf(buf + off, cap - off,
-				"  boot-pending F2 frame: rc=%d HWlen=%u chk=0x%04x valid=%d  bytes:",
-				g_ioctl_pending_rc, (unsigned)plen, (unsigned)pchk,
-				(plen != 0u && (uint16_t)(~(plen ^ pchk)) == 0u) ? 1 : 0);
+				"  [%d] reqid=%u: send_rc=%d read_rc=%d iter=%d  HWlen=%u valid=%d doff=%u chan=%u"
+				"  BCDC id=%u err=%d status=0x%08x VERSION=%u\n",
+				slot, (unsigned)(slot + 1),
+				g_io_send_rc[slot], g_io_read_rc[slot], g_io_iters[slot],
+				(unsigned)g_io_hwlen[slot], g_io_valid[slot],
+				(unsigned)g_io_doff[slot], (unsigned)g_io_chan[slot],
+				(unsigned)(g_io_flags[slot] >> 16), (int)(g_io_flags[slot] & 0x1u),
+				(unsigned)g_io_status[slot], (unsigned)g_io_ver[slot]);
 			if (r > 0 && (size_t)r < cap - off) {
 				off += r;
 			}
-			for (bi = 0; bi < 24 && (size_t)(off + 4) < cap; ++bi) {
-				r = snprintf(buf + off, cap - off, " %02x", g_ioctl_pending[bi]);
+			r = snprintf(buf + off, cap - off, "      reply[0..31]:");
+			if (r > 0 && (size_t)r < cap - off) {
+				off += r;
+			}
+			for (bi = 0; bi < 32 && (size_t)(off + 4) < cap; ++bi) {
+				r = snprintf(buf + off, cap - off, " %02x", g_io_reply[slot][bi]);
 				if (r > 0 && (size_t)r < cap - off) {
 					off += r;
 				}
@@ -2275,29 +2274,11 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 			if (r > 0 && (size_t)r < cap - off) {
 				off += r;
 			}
-			/* F2 transport diagnosis: R5 = card's CMD53 verdict (bits[15:8] =
-			 * SDIO flags: OUT_OF_RANGE 0x0100, FUNCTION_NUMBER 0x0200,
-			 * ERROR 0x0800, ILLEGAL_CMD 0x4000, CRC 0x8000). errst upper16 =
-			 * SDHCI error (DATA_TIMEOUT 0x00100000, DATA_CRC 0x00200000). */
-			r = snprintf(buf + off, cap - off,
-				"  F2-diag: cmd_rc=%d data_rc=%d  R5=0x%08x (flags=0x%02x)  errst=0x%08x\n",
-				g_f2_cmd_rc, g_f2_data_rc, (unsigned)g_f2_r5,
-				(unsigned)((g_f2_r5 >> 8) & 0xffu), (unsigned)g_f2_errst);
-			if (r > 0 && (size_t)r < cap - off) {
-				off += r;
-			}
 		}
-		r = snprintf(buf + off, cap - off, "  reply[0..31]:");
-		if (r > 0 && (size_t)r < cap - off) {
-			off += r;
-		}
-		for (bi = 0; bi < 32 && (size_t)(off + 4) < cap; ++bi) {
-			r = snprintf(buf + off, cap - off, " %02x", g_ioctl_reply[bi]);
-			if (r > 0 && (size_t)r < cap - off) {
-				off += r;
-			}
-		}
-		r = snprintf(buf + off, cap - off, "\n");
+		r = snprintf(buf + off, cap - off,
+			"  -> %s\n", both_ok
+				? "BOTH ioctls OK w/ reqid echo => F2 TRANSPORT CLEAN (no per-transfer reset needed)"
+				: "second ioctl failed => F2 likely needs a reset PER transfer (design into the frame loop)");
 		if (r > 0 && (size_t)r < cap - off) {
 			off += r;
 		}

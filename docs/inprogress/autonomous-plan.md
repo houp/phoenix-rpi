@@ -13,6 +13,17 @@ host/Linux comparison, UART logs, QEMU, debugger).
 
 ---
 
+## Comments from human operator / owner (2026-08-10)
+
+Super progress! Congrats.
+
+Please think on how to integrate wifi an bt with Phoenix - including config files, CLI utils, support for different BT devices. Maybe separate subprojects (similar to phoenix-rtos-usb) are needed or maybe addition to phoenix-rtos-devices and -tools? Anyhow... think on how to make these two new big features as first-class citizens in Phoenix-RTOS.
+
+Also please think if adding support for dynamic linking and dynamic library support / share libraries to Phoenix-RTOS is feasible. If so, please design, implement and test it - as a general system feature not only for Pi4.
+
+Continue the work on all other tasks and decide on priorities yourself.
+
+---
 ## Comments from human operator / owner (2026-08-09)
 
 Good progress in the repo! Keep it going!

@@ -387,6 +387,23 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (Quake 1 MP #68 — client BUILT + net-verified; connect FAILS, root-cause lead = gethostbyname). Built
+the full interactive quakespasm (67 TUs → /tmp/quakespasm-phoenix, staged /srv/.../bin/quakespasm 23MB) and
+VERIFIED the UDP/Datagram net layer is fully linked (Datagram_Connect/NET_Connect/net_drivers + socket/sendto/
+recvfrom all defined T, 0 undefined). Host side ready: `/usr/games/quakespasm -dedicated 4 +map start` listened
+on UDP 26000; shareware pak0.pak md5-MATCHES the Pi's (5906e599...). Ran the Pi client `/bin/quakespasm -basedir
+/usr/share/quake +connect 10.42.0.1`: net inits (`UDP Initialized`) + GPU renders (30-50fps), BUT the connect
+NEVER COMPLETES — client falls to the demo loop (demo2/Grisly Grotto), server log empty (no client reached it).
+Firewall RULED OUT (host INPUT policy = ACCEPT). **PRIME LEAD: `UDP_Init: WARNING: gethostbyname failed (Host not
+found)` — quakespasm's connect likely resolves even the numeric IP 10.42.0.1 via gethostbyname, which fails on
+Phoenix → can't resolve the addr → demo fallback.** (DNS otherwise works — E3 resolved example.com — so this is
+gethostbyname NOT handling a numeric literal / local-host lookup.) **A FIXABLE Phoenix libc bug (owner: Phoenix
+software bug → FIX IT).** NEXT: (1) tcpdump the host netboot iface during a connect to confirm whether the Pi
+sends CCREQ_CONNECT at all; (2) read libphoenix gethostbyname + quakespasm net_udp UDP_GetAddrFromName — if
+gethostbyname doesn't inet_aton a numeric literal first, fix it (libphoenix) or patch the port. Host dedicated
+server STOPPED (restart: `/usr/games/quakespasm -basedir /usr/share/games/quake -dedicated 4 +map start`).
+[[project_quakespasm_port]] [[project_pi4_internet_e2_feasibility]]
+
 2026-08-09 ★★★ MULTI-WINDOW DESKTOP ON PHOENIX/PI 4 — concurrent GPU app + software apps + WM. HW-validated
 (`/bin/startx showcase`): HDMI grab (`20260808-234203-showcase-final.png`) shows THREE twm-decorated windows at
 once — the **"Phoenix V3D GL"** window (live V3D GPU pinwheel, animating frame 2130), a full **"Calculator"**

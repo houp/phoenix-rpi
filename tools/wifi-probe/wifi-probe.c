@@ -738,6 +738,62 @@ static uint32_t diag_bpRead32(volatile uint8_t *sdhci, uint32_t addr)
 		((uint32_t)diag_bpRead8(sdhci, addr + 3u) << 24);
 }
 
+/* Write one backplane byte at chip-internal `addr` (per-byte windowing). */
+static void diag_bpWrite8(volatile uint8_t *sdhci, uint32_t addr, uint8_t v)
+{
+	uint8_t lo = (uint8_t)(((addr >> 15) & 1u) ? 0x80u : 0x00u);
+	uint8_t mid = (uint8_t)((addr >> 16) & 0xffu);
+	uint8_t hi = (uint8_t)((addr >> 24) & 0xffu);
+	uint32_t f1 = addr & 0x7FFFu;
+	(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Au, lo, NULL);
+	(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Bu, mid, NULL);
+	(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Cu, hi, NULL);
+	(void)diag_sdioCmd52(sdhci, 1, 1, f1, v, NULL);
+}
+
+static void diag_bpWrite32(volatile uint8_t *sdhci, uint32_t addr, uint32_t v)
+{
+	diag_bpWrite8(sdhci, addr, (uint8_t)(v & 0xffu));
+	diag_bpWrite8(sdhci, addr + 1u, (uint8_t)((v >> 8) & 0xffu));
+	diag_bpWrite8(sdhci, addr + 2u, (uint8_t)((v >> 16) & 0xffu));
+	diag_bpWrite8(sdhci, addr + 3u, (uint8_t)((v >> 24) & 0xffu));
+}
+
+/* Compute the ARMCR4 TCM RAM size from bankinfo (brcmf_chip_tcm_ramsize).
+ * cr4_core = the CR4 CORE base (NOT the wrapper). Returns bytes, 0 on failure. */
+#define ARMCR4_CAP_OFF 0x04u
+#define ARMCR4_BANKIDX_OFF 0x40u
+#define ARMCR4_BANKINFO_OFF 0x44u
+#define ARMCR4_TCBANB_MASK 0x0000000Fu
+#define ARMCR4_TCBBNB_MASK 0x000000F0u
+#define ARMCR4_TCBBNB_SHIFT 4
+#define ARMCR4_BSZ_MASK 0x0000007Fu
+#define ARMCR4_BSZ_MULT 8192u
+#define ARMCR4_BLK_1K_MASK 0x00000200u
+static uint32_t diag_cr4RamSize(volatile uint8_t *sdhci, uint32_t cr4_core)
+{
+	uint32_t corecap, memsize = 0u, blksize, bxinfo;
+	uint32_t nab, nbb, totb, idx;
+
+	if (cr4_core == 0u) {
+		return 0u;
+	}
+	corecap = diag_bpRead32(sdhci, cr4_core + ARMCR4_CAP_OFF);
+	nab = (corecap & ARMCR4_TCBANB_MASK);
+	nbb = (corecap & ARMCR4_TCBBNB_MASK) >> ARMCR4_TCBBNB_SHIFT;
+	totb = nab + nbb;
+	for (idx = 0u; idx < totb && idx < 64u; ++idx) {
+		diag_bpWrite32(sdhci, cr4_core + ARMCR4_BANKIDX_OFF, idx);
+		bxinfo = diag_bpRead32(sdhci, cr4_core + ARMCR4_BANKINFO_OFF);
+		blksize = ARMCR4_BSZ_MULT;
+		if (bxinfo & ARMCR4_BLK_1K_MASK) {
+			blksize >>= 3; /* 1024 */
+		}
+		memsize += ((bxinfo & ARMCR4_BSZ_MASK) + 1u) * blksize;
+	}
+	return memsize;
+}
+
 /* get one EROM descriptor, advancing the cursor; classify ADDRESS variants. */
 static uint32_t diag_dmpGetDesc(volatile uint8_t *sdhci, uint32_t *ea, uint8_t *type)
 {
@@ -972,6 +1028,7 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 	uint8_t cnt_pre[4] = { 0 }, cnt_post[4] = { 0 }, cnt_post2[4] = { 0 };
 	int rc_cnt_pre = -100, rc_cnt_post = -100, rc_cnt_post2 = -100;
 	uint32_t ioctl_w2 = 0u, ioctl_w3 = 0u; /* dual ARM-wrapper CR4-identity cross-check */
+	uint32_t cr4_core = 0u, sdio_core = 0x18004000u, ram_size = 0u; /* EROM-derived bases */
 
 	for (i = 0; i < (int)sizeof(pre_buf); ++i) {
 		pre_buf[i] = 0;
@@ -1096,6 +1153,18 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 		 * the fw download; it only sets/reads SBADDR windows, which the
 		 * download loop re-sets on its first iteration. */
 		g_erom_ncores = diag_eromWalk(sdhci);
+		cr4_core = diag_eromCoreBase(BCMA_ID_ARM_CR4);
+		if (cr4_core == 0u) {
+			cr4_core = 0x18002000u; /* EROM-confirmed fallback */
+		}
+		{
+			uint32_t s = diag_eromCoreBase(BCMA_ID_SDIO_DEV);
+			if (s != 0u) {
+				sdio_core = s;
+			}
+		}
+		/* True TCM ramsize from CR4 bankinfo (fw is halted here — safe). */
+		ram_size = diag_cr4RamSize(sdhci, cr4_core);
 
 		while (fw_offset < fw_target_bytes && rc_hs == 0) {
 			uint32_t addr = 0x00198000u + (uint32_t)window_idx * 0x8000u;
@@ -1191,6 +1260,12 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 			cnt_pre[3] = (uint8_t)(c3[0] & 0xffu);
 			rc_cnt_pre = 0;
 		}
+
+		/* brcmf_sdio_buscore_activate step 0 (was MISSING — suspect 3b):
+		 * clear the SDIO-DEV core intstatus (write 0xFFFFFFFF) BEFORE the
+		 * reset vector, exactly as brcmfmac does. Uses the EROM SDIO_DEV
+		 * base (0x18004000) + intstatus@0x20, NOT the old 0x18005000 guess. */
+		diag_bpWrite32(sdhci, sdio_core + 0x20u, 0xFFFFFFFFu);
 
 		/* brcmfmac CR4 activation, step 1: write the firmware reset
 		 * vector (first word of the blob) to chip-internal address 0.
@@ -1399,22 +1474,11 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 			socram_tail);
 
 		/* DEFINITIVE fw-ready probe: read the SDIO-DEV core's
-		 * tohostmailboxdata (SDIOD_CORE_BASE + 0x4C). brcmfmac/WHD treat
+		 * tohostmailboxdata (core base + 0x4C). brcmfmac/WHD treat
 		 * HMB_DATA_FWREADY (0x0008) here as THE "firmware booted" signal.
-		 * For the 43455 the SDIOD core base is hypothesized at 0x18005000.
-		 * Window=0x18000000, so F1 offset 0x504C reaches 0x1800504C. */
-		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Au, 0x00u, NULL);
-		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Bu, 0x00u, NULL);
-		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Cu, 0x18u, NULL);
-		{
-			uint32_t m0[4] = {0}, m1[4] = {0}, m2[4] = {0}, m3[4] = {0};
-			(void)diag_sdioCmd52(sdhci, 0, 1, 0x504Cu, 0u, m0);
-			(void)diag_sdioCmd52(sdhci, 0, 1, 0x504Du, 0u, m1);
-			(void)diag_sdioCmd52(sdhci, 0, 1, 0x504Eu, 0u, m2);
-			(void)diag_sdioCmd52(sdhci, 0, 1, 0x504Fu, 0u, m3);
-			hmb_data = (m0[0] & 0xffu) | ((m1[0] & 0xffu) << 8) |
-				((m2[0] & 0xffu) << 16) | ((m3[0] & 0xffu) << 24);
-		}
+		 * FIXED: use the EROM-enumerated SDIO_DEV base (0x18004000), not the
+		 * old 0x18005000 guess (off by 0x1000 -> was reading 0x1800504C). */
+		hmb_data = diag_bpRead32(sdhci, sdio_core + 0x4Cu);
 	}
 
 	munmap(sdhci_page, _PAGE_SIZE);
@@ -1544,8 +1608,8 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 	}
 
 	r = snprintf(buf + off, cap - off,
-		"SDIOD tohostmailboxdata=0x%08x -> %s (HMB_DATA_FWREADY=0x0008; SDIOD base hyp 0x18005000)\n",
-		hmb_data,
+		"SDIOD tohostmailboxdata@0x%08x=0x%08x -> %s (HMB_DATA_FWREADY=0x0008; SDIOD base from EROM)\n",
+		(unsigned)(sdio_core + 0x4Cu), hmb_data,
 		((hmb_data & 0x0008u) != 0u) ? "FWREADY set -- FIRMWARE BOOTED!"
 			: ((hmb_data == 0xffffffffu || hmb_data == 0u) ? "0/0xff (no fw signal, or wrong SDIOD base)"
 				: "nonzero but no FWREADY bit"));
@@ -1603,13 +1667,16 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 			"EROM: eromptr=0x%08x  cores=%d\n"
 			"  ARM_CR4(0x83E): core=0x%08x wrap=0x%08x (release-wrap hyp was 0x18102000 -> %s)\n"
 			"  SDIO_DEV(0x829): core=0x%08x (mailbox hyp was 0x18005000 -> %s)\n"
-			"  INTERNAL_MEM/SOCRAM(0x80E): core=0x%08x\n",
+			"  INTERNAL_MEM/SOCRAM(0x80E): core=0x%08x (0=absent: 43455 RAM is CR4 TCM)\n"
+			"  CR4 TCM ramsize=0x%08x -> ram-top=0x%08x (hardcoded NVRAM top was 0x238000 -> %s)\n",
 			(unsigned)g_erom_ptr, g_erom_ncores,
 			(unsigned)cr4b, (unsigned)cr4w,
 			(cr4w == 0x18102000u) ? "MATCH" : "DIFFERS",
 			(unsigned)sdiob,
-			(sdiob == 0x18005000u) ? "MATCH" : "DIFFERS",
-			(unsigned)socb);
+			(sdiob == 0x18005000u) ? "MATCH" : "DIFFERS(fixed)",
+			(unsigned)socb,
+			(unsigned)ram_size, (unsigned)(0x198000u + ram_size),
+			((0x198000u + ram_size) == 0x238000u) ? "MATCH" : "DIFFERS");
 		if (r > 0 && (size_t)r < cap - off) {
 			off += r;
 		}

@@ -418,6 +418,17 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (WiFi #91 — scan blocked ONLY on wlc "up"; everything else works; fw console guiding it). The BCDC ioctl
+API is fully proven: GET_VERSION=2 in one call (RX demux drains events + matches reqid), iovar SETs work
+(event_msgs/mpc rc=0), SET_INFRA 1 rc=0, WLC_UP 1 rc=0. But escan is rejected BCME_NOTUP(-4); fw console:
+"wlc_scan_request_ex, can not scan while driver is down". WLC_UP returns status 0 yet wlc stays DOWN — NOT a timing
+race (retried escan 6x/2.4s), and value 0->1 + SET_INFRA 1 did NOT fix it. So a deeper precondition is missing —
+most likely the CLM/regulatory blob (.firmware/brcmfmac43455-sdio.clm_blob via the "clmload" iovar: without valid
+channels the PHY can't operate) and/or "country"/WLC_DOWN-first ordering. Spawned a source-study subagent for the
+exact minimal wlc-up recipe (clmload byte format, country, order). The fw-console reader is turning every failure
+into an exact next step. Commits c7f8386/ff2cb7e/(scan up-fix). NEXT: implement the subagent's up-precondition
+recipe (likely clmload) -> escan accepted -> APs. [[project_wifi_fw_exec_gate_91]]
+
 2026-08-09 (WiFi #91 — ioctl API VALIDATED + scan implemented; escan rejected -4, diagnosing via fw console).
 RX demux validated: GET_VERSION returns version=2 in ONE call (drains the queued event, matches the reqid'd control
 reply). Built the full scan (tools/wifi-probe/ `scan` mode + SCAN-SPEC.md): prelude event_msgs->UP->mpc then escan

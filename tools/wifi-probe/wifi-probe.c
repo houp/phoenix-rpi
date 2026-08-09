@@ -958,6 +958,64 @@ static uint32_t diag_eromCoreWrap(uint16_t id)
 	return 0u;
 }
 
+/* ---- #91 sdpcm_shared + firmware console ---------------------------------
+ * Port of brcmf_sdio_readshared (sdio.c): the fw, once booted, overwrites the
+ * word at ram_top-4 (where the NVRAM length-magic token was) with a pointer to
+ * its sdpcm_shared struct. From there console_addr -> rte_console gives the fw
+ * console ring buffer -- letting us SEE what the firmware prints instead of
+ * poking blind. On-dongle (32-bit) offsets: sdpcm_shared { flags@0, trap@4,
+ * assert_exp@8, assert_file@12, assert_line@16, console_addr@20 }; rte_console
+ * { ... log_le@8 { buf@0, buf_size@4, idx@8 } } => log_buf@console+8,
+ * buf_size@console+12, idx@console+16. */
+#define FWCON_MAX 1536
+static int g_shared_valid = -1; /* -1 not attempted, 0 invalid, 1 valid */
+static uint32_t g_sh_word = 0u, g_sh_addr = 0u, g_sh_flags = 0u, g_trap_addr = 0u;
+static uint32_t g_console_addr = 0u, g_log_buf = 0u, g_log_bufsize = 0u, g_log_idx = 0u;
+static char g_console[FWCON_MAX];
+static int g_console_len = 0;
+
+static void diag_readShared(volatile uint8_t *sdhci, uint32_t ram_size)
+{
+	uint32_t shaddr, a, n, i;
+
+	g_shared_valid = 0;
+	g_console_len = 0;
+	if (ram_size == 0u) {
+		return;
+	}
+	shaddr = 0x198000u + ram_size - 4u;
+	a = diag_bpRead32(sdhci, shaddr);
+	g_sh_word = a;
+	/* brcmf_sdio_valid_shared_address: the NVRAM-token pattern (~x<<16)|x is
+	 * INVALID -> means the fw never overwrote it -> not booted. */
+	if (a == 0u || (((~a >> 16) & 0xffffu) == (a & 0xffffu))) {
+		return;
+	}
+	g_shared_valid = 1;
+	g_sh_addr = a;
+	g_sh_flags = diag_bpRead32(sdhci, a + 0u);
+	g_trap_addr = diag_bpRead32(sdhci, a + 4u);
+	g_console_addr = diag_bpRead32(sdhci, a + 20u);
+	if (g_console_addr != 0u && g_console_addr != 0xffffffffu) {
+		g_log_buf = diag_bpRead32(sdhci, g_console_addr + 8u);
+		g_log_bufsize = diag_bpRead32(sdhci, g_console_addr + 12u);
+		g_log_idx = diag_bpRead32(sdhci, g_console_addr + 16u);
+		if (g_log_buf != 0u && g_log_buf != 0xffffffffu) {
+			n = g_log_idx;
+			if (n > (uint32_t)(FWCON_MAX - 1)) {
+				n = (uint32_t)(FWCON_MAX - 1);
+			}
+			if (g_log_bufsize != 0u && n > g_log_bufsize) {
+				n = g_log_bufsize;
+			}
+			for (i = 0u; i < n; ++i) {
+				g_console[i] = (char)diag_bpRead8(sdhci, g_log_buf + i);
+			}
+			g_console_len = (int)n;
+		}
+	}
+}
+
 /* #91 "trivial-program test" mode. When set (argv "trivial"), the 643 KB
  * production firmware is replaced by cr4tiny_blob (a ~20-byte Thumb-2 counter
  * whose reset vector is the REAL fw's verbatim B.W into rambase+0x80). The
@@ -1483,6 +1541,12 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 		 * FIXED: use the EROM-enumerated SDIO_DEV base (0x18004000), not the
 		 * old 0x18005000 guess (off by 0x1000 -> was reading 0x1800504C). */
 		hmb_data = diag_bpRead32(sdhci, sdio_core + 0x4Cu);
+
+		/* #91: read sdpcm_shared @ ram_top-4 (fw overwrites the NVRAM token
+		 * with it once booted) -> the fw console ring buffer. Real fw only. */
+		if (!g_trivial_mode) {
+			diag_readShared(sdhci, ram_size);
+		}
 	}
 
 	munmap(sdhci_page, _PAGE_SIZE);
@@ -1745,6 +1809,57 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 				: "counter unchanged (0) -- CR4 did NOT execute (release path / reset semantics)");
 		if (r > 0 && (size_t)r < cap - off) {
 			off += r;
+		}
+	}
+
+	/* #91 sdpcm_shared + firmware console (real fw only). */
+	if (!g_trivial_mode && g_shared_valid >= 0) {
+		if (g_shared_valid == 1) {
+			r = snprintf(buf + off, cap - off,
+				"sdpcm_shared @0x%08x VALID (word@ram_top-4=0x%08x, fw booted+overwrote NVRAM token)\n"
+				"  flags=0x%08x (ver=%u trap=%s assert_built=%s assert=%s) trap_addr=0x%08x\n"
+				"  console_addr=0x%08x log_buf=0x%08x bufsize=%u idx=%u  (console %d bytes below)\n",
+				(unsigned)g_sh_addr, (unsigned)g_sh_word,
+				(unsigned)g_sh_flags, (unsigned)(g_sh_flags & 0xffu),
+				(g_sh_flags & 0x0400u) ? "YES" : "no",
+				(g_sh_flags & 0x0100u) ? "yes" : "no",
+				(g_sh_flags & 0x0200u) ? "FIRED" : "no",
+				(unsigned)g_trap_addr,
+				(unsigned)g_console_addr, (unsigned)g_log_buf,
+				(unsigned)g_log_bufsize, (unsigned)g_log_idx, g_console_len);
+			if (r > 0 && (size_t)r < cap - off) {
+				off += r;
+			}
+			if (g_console_len > 0) {
+				int ci;
+				r = snprintf(buf + off, cap - off, "----- FW CONSOLE -----\n");
+				if (r > 0 && (size_t)r < cap - off) {
+					off += r;
+				}
+				for (ci = 0; ci < g_console_len && (size_t)(off + 2) < cap; ++ci) {
+					char c = g_console[ci];
+					if (c == '\n' || (c >= 0x20 && c < 0x7f)) {
+						buf[off++] = c;
+					}
+					else if (c != '\0') {
+						buf[off++] = '.';
+					}
+				}
+				if ((size_t)(off + 24) < cap) {
+					r = snprintf(buf + off, cap - off, "\n----- END CONSOLE -----\n");
+					if (r > 0 && (size_t)r < cap - off) {
+						off += r;
+					}
+				}
+			}
+		}
+		else {
+			r = snprintf(buf + off, cap - off,
+				"sdpcm_shared: word@ram_top-4=0x%08x INVALID (NVRAM-token pattern => fw not booted / no shared)\n",
+				(unsigned)g_sh_word);
+			if (r > 0 && (size_t)r < cap - off) {
+				off += r;
+			}
 		}
 	}
 

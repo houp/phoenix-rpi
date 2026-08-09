@@ -1487,6 +1487,7 @@ static int g_scan_mode = 0;
 static int g_scan_ran = 0;
 static uint32_t g_ram_size = 0u; /* set in the main flow; used to re-read the fw console after scan */
 static int g_scan_em_rc = -100, g_scan_up_rc = -100, g_scan_mpc_rc = -100, g_scan_escan_rc = -100;
+static int g_scan_escan_tries = 0;
 static int g_scan_ap_count = 0, g_scan_evt_total = 0, g_scan_escan_events = 0;
 static int g_scan_done_status = -1;
 static struct {
@@ -1575,8 +1576,19 @@ static void diag_wifiScan(volatile uint8_t *sdhci, uint32_t sdio_core)
 	}
 	escan[70] = 1u;                /* channel_num = 0x00010000: n_channels=0(all), n_ssids=1 */
 	/* ssid_le[0] @72 = 36 zero bytes = one wildcard SSID (active broadcast) */
-	g_scan_escan_rc = diag_iovar(sdhci, sdio_core, 1, "escan", escan, 108u,
-		NULL, 0u, NULL, reqid++, seq++);
+
+	/* WLC_UP acks before the interface finishes coming up (PHY init), so a
+	 * too-soon escan gets BCME_NOTUP(-4) ("can not scan while driver is down",
+	 * per the fw console). Wait, then retry the escan until it is accepted. */
+	for (i = 0; i < 6; ++i) {
+		usleep(400 * 1000);
+		g_scan_escan_rc = diag_iovar(sdhci, sdio_core, 1, "escan", escan, 108u,
+			NULL, 0u, NULL, reqid++, seq++);
+		g_scan_escan_tries = i + 1;
+		if (g_scan_escan_rc != -4) {
+			break; /* accepted (0) or a different error */
+		}
+	}
 
 	/* Read WLC_E_ESCAN_RESULT events off channel 1 until a non-PARTIAL status. */
 	for (t = 0; t < 2000 && !done; ++t) {
@@ -2555,9 +2567,9 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 	if (g_scan_ran) {
 		int ap;
 		r = snprintf(buf + off, cap - off,
-			"WiFi SCAN: event_msgs rc=%d  UP rc=%d  mpc rc=%d  escan rc=%d\n"
+			"WiFi SCAN: event_msgs rc=%d  UP rc=%d  mpc rc=%d  escan rc=%d (tries=%d)\n"
 			"  chan1 frames=%d  escan-events(type69)=%d  APs=%d  done_status=%d\n",
-			g_scan_em_rc, g_scan_up_rc, g_scan_mpc_rc, g_scan_escan_rc,
+			g_scan_em_rc, g_scan_up_rc, g_scan_mpc_rc, g_scan_escan_rc, g_scan_escan_tries,
 			g_scan_evt_total, g_scan_escan_events, g_scan_ap_count, g_scan_done_status);
 		if (r > 0 && (size_t)r < cap - off) {
 			off += r;

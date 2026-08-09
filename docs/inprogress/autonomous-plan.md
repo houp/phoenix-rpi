@@ -387,6 +387,23 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (SuperTuxKart feasibility DECIDED → not heartbeat-tractable; the owner list is now systematically
+worked through). STK verdict: **modern STK (1.x) STRUCTURALLY BLOCKED** — needs GL 3.3/GLES3; the port's Mesa
+frontend is GL 2.1 compat (`API_OPENGL_COMPAT`) and the maintainers explicitly reject >GL2.1 renderers (quake3
+renderer2 / yquake2 gl3 both banned); exposing GLES3 needs a multi-week EGL+WSI subsystem that doesn't exist.
+**Legacy STK (~0.7.x, maybe 0.8.2) hard-but-doable in principle but the LARGEST/RISKIEST port yet** — bespoke
+Irrlicht-`COpenGLDriver`-on-scanout-FBO glue (NOT reusable from SDL), OpenAL+ogg/vorbis new ports, ~250-400MB
+assets (RAM-disk workaround mandatory), single-core low-fps → a ~3-5 day SPIKE (Irrlicht-context is make-or-break)
+before any multi-week commit. NOT a heartbeat task. (C++/libstdc++-under-a-large-app is already de-risked: Dillo =
+FLTK/C++ runs on the Pi.) **HONEST STATE after ~27 heartbeats: every owner-listed task is DONE (Q2/Q3, ffmpeg/
+video+windowed, X11-GPU/windowed, Window-Maker DE, Dillo E2/E3, SDL2, GPU games), BANKED with a precise diagnosis
+(Q1 MP net-connect, Quake3 VM-exec), CONCLUDED (NFS-perf link-bound; XFce impractical→WindowMaker; SD HW-blocked),
+or ASSESSED-as-multi-week (STK legacy spike, EGL/GLES3 subsystem, quakespasm→SDL flagship swap).** The remaining
+work is genuine multi-week/risky engineering, not heartbeat-tractable — per the owner, NOT "drained", but the
+next posture is: pick up ONE big effort as a bounded multi-burst project (highest-leverage = EGL/GLES3 exposure,
+which would unblock modern STK + accelerated-X + GLES apps; most-bounded = quakespasm→SDL #3-part-2) OR continue
+hardening/publication + capstone-regression-guarding. [[project_x11_gpu_windowed_feasibility]] [[project_sdl2_port]]
+
 2026-08-09 (SDL de-Quake #3 part-1 VERIFIED clean + SuperTuxKart feasibility scan spawned). Verified owner
 directive #3 part 1 ("strip all Quake/Quakespasm names from the SDL port"): rg over BOTH sources/phoenix-rtos-ports/
 sdl2 AND tools/sdl2-port (incl. the copied glue sdl_phoenix_glctx.c, now phxgl_-prefixed) = **ZERO** residual

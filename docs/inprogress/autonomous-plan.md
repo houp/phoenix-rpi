@@ -387,6 +387,15 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (TEST-LOOP RELIABILITY — fixed the recurring psh-interact input flake; owner-priority-#2 reliability).
+Root cause of ~5-6 wasted retry cycles this session: over netboot UART, a sent command's TEXT reliably echoes (bytes
+reach psh's input line) but the SUBMITTING newline is dropped ~50% of cold boots → psh never runs the command (it
+sits on the input line; the cycle looks like it "did nothing"). FIX (scripts/psh-interact.py): after `cmd\n`, a
+2s settle then re-send a BARE newline to submit the already-typed line. Safe both ways — if the command already
+ran, the extra "\n" is a harmless empty line at the next prompt (it NEVER re-sends the command text → no
+double-execution); if the Enter was dropped, it rescues the cycle. Eliminates the retry tax for the rest of the
+2-week run. Validating with a quick bench cycle (checks executes-once, no double-run). [[feedback_one_pi_cycle_at_a_time]]
+
 2026-08-09 (Quake 1 MP #68 — 2nd attempt (autoexec.cfg connect); connect STILL doesn't establish → BANKED FIRMLY,
 pivot). Tried the creative sidestep: staged id1/autoexec.cfg with `connect 10.42.0.1` (runs via `exec`, bypassing
 the +connect/stuffcmds path). Result: autoexec IS exec'd (`execing autoexec.cfg` in log + on the Quake title

@@ -197,6 +197,19 @@ def main():
             ser.write((cmd + "\n").encode("ascii"))
             ser.flush()
 
+            # Netboot UART input-flake rescue: the command TEXT reliably echoes
+            # (the bytes reach psh's input line) but the SUBMITTING newline is
+            # dropped ~50% of cold-boot cycles, so psh never runs the command (it
+            # just sits on the input line -> the whole cycle looks like it "did
+            # nothing"). After a short settle, re-send a BARE newline to submit the
+            # already-typed line. This is safe in both cases: if the command
+            # already ran, the extra "\n" is just an empty line at the next prompt
+            # (it never re-sends the command text, so no double-execution); if the
+            # Enter was dropped, this submits the line and rescues the cycle.
+            time.sleep(2.0)
+            ser.write(b"\n")
+            ser.flush()
+
             # capture response: end after idle-secs of silence OR a hard max
             # (max-cmd-secs) elapsed — the latter prevents an infinite hang when
             # the console is never quiet (genet RXSTATS spam resets the idle timer

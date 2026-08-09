@@ -191,6 +191,62 @@ static void hexdump(const char *label, const uint8_t *p, int n)
 	printf("\n");
 }
 
+/* fsel 3-bit code -> name (0 in,1 out,4 ALT0,5 ALT1,6 ALT2,7 ALT3,3 ALT4,2 ALT5) */
+static const char *fsel_name(unsigned f)
+{
+	switch (f) {
+	case 0: return "IN";
+	case 1: return "OUT";
+	case 4: return "ALT0";
+	case 5: return "ALT1";
+	case 6: return "ALT2";
+	case 7: return "ALT3";
+	case 3: return "ALT4";
+	case 2: return "ALT5";
+	default: return "?";
+	}
+}
+
+/* Read-only dump of the UART routing so we know empirically which UART is wired
+ * to the BT chip: GPIO14/15 (header/console) + GPIO30-33 (BT chip side) fsels,
+ * the AUX mini-UART enable+baud+cntl, and the PL011 state. On Pi4, ALT0 on
+ * 14/15 = PL011; ALT5 = mini-UART. Whichever UART's pins reach the BT chip
+ * (30-33) is the one to drive; if it's the mini-UART, AUX_MU_BAUD gives the
+ * fw-set divisor (avoids guessing the variable core clock). */
+static void dump_routing(void)
+{
+	void *gpio_p = mmap(NULL, _PAGE_SIZE, PROT_READ | PROT_WRITE,
+		MAP_DEVICE | MAP_UNCACHED | MAP_PHYSMEM | MAP_ANONYMOUS, -1, 0xfe200000u);
+	void *aux_p = mmap(NULL, _PAGE_SIZE, PROT_READ | PROT_WRITE,
+		MAP_DEVICE | MAP_UNCACHED | MAP_PHYSMEM | MAP_ANONYMOUS, -1, 0xfe215000u);
+	if (gpio_p != MAP_FAILED) {
+		volatile uint8_t *g = gpio_p;
+		uint32_t fsel1 = *(volatile uint32_t *)(g + 0x04u); /* GPIO10-19 */
+		uint32_t fsel3 = *(volatile uint32_t *)(g + 0x0Cu); /* GPIO30-39 */
+		unsigned f14 = (fsel1 >> ((14 % 10) * 3)) & 7u;
+		unsigned f15 = (fsel1 >> ((15 % 10) * 3)) & 7u;
+		unsigned f30 = (fsel3 >> ((30 % 10) * 3)) & 7u;
+		unsigned f31 = (fsel3 >> ((31 % 10) * 3)) & 7u;
+		unsigned f32 = (fsel3 >> ((32 % 10) * 3)) & 7u;
+		unsigned f33 = (fsel3 >> ((33 % 10) * 3)) & 7u;
+		printf("routing: GPIO14=%s 15=%s (header/console)  GPIO30=%s 31=%s 32=%s 33=%s (BT-chip side)\n",
+			fsel_name(f14), fsel_name(f15), fsel_name(f30), fsel_name(f31),
+			fsel_name(f32), fsel_name(f33));
+		printf("  ALT0 on 14/15 => PL011 on header; ALT5 on 32/33 => mini-UART to BT; ALT3 on 32/33 => PL011 to BT\n");
+		munmap(gpio_p, _PAGE_SIZE);
+	}
+	if (aux_p != MAP_FAILED) {
+		volatile uint8_t *a = aux_p;
+		uint32_t en = *(volatile uint32_t *)(a + 0x04u);   /* AUX_ENABLES */
+		uint32_t baud = *(volatile uint32_t *)(a + 0x68u); /* AUX_MU_BAUD */
+		uint32_t cntl = *(volatile uint32_t *)(a + 0x60u); /* AUX_MU_CNTL */
+		uint32_t lcr = *(volatile uint32_t *)(a + 0x4Cu);  /* AUX_MU_LCR */
+		printf("mini-UART(AUX@0xfe215000): ENABLES=0x%08x (bit0=mu_en) BAUD=%u CNTL=0x%02x LCR=0x%02x\n",
+			en, baud, cntl & 0xffu, lcr & 0xffu);
+		munmap(aux_p, _PAGE_SIZE);
+	}
+}
+
 int main(void)
 {
 	void *pl_page;
@@ -199,6 +255,7 @@ int main(void)
 	int n, bton;
 
 	printf("PHX-BT/0 tier0-hci-probe\n");
+	dump_routing();
 
 	/* Raise BT_REG_ON (expgpio[0]) via the VideoCore mailbox: power-cycle it
 	 * like the WiFi WL_REG_ON, then let the BT ROM boot. */

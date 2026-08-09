@@ -387,6 +387,19 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 ★★★ RICH MEDIA DESKTOP PROVEN — concurrent GPU app + playing video + WM on Phoenix/Pi 4. HW-validated
+(`/bin/startx mediadesk` → twm + gl-x11-window + e4-x11-play + xclock). HDMI grab
+(`20260809-034428-mediadesk2-tick.png`) shows TWO twm-decorated windows rendering AT ONCE: **"Phoenix V3D GL"**
+(live V3D GPU pinwheel) + **"Phoenix ffmpeg video"** (ffmpeg H.264-decoded video, BLUE frame); video ran 65
+passes / 2730 frames / 0 faults. Proves the X server concurrently multiplexes HETEROGENEOUS rendering clients —
+V3D GPU AND CPU-decoded video — plus a WM, on one screen = a media-capable desktop (the closest achievable
+milestone to the owner's XFce goal). New `mediadesk` launcher mode + e4_x11_play window repositioned bottom-right
+(committed 7de6f8a). Two transient netboot boot-flakes ("Firmware not found"/xHC-CMD err) preceded the clean run;
+a full `netboot-server-restart.sh` (fresh dnsmasq + EEE-off) + retry cleared it. **Graphics/media/desktop capstone
+now: GPU games + windowed GPU + WM-managed GPU + multi-app desktop + Dillo HTTPS browser + windowed video +
+concurrent GPU-and-video media desktop — all HW-proven.** NEXT: fresh owner task (SuperTuxKart/XFce feasibility)
+or consolidate/document the capstone for publication. [[project_x11_gpu_windowed_feasibility]] [[project_ffmpeg_e4_feasibility]]
+
 2026-08-09 ★★★ ffmpeg VIDEO-IN-AN-X-WINDOW PROVEN — a windowed video player on Phoenix/Pi 4. HW-validated:
 `pl_phoenix_xlaunch /bin/Xphoenix .../misc /bin/e4-x11-play` → decodes /usr/share/e4/clip.h264 (H.264) with the
 ported ffmpeg and presents each frame into a 320x240 X window under Xphoenix. Ran 69 passes / **2898 frames /

@@ -33,6 +33,7 @@
 #define VC_MBOX_RESP_OK 0x80000000u
 #define VC_MBOX_PROP_CHANNEL 8u
 #define VC_PROP_SET_GPIO_STATE 0x00038041u
+#define VC_PROP_GET_GPIO_STATE 0x00030041u
 #define VC_PROP_GET_CLOCK_RATE 0x00030002u
 #define VC_CLK_CORE 4u                 /* the mini-UART is clocked by the CORE clock */
 #define EXPGPIO_BT_ON 128u             /* expgpio[0]="BT_ON" (WL_ON=129=expgpio[1]) */
@@ -132,6 +133,14 @@ static const char *fsel_name(unsigned f)
 	}
 }
 #define GPIO_FN_ALT5 2u  /* mini-UART (TXD1/RXD1/CTS1/RTS1) */
+#define GPIO_GPLEV0 0x34u
+/* GPIO30 = our CTS input = the BT chip's RTS output ("chip ready to receive").
+ * Active-low, so level 0 after BT_REG_ON = chip alive/ready (UART-framing-
+ * independent liveness). */
+static unsigned gpio_level(volatile uint8_t *g, unsigned pin)
+{
+	return (*(volatile uint32_t *)(g + GPIO_GPLEV0) >> (pin & 31u)) & 1u;
+}
 
 /* ---- AUX mini-UART (BCM2835 aux @ 0xfe215000) --------------------------- */
 #define AUX_BASE 0xfe215000u
@@ -154,7 +163,7 @@ static void aux_init(volatile uint8_t *a, uint32_t baud_reg)
 	*(volatile uint32_t *)(a + AUX_MU_CNTL) = 0u;         /* disable TX/RX during setup */
 	*(volatile uint32_t *)(a + AUX_MU_IER) = 0u;
 	*(volatile uint32_t *)(a + AUX_MU_LCR) = 3u;          /* 8-bit (BCM erratum: 0x3) */
-	*(volatile uint32_t *)(a + AUX_MU_MCR) = 0u;
+	*(volatile uint32_t *)(a + AUX_MU_MCR) = 2u;          /* assert RTS (bit1, active-low): tell the chip host is ready to receive */
 	*(volatile uint32_t *)(a + AUX_MU_IIR) = 0xC6u;       /* clear RX+TX FIFOs */
 	*(volatile uint32_t *)(a + AUX_MU_BAUD) = baud_reg;
 	*(volatile uint32_t *)(a + AUX_MU_CNTL) = 3u;         /* enable TX+RX (no auto-flow) */
@@ -253,12 +262,16 @@ int main(void)
 	}
 	printf("core_clk=%u Hz -> AUX_MU_BAUD=%u (target 115200)\n", core_hz, baud_reg);
 
-	/* Raise BT_REG_ON (expgpio[0]) and let the BT ROM boot. */
+	/* Raise BT_REG_ON (expgpio[0]) and let the BT ROM boot. Read the pin state
+	 * back (GET_GPIO_STATE) to confirm it actually latched (the SET return is
+	 * just the value written, not proof the pin moved). */
+	printf("CTS-from-chip (GPIO30 level) pre-reg_on = %u (1=deasserted)\n", gpio_level(g, 30));
 	(void)diag_mbox2(VC_PROP_SET_GPIO_STATE, EXPGPIO_BT_ON, 0u);
 	usleep(50 * 1000);
 	bton = (int)diag_mbox2(VC_PROP_SET_GPIO_STATE, EXPGPIO_BT_ON, 1u);
-	usleep(250 * 1000);
-	printf("BT_REG_ON(expgpio0/mbox128) set -> %d\n", bton);
+	usleep(500 * 1000); /* BT ROM boot (generous) */
+	printf("BT_REG_ON(expgpio0/mbox128) set -> %d, GET_GPIO_STATE(128) readback -> %d\n",
+		bton, (int)diag_mbox2(VC_PROP_GET_GPIO_STATE, EXPGPIO_BT_ON, 0u));
 
 	/* Route the BT-chip UART pins to the mini-UART (ALT5) and bring it up. */
 	gpio_fsel(g, 30, GPIO_FN_ALT5); /* CTS1 */
@@ -271,6 +284,8 @@ int main(void)
 		fsel_name(gpio_getfsel(g, 32)), fsel_name(gpio_getfsel(g, 33)),
 		*(volatile uint32_t *)(a + AUX_ENABLES),
 		*(volatile uint32_t *)(a + AUX_MU_CNTL) & 0xffu);
+	printf("CTS-from-chip (GPIO30 level) post-route = %u (0=chip asserting=alive/ready; 1=deasserted)\n",
+		gpio_level(g, 30));
 
 	while (aux_getc(a, 5) >= 0) {
 	}

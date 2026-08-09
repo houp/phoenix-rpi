@@ -42,6 +42,7 @@
  */
 #include "wifi-fw-43455.h"
 #include "wifi-nvram-43455.h"
+#include "cr4tiny_blob.h"
 
 #include <sys/mman.h>
 
@@ -659,6 +660,16 @@ static int diag_sdioCmd53Write(volatile uint8_t *sdhci, int fn,
 
 
 /* ------------------------------------------------------------------ */
+/* #91 "trivial-program test" mode. When set (argv "trivial"), the 643 KB
+ * production firmware is replaced by cr4tiny_blob (a ~20-byte Thumb-2 counter
+ * whose reset vector is the REAL fw's verbatim B.W into rambase+0x80). The
+ * identical CR4 release runs, then we read back the counter at
+ * CR4TINY_COUNTER_ADDR. Increment => the release path executes CR4 code (chase
+ * fw preconditions: NVRAM ram-top, clocks); dead => the release path itself is
+ * broken (wrong core / reset semantics). Baseline path is byte-identical when
+ * this is 0. */
+static int g_trivial_mode = 0;
+
 /* WiFi P3 final: full-firmware load + release ARM-CR4 + look for fw boot.
  *
  * Load pipeline: enum (CMD0/5/3/7) -> F1 enable -> KSO -> HS-mode ->
@@ -713,6 +724,12 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 	const uint32_t window_bytes = 32u * 1024u;
 	const uint32_t blk_size = 64u;
 	const uint32_t blk_count = 64u;
+	/* #91 trivial-program test extras (baseline path ignores these). */
+	const uint8_t *fw_img = g_trivial_mode ? cr4tiny_blob : wifi_fw_43455;
+	const size_t fw_img_len = g_trivial_mode ? (size_t)cr4tiny_blob_len : (size_t)wifi_fw_43455_len;
+	uint8_t cnt_pre[4] = { 0 }, cnt_post[4] = { 0 };
+	int rc_cnt_pre = -100, rc_cnt_post = -100;
+	uint32_t ioctl_w2 = 0u, ioctl_w3 = 0u; /* dual ARM-wrapper CR4-identity cross-check */
 
 	for (i = 0; i < (int)sizeof(pre_buf); ++i) {
 		pre_buf[i] = 0;
@@ -725,12 +742,12 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 	}
 	off += r;
 
-	if (wifi_fw_43455_len == 0u) {
+	if (fw_img_len == 0u) {
 		r = snprintf(buf + off, cap - off,
 			"error: firmware blob not staged\n.\n");
 		return off + (r > 0 ? r : 0);
 	}
-	fw_target_bytes = (wifi_fw_43455_len / blk_size) * blk_size;
+	fw_target_bytes = (fw_img_len / blk_size) * blk_size;
 
 	gpio_page = mmap(NULL, _PAGE_SIZE, PROT_READ | PROT_WRITE,
 		MAP_DEVICE | MAP_UNCACHED | MAP_PHYSMEM | MAP_ANONYMOUS,
@@ -852,7 +869,7 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 					/*reg_addr=*/ci * bytes_per_cmd,
 					/*block_count=*/blk_count,
 					/*block_size=*/blk_size,
-					wifi_fw_43455 + fw_offset + ci * bytes_per_cmd);
+					fw_img + fw_offset + ci * bytes_per_cmd);
 				if (rc_w != 0) {
 					if (worst_rc_w == 0) worst_rc_w = rc_w;
 					break;
@@ -866,7 +883,7 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 					/*reg_addr=*/chunks * bytes_per_cmd,
 					/*block_count=*/leftover_blocks,
 					/*block_size=*/blk_size,
-					wifi_fw_43455 + fw_offset + chunks * bytes_per_cmd);
+					fw_img + fw_offset + chunks * bytes_per_cmd);
 				if (rc_w != 0) {
 					if (worst_rc_w == 0) worst_rc_w = rc_w;
 					break;
@@ -881,8 +898,10 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 		/* NVRAM load: chip-ready blob goes at chip-internal
 		 * (rambase + ramsize - wifi_nvram_43455_len) = 0x238000 - len,
 		 * inside SBADDR window 19, padded to a 64-byte boundary so it
-		 * lands as a single CMD53 multi-block write. */
-		{
+		 * lands as a single CMD53 multi-block write. Skipped in the
+		 * trivial-program test: the counter needs no NVRAM, and skipping
+		 * it removes NVRAM as a variable from a dead-counter result. */
+		if (!g_trivial_mode) {
 			uint32_t nv_start = 0x238000u - (uint32_t)wifi_nvram_43455_len;
 			uint8_t  nv_lo  = (uint8_t)(((nv_start >> 15) & 1u) ? 0x80u : 0x00u);
 			uint8_t  nv_mid = (uint8_t)((nv_start >> 16) & 0xffu);
@@ -908,6 +927,22 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 		rc_r_pre = diag_sdioCmd53Read(sdhci, 1, /*incr=*/1,
 			/*reg_addr=*/0u, /*block_count=*/1u, /*block_size=*/64u, pre_buf);
 
+		/* #91 trivial test: counter pre-state at CR4TINY_COUNTER_ADDR
+		 * (0x199000 = blob offset 0x1000, which is 0 => expect 0). Same
+		 * 0x198000 window as the SOCRAM snapshot; F1 offset 0x1000. */
+		{
+			uint32_t c0[4] = {0}, c1[4] = {0}, c2[4] = {0}, c3[4] = {0};
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x1000u, 0u, c0);
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x1001u, 0u, c1);
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x1002u, 0u, c2);
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x1003u, 0u, c3);
+			cnt_pre[0] = (uint8_t)(c0[0] & 0xffu);
+			cnt_pre[1] = (uint8_t)(c1[0] & 0xffu);
+			cnt_pre[2] = (uint8_t)(c2[0] & 0xffu);
+			cnt_pre[3] = (uint8_t)(c3[0] & 0xffu);
+			rc_cnt_pre = 0;
+		}
+
 		/* brcmfmac CR4 activation, step 1: write the firmware reset
 		 * vector (first word of the blob) to chip-internal address 0.
 		 * The low 32 bytes of address 0 are a writable vector-table
@@ -916,10 +951,10 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Au, 0x00u, NULL);
 		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Bu, 0x00u, NULL);
 		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Cu, 0x00u, NULL);
-		(void)diag_sdioCmd52(sdhci, 1, 1, 0x0u, wifi_fw_43455[0], NULL);
-		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1u, wifi_fw_43455[1], NULL);
-		(void)diag_sdioCmd52(sdhci, 1, 1, 0x2u, wifi_fw_43455[2], NULL);
-		(void)diag_sdioCmd52(sdhci, 1, 1, 0x3u, wifi_fw_43455[3], NULL);
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x0u, fw_img[0], NULL);
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x1u, fw_img[1], NULL);
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x2u, fw_img[2], NULL);
+		(void)diag_sdioCmd52(sdhci, 1, 1, 0x3u, fw_img[3], NULL);
 
 		/* Read addr 0 back to VERIFY the rstvec landed at TRUE backplane
 		 * address 0. A mismatch means the addr-0 write is landing in
@@ -946,6 +981,18 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 
 		/* Read IOCTL pre (POR observed 0x21 = CPUHALT|CLK). */
 		(void)diag_sdioCmd52(sdhci, 0, 1, 0x2408u, 0u, rc_pre_resp);
+
+		/* CR4-identity cross-check: read IOCTL at BOTH candidate ARM-wrapper
+		 * windows (0x18102408 = the one we release, 0x18103408 = the other)
+		 * so a dead-counter result can be attributed to the right half of
+		 * the tree. The true CR4 exposes the CPUHALT bit (0x20). */
+		{
+			uint32_t w2[4] = {0}, w3[4] = {0};
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x2408u, 0u, w2);
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x3408u, 0u, w3);
+			ioctl_w2 = w2[0] & 0xffu;
+			ioctl_w3 = w3[0] & 0xffu;
+		}
 
 		/* brcmfmac CR4 activation, step 2: full AXI resetcore toggle,
 		 * resetcore(core, prereset=CPUHALT(0x20), reset=0, postreset=0):
@@ -999,13 +1046,30 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 		rc_r_post = diag_sdioCmd53Read(sdhci, 1, /*incr=*/1,
 			/*reg_addr=*/0u, /*block_count=*/1u, /*block_size=*/64u, post_buf);
 
+		/* #91 trivial test: counter POST-release at CR4TINY_COUNTER_ADDR.
+		 * Same 0x198000 window; F1 offset 0x1000. A value with the 0xC0DE
+		 * magic in its high half => the CR4 executed our loop. */
+		{
+			uint32_t c0[4] = {0}, c1[4] = {0}, c2[4] = {0}, c3[4] = {0};
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x1000u, 0u, c0);
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x1001u, 0u, c1);
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x1002u, 0u, c2);
+			(void)diag_sdioCmd52(sdhci, 0, 1, 0x1003u, 0u, c3);
+			cnt_post[0] = (uint8_t)(c0[0] & 0xffu);
+			cnt_post[1] = (uint8_t)(c1[0] & 0xffu);
+			cnt_post[2] = (uint8_t)(c2[0] & 0xffu);
+			cnt_post[3] = (uint8_t)(c3[0] & 0xffu);
+			rc_cnt_post = 0;
+		}
+
 		/* fw-execution disambiguation (#91): SOCRAM[0..63] is entry/vector
 		 * code a running fw need not modify, so it is a weak "alive" tell.
 		 * Scan several points spread across the loaded image and compare
 		 * the post-release on-chip bytes to the source blob. ANY changed
 		 * point => the CR4 IS executing; zero change everywhere => fw
-		 * genuinely not running. */
-		{
+		 * genuinely not running. Skipped in trivial mode: the scan offsets
+		 * exceed the small trivial blob (the counter readback is the tell). */
+		if (!g_trivial_mode) {
 			static const uint32_t scan_off[6] = {
 				0x02000u, 0x10000u, 0x30000u, 0x60000u, 0x90000u, 0x9C000u
 			};
@@ -1129,9 +1193,9 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 	r = snprintf(buf + off, cap - off,
 		"rstvec@addr0 readback: %02x %02x %02x %02x  vs fw[0..3]: %02x %02x %02x %02x  -> %s\n",
 		rstvec_rb[0], rstvec_rb[1], rstvec_rb[2], rstvec_rb[3],
-		wifi_fw_43455[0], wifi_fw_43455[1], wifi_fw_43455[2], wifi_fw_43455[3],
-		(rstvec_rb[0] == wifi_fw_43455[0] && rstvec_rb[1] == wifi_fw_43455[1] &&
-			rstvec_rb[2] == wifi_fw_43455[2] && rstvec_rb[3] == wifi_fw_43455[3])
+		fw_img[0], fw_img[1], fw_img[2], fw_img[3],
+		(rstvec_rb[0] == fw_img[0] && rstvec_rb[1] == fw_img[1] &&
+			rstvec_rb[2] == fw_img[2] && rstvec_rb[3] == fw_img[3])
 			? "MATCH (vector placed at true backplane 0)"
 			: "MISMATCH (addr-0 write landed elsewhere -- CR4 fetches garbage!)");
 	if (r > 0 && (size_t)r < cap - off) {
@@ -1143,8 +1207,8 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 		post_match = 0;
 		diff_count = 0;
 		for (i = 0; i < (int)sizeof(pre_buf); ++i) {
-			if (pre_buf[i] == wifi_fw_43455[i]) ++pre_match;
-			if (post_buf[i] == wifi_fw_43455[i]) ++post_match;
+			if (pre_buf[i] == fw_img[i]) ++pre_match;
+			if (post_buf[i] == fw_img[i]) ++post_match;
 			if (pre_buf[i] != post_buf[i]) ++diff_count;
 		}
 		r = snprintf(buf + off, cap - off,
@@ -1163,8 +1227,8 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 			"  fw[0..7]   %02x %02x %02x %02x %02x %02x %02x %02x\n"
 			"  pre[0..7]  %02x %02x %02x %02x %02x %02x %02x %02x\n"
 			"  post[0..7] %02x %02x %02x %02x %02x %02x %02x %02x\n",
-			wifi_fw_43455[0], wifi_fw_43455[1], wifi_fw_43455[2], wifi_fw_43455[3],
-			wifi_fw_43455[4], wifi_fw_43455[5], wifi_fw_43455[6], wifi_fw_43455[7],
+			fw_img[0], fw_img[1], fw_img[2], fw_img[3],
+			fw_img[4], fw_img[5], fw_img[6], fw_img[7],
 			pre_buf[0], pre_buf[1], pre_buf[2], pre_buf[3],
 			pre_buf[4], pre_buf[5], pre_buf[6], pre_buf[7],
 			post_buf[0], post_buf[1], post_buf[2], post_buf[3],
@@ -1262,6 +1326,35 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 		}
 	}
 
+	/* #91 CR4-identity cross-check + (when active) the trivial-program test. */
+	r = snprintf(buf + off, cap - off,
+		"CR4-identity: IOCTL@0x18102408=0x%02x IOCTL@0x18103408=0x%02x "
+		"(CPUHALT=0x20; we release 0x18102000)\n",
+		(unsigned)ioctl_w2, (unsigned)ioctl_w3);
+	if (r > 0 && (size_t)r < cap - off) {
+		off += r;
+	}
+
+	if (g_trivial_mode) {
+		uint32_t cp = (uint32_t)cnt_pre[0] | ((uint32_t)cnt_pre[1] << 8) |
+			((uint32_t)cnt_pre[2] << 16) | ((uint32_t)cnt_pre[3] << 24);
+		uint32_t cq = (uint32_t)cnt_post[0] | ((uint32_t)cnt_post[1] << 8) |
+			((uint32_t)cnt_post[2] << 16) | ((uint32_t)cnt_post[3] << 24);
+		int ran = ((cq & 0xFFFF0000u) == (CR4TINY_COUNTER_MAGIC & 0xFFFF0000u)) &&
+			(cq != cp);
+		r = snprintf(buf + off, cap - off,
+			"TRIVIAL-PROGRAM TEST (counter @0x%08x, magic 0x%08x):\n"
+			"  pre=0x%08x (rc=%d, expect 0)  post=0x%08x (rc=%d)\n"
+			"  -> %s\n",
+			(unsigned)CR4TINY_COUNTER_ADDR, (unsigned)CR4TINY_COUNTER_MAGIC,
+			(unsigned)cp, rc_cnt_pre, (unsigned)cq, rc_cnt_post,
+			ran ? "CR4 EXECUTED our code (release path WORKS -- chase fw preconditions: NVRAM ram-top, clocks)"
+			    : "counter DEAD (release path broken -- wrong core / reset semantics; use EROM walk next)");
+		if (r > 0 && (size_t)r < cap - off) {
+			off += r;
+		}
+	}
+
 	r = snprintf(buf + off, cap - off, ".\n");
 	if (r > 0 && (size_t)r < cap - off) {
 		off += r;
@@ -1270,11 +1363,17 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 }
 
 
-int main(void)
+int main(int argc, char **argv)
 {
 	enum { REPORT_CAP = 16u * 1024u };
 	char *report;
-	int n;
+	int n, ai;
+
+	for (ai = 1; ai < argc; ++ai) {
+		if (strcmp(argv[ai], "trivial") == 0) {
+			g_trivial_mode = 1;
+		}
+	}
 
 	report = malloc(REPORT_CAP);
 	if (report == NULL) {

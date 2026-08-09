@@ -23,6 +23,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "bt-hcd.h"  /* Pi4B BT patch-RAM firmware (Cypress EULA, gitignored) */
+
 /* ---- VideoCore mailbox (property channel) ------------------------------- */
 #define RPI_PI4_MAILBOX_BASE 0xfe00b880u
 #define VC_MBOX_READ 0x00u
@@ -224,6 +226,93 @@ static void hexdump(const char *label, const uint8_t *p, int n)
 	printf("\n");
 }
 
+/* Broadcom patch-RAM upload (mirrors Linux btbcm_patchram, btbcm.c:217):
+ * Download_Minidriver (0xfc2e) -> 50ms -> replay each .hcd record
+ * [opcode_le16][plen][params] waiting for Command Complete -> 250ms. The .hcd's
+ * final record is Launch_RAM (0xfc4e). Returns #records that acked status 0. */
+static int bt_patchram(volatile uint8_t *a, int *out_total)
+{
+	uint8_t resp[16];
+	uint32_t off = 0u;
+	int ok = 0, total = 0;
+
+	(void)hci_cmd(a, 0xfc2eu, NULL, 0u, resp, sizeof(resp)); /* Download_Minidriver */
+	usleep(50 * 1000);
+
+	while (off + 3u <= bt_hcd_len) {
+		uint16_t opcode = (uint16_t)(bt_hcd[off] | (bt_hcd[off + 1] << 8));
+		uint8_t plen = bt_hcd[off + 2];
+		int n;
+		if (off + 3u + (uint32_t)plen > bt_hcd_len) {
+			break;
+		}
+		n = hci_cmd(a, opcode, &bt_hcd[off + 3], plen, resp, sizeof(resp));
+		total++;
+		if (n >= 7 && resp[0] == 0x04u && resp[1] == 0x0eu && resp[6] == 0x00u) {
+			ok++;
+		}
+		off += 3u + (uint32_t)plen;
+	}
+	usleep(250 * 1000);
+	if (out_total != NULL) {
+		*out_total = total;
+	}
+	return ok;
+}
+
+/* HCI Inquiry -- scan for nearby classic-BT devices. Sends Inquiry (0x0401,
+ * GIAC LAP 0x9e8b33), then reads events collecting Inquiry Result (0x02/0x22)
+ * BD_ADDRs until Inquiry Complete (0x01) or timeout. Returns device sightings. */
+static int bt_inquiry(volatile uint8_t *a)
+{
+	uint8_t ev[260];
+	int found = 0, t;
+
+	(void)aux_putc(a, 0x01u);                       /* H4 command */
+	(void)aux_putc(a, 0x01u); (void)aux_putc(a, 0x04u); /* opcode 0x0401 Inquiry */
+	(void)aux_putc(a, 0x05u);                       /* param len 5 */
+	(void)aux_putc(a, 0x33u); (void)aux_putc(a, 0x8bu); (void)aux_putc(a, 0x9eu); /* GIAC LAP */
+	(void)aux_putc(a, 0x08u);                       /* inquiry_length ~10s */
+	(void)aux_putc(a, 0x00u);                       /* num_responses unlimited */
+
+	for (t = 0; t < 1400; ++t) {                    /* ~14s of event polling */
+		int b = aux_getc(a, 10);
+		int code, plen, i, got = 0;
+		if (b != 0x04) {
+			continue;                           /* wait for an H4 event start */
+		}
+		code = aux_getc(a, 100);
+		plen = aux_getc(a, 100);
+		if (code < 0 || plen < 0) {
+			continue;
+		}
+		for (i = 0; i < plen && i < (int)sizeof(ev); ++i) {
+			int p = aux_getc(a, 100);
+			if (p < 0) {
+				break;
+			}
+			ev[i] = (uint8_t)p;
+			got++;
+		}
+		if (code == 0x01) {                         /* Inquiry Complete */
+			printf("  Inquiry Complete (status=0x%02x)\n", got > 0 ? ev[0] : 0xff);
+			break;
+		}
+		if (code == 0x02 || code == 0x22) {         /* Inquiry Result [+RSSI] */
+			int num = got > 0 ? ev[0] : 0;
+			int d;
+			for (d = 0; d < num && (1 + d * 6 + 6) <= got; ++d) {
+				const uint8_t *ba = &ev[1 + d * 6]; /* BD_ADDR is LE -> print reversed */
+				printf("  BT device: %02x:%02x:%02x:%02x:%02x:%02x\n",
+					ba[5], ba[4], ba[3], ba[2], ba[1], ba[0]);
+				found++;
+			}
+		}
+		/* code 0x0f = Command Status -- ignore */
+	}
+	return found;
+}
+
 int main(void)
 {
 	void *gpio_page, *aux_page;
@@ -327,6 +416,43 @@ int main(void)
 	}
 	else {
 		printf("READ_LOCAL_VERSION: no response\n");
+	}
+
+	/* Tier-2: upload the patch-RAM firmware, then confirm via a real BD_ADDR
+	 * and scan for nearby BT devices (HCI Inquiry). */
+	{
+		int total = 0, ok = bt_patchram(a, &total);
+		printf("PATCHRAM: %d/%d records acked (%u bytes .hcd)\n", ok, total, bt_hcd_len);
+
+		/* Post-patch reset + re-version. */
+		(void)hci_cmd(a, 0x0c03u, NULL, 0u, resp, sizeof(resp)); /* HCI_RESET */
+		usleep(100 * 1000);
+		n = hci_cmd(a, 0x1001u, NULL, 0u, resp, sizeof(resp));   /* READ_LOCAL_VERSION */
+		if (n >= 15) {
+			printf("  post-patch LMP_subver=0x%04x (changes from ROM 0x6119 if patch took)\n",
+				(unsigned)resp[13] | ((unsigned)resp[14] << 8));
+		}
+
+		/* READ_BD_ADDR (0x1009): a non-zero MAC proves the patch loaded. */
+		n = hci_cmd(a, 0x1009u, NULL, 0u, resp, sizeof(resp));
+		if (n >= 13 && resp[0] == 0x04u && resp[1] == 0x0eu && resp[6] == 0x00u) {
+			const uint8_t *ba = &resp[7]; /* BD_ADDR LE */
+			printf("  BD_ADDR = %02x:%02x:%02x:%02x:%02x:%02x %s\n",
+				ba[5], ba[4], ba[3], ba[2], ba[1], ba[0],
+				(ba[0] | ba[1] | ba[2] | ba[3] | ba[4] | ba[5]) ? "-- real MAC, patchram OK!" : "(all-zero: patch not applied)");
+		}
+		else {
+			hexdump("  READ_BD_ADDR reply", resp, n);
+		}
+
+		/* HCI Inquiry: scan the air for classic-BT devices. */
+		printf("HCI Inquiry (scanning ~10s)...\n");
+		{
+			int dev = bt_inquiry(a);
+			printf("  -> %s\n", dev > 0
+				? "BT INQUIRY FOUND device(s) -- the Bluetooth radio scans!"
+				: "no BT devices seen (none discoverable nearby, or inquiry needs tuning)");
+		}
 	}
 
 	munmap(aux_page, _PAGE_SIZE);

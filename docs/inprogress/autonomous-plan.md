@@ -421,6 +421,17 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (2nd code-review pass DONE + fixes applied; BT teed up). Owner #2 complete: adversarial review of the
+~2600-line WiFi driver found one memory-safety issue + cleanups; all fixed (commit 7108d7c, built clean, staged),
+behavior-preserving on the proven scan/ioctl path: (#1) diag_f2RecvFrame now clamps the fw-controlled frame len to
+512 (unclamped, a malformed large frame could drive the event-stack offsets past g_rxf[512]); (#4) transport errors
+renumbered to <=-1000 so they can't be mistaken for a fw BCME_* status; (#6) removed dead diag_f2ReadDiag + globals
++ block_words; (#2/#5) clarifying comments. Review verified clean: CLM chunking, endianness, RX demux, readShared +
+EROM bounds. No HW re-test needed (fixes are no-ops on <=512B frames). NEXT: start Bluetooth Tier-0 (owner's "then
+BT", de-risked console-safe) — standalone tools/bt-probe/: PL011@0xfe201000 init 115200 8N1 + BT_REG_ON (mailbox
+SET_GPIO_STATE — first check if a helper exists / if BT is auto-powered) + H4 HCI_RESET (01 03 0c 00) → expect
+Command-Complete 04 0e ... → READ_LOCAL_VERSION. [[project_bluetooth_bringup]]
+
 2026-08-09 (PIVOT from WiFi: dispatched 2nd code-review pass on the WiFi driver + mined docs/todo + de-risked
 Bluetooth). WiFi scan headline done. (1) OWNER #2 (2nd code-review pass): spawned an adversarial review subagent on
 the whole tools/wifi-probe/wifi-probe.c (~2600 lines of fast-written HW-protocol C, unreviewed since it's all new

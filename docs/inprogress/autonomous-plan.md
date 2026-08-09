@@ -23,6 +23,8 @@ Also please think if adding support for dynamic linking and dynamic library supp
 
 Continue the work on all other tasks and decide on priorities yourself.
 
+One more note - I've noticed that phoenix-rtos-kernal repo has bot main and master git braches which is very misleading. Do we need both? Can't we use master as we do in the other phoenix-rtos-* repos mirroring the standard way of the upstream project?
+
 ---
 ## Comments from human operator / owner (2026-08-09)
 

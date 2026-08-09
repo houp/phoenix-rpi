@@ -13,6 +13,22 @@ host/Linux comparison, UART logs, QEMU, debugger).
 
 ---
 
+## Comments from human operator / owner (2026-08-09)
+
+Good progress in the repo! Keep it going!
+
+If you don't see any more doable tasks which are low-risk, quick-wins - pick a risky, long task and try to decompose it and work on it.
+
+Do a second code-review pass on all the recent system changes, ports and other new items!
+
+Check all the "inprogress" docs in coordination repo. Maybe there are some other tasks or topics worth re-exploring? You are free to extend the task list with more work, which is not-yet-done but was considered in the past. There is also "todo" subfolder in docs, which can be use as a source of new tasks.
+
+Try going back to the wifi driver work. This was in-progress very long time ago. During this time we gained a much more stable system, we have much more knowledge about the system and hardware and we have new debugging facilities. So re-analyze all the wifi work done in the past, but keep in mind that some of old notes and docs may be wrong. Be critical in reviewing the existing work. Try to fully bring wifi up and working. After that work on bluetooth.
+
+I'll be back on August 19th in the late evening. Try to plan you work in a way that you keep being busy all this remaining time!
+
+---
+
 ## Comments from human operator / owner (2026-08-07)
 
 Do not wait for human feedback. Do not stop the work.

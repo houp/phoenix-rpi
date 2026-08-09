@@ -150,6 +150,37 @@ of heartbeats it:
   infra-gated" bank was correctly *revisited* once the agent noticed the gating was about multi-MB
   video, not a 1 KB test frame.
 
+A second wave began when the operator, mid-vacation, escalated the brief — *take risks, kernel changes
+are fine, always compare against a Linux-on-Pi4 reference, and don't treat the backlog as drained.* The agent:
+
+- **Gave the board the internet, then a browser on it.** Host NAT + a Phoenix default route + an NTP
+  clock-sync (the Pi has no RTC, so its 1970 clock had been failing every TLS certificate) brought the
+  board online, and **Dillo rendered a live, CA-verified HTTPS page on the HDMI screen** — a from-scratch
+  RTOS browsing the real web. Two enabling kernel fixes rode along: a `poll()`-readiness path for socket
+  fds, and demand-zeroing the ELF `.bss` at load (like Linux) instead of eagerly committing it, which
+  unblocked exec of the multi-megabyte game/app binaries over NFS.
+- **Put the GPU in a window.** A feasibility pass found the textbook accelerated-X routes (GLX/DRI/Glamor)
+  *structurally* blocked on this port — no DRM device, no inter-process buffer sharing, no dynamic loader —
+  and then sidestepped all three: render with the V3D to an offscreen buffer, read it back, and present it
+  into an ordinary X window. From there, incrementally: a window-manager-decorated GPU window, a multi-app
+  desktop, a **concurrent GPU-app-and-decoded-video "media desktop,"** and finally **Window Maker as a real
+  desktop environment** (dock, clip, populated app menu) — the tractable answer to an "XFce" goal that a
+  scan showed was impractical (its GTK/D-Bus stack is entirely unported, and this port has no dynamic loader).
+- **Extended the video player into that window**, and **measured rather than guessed the NFS bottleneck** —
+  building a throughput probe, comparing against the Linux-Pi4 reference, and concluding the game-load
+  slowness was the 100 Mbps *physical* link plus RPC pipelining, *not* a single fixable kernel bug (the
+  read-ahead-clustering and lazy-open paths were already good). It then **precisely localized — and
+  banked — a Quake-1 multiplayer connect failure** (the engine's `connect` never reaches the socket, via
+  either launch path), and **fixed a flake in its own test harness** (a submitting-newline dropped ~half the
+  time over the netboot UART, which had silently cost it retry after retry).
+
+Much of this wave was *composition*: the new capabilities were thin glue joining primitives the port had
+already proven — the GPU winsys, the X client stack, the ffmpeg decoder — which is why they landed as single
+verified increments rather than new engines. And the agent gravitated toward what it could *see*: with only
+an HDMI capture and a serial console for autonomous ground truth, visually-verifiable work (a window, a page,
+a desktop, a playing video) was what it could confirm alone — and that quietly shaped which of the open
+tasks it chose to advance.
+
 The limits it hit were *physical or judgment* boundaries, not cognitive ones: a 100 Mbps link it
 couldn't rewire, an SD card it couldn't insert, and a host network it judged too risky to
 reconfigure unattended (reconfiguring the netboot infrastructure everything depended on was not
@@ -183,3 +214,12 @@ worth a silent regression while no human could recover it).
   cheapest guard against your own confident mistakes is to make the check executable. Knowing when
   to *drop to that gear* — small, sure, verifying turns instead of forcing another headline — is
   itself part of the judgment.
+- **Compose what's already proven, and let validatability steer.** The richest late-stage results — a
+  browser on the live internet, an accelerated-GPU app in a window, a Window Maker desktop, a video player —
+  were almost all *recombinations* of primitives the port had already verified (the V3D winsys, the X client
+  stack, the ffmpeg decoder), joined by thin glue; that is why they landed in single increments instead of
+  multi-week ports. And when the textbook path was structurally blocked (accelerated X via GLX/DRI), the win
+  came from *sidestepping* it (offscreen render + present-by-copy), not forcing it. Relatedly: on a run whose
+  only autonomous ground truth is an HDMI frame and a serial log, the agent rationally favored work it could
+  *see itself finish* — a sensible bias, but one worth naming, since it also means audio, interactivity, and
+  anything needing a human's eyes or ears quietly slid down the queue regardless of stated priority.

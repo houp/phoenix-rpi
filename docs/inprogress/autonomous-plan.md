@@ -387,6 +387,20 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (JOURNEY-ARTICLE CAPSTONE — extended docs/AI-DRIVEN-PORT-JOURNEY.md with the vacation-run's SECOND
+WAVE; owner-explicitly-valued, HW-free). The feature space is richly capstoned + Q1 MP banked, so this burst
+captured the achievements in the narrative capstone the owner wanted. Extended "## The autonomous phase" with the
+second-wave arc (post the 2026-08-07 escalated directive): E2/E3 internet + **Dillo browsing live HTTPS on HDMI**
+(+ the poll-readiness & lazy-BSS kernel fixes that rode along); **windowed GPU** (offscreen-FBO + XPutImage,
+sidestepping the structurally-blocked GLX/DRI) → WM-managed → multi-app → **media desktop** → **Window Maker DE**
+(the tractable answer vs impractical XFce); windowed video player; the **measured** NFS conclusion (link-bound +
+28% pipelining, not one kernel bug); the precisely-banked Q1-MP connect diagnosis; and the test-harness input-flake
+fix. Added a takeaway: **compose already-proven primitives + let validatability steer** (the richest results were
+thin glue joining proven pieces; the HDMI/UART-only ground truth biased task selection toward what the agent could
+see itself finish — honestly named). Reflects ~25 heartbeats of work for publication. NEXT: fresh direction — the
+tractable+validatable feature space is largely capstoned; candidates are SuperTuxKart feasibility (last unexplored
+frontier, likely huge) or further hardening/publication. [[project_autonomous_vacation_mode]]
+
 2026-08-09 (TEST-LOOP RELIABILITY — fixed the recurring psh-interact input flake; owner-priority-#2 reliability).
 Root cause of ~5-6 wasted retry cycles this session: over netboot UART, a sent command's TEXT reliably echoes (bytes
 reach psh's input line) but the SUBMITTING newline is dropped ~50% of cold boots → psh never runs the command (it

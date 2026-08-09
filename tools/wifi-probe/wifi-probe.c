@@ -43,6 +43,7 @@
 #include "wifi-fw-43455.h"
 #include "wifi-nvram-43455.h"
 #include "cr4tiny_blob.h"
+#include "clm-43455.h"
 
 #include <sys/mman.h>
 
@@ -1489,6 +1490,8 @@ static int g_scan_ran = 0;
 static uint32_t g_ram_size = 0u; /* set in the main flow; used to re-read the fw console after scan */
 static int g_scan_em_rc = -100, g_scan_infra_rc = -100, g_scan_up_rc = -100, g_scan_mpc_rc = -100, g_scan_escan_rc = -100;
 static int g_scan_escan_tries = 0;
+static int g_clm_chunks = 0, g_clm_last_rc = -100;
+static uint32_t g_chanspecs_count = 0xffffffffu; /* channels the fw reports usable after UP */
 static int g_scan_ap_count = 0, g_scan_evt_total = 0, g_scan_escan_events = 0;
 static int g_scan_done_status = -1;
 static struct {
@@ -1506,7 +1509,7 @@ static uint32_t diag_be32(const uint8_t *p)
 }
 
 /* Issue an iovar (SET if is_set, else GET): payload = "name\0" + data. */
-static uint8_t g_iov[300];
+static uint8_t g_iov[512];
 static int diag_iovar(volatile uint8_t *sdhci, uint32_t sdio_core, int is_set,
 	const char *name, const uint8_t *data, uint32_t dlen,
 	uint8_t *rx, uint32_t rxcap, uint32_t *rxlen, uint32_t reqid, uint8_t seq)
@@ -1530,6 +1533,58 @@ static int diag_iovar(volatile uint8_t *sdhci, uint32_t sdio_core, int is_set,
 		rx, rxcap, rxlen, reqid, seq);
 }
 
+/* Download the CLM (regulatory/channel) blob via the "clmload" iovar BEFORE
+ * WLC_UP -- on the 43455 the channel set lives here; without it WLC_UP returns
+ * OK but the radio has no channels and escan is refused NOTUP. Format (brcmf
+ * common.c): payload = brcmf_dload_data_le { le16 flag; le16 dload_type=2(CLM);
+ * le32 len; le32 crc=0 } + chunk. flag = 0x1000(ver) | 0x2(DL_BEGIN first) |
+ * 0x4(DL_END last). brcmf uses 1400B chunks but byte-mode CMD53 caps at 512, so
+ * chunk at 384B (fits SDPCM+BCDC+"clmload\0"+hdr+data in one 512B F2 frame). */
+#define CLM_CHUNK 384u
+static int diag_clmLoad(volatile uint8_t *sdhci, uint32_t sdio_core,
+	uint32_t *reqid, uint8_t *seq)
+{
+	static uint8_t clmbuf[12 + CLM_CHUNK];
+	uint32_t off = 0u, chunk, i;
+	int rc = 0;
+
+	g_clm_chunks = 0;
+	while (off < clm_43455_len) {
+		uint16_t flag = 0x1000u; /* DLOAD_HANDLER_VER<<12 */
+		chunk = clm_43455_len - off;
+		if (chunk > CLM_CHUNK) {
+			chunk = CLM_CHUNK;
+		}
+		if (off == 0u) {
+			flag |= 0x0002u; /* DL_BEGIN */
+		}
+		if (off + chunk >= clm_43455_len) {
+			flag |= 0x0004u; /* DL_END */
+		}
+		clmbuf[0] = (uint8_t)(flag & 0xffu);
+		clmbuf[1] = (uint8_t)((flag >> 8) & 0xffu);
+		clmbuf[2] = 2u; /* dload_type = DL_TYPE_CLM */
+		clmbuf[3] = 0u;
+		clmbuf[4] = (uint8_t)(chunk & 0xffu);
+		clmbuf[5] = (uint8_t)((chunk >> 8) & 0xffu);
+		clmbuf[6] = 0u;
+		clmbuf[7] = 0u;
+		clmbuf[8] = 0u; clmbuf[9] = 0u; clmbuf[10] = 0u; clmbuf[11] = 0u; /* crc=0 */
+		for (i = 0u; i < chunk; ++i) {
+			clmbuf[12 + i] = clm_43455[off + i];
+		}
+		rc = diag_iovar(sdhci, sdio_core, 1, "clmload", clmbuf, 12u + chunk,
+			NULL, 0u, NULL, (*reqid)++, (*seq)++);
+		g_clm_last_rc = rc;
+		g_clm_chunks++;
+		if (rc != 0) {
+			break;
+		}
+		off += chunk;
+	}
+	return rc;
+}
+
 static void diag_wifiScan(volatile uint8_t *sdhci, uint32_t sdio_core)
 {
 	uint8_t emask[16];
@@ -1551,18 +1606,34 @@ static void diag_wifiScan(volatile uint8_t *sdhci, uint32_t sdio_core)
 	g_scan_em_rc = diag_iovar(sdhci, sdio_core, 1, "event_msgs", emask, 16u,
 		NULL, 0u, NULL, reqid++, seq++);
 
-	/* SET_INFRA 1 (STA / infrastructure mode) -- brcmf does this before UP;
-	 * without it WLC_UP does not bring the radio "up" for scan. */
+	/* CLM (regulatory/channel) blob BEFORE UP -- the missing precondition:
+	 * without it WLC_UP returns OK but the radio has no channels => escan
+	 * NOTUP. */
+	(void)diag_clmLoad(sdhci, sdio_core, &reqid, &seq);
+
+	/* SET_INFRA 1 (STA / infrastructure mode). */
 	{
 		uint8_t infra[4] = { 1, 0, 0, 0 };
 		g_scan_infra_rc = diag_bcdcCmd(sdhci, sdio_core, 1, BRCMF_C_SET_INFRA,
 			infra, 4u, NULL, 0u, NULL, reqid++, seq++);
 	}
 
-	/* WLC_UP with value 1 (brcmf passes 1, not 0 -- value 0 left it "down"). */
+	/* WLC_UP (value ignored by fw; brcmf passes 0 on the STA path). */
 	up[0] = 1u;
 	g_scan_up_rc = diag_bcdcCmd(sdhci, sdio_core, 1, WLC_UP_CMD, up, 4u,
 		NULL, 0u, NULL, reqid++, seq++);
+
+	/* GET "chanspecs": count>0 confirms the radio now has usable channels
+	 * (i.e. CLM/regulatory took) -- the decisive discriminator for NOTUP. */
+	{
+		uint8_t cs[8] = { 0 };
+		uint32_t cl = 0u;
+		int crc = diag_iovar(sdhci, sdio_core, 0, "chanspecs", NULL, 4u,
+			cs, sizeof(cs), &cl, reqid++, seq++);
+		if (crc >= 0 && cl >= 4u) {
+			g_chanspecs_count = diag_le32(cs);
+		}
+	}
 
 	/* mpc = 0 (keep radio awake on SDIO parts) */
 	g_scan_mpc_rc = diag_iovar(sdhci, sdio_core, 1, "mpc", mpc, 4u,
@@ -2577,9 +2648,10 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 	if (g_scan_ran) {
 		int ap;
 		r = snprintf(buf + off, cap - off,
-			"WiFi SCAN: event_msgs rc=%d  infra rc=%d  UP rc=%d  mpc rc=%d  escan rc=%d (tries=%d)\n"
+			"WiFi SCAN: event_msgs rc=%d  clmload(%d chunks, last rc=%d)  infra rc=%d  UP rc=%d  chanspecs=%d  mpc rc=%d  escan rc=%d (tries=%d)\n"
 			"  chan1 frames=%d  escan-events(type69)=%d  APs=%d  done_status=%d\n",
-			g_scan_em_rc, g_scan_infra_rc, g_scan_up_rc, g_scan_mpc_rc, g_scan_escan_rc, g_scan_escan_tries,
+			g_scan_em_rc, g_clm_chunks, g_clm_last_rc, g_scan_infra_rc, g_scan_up_rc,
+			(int)g_chanspecs_count, g_scan_mpc_rc, g_scan_escan_rc, g_scan_escan_tries,
 			g_scan_evt_total, g_scan_escan_events, g_scan_ap_count, g_scan_done_status);
 		if (r > 0 && (size_t)r < cap - off) {
 			off += r;

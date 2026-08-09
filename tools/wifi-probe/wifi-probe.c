@@ -1170,6 +1170,101 @@ static void diag_readShared(volatile uint8_t *sdhci, uint32_t ram_size)
 	}
 }
 
+/* Software-reset the SDHCI CMD + DAT lines (reg 0x2C, bits 25/26) to recover a
+ * wedged data transfer, without a full controller reset. */
+static void diag_sdhciResetDatCmd(volatile uint8_t *sdhci)
+{
+	uint32_t v = *(volatile uint32_t *)(sdhci + SDHCI_CLK_TIMEOUT_RESET);
+	int d;
+	*(volatile uint32_t *)(sdhci + SDHCI_CLK_TIMEOUT_RESET) =
+		v | SDHCI_SOFT_RESET_CMD | SDHCI_SOFT_RESET_DAT;
+	for (d = 0; d < 100000; ++d) {
+		if ((*(volatile uint32_t *)(sdhci + SDHCI_CLK_TIMEOUT_RESET) &
+			(SDHCI_SOFT_RESET_CMD | SDHCI_SOFT_RESET_DAT)) == 0u) {
+			break;
+		}
+	}
+}
+
+/* Fully-instrumented single F2 (or any-fn) byte-mode CMD53 READ, for diagnosing
+ * why F2 data transfers fail: captures the R5 response (card's verdict on the
+ * CMD53 -- NAK/invalid-function/out-of-range live in R5 bits [15:8]), the exact
+ * INT_STATUS on error (which SDHCI error bit), and whether the command phase vs
+ * the data phase is the failure. Resets the DAT/CMD lines afterwards. */
+static uint32_t g_f2_r5 = 0u, g_f2_errst = 0u;
+static int g_f2_cmd_rc = -100, g_f2_data_rc = -100;
+static void diag_f2ReadDiag(volatile uint8_t *sdhci, int fn, int incr_addr,
+	uint32_t reg_addr, uint32_t nbytes, uint8_t *buf)
+{
+	uint32_t arg, cmd_word, st, data;
+	uint32_t words_total = (nbytes + 3u) / 4u, i;
+	int deadline;
+
+	g_f2_r5 = 0u;
+	g_f2_errst = 0u;
+	g_f2_cmd_rc = -100;
+	g_f2_data_rc = -100;
+
+	for (deadline = 100000; deadline > 0; --deadline) {
+		if ((*(volatile uint32_t *)(sdhci + SDHCI_PRES_STATE) & SDHCI_PRES_CMD_INHIBIT) == 0u) {
+			break;
+		}
+	}
+	*(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS) = 0xFFFFFFFFu;
+	*(volatile uint32_t *)(sdhci + SDHCI_BLOCK_SIZE_CNT) = (1u << 16) | (nbytes & 0xFFFu);
+	arg = (0u << 31) | ((uint32_t)(fn & 7u) << 28) |
+		((incr_addr ? 1u : 0u) << 26) |
+		((reg_addr & 0x1FFFFu) << 9) | (nbytes & 0x1FFu);
+	*(volatile uint32_t *)(sdhci + SDHCI_ARGUMENT_1) = arg;
+	cmd_word = (1u << 4) | ((uint32_t)0x3Au << 16) | ((uint32_t)53u << 24);
+	*(volatile uint32_t *)(sdhci + SDHCI_TRANS_CMD) = cmd_word;
+
+	for (deadline = 100000; deadline > 0; --deadline) {
+		st = *(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS);
+		if ((st & SDHCI_INT_ERR_ANY) != 0u) {
+			g_f2_errst = st;
+			g_f2_cmd_rc = -2;
+			break;
+		}
+		if ((st & SDHCI_INT_CMD_COMPLETE) != 0u) {
+			g_f2_cmd_rc = 0;
+			break;
+		}
+	}
+	g_f2_r5 = *(volatile uint32_t *)(sdhci + SDHCI_RESPONSE_0); /* card's CMD53 verdict */
+	if (g_f2_cmd_rc != 0) {
+		diag_sdhciResetDatCmd(sdhci);
+		return;
+	}
+	*(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS) = SDHCI_INT_CMD_COMPLETE;
+
+	for (deadline = 100000; deadline > 0; --deadline) {
+		st = *(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS);
+		if ((st & SDHCI_INT_ERR_ANY) != 0u) {
+			g_f2_errst = st;
+			g_f2_data_rc = -4;
+			break;
+		}
+		if ((st & SDHCI_INT_BUF_RD_READY) != 0u) {
+			g_f2_data_rc = 0;
+			break;
+		}
+	}
+	if (g_f2_data_rc == 0) {
+		for (i = 0; i < words_total; ++i) {
+			data = *(volatile uint32_t *)(sdhci + SDHCI_DATA_PORT);
+			if (buf != NULL) {
+				buf[i * 4 + 0] = (uint8_t)(data & 0xffu);
+				buf[i * 4 + 1] = (uint8_t)((data >> 8) & 0xffu);
+				buf[i * 4 + 2] = (uint8_t)((data >> 16) & 0xffu);
+				buf[i * 4 + 3] = (uint8_t)((data >> 24) & 0xffu);
+			}
+		}
+	}
+	diag_sdhciResetDatCmd(sdhci);
+	*(volatile uint32_t *)(sdhci + SDHCI_INT_STATUS) = 0xFFFFFFFFu;
+}
+
 /* ---- #91 BCDC control ioctl round-trip over F2 ---------------------------
  * First real driver protocol: send one BCDC GET (WLC_GET_VERSION=1) wrapped in
  * an SDPCM control frame over SDIO function 2, poll the SDIO-core intstatus for
@@ -1243,10 +1338,11 @@ static void diag_bcdcGetVersion(volatile uint8_t *sdhci, uint32_t sdio_core)
 	g_ioctl_is_pre = diag_bpRead32(sdhci, sdio_core + 0x20u);
 
 	/* A frame is already pending at boot (I_HMB_FRAME_IND set). Read it from
-	 * the F2 FIFO first (byte mode) -- proves F2 RX independent of our TX. */
+	 * the F2 FIFO first with the FULLY-INSTRUMENTED reader (captures R5 + error
+	 * bits) -- diagnoses why F2 data transfers fail, independent of our TX. */
 	diag_setWindow18(sdhci);
-	g_ioctl_pending_rc = diag_sdioCmd53ReadByteMode(sdhci, 2, /*incr=*/0,
-		IOCTL_F2_ADDR, 64u, g_ioctl_pending);
+	diag_f2ReadDiag(sdhci, 2, /*incr=*/0, IOCTL_F2_ADDR, 64u, g_ioctl_pending);
+	g_ioctl_pending_rc = (g_f2_cmd_rc == 0 && g_f2_data_rc == 0) ? 0 : -1;
 
 	/* Send the control frame over F2 (window 0x18000000, addr 0x8000, incr,
 	 * byte mode -- a small control frame is sub-block). */
@@ -2176,6 +2272,17 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 				}
 			}
 			r = snprintf(buf + off, cap - off, "\n");
+			if (r > 0 && (size_t)r < cap - off) {
+				off += r;
+			}
+			/* F2 transport diagnosis: R5 = card's CMD53 verdict (bits[15:8] =
+			 * SDIO flags: OUT_OF_RANGE 0x0100, FUNCTION_NUMBER 0x0200,
+			 * ERROR 0x0800, ILLEGAL_CMD 0x4000, CRC 0x8000). errst upper16 =
+			 * SDHCI error (DATA_TIMEOUT 0x00100000, DATA_CRC 0x00200000). */
+			r = snprintf(buf + off, cap - off,
+				"  F2-diag: cmd_rc=%d data_rc=%d  R5=0x%08x (flags=0x%02x)  errst=0x%08x\n",
+				g_f2_cmd_rc, g_f2_data_rc, (unsigned)g_f2_r5,
+				(unsigned)((g_f2_r5 >> 8) & 0xffu), (unsigned)g_f2_errst);
 			if (r > 0 && (size_t)r < cap - off) {
 				off += r;
 			}

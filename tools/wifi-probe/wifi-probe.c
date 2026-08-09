@@ -660,6 +660,248 @@ static int diag_sdioCmd53Write(volatile uint8_t *sdhci, int fn,
 
 
 /* ------------------------------------------------------------------ */
+/* ---- #91 EROM (DMP) walk -------------------------------------------------
+ * Replicates brcmfmac's brcmf_chip_dmp_erom_scan (external/linux .../chip.c)
+ * to enumerate the chip's cores over the SDIO backplane, replacing the probe's
+ * remaining HARDCODED core-address hypotheses (CR4 wrapper 0x18102000, SDIOD
+ * mailbox 0x18005000, ram-top 0x238000) with the chip's own EROM answers.
+ * Read-only. The bases it reports feed the fw-precondition bursts: the CR4
+ * CORE base (=> ARMCR4_CAP/BANKINFO ramsize) and the SDIO-DEV core base
+ * (=> the intstatus clear brcmf_sdio_buscore_activate does + the true HMB
+ * mailbox). */
+#define SI_ENUM_BASE_43455 0x18000000u
+#define CC_EROMPTR_OFF 0x000000fcu
+#define DMP_DESC_TYPE_MSK 0x0000000Fu
+#define DMP_DESC_EMPTY 0x00000000u
+#define DMP_DESC_VALID 0x00000001u
+#define DMP_DESC_COMPONENT 0x00000001u
+#define DMP_DESC_MASTER_PORT 0x00000003u
+#define DMP_DESC_ADDRESS 0x00000005u
+#define DMP_DESC_ADDRSIZE_GT32 0x00000008u
+#define DMP_DESC_EOT 0x0000000Fu
+#define DMP_COMP_PARTNUM 0x000FFF00u
+#define DMP_COMP_PARTNUM_S 8
+#define DMP_COMP_REVISION 0xFF000000u
+#define DMP_COMP_REVISION_S 24
+#define DMP_COMP_NUM_SWRAP 0x00F80000u
+#define DMP_COMP_NUM_SWRAP_S 19
+#define DMP_COMP_NUM_MWRAP 0x0007C000u
+#define DMP_COMP_NUM_MWRAP_S 14
+#define DMP_SLAVE_ADDR_BASE 0xFFFFF000u
+#define DMP_SLAVE_TYPE 0x000000C0u
+#define DMP_SLAVE_TYPE_S 6
+#define DMP_SLAVE_TYPE_SLAVE 0u
+#define DMP_SLAVE_TYPE_SWRAP 2u
+#define DMP_SLAVE_TYPE_MWRAP 3u
+#define DMP_SLAVE_SIZE_TYPE 0x00000030u
+#define DMP_SLAVE_SIZE_TYPE_S 4
+#define DMP_SLAVE_SIZE_4K 0u
+#define DMP_SLAVE_SIZE_8K 1u
+#define DMP_SLAVE_SIZE_DESC 3u
+#define BCMA_ID_PMU 0x827u
+#define BCMA_ID_GCI 0x840u
+#define BCMA_ID_ARM_CR4 0x83Eu
+#define BCMA_ID_SDIO_DEV 0x829u
+#define BCMA_ID_INTERNAL_MEM 0x80Eu
+#define BCMA_ID_CHIPCOMMON 0x800u
+
+#define EROM_MAX_CORES 40
+
+static int g_erom_ncores = -1; /* -1 = walk not run/failed */
+static uint16_t g_erom_id[EROM_MAX_CORES];
+static uint8_t g_erom_rev[EROM_MAX_CORES];
+static uint32_t g_erom_base[EROM_MAX_CORES];
+static uint32_t g_erom_wrap[EROM_MAX_CORES];
+static uint32_t g_erom_ptr = 0u; /* the eromptr value we read */
+
+/* Read one backplane byte at chip-internal `addr`, windowing per-byte so a
+ * 32-bit read that straddles a 32 KiB SBADDR window boundary is still correct. */
+static uint8_t diag_bpRead8(volatile uint8_t *sdhci, uint32_t addr)
+{
+	uint32_t resp[4] = {0};
+	uint8_t lo = (uint8_t)(((addr >> 15) & 1u) ? 0x80u : 0x00u);
+	uint8_t mid = (uint8_t)((addr >> 16) & 0xffu);
+	uint8_t hi = (uint8_t)((addr >> 24) & 0xffu);
+	uint32_t f1 = addr & 0x7FFFu;
+	(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Au, lo, NULL);
+	(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Bu, mid, NULL);
+	(void)diag_sdioCmd52(sdhci, 1, 1, 0x1000Cu, hi, NULL);
+	(void)diag_sdioCmd52(sdhci, 0, 1, f1, 0u, resp);
+	return (uint8_t)(resp[0] & 0xffu);
+}
+
+static uint32_t diag_bpRead32(volatile uint8_t *sdhci, uint32_t addr)
+{
+	return (uint32_t)diag_bpRead8(sdhci, addr) |
+		((uint32_t)diag_bpRead8(sdhci, addr + 1u) << 8) |
+		((uint32_t)diag_bpRead8(sdhci, addr + 2u) << 16) |
+		((uint32_t)diag_bpRead8(sdhci, addr + 3u) << 24);
+}
+
+/* get one EROM descriptor, advancing the cursor; classify ADDRESS variants. */
+static uint32_t diag_dmpGetDesc(volatile uint8_t *sdhci, uint32_t *ea, uint8_t *type)
+{
+	uint32_t val = diag_bpRead32(sdhci, *ea);
+	*ea += 4u;
+	if (type != NULL) {
+		*type = (uint8_t)(val & DMP_DESC_TYPE_MSK);
+		if ((uint32_t)(*type & ~DMP_DESC_ADDRSIZE_GT32) == DMP_DESC_ADDRESS) {
+			*type = (uint8_t)DMP_DESC_ADDRESS;
+		}
+	}
+	return val;
+}
+
+/* obtain the (slave) regbase + wrapper base for the current component. Mirrors
+ * brcmf_chip_dmp_get_regaddr. */
+static int diag_dmpGetRegaddr(volatile uint8_t *sdhci, uint32_t *ea,
+	uint32_t *regbase, uint32_t *wrapbase)
+{
+	uint8_t desc, stype, sztype, wraptype;
+	uint32_t val, szdesc;
+
+	*regbase = 0u;
+	*wrapbase = 0u;
+
+	val = diag_dmpGetDesc(sdhci, ea, &desc);
+	if (desc == (uint8_t)DMP_DESC_MASTER_PORT) {
+		wraptype = (uint8_t)DMP_SLAVE_TYPE_MWRAP;
+	}
+	else if (desc == (uint8_t)DMP_DESC_ADDRESS) {
+		*ea -= 4u; /* revert */
+		wraptype = (uint8_t)DMP_SLAVE_TYPE_SWRAP;
+	}
+	else {
+		*ea -= 4u;
+		return -1;
+	}
+
+	do {
+		do {
+			val = diag_dmpGetDesc(sdhci, ea, &desc);
+			if (desc == (uint8_t)DMP_DESC_EOT) {
+				*ea -= 4u;
+				return -2;
+			}
+		} while (desc != (uint8_t)DMP_DESC_ADDRESS &&
+			desc != (uint8_t)DMP_DESC_COMPONENT);
+
+		if (desc == (uint8_t)DMP_DESC_COMPONENT) {
+			*ea -= 4u;
+			return 0;
+		}
+
+		if (val & DMP_DESC_ADDRSIZE_GT32) {
+			(void)diag_dmpGetDesc(sdhci, ea, NULL);
+		}
+
+		sztype = (uint8_t)((val & DMP_SLAVE_SIZE_TYPE) >> DMP_SLAVE_SIZE_TYPE_S);
+		if (sztype == (uint8_t)DMP_SLAVE_SIZE_DESC) {
+			szdesc = diag_dmpGetDesc(sdhci, ea, NULL);
+			if (szdesc & DMP_DESC_ADDRSIZE_GT32) {
+				(void)diag_dmpGetDesc(sdhci, ea, NULL);
+			}
+		}
+
+		if (sztype != (uint8_t)DMP_SLAVE_SIZE_4K &&
+			sztype != (uint8_t)DMP_SLAVE_SIZE_8K) {
+			continue;
+		}
+
+		stype = (uint8_t)((val & DMP_SLAVE_TYPE) >> DMP_SLAVE_TYPE_S);
+		if (*regbase == 0u && stype == (uint8_t)DMP_SLAVE_TYPE_SLAVE) {
+			*regbase = val & DMP_SLAVE_ADDR_BASE;
+		}
+		if (*wrapbase == 0u && stype == wraptype) {
+			*wrapbase = val & DMP_SLAVE_ADDR_BASE;
+		}
+	} while (*regbase == 0u || *wrapbase == 0u);
+
+	return 0;
+}
+
+/* Walk the EROM, filling g_erom_*. Returns core count (>=0) or <0 on error. */
+static int diag_eromWalk(volatile uint8_t *sdhci)
+{
+	uint32_t eromaddr, val;
+	uint8_t desc_type = 0u;
+	uint16_t id;
+	uint8_t nmw, nsw, rev;
+	uint32_t base, wrap;
+	int n = 0;
+	int guard = 0;
+
+	g_erom_ptr = diag_bpRead32(sdhci, SI_ENUM_BASE_43455 + CC_EROMPTR_OFF);
+	eromaddr = g_erom_ptr;
+	if (eromaddr == 0u || eromaddr == 0xFFFFFFFFu) {
+		return -1;
+	}
+
+	while (desc_type != (uint8_t)DMP_DESC_EOT && n < EROM_MAX_CORES && guard < 4096) {
+		guard++;
+		val = diag_dmpGetDesc(sdhci, &eromaddr, &desc_type);
+		if (!(val & DMP_DESC_VALID)) {
+			continue;
+		}
+		if (desc_type == (uint8_t)DMP_DESC_EMPTY) {
+			continue;
+		}
+		if (desc_type != (uint8_t)DMP_DESC_COMPONENT) {
+			continue;
+		}
+
+		id = (uint16_t)((val & DMP_COMP_PARTNUM) >> DMP_COMP_PARTNUM_S);
+
+		val = diag_dmpGetDesc(sdhci, &eromaddr, &desc_type);
+		if ((val & DMP_DESC_TYPE_MSK) != DMP_DESC_COMPONENT) {
+			return (n > 0) ? n : -2; /* malformed */
+		}
+
+		nmw = (uint8_t)((val & DMP_COMP_NUM_MWRAP) >> DMP_COMP_NUM_MWRAP_S);
+		nsw = (uint8_t)((val & DMP_COMP_NUM_SWRAP) >> DMP_COMP_NUM_SWRAP_S);
+		rev = (uint8_t)((val & DMP_COMP_REVISION) >> DMP_COMP_REVISION_S);
+
+		if ((nmw + nsw) == 0 && id != BCMA_ID_PMU && id != BCMA_ID_GCI) {
+			continue;
+		}
+
+		if (diag_dmpGetRegaddr(sdhci, &eromaddr, &base, &wrap) != 0) {
+			continue;
+		}
+
+		g_erom_id[n] = id;
+		g_erom_rev[n] = rev;
+		g_erom_base[n] = base;
+		g_erom_wrap[n] = wrap;
+		n++;
+	}
+
+	return n;
+}
+
+/* Look up a core base (or wrap) by id from the walk results; 0 if not found. */
+static uint32_t diag_eromCoreBase(uint16_t id)
+{
+	int i;
+	for (i = 0; i < g_erom_ncores; ++i) {
+		if (g_erom_id[i] == id) {
+			return g_erom_base[i];
+		}
+	}
+	return 0u;
+}
+
+static uint32_t diag_eromCoreWrap(uint16_t id)
+{
+	int i;
+	for (i = 0; i < g_erom_ncores; ++i) {
+		if (g_erom_id[i] == id) {
+			return g_erom_wrap[i];
+		}
+	}
+	return 0u;
+}
+
 /* #91 "trivial-program test" mode. When set (argv "trivial"), the 643 KB
  * production firmware is replaced by cr4tiny_blob (a ~20-byte Thumb-2 counter
  * whose reset vector is the REAL fw's verbatim B.W into rambase+0x80). The
@@ -847,6 +1089,13 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 
 		(void)diag_sdioCmd52(sdhci, 1, 0, 0x110u, 0x40u, NULL);
 		(void)diag_sdioCmd52(sdhci, 1, 0, 0x111u, 0x00u, NULL);
+
+		/* #91: enumerate cores over the backplane (read-only) now that the
+		 * ALP clock is up, so the report can replace the hardcoded core-
+		 * address hypotheses with the chip's own EROM answers. Done before
+		 * the fw download; it only sets/reads SBADDR windows, which the
+		 * download loop re-sets on its first iteration. */
+		g_erom_ncores = diag_eromWalk(sdhci);
 
 		while (fw_offset < fw_target_bytes && rc_hs == 0) {
 			uint32_t addr = 0x00198000u + (uint32_t)window_idx * 0x8000u;
@@ -1337,6 +1586,47 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 			"  -> fw_alive=%d %s\n", fw_alive,
 			fw_alive ? "(HT_AVAIL or CARD_INTR asserted -- firmware booted!)"
 				: "(no HT_AVAIL / no CARD_INTR -- firmware not confirmed running)");
+		if (r > 0 && (size_t)r < cap - off) {
+			off += r;
+		}
+	}
+
+	/* #91 EROM core enumeration: the chip's own answer for every core base /
+	 * wrapper, replacing the hardcoded hypotheses. */
+	if (g_erom_ncores > 0) {
+		uint32_t cr4b = diag_eromCoreBase(BCMA_ID_ARM_CR4);
+		uint32_t cr4w = diag_eromCoreWrap(BCMA_ID_ARM_CR4);
+		uint32_t sdiob = diag_eromCoreBase(BCMA_ID_SDIO_DEV);
+		uint32_t socb = diag_eromCoreBase(BCMA_ID_INTERNAL_MEM);
+		int ci;
+		r = snprintf(buf + off, cap - off,
+			"EROM: eromptr=0x%08x  cores=%d\n"
+			"  ARM_CR4(0x83E): core=0x%08x wrap=0x%08x (release-wrap hyp was 0x18102000 -> %s)\n"
+			"  SDIO_DEV(0x829): core=0x%08x (mailbox hyp was 0x18005000 -> %s)\n"
+			"  INTERNAL_MEM/SOCRAM(0x80E): core=0x%08x\n",
+			(unsigned)g_erom_ptr, g_erom_ncores,
+			(unsigned)cr4b, (unsigned)cr4w,
+			(cr4w == 0x18102000u) ? "MATCH" : "DIFFERS",
+			(unsigned)sdiob,
+			(sdiob == 0x18005000u) ? "MATCH" : "DIFFERS",
+			(unsigned)socb);
+		if (r > 0 && (size_t)r < cap - off) {
+			off += r;
+		}
+		for (ci = 0; ci < g_erom_ncores; ++ci) {
+			r = snprintf(buf + off, cap - off,
+				"  core[%d] id=0x%03x rev=%u base=0x%08x wrap=0x%08x\n",
+				ci, (unsigned)g_erom_id[ci], (unsigned)g_erom_rev[ci],
+				(unsigned)g_erom_base[ci], (unsigned)g_erom_wrap[ci]);
+			if (r > 0 && (size_t)r < cap - off) {
+				off += r;
+			}
+		}
+	}
+	else {
+		r = snprintf(buf + off, cap - off,
+			"EROM: walk failed/skipped (ncores=%d, eromptr=0x%08x)\n",
+			g_erom_ncores, (unsigned)g_erom_ptr);
 		if (r > 0 && (size_t)r < cap - off) {
 			off += r;
 		}

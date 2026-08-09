@@ -418,6 +418,17 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (★★★★ WiFi #91 — FW CONSOLE READABLE + boot REPRODUCED 2/2). Built diag_readShared (port of
+brcmf_sdio_readshared): the booted fw overwrites the word at ram_top-4 (0x25FFFC, old NVRAM-token slot) with its
+sdpcm_shared pointer -> console ring buffer. Cycle bd4zixpf7: sdpcm_shared @0x00208ac0 VALID (3rd independent boot
+confirm), flags ver=1 trap=no assert=no (clean). **FW CONSOLE:** `wl0: Broadcom BCM4345 802.11 Wireless Controller
+7.45.234 (4ca95bb CY)` / `TCAM: 256 used: 254` / `reclaim section 1: Returned 118912 bytes to the heap` /
+`sdpcmd_dpc: Enable` (SDPCM data path up, fw ready for BCDC). Second independent fully-alive boot => boot is
+REPRODUCIBLE. We can now SEE what the fw says (trap/assert/console) for all downstream debug. Commit f79f48c
+(pushed). **IMMEDIATE NEXT: one BCDC ioctl round-trip over F2** (brcmf_proto_bcdc_query_dcmd + SDPCM framing in
+sdio.c) — e.g. GET WLC_GET_VERSION — to prove the control pipe both directions; THEN preinit ioctls -> WLC_SCAN ->
+join -> DHCP. Keep the standalone probe as the vehicle. [[project_wifi_fw_exec_gate_91]]
+
 2026-08-09 (★★★★ WiFi #91 — the BCM43455 FIRMWARE BOOTS ON PHOENIX). Decisive HW run (cycle bdkykc09s, real 643KB
 fw): ALL firmware-alive signals positive + concordant — HMB tohostmailboxdata@0x1800404c=0x00040008 (FWREADY set),
 CHIPCLKCSR=0xc8 (HT_AVAIL asserted — fw requested+got the HT clock), F2 SDPCM data channel ready@iter50, image-scan

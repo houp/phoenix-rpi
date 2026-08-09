@@ -60,7 +60,9 @@
 
 #define DEFAULT_PATH "/usr/share/e4/clip.h264"
 #define DEFAULT_FPS  12          /* clip authored at 12 fps; raw Annex-B has no rate */
-#define RUN_SECS     40          /* total wall-clock play time, then exit cleanly */
+#define RUN_SECS     300         /* long play window so the periodic (~25s) HDMI
+                                  * snapshots reliably land on the live video window
+                                  * (the 40s default fell between snapshots) */
 
 /* Fixed window placement offset (not 0,0), so it's clearly a windowed, WM-decorated
  * client rather than a fullscreen root paint. */

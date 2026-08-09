@@ -387,6 +387,17 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 ★★★ ffmpeg VIDEO-IN-AN-X-WINDOW PROVEN — a windowed video player on Phoenix/Pi 4. HW-validated:
+`pl_phoenix_xlaunch /bin/Xphoenix .../misc /bin/e4-x11-play` → decodes /usr/share/e4/clip.h264 (H.264) with the
+ported ffmpeg and presents each frame into a 320x240 X window under Xphoenix. Ran 69 passes / **2898 frames /
+0 faults**; HDMI snapshots show the video window cycling colors (GREEN@025256 → BLUE@025358 → …) = visible
+MOTION. New harness `tools/ffmpeg-port/e4_x11_play.c` (composes E4's 8MB-thread H.264 decode + gl-x11-window's
+XPutImage present; static aarch64 ELF, 0 undefined; RUN_SECS bumped 40→300 so the ~25s HDMI snapshots land on
+the live window). First cycle hit a transient USB-enum boot flake (retry cleared it). Advances ffmpeg/video +
+X11-windowed. Optional polish: a `vidwin` launcher mode (twm + e4-x11-play) for a WM-decorated video window.
+NEXT: fresh owner task (D3 XFce feasibility, SuperTuxKart feasibility) or consolidate the media/desktop capstone.
+[[project_ffmpeg_e4_feasibility]] [[project_x11_gpu_windowed_feasibility]]
+
 2026-08-09 (PIVOT from Q1 MP → ffmpeg VIDEO-IN-AN-X-WINDOW). Per last burst's ROI call, pivoted off Q1 MP (deep
 Quake +connect internals, marginal payoff — banked ready) to a fresher fully-validatable capability: a windowed
 video player. Composes 2 proven stacks — E4's H.264 decode (tools/ffmpeg-port/e4_play.c, 8MB-thread parse+decode

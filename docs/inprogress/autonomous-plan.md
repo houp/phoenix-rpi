@@ -387,6 +387,23 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (Quake 1 MP #68 — CORRECTED diagnosis via tcpdump + code: connect never FIRES; NOT a net bug; PIVOT
+recommended). Ran a Pi connect cycle with host tcpdump on the netboot iface: **0 packets on UDP 26000** (while
+TFTP/NFS flowed — iface was capturing). Client log: `UDP Initialized` → IMMEDIATELY `Playing demo from demo1.dem`
+→ `Using protocol 15` (the DEMO's protocol), with NO "Connecting to 10.42.0.1..." and no CCREQ. quake.rc execs
+(default.cfg; config.cfg/autoexec.cfg missing) then falls to the demo loop. So `stuffcmds`' `connect 10.42.0.1`
+(from `+connect`) never establishes — it doesn't fire or fails instantly → demo fallback. **My prior
+gethostbyname lead was WRONG:** net_udp.c UDP_GetAddrFromName sends a numeric IP through PartialIPAddress (→
+10.42.0.1:26000), NOT gethostbyname (that warning is only the non-fatal local-hostname lookup). **So it is NOT a
+Phoenix net bug** — the client/server/data/UDP-net-layer are all ready; the gap is Quake's +connect/console
+establishment at startup. Remaining work = deep Quake command-buffer debugging (why `connect` doesn't establish +
+falls to demos); can't send interactive console cmds to a fullscreen app, so auto-connect must work via args/cfg
+(candidate: stage id1/autoexec.cfg with `connect 10.42.0.1`, but timing vs startdemos is the crux). **ROI note:
+3 bursts on Q1 MP, validation not yet achieved, remaining is deep Quake internals → RECOMMEND next burst PIVOT to
+fresher high-value work (ffmpeg video-in-window, D3 XFce feasibility, SuperTuxKart feasibility) and revisit MP
+attended.** MP infra is banked+ready (client staged, host `quakespasm -dedicated` recipe, matching data).
+[[project_quakespasm_port]]
+
 2026-08-09 (Quake 1 MP #68 — client BUILT + net-verified; connect FAILS, root-cause lead = gethostbyname). Built
 the full interactive quakespasm (67 TUs → /tmp/quakespasm-phoenix, staged /srv/.../bin/quakespasm 23MB) and
 VERIFIED the UDP/Datagram net layer is fully linked (Datagram_Connect/NET_Connect/net_drivers + socket/sendto/

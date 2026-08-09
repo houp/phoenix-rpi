@@ -1492,6 +1492,8 @@ static int g_scan_em_rc = -100, g_scan_infra_rc = -100, g_scan_up_rc = -100, g_s
 static int g_scan_escan_tries = 0;
 static int g_clm_chunks = 0, g_clm_last_rc = -100;
 static uint32_t g_chanspecs_count = 0xffffffffu; /* channels the fw reports usable after UP */
+static int g_mac_rc = -100, g_mac_valid = 0;
+static uint8_t g_mac[6] = { 0 };
 static int g_scan_ap_count = 0, g_scan_evt_total = 0, g_scan_escan_events = 0;
 static int g_scan_done_status = -1;
 static struct {
@@ -1623,12 +1625,30 @@ static void diag_wifiScan(volatile uint8_t *sdhci, uint32_t sdio_core)
 	g_scan_up_rc = diag_bcdcCmd(sdhci, sdio_core, 1, WLC_UP_CMD, up, 4u,
 		NULL, 0u, NULL, reqid++, seq++);
 
-	/* GET "chanspecs": count>0 confirms the radio now has usable channels
-	 * (i.e. CLM/regulatory took) -- the decisive discriminator for NOTUP. */
+	/* Validate the GET_VAR reply path with cur_etheraddr (must return the Pi's
+	 * 6-byte MAC) -- join/assoc status reads lean on GET_VAR. */
+	{
+		uint8_t mac[8] = { 0 };
+		uint32_t ml = 0u;
+		g_mac_rc = diag_iovar(sdhci, sdio_core, 0, "cur_etheraddr", NULL, 6u,
+			mac, sizeof(mac), &ml, reqid++, seq++);
+		if (g_mac_rc >= 0 && ml >= 6u) {
+			int k;
+			for (k = 0; k < 6; ++k) {
+				g_mac[k] = mac[k];
+			}
+			g_mac_valid = 1;
+		}
+	}
+
+	/* GET "chanspecs": count>0 confirms usable channels. The reply is the full
+	 * chanspec list, so the OUTPUT buffer (BCDC len) must be sized large -- a
+	 * too-small GET returns BCME_BUFTOOSHORT (the earlier chanspecs=-1). We only
+	 * need the leading le32 count. */
 	{
 		uint8_t cs[8] = { 0 };
 		uint32_t cl = 0u;
-		int crc = diag_iovar(sdhci, sdio_core, 0, "chanspecs", NULL, 4u,
+		int crc = diag_iovar(sdhci, sdio_core, 0, "chanspecs", NULL, 256u,
 			cs, sizeof(cs), &cl, reqid++, seq++);
 		if (crc >= 0 && cl >= 4u) {
 			g_chanspecs_count = diag_le32(cs);
@@ -2649,9 +2669,12 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 		int ap;
 		r = snprintf(buf + off, cap - off,
 			"WiFi SCAN: event_msgs rc=%d  clmload(%d chunks, last rc=%d)  infra rc=%d  UP rc=%d  chanspecs=%d  mpc rc=%d  escan rc=%d (tries=%d)\n"
+			"  GET_VAR cur_etheraddr rc=%d valid=%d MAC=%02x:%02x:%02x:%02x:%02x:%02x\n"
 			"  chan1 frames=%d  escan-events(type69)=%d  APs=%d  done_status=%d\n",
 			g_scan_em_rc, g_clm_chunks, g_clm_last_rc, g_scan_infra_rc, g_scan_up_rc,
 			(int)g_chanspecs_count, g_scan_mpc_rc, g_scan_escan_rc, g_scan_escan_tries,
+			g_mac_rc, g_mac_valid,
+			g_mac[0], g_mac[1], g_mac[2], g_mac[3], g_mac[4], g_mac[5],
 			g_scan_evt_total, g_scan_escan_events, g_scan_ap_count, g_scan_done_status);
 		if (r > 0 && (size_t)r < cap - off) {
 			off += r;

@@ -418,6 +418,17 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (WiFi #91 — F2 data-transfer transport bug isolated; NOT block-vs-byte; next = capture SDHCI error bit).
+Byte-mode CMD53 (commit 9a29d5b) ALSO fails: cycle wifiioctl4 — boot-pending F2 read rc=-4 (SDHCI error interrupt
+in the data phase), GET_VERSION send/reply rc=-5 (data phase never started), post-intstatus=0x18181818 = the failed
+F2 CMD53 WEDGES the backplane bus. F1 backplane works flawlessly (fw byte-exact) but EVERY F2 data transfer fails
+at the SDHCI data phase + hangs the bus — transport-layer, not frame content (addressing+frame verified vs source).
+(2 netboot infra flakes cost cycles first: takeover-mount timeout → nfsd restart; then exec -34 from that restart's
+~90s NFS grace — gotcha now in memory.) NEXT DIAGNOSTIC: add an errst out-param to the byte-mode helpers to capture
+WHICH SDHCI error bit fires (DATA_TIMEOUT 0x100000 / CRC 0x200000 / CMD err); + likely need an SDHCI DAT/CMD
+software-reset after a failed F2 xfer to clear the 0x18181818 wedge; + read the CMD53 R5 response to detect a card
+NAK. Milestone still stands: fw BOOTS + console readable (the #91 headline). [[project_wifi_fw_exec_gate_91]]
+
 2026-08-09 (WiFi #91 driver phase — BCDC ioctl round-trip IN PROGRESS; F2 transport bug found+fixed, retest
 pending). A source-study subagent returned a byte-level SDPCM+BCDC spec (cited to brcmfmac bcdc.c/sdio.c/bcmsdh.c);
 implemented an `ioctl` mode (WLC_GET_VERSION over F2) — frame layout + F2 addressing VERIFIED correct vs

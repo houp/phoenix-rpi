@@ -387,6 +387,17 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (DESKTOP-ENVIRONMENT verdict → Window Maker as the shell). DE-feasibility scan verdict: **full XFce
+is IMPRACTICAL** on this static/no-dlopen port (needs ~10 unported libs — GTK/gdk-pixbuf/cairo/pango/dbus/xfce
+libs; only glib partially ported + crashes in mc; GModule/dlopen degrades plugins) — labor-blocked, many-session
+slog. **But Window Maker is already built + staged (/bin/wmaker 5.7MB) + HW-PROVEN** (dock+clip+decorations, stable,
+font-hang fixed) → the tractable "real desktop" win = promote it to the shell. Acted: added a `wmaker` launcher
+mode (Window Maker as WM + gl-x11-window GPU + e4-x11-play video + xclock = a rich NeXT-style media desktop);
+launched the HW cycle (fresh server restart first, given the recent boot-flakes). NEXT: HDMI grab = Window Maker
+desktop w/ decorated GPU+video windows + dock/clip. Follow-up (deferred): populate wmaker's app menu (cpp-preprocess
+the .menu `#include "wmmacros"` that its proplist parser rejects) + rebuild wmaker for the libphoenix rename() fix.
+JWM (taskbar+tray+menu, pure-Xlib) is a staged-absent alternative. [[project_x11_gpu_windowed_feasibility]] [[project_x11_lib_port]]
+
 2026-08-09 (DOCS CONSOLIDATION for publication — matrix updated to reflect the session's proven capabilities;
 DE-feasibility scan running). The graphics/media/desktop feature space is richly capstoned + the big remaining
 owner tasks are huge (XFce/STK) / risky (quakespasm→SDL flagship swap) / banked (Q1 MP), so this burst: (1) updated

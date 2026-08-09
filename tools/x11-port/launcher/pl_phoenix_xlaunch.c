@@ -318,6 +318,25 @@ int main(int argc, char *argv[])
 			client_path[4] = cp_bufs[4]; client_extra[4] = eyes_geom; n_client_extra[4] = 2;
 			n_clients = 5;
 		}
+		else if (strcmp(client, "wmaker") == 0) {
+			/* Window Maker as the DESKTOP SHELL — the real WM the owner wants (dock +
+			 * clip + NeXT-style window decorations), already ported+HW-proven. Full XFce
+			 * is impractical on this static/no-dlopen port (needs ~10 unported libs +
+			 * D-Bus/xfconf); Window Maker delivers a real desktop today at ~zero cost
+			 * (project_x11_gpu_windowed_feasibility). Brings up wmaker + the V3D GPU
+			 * window + the ffmpeg video + a clock as a rich media desktop. wmaker adopts
+			 * + decorates the app windows when it starts managing the root. */
+			static char *const clk_geom[2] = { "-geometry", "150x150+1120+120" };
+			resolve_client(cp_bufs[0], sizeof(cp_bufs[0]), prefix, "wmaker");
+			resolve_client(cp_bufs[1], sizeof(cp_bufs[1]), prefix, "gl-x11-window");
+			resolve_client(cp_bufs[2], sizeof(cp_bufs[2]), prefix, "e4-x11-play");
+			resolve_client(cp_bufs[3], sizeof(cp_bufs[3]), prefix, "xclock");
+			client_path[0] = cp_bufs[0];
+			client_path[1] = cp_bufs[1];
+			client_path[2] = cp_bufs[2];
+			client_path[3] = cp_bufs[3]; client_extra[3] = clk_geom; n_client_extra[3] = 2;
+			n_clients = 4;
+		}
 		else if (strcmp(client, "mediadesk") == 0) {
 			/* A RICH MEDIA DESKTOP: twm (WM) + the V3D GPU window (gl-x11-window) + a
 			 * PLAYING VIDEO (e4-x11-play, ffmpeg H.264 decode) + an analog clock, all at

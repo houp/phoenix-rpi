@@ -387,6 +387,21 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-09 (Quake 1 MP #68 — 2nd attempt (autoexec.cfg connect); connect STILL doesn't establish → BANKED FIRMLY,
+pivot). Tried the creative sidestep: staged id1/autoexec.cfg with `connect 10.42.0.1` (runs via `exec`, bypassing
+the +connect/stuffcmds path). Result: autoexec IS exec'd (`execing autoexec.cfg` in log + on the Quake title
+screen), but the connect produces NO "Connecting to..." print, sends no packet (host server log empty), and the
+client just sits at the Quake title/console (not demos this time, not connected, not crashed). So the Quake
+`connect` command does NOT reach the network on this port, however issued (+connect→demos, autoexec→title; both
+fail to establish). gethostbyname is a red herring (numeric IP uses PartialIPAddress). **Root cause is a deep
+Quake-net-connect / datagram-driver issue on the port — needs source-level debugging (tcpdump + prints in
+CL_Connect_f/NET_Connect/Datagram_Connect + a check that the port's net_dgrm/net_udp connect path is wired), a
+multi-burst deep dive with limited HW-validation payoff.** 5 bursts spent across the session → **BANKED FIRMLY;
+revisit as a dedicated attended/focused net-debug effort, not heartbeat cycles.** CLEANUP: removed the staged
+autoexec.cfg (it would make every quakespasm run try to connect + hang at title = a flagship SP/demo REGRESSION);
+host server stopped. MP infra (client built+net-linked, host server recipe, matching data) stays banked+ready.
+[[project_quakespasm_port]]
+
 2026-08-09 ★★★ WINDOW MAKER DESKTOP PROVEN — a real desktop environment on Phoenix/Pi 4. HW-validated
 (`/bin/startx wmaker`; a netboot input-flake retry cleared the first attempt). HDMI grab
 (`20260809-045255-wmaker2-tick.png`) shows a genuine DE: Window Maker's mauve root + **Workspace clip** (top-left)

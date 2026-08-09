@@ -1220,7 +1220,11 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 		 * trivial-program test: the counter needs no NVRAM, and skipping
 		 * it removes NVRAM as a variable from a dead-counter result. */
 		if (!g_trivial_mode) {
-			uint32_t nv_start = 0x238000u - (uint32_t)wifi_nvram_43455_len;
+			/* Place NVRAM at the TRUE ram-top from CR4 bankinfo, not the old
+			 * hardcoded 0x238000. The bootloader reads the length-magic token
+			 * at ram_top-4; a wrong ram-top => fw never finds NVRAM. */
+			uint32_t nv_ramtop = (ram_size != 0u) ? (0x198000u + ram_size) : 0x238000u;
+			uint32_t nv_start = nv_ramtop - (uint32_t)wifi_nvram_43455_len;
 			uint8_t  nv_lo  = (uint8_t)(((nv_start >> 15) & 1u) ? 0x80u : 0x00u);
 			uint8_t  nv_mid = (uint8_t)((nv_start >> 16) & 0xffu);
 			uint8_t  nv_hi  = (uint8_t)((nv_start >> 24) & 0xffu);
@@ -1503,9 +1507,10 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 	}
 
 	r = snprintf(buf + off, cap - off,
-		"nvram: %zu bytes -> chip 0x%06x  rc_nvram_w=%d  HT_clk_csr=0x%02x (HT_AVAIL=0x80)\n",
+		"nvram: %zu bytes -> chip 0x%06x (ram-top 0x%06x from bankinfo)  rc_nvram_w=%d  HT_clk_csr=0x%02x (HT_AVAIL=0x80)\n",
 		wifi_nvram_43455_len,
-		(unsigned)(0x238000u - (uint32_t)wifi_nvram_43455_len),
+		(unsigned)(((ram_size != 0u) ? (0x198000u + ram_size) : 0x238000u) - (uint32_t)wifi_nvram_43455_len),
+		(unsigned)((ram_size != 0u) ? (0x198000u + ram_size) : 0x238000u),
 		rc_nvram_w, (unsigned)ht_clk_csr);
 	if (r > 0 && (size_t)r < cap - off) {
 		off += r;

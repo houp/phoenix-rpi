@@ -152,3 +152,24 @@ Rebuild `libSDL2.a` (buildroot SDL port) → relink Q3 (it statically links
 (they should be unaffected — the extra events are harmless to them). Only THEN push
 ports `e498158` to the org. If Q3 renders, C5 goes from banked to **Q3 renders on
 Phoenix/V3D** (3rd game engine visibly up).
+
+## ★★★ VERIFIED (2026-08-10, q3render) — Quake III RENDERS on Phoenix/V3D
+
+Rebuilt `libSDL2.a` with the fix (targeted `make SDL2-static` in the buildroot SDL
+cmake dir after syncing the overlay → copied to `lib/`), relinked Q3, netboot cycle:
+
+- **HDMI shows the Q3 UI VM rendering the "CD KEY" entry screen** — Q3 font title,
+  the oval input box + text field/cursor, "PLEASE ENTER YOUR CD KEY", ACCEPT
+  button, crosshair. Previously black. 0 faults, no GPU wedge.
+- Confirms the whole chain: window SHOWN/FOCUS events now delivered → `gw_minimized`
+  clears → `R_IssueRenderCommands` runs the backend → `RB_SwapBuffers` /
+  `GLimp_EndFrame` present the frame → the UI VM's draw is visible.
+
+The CD-KEY screen is the demo's first-run gate; it proves the UI VM + opengl1
+renderer + V3D winsys + present path all work end-to-end. **Quake III is the 3rd
+game engine visibly up on Phoenix** (after quakespasm + vkQuake render, yQuake2
+fullscreen). Artifact: `artifacts/hdmi/20260810-213936-q3render-tick.png`.
+
+Remaining before pushing ports `e498158` to org: regression-check the shared
+`libSDL2.a` change against quakespasm-sdl / yQuake2 (expected clean — the fix only
+adds correct window events).

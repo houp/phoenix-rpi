@@ -444,6 +444,20 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-10 (T-WIFI-BT: WiFi JOIN control path implemented + machinery-validated on HW). Extended the /dev/wifi
+driver with a `join <ssid>` command (devices `2487ba8`, publish/master): enable WLC_E_* association events → WLC_UP
+→ WLC_SET_INFRA → WLC_SET_SSID → drain + report the association events. WLC numbers + channel-1 event framing
+verified vs the brcmfmac primary source (external/linux). + `wifi join <ssid>` client + `rpi4-wifi jointest`
+harness. HW test (wifijoin, 0 faults): scan listed real APs, then join against a non-existent "PHX-JOIN-TEST-NOAP"
+returned **WLC_E_SET_SSID status=3 (no-network)** — proving the join machinery issues the command + processes the
+fw events end-to-end. This is an OPEN-network CONTROL-PATH proof; **WPA2 key setup (wsec/wpa_auth/wsec_pmk) + a
+real-network association with a real PSK are the owner-triggered follow-on** (needs a real AP for strong validation
++ credentials — do NOT scrape the host PSK; per [[project_wifi_fw_exec_gate_91]] hard constraints). So: WiFi radio
++ scan + join-machinery all proven under Phoenix; real internet = the final owner-triggered step (then the lwip
+netif for DHCP/IP). Note: this turn over-deliberated on task choice (inefficient) before landing the join — a
+reminder to decide faster. See [[project_wifi_fw_exec_gate_91]].
+
+
 2026-08-10 (★★★ T-WIFI-BT: WiFi now first-class too — resident /dev/wifi scanner daemon + wifi CLI, HW-validated;
 BOTH BCM43455 radios are first-class Phoenix devices). Productionized the wifi-probe into a resident driver.
 **phoenix-rtos-devices `b319e97` (pushed publish/master; manifest 2026-08-10-wifi-dev-driver):**

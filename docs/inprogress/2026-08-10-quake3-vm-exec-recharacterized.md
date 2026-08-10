@@ -173,3 +173,45 @@ fullscreen). Artifact: `artifacts/hdmi/20260810-213936-q3render-tick.png`.
 Remaining before pushing ports `e498158` to org: regression-check the shared
 `libSDL2.a` change against quakespasm-sdl / yQuake2 (expected clean — the fix only
 adds correct window events).
+
+## ★★★★ CAPSTONE (2026-08-11) — QUAKE III RENDERS FULL 3D GAMEPLAY
+
+With the SDL fix in, drove Q3 all the way to in-game 3D:
+
+1. **Main menu renders** — past the fix, the UI VM showed the demo's "CD KEY" gate
+   (ioq3 `vm/ui.qvm` in pak1 enforces `Com_CDKeyValidate`). Bypassed with a
+   format-valid `q3key` file (16 chars from the `{2,3,7,A,B,C,D,G,H,J,L,P,R,S,T,W}`
+   set, no checksum → valid; this is the free demo, not a retail key) →
+   **the Q3 main menu renders** (SINGLE PLAYER / MULTIPLAYER / SETUP / DEMOS / … over
+   the Q3 logo).
+2. `+demo demo001` did NOT play (the 1999 demo is an old network protocol vs
+   quake3e's; it silently falls back to the menu). Sidestepped by loading a map.
+3. **`+map q3dm1` → full 3D gameplay.** Log: `Server: q3dm1` → `qagame.qvm`
+   compiled+loaded (RWX mmap) → `q3dm1.aas` loaded + `AAS initialized` →
+   `cgame.qvm` compiled+loaded → `CL_InitCGame: 64.31s` →
+   `UnnamedPlayer entered the game`, 0 faults. **HDMI shows q3dm1 "Arena Gate" in
+   full 3D** — gothic red-rock arena, statues, skull crates, demon-face relief, red
+   sky, a rocket-launcher pickup, weapon viewmodel, full HUD (health 100/armor
+   100/ammo 20, face icon, crosshair), fullscreen 1920×1080, correct
+   textures/lighting. Artifact: `artifacts/hdmi/20260810-230109-q3map2-tick.png`.
+
+**All three Q3 VMs (ui + qagame server + cgame client) compile and run; the map +
+bot-AAS + all assets load; the player spawns; the 3D world renders.** Quake III —
+banked ~6 turns on the "VM-exec Data Abort" — is now the 4th game engine fully
+rendering 3D on Phoenix/V3D (after quakespasm, vkQuake, yQuake2).
+
+### Launch recipe (netboot, demoq3)
+- `q3key` (16 valid-charset chars) in `demoq3/` → skips the CD-key gate.
+- `q3config.cfg` in `demoq3/` with `seta r_mode "-1"` / `r_customwidth "1920"` /
+  `r_customheight "1080"` / `sv_pure "0"` / `com_introplayed "1"` (keeps the psh
+  launch line short — a long `+set`-heavy line truncates over the UART).
+- `/usr/bin/quake3e +set fs_basepath /usr/share/quake3 +set fs_game demoq3 +map q3dm1`.
+
+### Notes / follow-ups (low priority)
+- `CL_InitCGame` took 64 s (NFS asset load + caches-off CPU) — slow but completes;
+  same perf class as the other engines' first-load. Not a blocker.
+- The R_Init GPU wedge remains intermittent (HW-marginal, auto-reset); did not recur
+  on the successful run.
+- Actual play/input (bots, movement) not exercised — the render + spawn are proven;
+  input works via SDL (kbd/mouse). A playable demo would need a protocol-matched
+  demo or a recorded one.

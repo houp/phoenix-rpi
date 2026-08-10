@@ -138,6 +138,32 @@ Switch rpi4b from the minimal `rc.psh` to sourcing the in-tree `rc`/`rc.subr`, t
 - **rc adoption** touches the rpi4b boot path — do it behind a boot-verify (it changes what runs at
   startup); keep the minimal `rc.psh` as a fallback until the rc path is proven.
 
-Next step: implement the BT `/dev/hci0` server (increment 1) — the smallest self-contained
-first-class conversion — in a fresh session. [[project_bluetooth_bringup]]
-[[project_wifi_fw_exec_gate_91]] [[project_pi4_gpio_device]] (rpi4-gpio server template)
+## Status (updated 2026-08-10)
+
+Increments delivered since this design was written:
+- **BT increment 1+2 DONE:** `phoenix-rtos-devices/bt/rpi4-hci/` resident server exposes
+  `/dev/hci0` (raw H4 HCI); `btctl scan` (HCI Inquiry) is the acceptance CLI. HW-validated.
+- **WiFi increments 1-2 DONE (as a standalone `/dev/wifi` server, not yet the lwip netif):**
+  `phoenix-rtos-devices/wifi/rpi4-wifi/` resident server + `wifi scan` (escan → APs) + open-network
+  `wifi join <ssid>`. HW-validated (16 APs).
+- **Config files STARTED (2026-08-10, devices `454d449`, pushed org):** `wifi up` reads
+  `/etc/wifi.conf` (`ssid=`, INI-lite, forward-compatible `psk=`) and joins the configured SSID.
+  Build-verified; the full join is gated on an open AP in range.
+
+Remaining first-class work (all previously flagged; each gated as noted):
+1. **psh-applet conversion** — move `wifi`/`btctl` from standalone `/bin` tools to
+   `phoenix-rtos-utils/psh/{wifi,btctl}/` applets (needs the utils build + a boot to verify).
+2. **Boot integration** — start `rpi4-hci`+`rpi4-wifi` as guarded userspace-rc background services
+   (NOT plo syspage — brick risk [[feedback_plo_no_duplicate_program]]); adopt `rc`/`rc.subr` +
+   `rc.conf.d/{wifi,bluetooth}`. Behind a boot-verify + rollback (attended-class).
+3. **WiFi → lwip netif** — fold the standalone `/dev/wifi` driver into a `brcmfmac` `netif_driver_t`
+   so it inherits `create_netif`/DHCP/sockets/`ifconfig` (the §"Recommended architecture" target).
+4. **WPA2 join** (EAPOL 4-way + key iovars) — makes `/etc/wifi.conf`'s `psk=` live; owner-gated
+   (needs a live AP + credentials; do not scrape the host PSK) [[project_wifi_fw_exec_gate_91]].
+5. **BT: richer verbs** (`btctl info` = Read_BD_ADDR/version; `connect <addr>`) + a transport vtable
+   for "different BT devices."
+
+Next tractable + verifiable-unattended piece: the psh-applet conversion (build-verifiable) or
+`btctl info` (HW-verifiable — reads the real BD_ADDR). Boot-integration + WPA2 stay attended/gated.
+
+[[project_bluetooth_bringup]] [[project_wifi_fw_exec_gate_91]] [[project_pi4_gpio_device]] (rpi4-gpio server template)

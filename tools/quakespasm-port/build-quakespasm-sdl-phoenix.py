@@ -30,6 +30,19 @@ neutralised — no clash, no duplicate GL declarations. The fake sdl-shim/ is NO
 on the include path here.
 
 Usage: python3 tools/quakespasm-port/build-quakespasm-sdl-phoenix.py
+
+Runtime note (HW-validated 2026-08-10): unlike the flagship (whose Phoenix video
+shim forces the native 1920x1080), the STOCK SDL2 backend (gl_vidsdl.c) honours
+QuakeSpasm's default vid_width/vid_height cvars (800x600). Rendering 800x600 into
+the 1920x1080 /dev/fb0 scanout gives a garbled top band. Fix: set the native
+resolution in id1/config.cfg (read early by VID_Init's read_vars[]):
+    vid_width "1920"
+    vid_height "1080"
+    vid_fullscreen "1"
+Then the SDL video driver's fb0 mode (1920x1080) matches the render target and
+QuakeSpasm renders fullscreen on V3D/HDMI (same pattern as the yQuake2 port's
+r_customwidth/r_customheight). Verified: boots -> phxgl GL up (V3D 4.2, Mesa) ->
+SDL audio=phoenix -> map "start" -> in-game -> fullscreen 1920x1080, 0 faults.
 """
 import os, subprocess, sys
 

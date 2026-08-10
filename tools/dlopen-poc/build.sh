@@ -31,20 +31,27 @@ echo "dlopen-poc: plugin dynamic relocations (want RELATIVE/GLOB_DAT/JUMP_SLOT o
 echo "dlopen-poc: plugin undefined syms (want: printf, host_add):"
 "$NM" -u "$PLUGIN" 2>/dev/null | awk '{print "  " $2}' || true
 
-echo "dlopen-poc: building host (static ET_EXEC)"
+echo "dlopen-poc: building host (static ET_EXEC, standalone minidl)"
 "$GCC" -O2 -Wall -Wextra -std=gnu11 -o "$HOST" "$HERE/main.c" "$HERE/minidl.c"
+
+# Host that uses the REAL libphoenix <dlfcn.h> dlopen (auto host-.symtab
+# resolution). MUST stay unstripped so its .symtab is available at runtime.
+HOST_DLFCN="$HERE/dlopen-poc-dlfcn"
+echo "dlopen-poc: building host (libphoenix dlopen, unstripped)"
+"$GCC" -O2 -Wall -Wextra -std=gnu11 -o "$HOST_DLFCN" "$HERE/main-dlfcn.c"
 
 echo "dlopen-poc: host undefined-symbol check (expect none):"
 undef=$("$NM" -u "$HOST" 2>/dev/null | grep -vE 'GLIBC|^\s*$' | wc -l || true)
 echo "  $undef undefined symbols."
 
-file "$HOST" "$PLUGIN"
+file "$HOST" "$HOST_DLFCN" "$PLUGIN"
 
 if [ -d "$NFSROOT/usr/bin" ]; then
 	echo "dlopen-poc: staging into $NFSROOT/usr/bin"
 	sudo cp "$HOST" "$NFSROOT/usr/bin/dlopen-poc"
+	sudo cp "$HOST_DLFCN" "$NFSROOT/usr/bin/dlopen-poc-dlfcn"
 	sudo cp "$PLUGIN" "$NFSROOT/usr/bin/plugin.so"
-	echo "dlopen-poc: staged. Run on the Pi via psh: /usr/bin/dlopen-poc"
+	echo "dlopen-poc: staged. Run on the Pi via psh: /usr/bin/dlopen-poc-dlfcn"
 else
 	echo "dlopen-poc: NFS root $NFSROOT not present; skipped staging."
 fi

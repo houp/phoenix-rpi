@@ -444,16 +444,20 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
-2026-08-10 (C3 #68 LAYER 3 — narrowed to a LARGE-UDP-DATAGRAM reassembly bug in Phoenix lwIP). Instrumented the
-reliable-message + signon-opcode path. HW (qmpsignon2, 0 faults, after 1 netboot flake retry): the signon-1 reliable
-message (2499 bytes) is "delivered", parse = svc_print → svc_serverinfo → **END**. But the server
-(SV_SendServerinfo) puts svc_cdtrack/svc_setview/**svc_signonnum(1)** in that SAME 2499B message, and the parser is
-proven (single-player/loopback uses it). Conclusion: **the 2499-byte datagram (>1500 MTU → IP-fragmented) is
-truncated on Phoenix — lwIP isn't reassembling the fragmented UDP datagram** — and net_dgrm.c:330 trusts the
-NetQuake header's claimed length → garbage tail → svc_signonnum lost → signon stalls. Added a confirm-log
-(actual-recv vs header-claimed len). **NEXT: 1 cycle to confirm actual<claimed, then FIX lwIP UDP/IP fragment
-reassembly** (LWIP_IP_FRAG/IP_REASSEMBLY) — a genuine Phoenix net bug (owner's compare-with-Linux → fix-it case;
-also helps other big-UDP paths like NFS/large sockets). So #68 is now peeled to a SPECIFIC lwIP fragmentation fix.
+2026-08-10 (C3 #68 LAYER 3 CORRECTED — NOT a net bug; it's the BSP precache LOAD). Two prior hypotheses REFUTED by
+HW traces this heartbeat (qmpreass + qmpload, 0 faults): (1) the earlier "lwIP truncates the fragmented 2499B signon
+datagram" theory is WRONG — `recv LARGE actual=2507 header_claims=2507` proves the >MTU datagram is delivered WHOLE
+(lwIP IP_REASSEMBLY works, no fix needed); (2) the "serverinfo parse desync" theory is WRONG — the full message
+parses cleanly svc_print → svc_serverinfo → into CL_ParseServerInfo. **The real stall: CL_ParseServerInfo's precache
+load** (cl_parse.c:402) — trace shows `loading 102 models, 81 sounds` → `model[1/102] maps/start.bsp` → then nothing.
+The MP client HANGS or is very-slow loading the map BSP (first Mod_ForName) during signon. The old "0.2fps +
+keepalives" = CL_KeepaliveMessage during the load (client alive, inside the load, not disconnected). So #68 is now a
+**map-LOAD** problem in the known caches-off (TD-16) + NFS large-read class, not a protocol/net bug. Connect + slist-
+skip + lwIP getnameinfo OOB fixes all HOLD (client connects + gets full serverinfo). Added load-progress diag
+(per-model log + "precache DONE"). STUCK-vs-SLOW not yet disambiguated (confound: the 26MB client exec-load over NFS
+eats the capture window). **NEXT: timestamp the load + a LONG window (400s+, or SD-boot to drop the NFS variable) →
+does model[N] advance (slow → reuse read-ahead/exec-clustering; may already work with a big window) or is model[1]
+hard-stuck (probe Mod_LoadBrushModel / the concurrent-UDP-during-load suspect)?** See 2026-08-10-quake-mp-68-plan.md.
 (This #68 saga ran many netboot cycles across turns; the lwip getnameinfo fix from it is already on the org.)
 [[project_pi4_genet_rx_perf]] [[project_quakespasm_port]]
 

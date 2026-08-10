@@ -103,3 +103,65 @@ but the connect DID run — the hang is the slist, not the demo.
 
 The fix likely lands in the lwIP UDP path or a small net_udp/net_dgrm adaptation,
 depending on which of (1)/(2)/(3) the capture shows.
+
+## ★ 2026-08-10 RESULT #2 — connect + signon fixed; stall is now the BSP precache load
+
+After the slist-skip (direct-IP → `JustDoIt`, skipping the hanging broadcast slist)
+and the lwIP `getnameinfo` OOB crash fix (both shipped), the Pi client now
+**connects and receives the full signon serverinfo**. Traced end-to-end against the
+host dedicated server:
+```
+PHXNET68: handshake OK -- CCREP_ACCEPT, connection accepted
+PHXNET68: recv LARGE actual=2507 header_claims=2507       <- FULL datagram delivered
+PHXNET68: RELMSG delivered seq=0 total=2499 (frag len=2499 EOM)
+PHXNET68: SVMSG signon=0 cursize=2499
+PHXNET68:  svc=8 svc_print
+PHXNET68:  svc=11 svc_serverinfo
+PHXNET68: CL_ParseServerInfo loading 102 models, 81 sounds
+PHXNET68: model[1/102] maps/start.bsp
+   <- then nothing: no model[2/102], no "precache DONE", 0 faults >
+```
+
+**Two earlier hypotheses REFUTED, in order:**
+- **NOT lwIP truncation / fragment-reassembly.** `recv LARGE actual=2507
+  header_claims=2507` — the >MTU signon datagram is delivered whole. lwIP
+  `IP_REASSEMBLY` works. (This overturns the "net_dgrm.c:330 trusts header length
+  → Phoenix truncates the fragmented datagram" theory — no fix needed there.)
+- **NOT a serverinfo parse desync.** The full 2499-byte reliable message is intact
+  and parses cleanly through `svc_print` + `svc_serverinfo` into
+  `CL_ParseServerInfo`.
+
+**The stall is inside `CL_ParseServerInfo`'s precache LOAD** (cl_parse.c:402): the
+client starts loading the 102 map models and stops at `model[1/102] maps/start.bsp`
+— the map BSP, the first `Mod_ForName`. The earlier "0.2 fps + keepalives" symptom
+= `CL_KeepaliveMessage()` (cl_parse.c:409/416) called between precache loads +
+loading-plaque redraws, i.e. the client is alive and *inside the load*, not
+disconnected. So #68 is now a **map-load** problem, not a net/protocol problem:
+the MP client hangs (or is very slow) loading `maps/start.bsp` from NFS during
+signon.
+
+**Stuck-vs-slow NOT yet disambiguated** — confound: the 26 MB quakespasm client
+itself exec-loads over NFS slowly (minutes), eating much of the capture window, so
+`model[1/102]` near the end may be "out of window," not a hard hang. This overlaps
+the known caches-off (TD-16) + NFS large-read slowness ([[project_large_binary_exec_hang]],
+[[project_pi4_genet_rx_perf]], [[project_sdboot_largeexec_slowstart]] read-ahead
+clustering).
+
+### Next-step test (fresh heartbeat)
+1. Timestamp the load logs (or log wall-clock at `boot connect`, `model[1]`,
+   each `model[N]`) and run a LONG window (400 s+, split across Bash calls if
+   needed) — does `model[N]` advance (slow, would finish) or is `model[1]`
+   truly stuck (hang in `Mod_ForName(maps/start.bsp)` / an NFS read)?
+2. If slow-but-progressing: this is the same class as the netboot large-load
+   slowness — reuse the read-ahead / exec-clustering work; MP may already "work"
+   with a big enough window. Consider SD-boot (local ext2, no NFS) to remove the
+   NFS variable — an SD-boot MP client loads start.bsp from the fast local card.
+3. If hard-stuck: gdb/QEMU or a source probe inside `Mod_LoadBrushModel` to find
+   which BSP lump read hangs; compare the same `Mod_ForName(maps/start.bsp)` on
+   the working single-player path (loopback) — SP loads the identical file, so the
+   MP-specific factor (concurrent live UDP connection + `CL_KeepaliveMessage`
+   network I/O during the load) is the prime suspect.
+
+### Cleanup owed (deferred while diag in use)
+Fold the slist-skip into `tools/quakespasm-port/quakespasm-phoenix-port.patch`
+and strip all `PHXNET68` diag logs from `external/quakespasm` once #68 closes.

@@ -169,6 +169,37 @@ int main(int argc, char *argv[])
 	 * after Host_Init has queued the config exec, so it wins regardless of the config. */
 	Cbuf_AddText("r_oldwater 1\n");
 
+	/* MP (#68): if id1/phoenix-connect.cfg exists (one line = a dedicated-server
+	 * host/IP), connect to it at boot instead of the demo loop. Absent -> the
+	 * unchanged attract loop. Lets the netboot harness drive a multiplayer join
+	 * to the host server (scripts/quake-mp-server.sh) for diagnosing #68. */
+	{
+		char cpath[256], line[80];
+		FILE *cf;
+		snprintf(cpath, sizeof(cpath), "%s/id1/phoenix-connect.cfg", g_basedir);
+		cf = fopen(cpath, "r");
+		if (cf != NULL) {
+			if (fgets(line, sizeof(line), cf) != NULL) {
+				int n;
+				for (n = 0; line[n] != '\0'; n++) {
+					char c = line[n];
+					if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') ||
+							(c >= 'A' && c <= 'Z') || c == '.' || c == '-')) {
+						line[n] = '\0';
+						break;
+					}
+				}
+				if (line[0] != '\0') {
+					char cmd[96];
+					snprintf(cmd, sizeof(cmd), "connect %s\n", line);
+					Sys_Printf("PHXNET68: boot connect -> %s\n", line);
+					Cbuf_AddText(cmd);
+				}
+			}
+			fclose(cf);
+		}
+	}
+
 	/* Boot into the attract demo loop (cl_startdemos default = 1 -> demo1.dem, a recorded
 	 * E1M3 walkthrough) as the no-input attract mode. Full single-player "map" loading also
 	 * works now (server + QuakeC VM + loopback connect, see pl_phoenix_stubs.c net_drivers)

@@ -35,7 +35,55 @@ precache message exchange never completes**, i.e. one of:
 Single-player works because it uses the loopback landriver (`net_loop.c`), no real
 UDP — consistent with the fault being in the real-UDP signon exchange.
 
-## Next-step test (a fresh heartbeat)
+## ★ 2026-08-10 RESULT — #68 LOCALIZED to the NET_Connect silent-slist loop
+
+Built a Pi client that auto-connects (via `id1/phoenix-connect.cfg` → `connect
+<ip>`, added to pl_phoenix_main.c) + net-trace logging, ran it against the host
+server. UART trace:
+```
+PHXNET68: boot connect -> 10.42.0.1
+Playing demo from demo1.dem.
+PHXNET68: NET_Connect host=10.42.0.1
+PHXNET68: NET_Connect -> silent slist (SearchForHosts broadcast)
+   <hangs here — no "slist done", no JustDoIt, no _Datagram_Connect>
+```
+**The connect reaches `NET_Connect` (net_main.c:415) and hangs in its silent
+server-list phase:** `slistSilent = true; NET_Slist_f(); while (slistInProgress)
+NET_Poll();` — the `while (slistInProgress) NET_Poll()` loop never terminates on
+Phoenix (`slistInProgress` never clears), so the client spins there forever =
+"hangs at LOADING." It never reaches `_Datagram_Connect` (the actual TCP-less
+handshake) or signon. FitzQuake/quakespasm does a broadcast `SearchForHosts`
+slist before *every* connect (to resolve the host into the cache).
+
+**So #68 is NOT the signon exchange** (as first hypothesized) — it's earlier, in
+the pre-connect host-discovery slist. Two candidate roots:
+1. **UDP broadcast** send/recv broken on Phoenix lwIP (SearchForHosts broadcasts
+   to the subnet; if the broadcast never goes out or no response, but the slist
+   completion still hinges on it), or
+2. the **slist timeout** never fires (`slistInProgress` is cleared on a
+   `SetNetTime()`-based deadline in `_Datagram_SearchForHosts`/`NET_Poll`; if
+   net_time doesn't advance or the deadline logic stalls, the loop is infinite).
+
+Also confirmed: the connect competes with the demo loop (startdemos runs first),
+but the connect DID run — the hang is the slist, not the demo.
+
+## Next-step test/fix (a fresh heartbeat)
+
+1. Add logging inside `NET_Slist_f` / `_Datagram_SearchForHosts` / `NET_Poll`:
+   log `slistInProgress`, the deadline vs `net_time`, and whether the broadcast
+   send + any response happen. One netboot cycle → is it (1) broadcast or (2)
+   timeout?
+2. Compare vs Linux-on-Pi4 (owner directive): a Linux quakespasm client slists
+   fine → confirms a Phoenix UDP-broadcast/lwIP bug → fix it (lwip broadcast RX/TX
+   or SO_BROADCAST).
+3. Pragmatic parallel fix: for a **direct IP** `connect`, the slist is
+   unnecessary — skip `NET_Slist_f` and go straight to `JustDoIt`/`_Datagram_Connect`
+   with the given address (a small net_main.c change gated on "host is a literal
+   addr"). That both fixes #68 for direct connects and sidesteps the broadcast
+   dependency; the slist bug is then fixed separately for LAN discovery.
+
+--- original plan below (signon hypothesis, now superseded by the slist finding) ---
+## Next-step test (original)
 
 1. Build a Pi quakespasm client that, instead of the hardcoded boot map, runs
    `connect 10.42.0.1` at startup (mirror the port's boot-command hook), with net

@@ -71,3 +71,43 @@ with the engine otherwise up.
 
 Q3JIT-DIAG instrumentation is currently left in `external/quake3e` (local clone,
 uncommitted) for step 1.
+
+## UPDATE — pristine re-verify DONE (q3pristine, 2026-08-10)
+
+Stripped the Q3JIT-DIAG prints, rebuilt (0 `Q3JIT-DIAG` strings in the ELF,
+verified), one cycle:
+
+- **NO Data Abort (0 faults).** Boot: `Hunk_Clear → finished R_Init → load
+  vm/ui.qvm (VM_Compile, mprotect(RX)→RWX) → Opening IP socket → Started tty
+  console (]`). So the 2026-08-05 "JIT stray-bit-32 Data Abort" **does not
+  reproduce on pristine current source** — it is not a diag-layout artifact. The
+  C5 headline VM-exec **crash is gone** (fixed by intervening source/patch drift
+  since the bank). ✔ Confirmed.
+- **The GPU wedge did NOT occur this run** (it happened in 1 of 3 runs) → the
+  R_Init `BIN TIMEOUT`/wedge is **intermittent HW-marginal**, not deterministic,
+  and (see next) not the cause of the black screen.
+- **Screen is still BLACK** — the UI menu is not drawn, *even with no wedge*. Since
+  quakespasm-sdl + vkQuake render correctly on the **same** V3D winsys (present
+  path proven good), the blank render is **Q3-specific**.
+
+### New C5 blocker: Q3 renders nothing (UI VM mis-exec / frame loop), not a crash
+
+Leading hypothesis: the UI VM **mis-executes**. The `bad opStack 8` warning at
+`VM_Compile(ui)` (jump target 11, instr 13586, OP_CONST) is the same VM-bytecode
+operand-stack inconsistency that the old "interpreter mis-executes (bad opStack)"
+note flagged — it is **mode-independent** (affects the JIT path too), a
+VM-correctness (not crash) bug: the VM runs but computes/draws wrong → blank menu.
+Alternative: Q3's client isn't pumping frames (stuck at the tty console) — but the
+present path itself is proven by the other engines.
+
+### Next steps (fresh session)
+1. Discriminate mis-exec vs no-frames: log `SCR_UpdateScreen`/`SwapWindow` (present
+   count) + whether `UI_Init`/`UI_Refresh` (the UI VM entry) is `VM_Call`ed each
+   frame. If frames present but blank → UI VM mis-exec; if no frames → client loop
+   stuck.
+2. If UI-VM mis-exec: chase the `bad opStack` — instrument `VM_PrepareInterpreter`
+   / the load-time opStack analysis (vm.c) at instruction 13586; check for an
+   aarch64/parse/endianness issue in the QVM opStack tracking. This is the real
+   remaining C5 VM-correctness bug (crash already resolved).
+3. The intermittent R_Init GPU wedge is a separate, lower-priority HW-marginal
+   winsys issue (shared path; already has a reset+retry mitigation).

@@ -111,3 +111,44 @@ present path itself is proven by the other engines.
    remaining C5 VM-correctness bug (crash already resolved).
 3. The intermittent R_Init GPU wedge is a separate, lower-priority HW-marginal
    winsys issue (shared path; already has a reset+retry mitigation).
+
+## UPDATE 2 — BLACK-SCREEN ROOT-CAUSED + FIX IMPLEMENTED (2026-08-10)
+
+Instrumented the present path on HW (Q3DRAW/PRESENT/END/SWAP diags) and traced it
+end to end:
+
+- `Q3DRAW-DIAG: frame=15541… cls.state=1(CA_DISCONNECTED) uiFull=1 keycatchUI=1` —
+  `SCR_DrawScreenField` runs every frame and **the UI VM executes CORRECTLY**
+  (returns fullscreen=1 AND set `KEYCATCH_UI`). So the `bad opStack` warning is
+  **benign** — NOT a VM-correctness bug. (Refutes UPDATE-1's leading hypothesis.)
+- `Q3END-DIAG: issued RC_SWAP_BUFFERS ×133`, `bail !tr.registered: 0` — `RE_EndFrame`
+  issues the swap command (tr.registered is fine).
+- **`Q3SWAP-DIAG: RB_SwapBuffers reached: 0`, `Q3PRESENT-DIAG: 0`** — the swap
+  command is never dispatched; `GLimp_EndFrame` never runs → nothing is presented.
+
+Cause: `R_IssueRenderCommands` (tr_cmds.c:89-91) early-returns
+`if ( ri.CL_IsMinimized() ) return; // skip backend when minimized`.
+`CL_IsMinimized()` returns `gw_minimized`, which starts `qtrue` (sdl_glimp.c:280,
+re-set every `GLW_SetMode`) and clears ONLY on `SDL_WINDOWEVENT_SHOWN / RESTORED /
+FOCUS_GAINED` (sdl_input.c:1315-1320).
+
+**The Phoenix SDL video driver never delivered those events.** `PHOENIX_CreateWindow`
+pre-set `SDL_WINDOW_SHOWN | _INPUT_FOCUS | _MOUSE_FOCUS` on `window->flags`, then
+called `SDL_Set{Mouse,Keyboard}Focus`. SDL suppresses a state-change event when the
+flag is already set, so pre-setting swallowed SHOWN/FOCUS_GAINED → `gw_minimized`
+stuck true → Q3 skips the backend every frame → black. (quakespasm-sdl / yQuake2
+render fine because they don't gate on `gw_minimized`.)
+
+**FIX (ports `e498158`, committed local, NOT yet pushed to org):** in
+`SDL_phoenixvideo.c` `PHOENIX_CreateWindow`, stop pre-setting the flags; call
+`SDL_SendWindowEvent(SHOWN)` + `SDL_SetMouseFocus` + `SDL_SetKeyboardFocus` so SDL
+sets the flags AND delivers the events. General SDL-port fix (not a per-game shim),
+aligned with the owner's "use the SDL port" directive.
+
+### Verify owed (next heartbeat)
+Rebuild `libSDL2.a` (buildroot SDL port) → relink Q3 (it statically links
+`libSDL2.a`) → one netboot cycle → confirm HDMI shows the Q3 main menu (not black)
++ `GLimp_EndFrame` now runs. Also confirm no regression to quakespasm-sdl / yQuake2
+(they should be unaffected — the extra events are harmless to them). Only THEN push
+ports `e498158` to the org. If Q3 renders, C5 goes from banked to **Q3 renders on
+Phoenix/V3D** (3rd game engine visibly up).

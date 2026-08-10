@@ -444,6 +444,22 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-10 (★★★ C3 #68 FIXED + HW-VALIDATED — lwIP FIONBIO never enabled non-blocking sockets). Root-caused the
+map-load "hang" to a BLOCKING recvfrom: CL_KeepaliveMessage's `do{ret=CL_GetMessage()}while(ret)` drain parked in
+recvfrom ~5s waiting for each stock SV_SendNop (advisor's catch: seq advanced ~1/5s + ZERO len=0 reads = blocking
+signature, not a stream). The client's ioctlsocket(FIONBIO) returned success but never took effect. THE BUG
+(phoenix-rtos-lwip port/sockets.c): FIONBIO is write-only (_IOW) so the flag is in in_data, but socket_ioctl passed
+out_data (NULL for a write ioctl) to lwip_ioctl → it read a zero flag → left EVERY socket BLOCKING. FIONBIO could
+never enable non-blocking mode; masked wherever data was always pending (handshakes/RPC), exposed only by polling an
+idle socket for EWOULDBLOCK. FIX (lwip fb8af75, 9 lines): FIONREAD keeps out_data, FIONBIO passes in_data. Benefits
+ALL non-blocking socket consumers. HW (qmpfix, --scope core, netboot, 0 faults): len=0 reads 0→513 (socket now truly
+non-blocking); client loads 101/102 models → precache DONE → SignonReply signon 4 → IN-GAME exchanging entity
+updates. Full #68 chain all fixed: slist hang (skip-slist) + getnameinfo OOB (pushed) + this FIONBIO fix. Committed
+lwip fb8af75 + manifest 2026-08-10-lwip-fionbio-nonblock-fix.md. NEXT: push lwip to org (scrubbed cherry-pick flow);
+strip PHXNET68 diag + fold slist-skip into the port patch; then a clean end-to-end MP join demo. See
+2026-08-10-quake-mp-68-plan.md.
+
+--- prior (superseded) heartbeat note ---
 2026-08-10 (C3 #68 LAYER 3 CORRECTED — NOT a net bug; it's the BSP precache LOAD). Two prior hypotheses REFUTED by
 HW traces this heartbeat (qmpreass + qmpload, 0 faults): (1) the earlier "lwIP truncates the fragmented 2499B signon
 datagram" theory is WRONG — `recv LARGE actual=2507 header_claims=2507` proves the >MTU datagram is delivered WHOLE

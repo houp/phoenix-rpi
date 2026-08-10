@@ -162,6 +162,46 @@ clustering).
    MP-specific factor (concurrent live UDP connection + `CL_KeepaliveMessage`
    network I/O during the load) is the prime suspect.
 
-### Cleanup owed (deferred while diag in use)
-Fold the slist-skip into `tools/quakespasm-port/quakespasm-phoenix-port.patch`
-and strip all `PHXNET68` diag logs from `external/quakespasm` once #68 closes.
+## ★★★ 2026-08-10 #68 FIXED — lwIP FIONBIO never enabled non-blocking sockets
+
+Root cause found + fixed, HW-validated. The map-load "hang" was a **blocking
+`recvfrom`**: `CL_KeepaliveMessage`'s `do { ret = CL_GetMessage(); } while (ret);`
+drain loop parked in `recvfrom` waiting ~5s for the next stock `SV_SendNop`
+unreliable nop (seq advanced ~1/5s, and there were **zero** `len=0` reads — the
+signature of a blocking socket, not a stream). The client set the socket
+non-blocking via `ioctlsocket(FIONBIO)`, which *returned success* but never took
+effect.
+
+**The bug (phoenix-rtos-lwip `port/sockets.c`):** `FIONBIO` is a write-only ioctl
+(`_IOW`) — the flag is delivered in the IN payload. `ioctl_unpackEx` only fills
+`out_data` when `IOC_OUT` is set, so for `FIONBIO` `out_data` is NULL and the flag
+is in `in_data`. `socket_ioctl` passed `out_data` to `lwip_ioctl` for both
+`FIONREAD` and `FIONBIO`; for `FIONBIO` that handed lwIP a NULL pointer → it read a
+zero flag → left the socket **blocking**. So `FIONBIO` could *never* enable
+non-blocking mode on any socket — masked everywhere data was always already
+pending (handshakes, RPC), exposed only by polling an idle socket for
+`EWOULDBLOCK`.
+
+**Fix (lwip `fb8af75`):** split the cases — `FIONREAD` keeps `out_data`, `FIONBIO`
+passes `in_data` (the actual flag). 9 lines. Benefits *every* non-blocking socket
+consumer, not just Quake.
+
+**HW validation (qmpfix cycle, netboot, 0 faults):** `dgrm Read len=0` now appears
+**513×** (was 0 → socket genuinely non-blocking); the client loads **101/102**
+models, hits `precache DONE`, advances `SignonReply` through **signon 4**, and is
+**in-game** exchanging entity updates (unreliable seq 3000+). #68 (Quake MP hangs
+at LOADING) is resolved.
+
+**Full #68 chain, all fixed:** slist broadcast hang → skip-slist for direct IP;
+lwIP `getnameinfo` OOB crash → bounds guard (pushed); **blocking `recvfrom` via
+broken `FIONBIO` → this lwip fix**. The earlier lwIP-fragment-reassembly and
+serverinfo-parse-desync theories were both refuted along the way (datagram
+delivered whole; parser fine).
+
+### Cleanup owed (next heartbeat)
+- Fold the slist-skip into `tools/quakespasm-port/quakespasm-phoenix-port.patch`
+  and strip all `PHXNET68` diag logs from `external/quakespasm`.
+- The `phoenix-map.cfg` SP-boot branch in `pl_phoenix_main.c` is genuinely useful
+  (single-player map boot) — keep it, drop only its `PHXNET68` label.
+- Push lwip `fb8af75` to the org via the scrubbed cherry-pick flow (as with the
+  getnameinfo fix — never raw-push the scrubbed lwip repo).

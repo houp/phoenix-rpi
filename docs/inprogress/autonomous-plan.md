@@ -444,6 +444,22 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-10 (C3 #68 SHIPPED + CLEANED UP — org push + diag strip + re-verified in-game). Follow-through on the FIONBIO
+fix: (1) pushed lwip to the org via the scrubbed cherry-pick flow (isolated worktree at publish/master 8520b92 →
+cherry-pick → publish/master now 6093bb2; worktree removed; BLOCKED sentinel push-URL left intact). (2) Stripped ALL
+PHXNET68 diagnostics from the quakespasm port now that #68 is closed: reverted the pure-diag files (cl_parse/cl_main/
+net_dgrm) and surgically kept only the load-bearing slist-skip in net_main.c (committed durably as external/quakespasm
+c90c9b9); relabeled the two boot-info prints in pl_phoenix_main.c. Left the unrelated gl_screen.c qsv3d→phxgl rename
+alone. (3) Added a phoenix-map.cfg SP-boot branch to pl_phoenix_main.c (single-player `map <name>` boot, used to
+baseline SP-vs-MP loading; genuinely useful, kept). (4) Full clean rebuild after purging /tmp/qsobj + libquakespasm.a
+(stale-object guard) → strings-verified 0 PHXNET68 in the binary; HW re-verified (qmpclean): client joins the host
+server, "Connection accepted"/"Using protocol 666", loads the map, and runs IN-GAME at 26 fps, 0 faults. #68 (Quake 1
+MP hangs at LOADING) is fully resolved, shipped, and cleaned. NEXT (self-prioritize): the quakespasm-phoenix-port.patch
+is stale vs external/quakespasm's committed state (pre-existing gap — the port now lives as external/quakespasm
+commits); either regenerate it or document the commit-based workflow. Then pick a fresh open task (SDL de-Quake
+refactor, Quake2/3 runtime, X11/XFce, ffmpeg, Dillo E2/E3).
+
+--- prior heartbeat note ---
 2026-08-10 (★★★ C3 #68 FIXED + HW-VALIDATED — lwIP FIONBIO never enabled non-blocking sockets). Root-caused the
 map-load "hang" to a BLOCKING recvfrom: CL_KeepaliveMessage's `do{ret=CL_GetMessage()}while(ret)` drain parked in
 recvfrom ~5s waiting for each stock SV_SendNop (advisor's catch: seq advanced ~1/5s + ZERO len=0 reads = blocking

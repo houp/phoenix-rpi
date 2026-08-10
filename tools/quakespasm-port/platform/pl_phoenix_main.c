@@ -192,11 +192,42 @@ int main(int argc, char *argv[])
 				if (line[0] != '\0') {
 					char cmd[96];
 					snprintf(cmd, sizeof(cmd), "connect %s\n", line);
-					Sys_Printf("PHXNET68: boot connect -> %s\n", line);
+					Sys_Printf("phoenix: boot connect -> %s\n", line);
 					Cbuf_AddText(cmd);
 				}
 			}
 			fclose(cf);
+		}
+	}
+
+	/* SP (#68 diag / general): if id1/phoenix-map.cfg exists (one line = a map
+	 * name, e.g. "start"), boot a single-player loopback map load instead of the
+	 * demo loop. Used to compare the SP loopback map load against the MP join —
+	 * both exercise CL_ParseServerInfo + Mod_ForName(maps/<name>.bsp). */
+	{
+		char mpath[256], line[80];
+		FILE *mf;
+		snprintf(mpath, sizeof(mpath), "%s/id1/phoenix-map.cfg", g_basedir);
+		mf = fopen(mpath, "r");
+		if (mf != NULL) {
+			if (fgets(line, sizeof(line), mf) != NULL) {
+				int n;
+				for (n = 0; line[n] != '\0'; n++) {
+					char c = line[n];
+					if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') ||
+							(c >= 'A' && c <= 'Z') || c == '_')) {
+						line[n] = '\0';
+						break;
+					}
+				}
+				if (line[0] != '\0') {
+					char cmd[96];
+					snprintf(cmd, sizeof(cmd), "map %s\n", line);
+					Sys_Printf("phoenix: boot map (SP) -> %s\n", line);
+					Cbuf_AddText(cmd);
+				}
+			}
+			fclose(mf);
 		}
 	}
 

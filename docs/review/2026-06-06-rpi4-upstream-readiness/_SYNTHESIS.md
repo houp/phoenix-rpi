@@ -1,5 +1,12 @@
 # RPi4 bring-up — upstream-readiness review: SYNTHESIS
 
+> **⚠ 2026-08-10 RE-VERIFICATION:** the NEEDS-HW bug list B1–B14 below is now 64 days old and
+> several items have since been fixed. All 14 were re-checked against current sibling code —
+> see **`2026-08-10-b1-b14-reverification.md`** for the current per-bug status (FIXED: B1-live,
+> B4, B6, B7a, B9, B11; STILL-REAL defects: B2, B5, B7b, B8, B14; by-design/justified: B3, B13;
+> divergence-not-defect: B12; B10 fixed on the non-built a53 target). Read that doc first; the
+> text below is the original 2026-06-06 snapshot.
+
 17 parallel read-only reviews, one per area (see `README.md` for the map + baselines).
 ~150 findings. This file extracts the **cross-cutting themes** (the highest-value signal
 for the maintainers) and a triaged action plan: **APPLY-SAFE** (mechanical, done overnight

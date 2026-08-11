@@ -132,7 +132,7 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
 
 ## Pi lock
 
-- **IN USE ram-stage-play 2026-08-11** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
+- **FREE** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
   Netboot game tests are now RELIABLE — the harness (psh-interact.py) waits for the NFS
   "registered / (takeover)" line before sending commands (#156 fix). No ls-warm needed.
 
@@ -443,6 +443,20 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-11 (★★ RAM-staging PRODUCTIZED — `ram-stage-play` one-command helper, HW-validated on full Quake2). Built
+tools/ram-stage/ram-stage-play.c (coord 6ba8165): recursively copies a game's asset tree NFS→tmpfs then execv's the
+game with a RAM basedir — one command (psh has no &&/;), reusable for any game, standalone static aarch64-phoenix ELF
+(0 warns -Wall -Wextra). HW-validated end-to-end: `ram-stage-play /usr/share/quake2/baseq2 /tmp/baseq2 /usr/bin/yquake2
++set basedir /tmp ... +map demo1` → **recursively staged the FULL baseq2 (60 files, 49.73 MiB incl the players/ skin
+tree) to RAM in 15.6 s, auto-launched yquake2, which rendered ACTIVE 3D GAMEPLAY from the RAM-staged assets** (HDMI
+20260811-193712-ram-stage-play-final.png: Strogg crates, an enemy being shot w/ blood spray, weapon+HUD, 0 faults).
+Note the recursive stage rate (3.18 MiB/s) is lower than one big file (7.88) because the many small players/ skin
+files each pay NFS per-file OPEN latency — exactly what RAM-staging then eliminates for the game's repeated reads.
+**RAM-staging is now PROVEN (Q1 3.6× A/B, Q2 renders), SCALED (256 MiB /tmp), and PRODUCTIZED (ram-stage-play).**
+The owner's load-time workaround is a usable one-command feature. **NEXT (optional polish):** a boot-time auto-stage
+of the active game, quake3e via the same helper (`+set fs_basepath /tmp`), or an engine load-time hook for a precise
+big-game A/B number. Pi lock freed.
 
 2026-08-11 (★★ BIG GAME (Quake2) RAM-STAGED + RENDERS from the enlarged RAM-disk — the enlargement validated
 end-to-end). Staged Q2 baseq2/pak0.pak (**47.64 MiB in 6.0 s**, 7.88 MiB/s) to the enlarged /tmp — a copy that would

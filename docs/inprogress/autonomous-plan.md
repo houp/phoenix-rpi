@@ -444,6 +444,13 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-11 (code-review pass CONTINUES — owner directive #2 — extended to the WiFi/BT/audio drivers). Last heartbeat's
+SDL-backend review shipped 3 real fixes; continuing the proven pattern on the freshest, most-complex, upstream-facing
+sources/ additions: launched 3 parallel review subagents on rpi4-wifi (3158 lines — SDIO/firmware/BCDC/escan/join),
+rpi4-hci (778 — HCI/patchram over UART), rpi4-audio (500 — PWM/DMA). Focus = real correctness bugs (device/AP-supplied
+length overruns, blob-load size math, endianness, resource leaks, error paths). Will apply verified findings +
+build-validate + ship to org, same as the SDL fixes. IN PROGRESS this heartbeat (agents running).
+
 2026-08-11 (NFS-perf analysis BANKED as complete + SDL-directive audit CONFIRMS it's DONE + code-review pass on the
 SDL backend). Advisor-guided. Two owner-priority threads audited to closure this heartbeat:
 - **NFS read throughput — analysis COMPLETE, banked (per advisor: stop re-analyzing).** Code-evidenced the read path:

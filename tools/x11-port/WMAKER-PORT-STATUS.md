@@ -169,3 +169,24 @@ Host build dependency installed this session: **gperf** (`apt-get install gperf`
   pipe-menu entry silently does nothing, this is why — not a mystery. A future
   fix would be a `/bin/sh` -> `/bin/sh` symlink on the root, or a libc
   build configured with the alternate shell path.
+
+## ★★★ HW-VALIDATED 2026-08-11 — Window Maker desktop RENDERS; the font-fix WORKS
+
+`/bin/startx wmaker` on netboot HW (4 clients: wmaker + gl-x11-window + e4-x11-play
++ xclock), 0 faults. **HDMI shows a full Window Maker desktop:**
+- GNUstep slate-blue root + the Window Maker **dock** (top-right) + **workspace clip**
+  (top-left).
+- The **root menu OPEN with rendered TTF text** (Applications / Run… / Appearance /
+  Workspaces / Configure Window Maker / Info Panel / Restart / Exit) + a cascaded
+  **Applications submenu** (Terminals / Internet / Mathematics / File Managers /
+  Editors / Window Maker / Utilities / System).
+- A **"Phoenix V3D GL"** window rendering the V3D GL pinwheel (GPU-accelerated,
+  WM-decorated), a **"Phoenix ffmpeg video"** window (e4 player), and xclock — all
+  with Window Maker title bars + iconify/close buttons.
+
+**The candidate direct-TTF font-hang bypass WORKS** — the menus/titles render with
+DejaVu TTF fonts and there is NO WMCreateFont/XftFontOpen hang (the 2026-06-26 fix
++ the staged `phxfile:` font DBs are confirmed correct). Window Maker — a full
+desktop environment (dock, menus, theming, multi-window management, GPU + video
+clients) — runs on the Phoenix Pi4 X11 stack. Artifact:
+artifacts/hdmi/20260811-005120-wmaker-tick.png. Status: **BUILT + HW-VALIDATED.**

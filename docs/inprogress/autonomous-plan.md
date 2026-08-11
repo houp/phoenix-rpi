@@ -132,7 +132,7 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
 
 ## Pi lock
 
-- **IN USE integration-validation 2026-08-11** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
+- **FREE** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
   Netboot game tests are now RELIABLE — the harness (psh-interact.py) waits for the NFS
   "registered / (takeover)" line before sending commands (#156 fix). No ls-warm needed.
 
@@ -443,6 +443,21 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-11 (★ HW-VALIDATION of the accumulated driver review fixes — netboot cycle PASSED, no regression). After
+~18 build-validated-only driver commits over the review pass (many to boot-critical vcmbox), ran ONE consolidated
+netboot integration cycle (label integ-validate). Result — clean:
+- **Boot reached psh** (NFS root takeover complete) → all plo-launched changed drivers (vcmbox, thermal, hwrng, fb,
+  gpio) started without faulting the boot.
+- **`cat /dev/thermal` → 34525** (34.5 °C, valid). KEY: this read traverses thermal → **libvcmbox → VideoCore
+  mailbox → firmware → back**, so it exercises the full mailbox round-trip with the H1 >4GB-PA guard + M2 valBufSize
+  validation + L3 Normal-NC/Device DSB barriers all in place → all three vcmbox changes CONFIRMED working on real HW
+  (previously build-validated only). The thermal read-path rewrite (scratch + offset-slice) returns a clean value +
+  cat terminates on the EOF second read.
+- **`cat /dev/throttled` → 0x00000000** (valid); **`cat /dev/gpio`** → full register snapshot prints (gpio
+  snprintf-clamp intact).
+No regression from the 15-fix review pass. The netboot env is confirmed working/"always ready". Pi lock released.
+Remaining open work is the risky/large items (A1 upstream kernel sync) or owner-judgment cleanups (ipcprobe/sysinfo).
 
 2026-08-11 (vcmbox L3 barrier FIXED + shipped; final code-review round on the remaining small drivers started).
 - **vcmbox L3 (DSB ordering) — DONE + shipped (devices 432db4c).** The deferred upstreamability item: the bounce

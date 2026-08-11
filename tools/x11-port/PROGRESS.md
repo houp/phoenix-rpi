@@ -415,3 +415,17 @@ the Phoenix Pi4 stack (a managed windowed desktop). Artifact:
 artifacts/hdmi/20260811-004116-twm-tick.png. (Root paints black rather than the
 doc's expected slategrey — a cosmetic twm root default, not a failure.) The
 Task-3 keyboard readiness is also confirmed (the SUCCESS `keyboard active` form).
+
+## ★★ xterm HW-VALIDATED 2026-08-11 — interactive windowed shell on the desktop
+
+`/bin/startx xterm` on netboot HW, 0 faults. **HDMI: an xterm window with a LIVE
+shell** — "BusyBox v1.27.2 (2026-08-05) built-in shell (ash) / Enter 'help' ..." +
+the `~ #` prompt and cursor. So the full SVR4 pty path works end-to-end: xterm
+opens the master via `/dev/ptmx`, forks, the child opens the matching
+`/dev/pts/N` slave (ptsname+open) and exec's `/bin/sh` (busybox ash), and the
+shell's output renders in the terminal via the pty. This is the first INTERACTIVE
+X11 client on the Phoenix Pi4 stack — the windowed desktop (twm/wmaker) is now a
+usable environment (a real terminal). posixsrv provides the ptys; /bin/sh is the
+staged busybox ash. Artifact: artifacts/hdmi/20260811-014109-xterm-tick.png.
+Status: BUILT + HW-VALIDATED. (Note: the twm-doc "no xterm on the export" line was
+stale — xterm has been staged to /bin/xterm since 2026-08-06.)

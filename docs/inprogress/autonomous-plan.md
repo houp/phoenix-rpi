@@ -444,6 +444,16 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-11 (★★ X11 INTERACTIVE TERMINAL — xterm + live shell HW-validated; the desktop is now usable). Made the X11
+desktop interactive: `/bin/startx xterm` → HDMI shows an xterm window running a LIVE BusyBox ash shell ("BusyBox
+v1.27.2 built-in shell (ash)" + the `~ #` prompt/cursor), 0 faults. The full SVR4 pty path works: xterm opens
+/dev/ptmx (master) → fork → child opens /dev/pts/N (slave, ptsname+open) → exec /bin/sh (busybox ash) → shell output
+renders via the pty. First INTERACTIVE X11 client on the Phoenix stack — combined with wmaker/twm, the windowed
+desktop is now a usable environment with a real terminal. posixsrv provides the ptys. (xterm was staged since 08-06
+but never HW-validated; the twm-doc "no xterm" note was stale.) Artifact: 20260811-014109-xterm-tick.png. PROGRESS.md
+updated. NEXT: fresh task — more desktop apps, XFce-proper (GTK, large), perf/NFS, or another open area.
+
+--- prior heartbeat note ---
 2026-08-11 (★★★ X11 DESKTOP — Window Maker (a full DE) HW-validated on Phoenix + twm; big step toward XFce). Two X11
 wins this heartbeat. (1) twm HW-validated (first WM: xeyes in a twm titlebar, kbd+mouse active, 0 faults). (2) ★★
 WINDOW MAKER renders a FULL desktop: `/bin/startx wmaker` → GNUstep root + dock + workspace clip + the ROOT MENU open

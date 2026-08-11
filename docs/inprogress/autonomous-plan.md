@@ -444,6 +444,18 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-11 (vcmbox L3 barrier FIXED + shipped; final code-review round on the remaining small drivers started).
+- **vcmbox L3 (DSB ordering) — DONE + shipped (devices 432db4c).** The deferred upstreamability item: the bounce
+  buffer is Normal-NC and the doorbell is Device, which ARM may reorder → added "dsb sy" after the buffer fill/before
+  the doorbell store and after the response surfaces/before reading the buffer, matching the sibling BCM2711 xhci
+  idiom (grep-confirmed: xhci uses `__asm__ volatile("dsb sy" ::: "memory")`). Correct-by-construction (a barrier
+  can't change functional behavior; HW-masked today), build-validated (--scope core). vcmbox L4 (stale-echo token)
+  remains a noted low-probability item.
+- **Final review round STARTED:** launched a subagent on the last unreviewed Pi4 drivers/tools — rpi4-hwrng,
+  rpi4-gpio, rpi4-klogd, rpi4-ipcprobe, rpi4-sysinfo — for the recurring bug classes (read-count over-report,
+  unbounded spins, ioctl bounds) AND a keep-vs-remove verdict for the diagnostic-looking ones (ipcprobe/sysinfo).
+  Will apply verified findings + ship. IN PROGRESS (agent running).
+
 2026-08-11 (code-review pass — owner directive #2 — vcmbox/fb/thermal: 4 FIXES SHIPPED to org, devices
 8c0170c..aa21a19). 3 parallel review subagents on the remaining unreviewed Pi4 drivers, chasing the recurring
 mailbox bug class. The shared mailbox lib was the high-leverage target and it had the recurring bug:

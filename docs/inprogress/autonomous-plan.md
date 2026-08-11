@@ -444,6 +444,19 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-12 (RAM-staging feature HANDOFF doc + backlog re-check). Flagship RAM-staging is done+rigorous; wrote a
+concise usage/handoff reference **docs/inprogress/2026-08-12-ram-staging-loadtime.md** (the why + measured numbers
+Q1 3.6× / Q2 renders / Q3 5.49×, per-game `ram-stage-play` recipes, the 256 MiB /tmp RAM-disk, gotchas, extensions) —
+the board Last-progress is a chronological log, not an actionable usage guide, so the owner can now find+use+extend
+the feature from one doc. **Backlog re-check (per heartbeat protocol):** confirmed A1 Batch 1+2 already
+MERGED+BOOT-VERIFIED+PUSHED (manifest 2026-08-04-a1-batch2-done) — only Batch 3 (kernel/libphoenix/project) remains,
+OWNER-GATED (risky + needs merge tooling; git-siblings.sh is read-only + unattended can't approve fetch/merge
+prompts). Game-port leftover diagnostics (11 YQ2DIAG prints in external/yquake2, Q3JIT-DIAG in external/quake3e) are
+ENTANGLED for unattended cleanup: external/* are pinned detached upstream clones (origin=upstream, gitignored by
+coord) with no clean fork to commit a removal to → defer to owner/attended. So the substantive backlog is genuinely
+done/owner-gated; remaining unattended-safe work = handoff/docs (this) + H1 archival. Cron expires 2026-08-15 →
+recreate ~Aug 14 (next heartbeats).
+
 2026-08-11 (Q3 A/B made RIGOROUS: fresh same-build NFS baseline CL_InitCGame **63.77 s** vs RAM **11.61 s** = **5.49×**).
 Ran `/usr/bin/quake3e +set fs_basepath /usr/share/quake3 +set fs_game demoq3 +map q3dm1` (NFS, no staging) → clean
 printed `CL_InitCGame: 63.77 seconds`, matching the historical ~64 s and confirming the ~5.5× vs the RAM run (11.61 s)

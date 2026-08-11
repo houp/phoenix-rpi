@@ -132,7 +132,7 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
 
 ## Pi lock
 
-- **IN USE tmpfs-enlarged-verify 2026-08-11** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
+- **FREE** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
   Netboot game tests are now RELIABLE — the harness (psh-interact.py) waits for the NFS
   "registered / (takeover)" line before sending commands (#156 fix). No ls-warm needed.
 
@@ -443,6 +443,19 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-11 (RAM-disk ENLARGED 32→256 MiB — unblocks RAM-staging the big games). Found the gate for scaling the
+proven RAM-staging workaround to Q2/Q3: **/tmp is a RAM-backed dummyfs capped at 32 MiB** (dummyfs
+DUMMYFS_SIZE_MAX default) — fit Quake1's 18 MiB pak but NOT Quake2 (50 MiB) / Quake3 (46 MiB). HW capacity test
+confirmed: write failed at 31.75 MiB (ENOSPC). **FIX (owner's "large RAM-disk", board-specific + idiomatic):** set
+`#define DUMMYFS_SIZE_MAX (256*1024*1024)` in the rpi4b board_config.h (dummyfs_internal.h #includes it + honors the
+override) — a per-instance cap that grows on demand, so it reserves no RAM. project fa84866 (pushed org). Built
+--scope core (Verification OK) → **HW-VERIFIED: /tmp now holds 255.5 MiB** (write failed at 267911168 B), and
+writing 255 MiB caused no OOM/instability. The RAM-disk is now 8× larger, comfortably holding Q2+Q3 with margin.
+**NEXT:** stage Q2 (yquake2 `+set basedir /tmp/q2`, data /usr/share/quake2/baseq2 50 MiB) and/or Q3 (quake3e
+`+set fs_basepath`, demoq3 46 MiB) to the enlarged /tmp + A/B their load NFS-vs-RAM — the DRAMATIC-win case (these
+are the ~64–312 s slow loaders). Note yquake2 already honors `-datadir`/`+set basedir` (no port change needed);
+Q3 uses `+set fs_basepath`. Pi lock freed.
 
 2026-08-11 (★★★ END-TO-END CONFIRMED: a real game (quakespasm Q1) loads ~3.6× faster from RAM-staged assets — the
 owner's RAM-staging workaround, wired into the flagship game + measured on HW). Wired the workaround into the Q1 port

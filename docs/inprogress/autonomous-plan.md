@@ -132,7 +132,7 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
 
 ## Pi lock
 
-- **IN USE ram-loadbench 2026-08-11** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
+- **FREE** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
   Netboot game tests are now RELIABLE — the harness (psh-interact.py) waits for the NFS
   "registered / (takeover)" line before sending commands (#156 fix). No ls-warm needed.
 
@@ -443,6 +443,24 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-11 (★★★ END-TO-END CONFIRMED: a real game (quakespasm Q1) loads ~3.6× faster from RAM-staged assets — the
+owner's RAM-staging workaround, wired into the flagship game + measured on HW). Wired the workaround into the Q1 port
+(quakespasm-port caf77ca): wait_for_gamedata() now probes RAM tmpfs paths (/ramtmp/quake, /tmp/quake) BEFORE the FHS
+NFS dir, honors an explicit `-basedir <dir>`, and prints `LOAD-TIME main->Host_Init` (with a `-loadbench` exit hook so
+one Pi cycle can A/B two basedirs). Rebuilt (67/67 TUs) + staged. **HW A/B (id1 staged to /tmp/quake via nfs-bench
+`stage`, 18 MiB in 2.25 s):**
+- **NFS basedir: LOAD-TIME = 3.843 s** (basedir=/usr/share/quake)
+- **RAM basedir: LOAD-TIME = 1.063 s** (basedir=/tmp/quake)
+- **→ ~3.6× faster load from RAM.** Q1 is I/O-LIGHT (its load is ~1–4 s), so the slow loaders (Q2 ~312 s, Q3 ~64 s)
+  stand to benefit far more. Resolves the advisor's caveat: real game load IS I/O-bound → RAM-staging is the right lever.
+  (Honest confound: the RAM run ran 2nd so its binary exec-pages were warm-cached → 3.6× is an upper bound on the pure
+  pak-data effect; but exec-paging to Host_Init is lazy/small, so the pak-data delta dominates.)
+GOTCHA recorded: **/ramtmp does NOT survive the NFS-root takeover** (pre-takeover mount point, absent on the NFS root);
+**/tmp is the RAM path that survives** (tmpfs re-bound during takeover) — stage games to /tmp. The `cp` stall remains
+cp-specific (nfs-bench `stage` copies fine). **NEXT:** apply the same RAM-basedir wiring to the SLOW loaders — yQuake2
+(`+set basedir`) and quake3e (`+set fs_basepath`) — stage their data to /tmp + A/B; then a boot-time auto-stage of the
+active game's assets to /tmp so it's transparent. Pi lock freed.
 
 2026-08-11 (RAM-staging INFRASTRUCTURE validated end-to-end; game-wiring gap found). Booted clean; ran the
 stage-and-play cycle:

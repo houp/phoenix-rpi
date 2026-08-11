@@ -444,12 +444,30 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
-2026-08-11 (code-review pass CONTINUES — owner directive #2 — extended to the WiFi/BT/audio drivers). Last heartbeat's
-SDL-backend review shipped 3 real fixes; continuing the proven pattern on the freshest, most-complex, upstream-facing
-sources/ additions: launched 3 parallel review subagents on rpi4-wifi (3158 lines — SDIO/firmware/BCDC/escan/join),
-rpi4-hci (778 — HCI/patchram over UART), rpi4-audio (500 — PWM/DMA). Focus = real correctness bugs (device/AP-supplied
-length overruns, blob-load size math, endianness, resource leaks, error paths). Will apply verified findings +
-build-validate + ship to org, same as the SDL fixes. IN PROGRESS this heartbeat (agents running).
+2026-08-11 (code-review pass — owner directive #2 — WiFi/BT/audio drivers: 5 FIXES SHIPPED to org, devices
+454d449..4840503). Ran 3 parallel review subagents on the freshest upstream-facing sources/ additions. **Headline:
+NO memory-corruption bugs anywhere** — the security-critical WiFi parse surface (BCDC/escan/IE/SSID/blob-load) and
+the BT HCI framing are bounded + correct (verified, not assumed). Shipped fixes (all real bugs, cold/rare paths, hot
+path unchanged, build-validated):
+  - **rpi4-audio (c75b24a):** (a) MEDIUM — 1 GB DMA-reachability guard checked only each buffer's *base* PA, not
+    base+size → a 64 KB ring straddling 1 GB would DMA its tail from the wrong (truncated low) alias = garbage into
+    the PWM FIFO; now checks the last byte. (b) LOW — partial-mmap leak on the PIO-fallback path. (--scope core: OK)
+  - **rpi4-wifi (70b5b34):** (a) MEDIUM — the 3 VideoCore mailbox spin-waits in diag_mboxPower had no deadline (unlike
+    the SDHCI 100000-caps) → a wedged mailbox hangs bring-up forever + /dev/wifi never registers; now bounded. (b)
+    LOW/MED — va2pa result truncated to uint32 for the mailbox request with only a -1 check; now rejects a >4 GiB PA.
+  - **rpi4-hci (4840503):** MEDIUM — mtRead returned 0 on an empty non-blocking read (0 == EOF to a POSIX/BlueZ HCI
+    client → it stops); now returns -EAGAIN. (wifi+hci build-validated via their build-standalone.sh, 0 warns/undef;
+    both re-staged into the NFS export.)
+  **DEFERRED (clear next tasks, need care/Pi-validation — NOT done):**
+  - **WiFi #1 (HIGH upstreamability): ~800 lines of dead diagnostic/telemetry code** in wifi_bringup() (the resolved
+    #91 fw-exec-gate investigation: g_trivial_mode/g_ioctl_mode are compile-time-0, whole report/probe blocks dead).
+    Per CLAUDE.md this is the top pre-publish WiFi cleanup, but it's a large delete that needs a WiFi-scan Pi-validation
+    (16-AP scan still works) — do it in a dedicated heartbeat.
+  - **HCI #1 (HIGH): fork readiness handshake is broken** — parent's fixed sleep(10) expires before the ~20s bring-up,
+    so it exits failure + the child's kill(getppid(),SIGUSR1) hits init every boot. Right fix = a pipe handshake
+    (or a bounded-but-sufficient timeout + capture the parent pid before fork); needs a BT bring-up Pi-cycle to verify.
+  - Minor hardening noted (not shipped): WiFi #4 length-add wrap guards, #5 bcdcCmd return min(plen,rxcap), #6 AP-SSID
+    terminal-escape sanitization; HCI #3 H4 framing/resync, #4 mini-UART baud vs core-clock scaling, #6 libvcmbox.
 
 2026-08-11 (NFS-perf analysis BANKED as complete + SDL-directive audit CONFIRMS it's DONE + code-review pass on the
 SDL backend). Advisor-guided. Two owner-priority threads audited to closure this heartbeat:

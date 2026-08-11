@@ -132,7 +132,7 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
 
 ## Pi lock
 
-- **IN USE q2-ram-load 2026-08-11** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
+- **FREE** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
   Netboot game tests are now RELIABLE — the harness (psh-interact.py) waits for the NFS
   "registered / (takeover)" line before sending commands (#156 fix). No ls-warm needed.
 
@@ -443,6 +443,21 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-11 (★★ BIG GAME (Quake2) RAM-STAGED + RENDERS from the enlarged RAM-disk — the enlargement validated
+end-to-end). Staged Q2 baseq2/pak0.pak (**47.64 MiB in 6.0 s**, 7.88 MiB/s) to the enlarged /tmp — a copy that would
+have FAILED at the old 32 MiB dummyfs cap — then ran `yquake2 +set basedir /tmp ... +map demo1` entirely from RAM.
+Result (UART + HDMI final snapshot 20260811-184259-q2-ram-load-final.png): **yquake2 loaded + RENDERED the full 3D
+demo1 "Outer Base" level from the RAM-staged assets** — V3D 4.2 GL, demo1.bsp + pics/models/images/sky loaded,
+textured walls/crates/Strogg-screen, weapon viewmodel, HUD (health 100), crosshair, 0 faults — WITHIN the 140 s
+capture window (vs the historical NFS load ~312 s). So the 256 MiB RAM-disk enlargement is validated for its purpose:
+**big-game (Q2/Q3-scale) asset RAM-staging works end-to-end.** Combined with the Q1 clean A/B (3.6×), the owner's
+RAM-staging load-time workaround is now PROVEN across a small (Q1) AND a big (Q2) game. **Honest:** the Q2 result is
+qualitative-plus-coarse (rendered within the window; a precise Q2 A/B number needs a load-time hook — yquake2's
+main() calls Qcommon_Init which never returns, so the hook is deeper in the engine than quakespasm's, deferred).
+**NEXT:** productize — a `stage-and-play` helper (mkdir + nfs-bench `stage` the game dir to /tmp + launch with the
+RAM basedir), and optionally a boot-time auto-stage of the active game; quake3e (`+set fs_basepath /tmp/q3`) same
+pattern. Pi lock freed.
 
 2026-08-11 (RAM-disk ENLARGED 32→256 MiB — unblocks RAM-staging the big games). Found the gate for scaling the
 proven RAM-staging workaround to Q2/Q3: **/tmp is a RAM-backed dummyfs capped at 32 MiB** (dummyfs

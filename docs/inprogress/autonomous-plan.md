@@ -444,6 +444,15 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-11 (code-review pass continues — owner directive #2 — mailbox/fb drivers). Both deferred HIGH items are
+closed; continuing the productive review-and-ship thread on the remaining unreviewed Pi4 drivers, chasing the
+RECURRING bug class the WiFi/audio reviews surfaced (unbounded VideoCore-mailbox spin-waits + 32-bit PA truncation).
+Launched 3 parallel review subagents: rpi4-vcmbox (libvcmbox — the SHARED mailbox lib, wide blast radius), rpi4-fb
+(/dev/fb0 — console/X11/SDL), rpi4-thermal (mailbox sensor). Will apply verified findings + build-validate + ship,
+same pattern as the SDL + WiFi/BT/audio fixes. (Decision: NOT pursuing WiFi Category-2 cleanup — last heartbeat's
+map showed those probes execute real SDIO I/O the author flagged as "part of the proven bring-up sequence", so they
+are effectively non-removable; the safe subset is already done.) IN PROGRESS (agents running).
+
 2026-08-11 (deferred-HIGH follow-through: HCI fork-handshake FIXED + shipped; WiFi dead-code cleanup started
 conservatively). Picking up the two HIGH items deferred last heartbeat.
 - **HCI #1 (fork readiness handshake) — FIXED + shipped (devices 674d04b, pushed org).** Advisor-steered: read the

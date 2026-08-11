@@ -33,6 +33,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <time.h>
 
 /* Shareware Quake needs far less than the upstream 256 MB default; use a modest
  * heap that Phoenix can reliably back, and memset it after malloc to force every
@@ -60,11 +61,28 @@ static const char *g_basedir = "/usr/share/quake";
  * libnfs first-read dircache ENOENT (#156): a later retry succeeds. */
 static void wait_for_gamedata(void)
 {
-	static const char *cands[] = { "/usr/share/quake", "/opt/quake", "/" };
+	/* RAM-staged tmpfs paths are probed FIRST (the load-time workaround): if id1/ has been
+	 * staged into a RAM fs — e.g. `nfs-read-bench <nfs>/id1/pak0.pak stage /ramtmp/quake/id1/
+	 * pak0.pak` — reads are ~20x faster than over NFS (measured: NFS random 4KiB 1.46 ms/read
+	 * vs tmpfs 0.07 ms/read). Falls through to the FHS NFS dir when nothing is staged, so this
+	 * is transparent + backward-compatible. */
+	static const char *dflt[] = { "/ramtmp/quake", "/tmp/quake", "/usr/share/quake", "/opt/quake", "/" };
+	const char *forced[1];
+	const char **cands = dflt;
+	int ncands = (int)(sizeof(dflt) / sizeof(dflt[0]));
 	char path[80];
-	int i, c;
+	int i, c, bp;
+
+	/* An explicit `-basedir <dir>` wins over the search (point at a specific RAM stage, or
+	 * force the NFS path for an A/B load benchmark). */
+	bp = COM_CheckParm("-basedir");
+	if (bp != 0 && bp + 1 < com_argc) {
+		forced[0] = com_argv[bp + 1];
+		cands = forced;
+		ncands = 1;
+	}
 	for (i = 0; i < 360; i++) {     /* ~180 s — NFS mount + DHCP can be slow/variable (#156) */
-		for (c = 0; c < (int)(sizeof(cands) / sizeof(cands[0])); c++) {
+		for (c = 0; c < ncands; c++) {
 			FILE *f;
 			snprintf(path, sizeof(path), "%s/id1/pak0.pak", cands[c]);
 			f = fopen(path, "rb");
@@ -92,6 +110,7 @@ void PL_SetWindowIcon(void) {}
 int main(int argc, char *argv[])
 {
 	double time, oldtime, newtime;
+	struct timespec qs_t0;
 
 	/* LINE-buffered stdout: each printf line is written to the shared UART console in one
 	 * write() instead of per character, so our log lines no longer interleave character-by-
@@ -101,6 +120,7 @@ int main(int argc, char *argv[])
 	static char qs_stdout_buf[2048];
 	setvbuf(stdout, qs_stdout_buf, _IOLBF, sizeof(qs_stdout_buf));
 	setvbuf(stderr, NULL, _IONBF, 0);
+	clock_gettime(CLOCK_MONOTONIC, &qs_t0);
 	printf("quakespasm: main() entered (argc=%d)\n", argc);
 
 #ifdef QDET_EXECPROBE
@@ -161,6 +181,21 @@ int main(int argc, char *argv[])
 
 	Sys_Printf("Host_Init\n");
 	Host_Init();
+
+	/* Load-time telemetry (main entry -> game data fully loaded), and an A/B benchmark hook:
+	 * with `-loadbench` the process exits right after load instead of entering the render loop,
+	 * so a single Pi cycle can time the load from two basedirs back-to-back (e.g. a RAM stage vs
+	 * the NFS path) without a rendering game blocking the second run. */
+	{
+		struct timespec qs_t1;
+		clock_gettime(CLOCK_MONOTONIC, &qs_t1);
+		double load_s = (double)(qs_t1.tv_sec - qs_t0.tv_sec) + (double)(qs_t1.tv_nsec - qs_t0.tv_nsec) / 1e9;
+		Sys_Printf("quakespasm: LOAD-TIME main->Host_Init = %.3f s (basedir=%s)\n", load_s, g_basedir);
+		if (COM_CheckParm("-loadbench") != 0) {
+			Sys_Printf("quakespasm: -loadbench set -> exiting after load\n");
+			exit(0);
+		}
+	}
 
 	/* Force the classic per-vertex water warp. r_oldwater defaults to 1 in this port
 	 * (the modern warpimage path needs glCopyTexSubImage2D, unimplemented on V3D ->

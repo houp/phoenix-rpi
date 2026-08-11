@@ -444,7 +444,17 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
-2026-08-11 (★★ X11 INTERACTIVE TERMINAL — xterm + live shell HW-validated; the desktop is now usable). Made the X11
+2026-08-11 (CORRECTION — the recent X11 "wins" are RE-CONFIRMATIONS of June work, not firsts). Reading the full
+[[project_x11_lib_port]] memory: twm (2026-06-25), Window Maker (2026-06-26/28 "fully working on nfsroot"), and xterm
++ live BusyBox shell (2026-06-26) were ALL HW-proven back in June. The tools/x11-port DOCS were stale ("not yet
+HW-validated"), which is what I went off — so my last-two-heartbeats framing of these as "first WM / first interactive
+client" was WRONG. What my recent cycles actually did (still valuable): RE-CONFIRMED the twm/wmaker/xterm desktop still
+renders on the CURRENT build after ~2 months of kernel/lib/port churn (a real regression check — it could have
+regressed; it didn't), and reconciled the stale port docs with reality. LESSON: read the full area MEMORY file (not
+just the MEMORY.md index) before assuming novelty. The X11 desktop (WMs + terminal + GPU/video clients) is a
+June-established capability, re-verified good today.
+
+2026-08-11 (X11 re-verify — xterm + live shell confirmed on current build). Made the X11
 desktop interactive: `/bin/startx xterm` → HDMI shows an xterm window running a LIVE BusyBox ash shell ("BusyBox
 v1.27.2 built-in shell (ash)" + the `~ #` prompt/cursor), 0 faults. The full SVR4 pty path works: xterm opens
 /dev/ptmx (master) → fork → child opens /dev/pts/N (slave, ptsname+open) → exec /bin/sh (busybox ash) → shell output

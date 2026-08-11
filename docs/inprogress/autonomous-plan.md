@@ -132,7 +132,7 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
 
 ## Pi lock
 
-- **IN USE q3-ram-stage-play 2026-08-11** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
+- **FREE** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
   Netboot game tests are now RELIABLE — the harness (psh-interact.py) waits for the NFS
   "registered / (takeover)" line before sending commands (#156 fix). No ls-warm needed.
 
@@ -443,6 +443,20 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-11 (★★★ RAM-staging COMPLETE ACROSS ALL 3 QUAKE GAMES — Q3 via ram-stage-play, ~5.5× faster CL_InitCGame).
+(Note: A1 upstream sync is tooling-BLOCKED unattended — git-siblings.sh is read-only, refuses fetch/rev-list, and
+sibling fetch/merge isn't allowlisted; A1 belongs to when the owner can set up merge tooling. Pivoted to completing
+the RAM-staging story.) Ran `ram-stage-play /usr/share/quake3/demoq3 /tmp/demoq3 /usr/bin/quake3e +set fs_basepath
+/tmp +set fs_game demoq3 +map q3dm1`: **staged demoq3 (5 files, 45.77 MiB) to RAM in 6.5 s, auto-launched quake3e,
+which loaded + RENDERED q3dm1 ("Arena Gate") fullscreen from the RAM-staged assets** (V3D 4.2 GL; all 3 VMs
+qagame/ui/cgame compiled; q3dm1.aas + map loaded; HDMI 20260811-203917-q3-ram-stage-play-final.png = the gothic red
+arena w/ statues, HUD 100/100, 0 faults). **Clean load number: `CL_InitCGame: 11.61 s` from RAM** vs the historical
+NFS ~64 s ([[project_quake3_port]]) → **~5.5× faster** (quake3e PRINTS CL_InitCGame, so a rigorous same-build NFS A/B
+is a trivial follow-up). So `ram-stage-play` is validated on Q2 (`+set basedir`) AND Q3 (`+set fs_basepath`) — it
+GENERALIZES. **The RAM-staging load-time workaround is now COMPLETE across all 3 Quake games: Q1 quakespasm 3.6× (A/B),
+Q2 yquake2 (renders gameplay from RAM), Q3 quake3e ~5.5× (CL_InitCGame). Proven + scaled (256 MiB /tmp) + productized
+(ram-stage-play) + generalized.** Pi lock freed. (Cron expires 2026-08-15 — within ~1 day next heartbeat → recreate then.)
 
 2026-08-11 (★★ RAM-staging PRODUCTIZED — `ram-stage-play` one-command helper, HW-validated on full Quake2). Built
 tools/ram-stage/ram-stage-play.c (coord 6ba8165): recursively copies a game's asset tree NFS→tmpfs then execv's the

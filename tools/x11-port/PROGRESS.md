@@ -403,3 +403,15 @@ the 36-archive client/render/font foundation above is the delivered, de-risked m
 - `dlopen`/`dlfcn.h` absent → static-link kdrive only (no loadable DDX/modules).
 - `mmap(fd,0)` of `/dev/fb0` gives a private copy, not the live FB → the server must
   use a shadow framebuffer + `write()`-blit to `/dev/fb0` (kdrive shadow-FB layer).
+
+## ★ twm HW-VALIDATED 2026-08-11 — first window manager on Phoenix
+
+`/bin/startx desktop` (Xphoenix + twm + xeyes) on netboot HW: UART shows
+`starting client[0]: /bin/twm` + `client[1]: /bin/xeyes`, `/dev/kbd0 ... keyboard
+active`, `/dev/mouse0 ... mouse active`, 0 faults. **HDMI: xeyes wrapped in a twm
+title bar** (teal titlebar "xeyes" + twm iconify/resize corner buttons) — twm is
+decorating + managing the client window. The first X11 window manager running on
+the Phoenix Pi4 stack (a managed windowed desktop). Artifact:
+artifacts/hdmi/20260811-004116-twm-tick.png. (Root paints black rather than the
+doc's expected slategrey — a cosmetic twm root default, not a failure.) The
+Task-3 keyboard readiness is also confirmed (the SUCCESS `keyboard active` form).

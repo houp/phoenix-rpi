@@ -444,6 +444,16 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-11 (★ X11 WINDOW MANAGER — twm HW-validated, first WM on Phoenix; toward XFce). Diversified into the X11/XFce
+area. Found prior WM-port work (twm built+staged, wmaker built+staged with a candidate font-hang fix, all X libs
+ported: libXt/Xmu/Xext/Xaw/ICE/SM). HW-validated twm: `/bin/startx desktop` (Xphoenix + twm + xeyes) → UART shows
+both clients start + /dev/kbd0 keyboard active + /dev/mouse0 mouse active, 0 faults; HDMI shows xeyes wrapped in a twm
+title bar ("xeyes" + iconify/resize corner buttons) — twm is DECORATING + MANAGING the client window. First X11
+window manager running on the Phoenix Pi4 stack = a managed windowed desktop (step toward XFce). Artifact
+20260811-004116-twm-tick.png; PROGRESS.md updated. NEXT: attempt wmaker (Window Maker, the richer dock WM — staged
+with an unconfirmed direct-TTF font-hang bypass; this HDMI grab is fully discriminating per WMAKER-PORT-STATUS.md).
+
+--- prior heartbeat note ---
 2026-08-11 (★★★ SDL CONSOLIDATION COMPLETE — all 3 Quake ports run on the ported SDL2, no per-game shims). Owner's
 directive: "refactor ALL Quake ports (1/2/3) to use the SDL port instead of per-game shims." Status now: Q2 (yQuake2)
 + Q3 (quake3e) already link the real libSDL2.a + stock SDL2 backends; Q1 quakespasm had an SDL variant

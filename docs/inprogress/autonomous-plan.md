@@ -467,11 +467,20 @@ SDL backend). Advisor-guided. Two owner-priority threads audited to closure this
   RESOLVED (fix e498158 window-event emission + `-noglslgamma -notexturenpot -nopackedpixels` diag). Only vkQuake still
   uses the quakespasm sdl-shim HEADERS (Vulkan WSI — real SDL port has no V3DV WSI). Remaining = the board's noted
   "retire redundant flagship shims (future cleanup)". The SDL backend scan found NO debug/TODO/dead-code markers.
-- **Owner directive #2 (code-review pass on recent additions) — STARTED:** launched a code-review subagent on the SDL
-  phoenix backend (freshest flagship sources/ addition, pre-publication) for correctness/lifecycle/leftover-diagnostic
-  issues; will apply verified findings + commit. Honest maturity note: the tractable SAFE backlog is genuinely drained
-  (SDL done today; NFS banked; backend clean) — remaining owner items are hard/risky (RAM-staging, A1 kernel sync) or
-  blocked (vkQuake WSI). Core build unchanged (no core edits this heartbeat).
+- **Owner directive #2 (code-review pass on recent additions) — DONE + 3 FIXES SHIPPED (ports 94ee607, pushed org).**
+  A code-review subagent audited the flagship SDL2 phoenix backend (freshest pre-publication sources/ addition);
+  primary-source-verified the recent window-event fix (e498158) is correct vs SDL 2.30.12 core (cannot regress), and
+  found 3 concrete upstream-readiness bugs, all on cold/error paths (hot path unchanged → no Pi behavior change):
+  (1) **opengl**: `PHOENIX_GL_CreateContext` set `gl_created=1` before the token SDL_malloc → on alloc failure it
+  returned NULL but left an orphaned Mesa context, wedging every later CreateContext + leaking; now allocates the
+  token FIRST + frees it on phxgl_init failure. (2) **events**: bounded the lazy `open("/dev/mouse0")` with a
+  per-device try counter (was an unbounded per-frame syscall when no mouse present; keyboard was already bounded).
+  (3) **video**: guarded the uint64→uint32 truncation of the fb0 scanout PA handed to the 32-bit V3D winsys (Pi4 PA
+  is <4 GiB today so no bits lost, but silent truncation could corrupt a future >4 GiB PA → now headless-fallback).
+  **Build-validated**: libSDL2.a rebuilds clean (Built target SDL2-static, new guard string present in the .a). Pi
+  no-regression smoke is low-risk-owed (all 3 are hot-path-neutral on real HW). This is the concrete shipped change
+  this heartbeat. Honest maturity note: the tractable SAFE backlog is genuinely drained (SDL done today; NFS banked)
+  — remaining owner items are hard/risky (RAM-staging, A1 kernel sync) or blocked (vkQuake WSI). No core edits.
 
 2026-08-11 (DECISION: PIVOT from the GIO/GTK slog + fixed 2 general libc header bugs it surfaced). Made the gio
 port-vs-pivot call with evidence: the GTK/XFce-via-GTK path needs glib's gio (large: GSocket/GFile/GApplication/GDBus,

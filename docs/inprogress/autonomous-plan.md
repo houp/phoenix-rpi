@@ -132,7 +132,7 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
 
 ## Pi lock
 
-- **IN USE nfs-vs-ram-retry 2026-08-11** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
+- **FREE** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
   Netboot game tests are now RELIABLE — the harness (psh-interact.py) waits for the NFS
   "registered / (takeover)" line before sending commands (#156 fix). No ls-warm needed.
 
@@ -443,6 +443,22 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-11 (★★ NFS-vs-RAM experiment COMPLETE — RAM-staging quantified at ~20× per scattered read). Retry booted
+clean (last cycle's start4.elf loop was transient). Definitive side-by-side (2000×4 KiB random reads):
+- **NFS random 4 KiB: 1.456 ms/read** (687 reads/s, 2.68 MiB/s) — a network round-trip each.
+- **RAM/tmpfs random 4 KiB: 0.071 ms/read** (14,025 reads/s), after staging 8 MiB in 0.034 s (234 MiB/s tmpfs write).
+- **→ ~20× faster scattered reads from RAM.** (Note tmpfs read isn't raw memcpy — it's a userspace-fs msg round-trip,
+  ~71 µs — but still 20× under NFS's ~1.46 ms.) Bulk is even wider: tmpfs ~234 MiB/s vs NFS ~8 MiB/s cable cap ≈ 29×.
+**Conclusion (data-backed): the owner's RAM-staging workaround is worth building.** NFS is the bottleneck for BOTH
+access patterns (cable-capped bulk + high-latency scattered); staging to tmpfs is ~20–29× faster after a cheap
+one-time bulk stage (~2.2 s / 18 MiB). This retires my wrong "cable-capped → nothing to do" framing with numbers.
+**Caveat (honest):** measured on a synthetic 2000-random-read pattern; a REAL game load being read-latency-bound
+(vs render/exec-paging-bound) is inferred, not yet confirmed end-to-end. **NEXT (teed up):** (a) a reliable
+NFS→tmpfs stage primitive — the shell `cp` silently stalled on the 18 MiB NFS→/tmp copy (mkrand's own tmpfs write is
+fine at 234 MiB/s, so the stall is in cp's NFS-read+tmpfs-write loop, not tmpfs) → add a `stage` mode to nfs-bench;
+(b) then stage a game (id1) to /tmp and time quakespasm-sdl load NFS-vs-RAM end-to-end; (c) if confirmed, boot-time
+asset RAM-staging. Pi lock freed.
 
 2026-08-11 (★ NFS LOAD-LATENCY EXPERIMENT — corrects my earlier wrong "cable-capped, banked" NFS dismissal).
 Advisor caught a real analytical error + avoidance pattern: I'd banked NFS perf as "cable-capped ~12.5 MB/s" and

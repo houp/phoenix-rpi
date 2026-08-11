@@ -132,7 +132,7 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
 
 ## Pi lock
 
-- **IN USE nfs-latency-experiment 2026-08-11** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
+- **FREE** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
   Netboot game tests are now RELIABLE — the harness (psh-interact.py) waits for the NFS
   "registered / (takeover)" line before sending commands (#156 fix). No ls-warm needed.
 
@@ -443,6 +443,26 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-11 (★ NFS LOAD-LATENCY EXPERIMENT — corrects my earlier wrong "cable-capped, banked" NFS dismissal).
+Advisor caught a real analytical error + avoidance pattern: I'd banked NFS perf as "cable-capped ~12.5 MB/s" and
+moved on, but **bulk bandwidth is IRRELEVANT to game-LOAD time**, which is dominated by many small/scattered reads =
+per-RPC LATENCY (exactly what the owner's RAM-staging workaround attacks, and what the owner meant by "100Mbps was
+FAST… these apps should cope"). Ran the bounded experiment instead of asserting. Added a `rand` mode (scattered
+small reads) to tools/nfs-bench/nfs-read-bench.c (+ `mkrand` self-staging RAM counterpart), committed f750f7b/d5bead5.
+**MEASURED on HW (netboot, id1/pak0.pak 18 MiB):**
+- NFS bulk sequential (256 KiB chunks): **8.19 MiB/s** (the known cable cap).
+- NFS random 4 KiB reads (2000): **1.457 ms/read** = 686 reads/s = 2.68 MiB/s.
+So scattered small reads cost ~1.5 ms EACH (a network round-trip), latency-bound and NOT improved by the bandwidth
+cap — direct evidence the "cable-capped → nothing to do" conclusion was WRONG for load time. A game doing thousands
+of scattered asset reads pays thousands × ~1.5 ms over NFS; from RAM (tmpfs = memcpy) those are ~µs. Staging cost is
+cheap: ~bulk time (18 MiB ≈ 2.2 s; a 50 MiB Q2 set ≈ 6 s) one-time, then RAM-speed access → the owner's RAM-staging
+workaround is well-supported. **NOT yet captured (teed up, tool ready):** (a) the RAM-side `mkrand` number — first
+blocked by `cp` NFS→/tmp silently not completing in-window, then a transient netboot `start4.elf` TFTP boot-loop
+(firmware-level, pre-Phoenix, NOT my code — 2 prior cycles booted clean); (b) a real game-load-from-RAM vs from-NFS
+end-to-end timing. Next heartbeat: retry the clean RAM `mkrand` measurement + a real quakespasm-sdl load NFS-vs-RAM,
+then (if confirmed) build boot-time RAM-staging of assets. Honest: the LATENCY dimension is proven; the RAM delta is
+physics-inferred but not yet end-to-end-measured. Pi lock freed.
 
 2026-08-11 (★ HW-VALIDATION of the accumulated driver review fixes — netboot cycle PASSED, no regression). After
 ~18 build-validated-only driver commits over the review pass (many to boot-critical vcmbox), ran ONE consolidated

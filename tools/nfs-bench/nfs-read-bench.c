@@ -233,12 +233,79 @@ static int mode_mkrand(const char *path, size_t sizeMb, size_t chunk, unsigned l
 	return mode_rand(path, chunk, nreads);
 }
 
+/* stage mode: copy <src> (typically NFS) to <dst> (typically a /tmp tmpfs = RAM)
+ * in 256 KiB chunks, reporting the one-time staging cost. A reliable replacement
+ * for the shell `cp`, which silently stalled on an 18 MiB NFS->/tmp copy — this
+ * also DIAGNOSES that stall (mkrand's tmpfs-only write is fine at ~234 MiB/s, so if
+ * this NFS-read + tmpfs-write loop also stalls, the bug is in that combination, not
+ * tmpfs). It is the staging primitive for the RAM-staging load-time workaround. */
+static int mode_stage(const char *src, const char *dst)
+{
+	int sfd = open(src, O_RDONLY);
+	if (sfd < 0) {
+		printf("nfs-bench: open src '%s' failed: %s\n", src, strerror(errno));
+		return 2;
+	}
+	int dfd = open(dst, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	if (dfd < 0) {
+		printf("nfs-bench: open dst '%s' failed: %s\n", dst, strerror(errno));
+		close(sfd);
+		return 2;
+	}
+	size_t bufsz = 256u * 1024u;
+	char *buf = malloc(bufsz);
+	if (buf == NULL) {
+		printf("nfs-bench: OOM\n");
+		close(sfd);
+		close(dfd);
+		return 3;
+	}
+	struct timespec t0, t1;
+	unsigned long long total = 0;
+	int rc = 0;
+	clock_gettime(CLOCK_MONOTONIC, &t0);
+	for (;;) {
+		ssize_t off = 0;
+		ssize_t n = read(sfd, buf, bufsz);
+		if (n < 0) {
+			printf("nfs-bench: read src failed after %llu B: %s\n", total, strerror(errno));
+			rc = 4;
+			break;
+		}
+		if (n == 0) {
+			break;
+		}
+		while (off < n) {
+			ssize_t w = write(dfd, buf + off, (size_t)(n - off));
+			if (w < 0) {
+				printf("nfs-bench: write dst failed after %llu B: %s\n", total, strerror(errno));
+				rc = 5;
+				break;
+			}
+			off += w;
+		}
+		if (rc != 0) {
+			break;
+		}
+		total += (unsigned long long)n;
+	}
+	clock_gettime(CLOCK_MONOTONIC, &t1);
+	free(buf);
+	close(sfd);
+	close(dfd);
+	double secs = (double)(t1.tv_sec - t0.tv_sec) + (double)(t1.tv_nsec - t0.tv_nsec) / 1e9;
+	double mib = (double)total / (1024.0 * 1024.0);
+	printf("nfs-bench: mode=stage %s -> %s bytes=%llu (%.2f MiB) time=%.3f s -> %.2f MiB/s\n",
+	       src, dst, total, mib, secs, (secs > 0.0) ? (mib / secs) : 0.0);
+	return rc;
+}
+
 int main(int argc, char **argv)
 {
 	setvbuf(stdout, NULL, _IONBF, 0);
 
 	if (argc < 2) {
-		printf("usage: nfs-read-bench <path> [read <chunk_kib> | mmap | rand <chunk_b> <nreads> | mkrand <size_mb> <chunk_b> <nreads>]\n");
+		printf("usage: nfs-read-bench <path> [read <chunk_kib> | mmap | rand <chunk_b> <nreads> | mkrand <size_mb> <chunk_b> <nreads> | stage <dst>]\n");
 		return 1;
 	}
 	const char *path = argv[1];
@@ -264,6 +331,14 @@ int main(int argc, char **argv)
 		if (mchunk < 1u)
 			mchunk = 4096u;
 		return mode_mkrand(path, smb, mchunk, mn);
+	}
+
+	if (strcmp(mode, "stage") == 0) {
+		if (argc < 4) {
+			printf("usage: nfs-read-bench <src> stage <dst>\n");
+			return 1;
+		}
+		return mode_stage(path, argv[3]);
 	}
 
 	/* read mode: optional chunk_kib as argv[2] (back-compat) or argv[3]. */

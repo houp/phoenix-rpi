@@ -444,14 +444,28 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
-2026-08-11 (code-review pass continues — owner directive #2 — mailbox/fb drivers). Both deferred HIGH items are
-closed; continuing the productive review-and-ship thread on the remaining unreviewed Pi4 drivers, chasing the
-RECURRING bug class the WiFi/audio reviews surfaced (unbounded VideoCore-mailbox spin-waits + 32-bit PA truncation).
-Launched 3 parallel review subagents: rpi4-vcmbox (libvcmbox — the SHARED mailbox lib, wide blast radius), rpi4-fb
-(/dev/fb0 — console/X11/SDL), rpi4-thermal (mailbox sensor). Will apply verified findings + build-validate + ship,
-same pattern as the SDL + WiFi/BT/audio fixes. (Decision: NOT pursuing WiFi Category-2 cleanup — last heartbeat's
-map showed those probes execute real SDIO I/O the author flagged as "part of the proven bring-up sequence", so they
-are effectively non-removable; the safe subset is already done.) IN PROGRESS (agents running).
+2026-08-11 (code-review pass — owner directive #2 — vcmbox/fb/thermal: 4 FIXES SHIPPED to org, devices
+8c0170c..aa21a19). 3 parallel review subagents on the remaining unreviewed Pi4 drivers, chasing the recurring
+mailbox bug class. The shared mailbox lib was the high-leverage target and it had the recurring bug:
+  - **rpi4-vcmbox (ec7f2ae) — HIGH + MEDIUM.** H1: vcmbox_init cast the va2pa'd bounce-buffer PA to uint32_t after
+    only a -1 check → on a 4/8 GB Pi 4 a MAP_CONTIGUOUS page above 4 GiB truncates silently, firmware gets a wrong
+    PA but the transaction still "matches" + reports success (same class as WiFi #3 / audio straddle; here in the
+    SHARED lib → protects thermal/fb/xhci/sdio). Now fails init loudly. M2: vcmbox_call validated nIn/nOut but not
+    valBufSize → an oversize request was silently capped + reported as success; now -EINVAL at the API boundary
+    (verified no valid caller trips it — all pass ≤48 B word-aligned).
+  - **rpi4-thermal (3b853f3) — MEDIUM.** mtRead returned snprintf's would-have-written length as the read count →
+    a small-buffer reader got a count past its buffer + a truncated value. Now renders to scratch + returns an
+    offset-sliced size-clamped count (the sibling rpi4-gpio pattern).
+  - **rpi4-fb (aa21a19) — LOW.** fb_write's comment said it rejects writes past the fb end but the code truncated +
+    returned a short count (the bug-masking behavior the comment warns against); now returns -ENOSPC. Normal
+    full-frame clients unaffected.
+  All build-validated (--scope core: Verification OK; vcmbox consumers xhci/sdio relinked clean). vcmbox spin-waits
+  (MBOX_SPINS cap), response validation, leaks, bounds all reviewed CLEAN. rpi4-fb otherwise clean (no VC mailbox —
+  geometry via syspage platformctl). **DEFERRED (vcmbox upstreamability, noted):** L3 add a DSB between the Normal-NC
+  buffer fill and the Device doorbell store (HW-masked today; wants the correct DSB primitive — considered pass);
+  L4 a monotonic token so a late/stale FIFO echo can't self-match on the retry path (low probability).
+  Cumulative code-review tally (owner #2): SDL 3 + WiFi/BT/audio 5 + HCI 1 + vcmbox/fb/thermal 4 = 13 upstream-
+  readiness fixes shipped; no memory-corruption bugs found in any reviewed driver.
 
 2026-08-11 (deferred-HIGH follow-through: HCI fork-handshake FIXED + shipped; WiFi dead-code cleanup started
 conservatively). Picking up the two HIGH items deferred last heartbeat.

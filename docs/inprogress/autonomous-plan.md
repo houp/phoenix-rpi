@@ -444,6 +444,35 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-11 (NFS-perf analysis BANKED as complete + SDL-directive audit CONFIRMS it's DONE + code-review pass on the
+SDL backend). Advisor-guided. Two owner-priority threads audited to closure this heartbeat:
+- **NFS read throughput — analysis COMPLETE, banked (per advisor: stop re-analyzing).** Code-evidenced the read path:
+  `nfs_ops_read → nfs_pread` (nfs_ops.c:476) is a SYNC RPC, one at a time, through a SINGLE msgRecv thread (srv.c:358);
+  libnfs's context is single-socket/non-thread-safe, so true pipelining needs multiple connections or an async event
+  loop (deep + risky root-fs rewrite). readmax is 1MB (srv.c:411) but the actual read size is the client's `msg.o.size`.
+  Kernel demand-paging already read-ahead-CLUSTERS file-backed faults at OBJECT_READAHEAD_PAGES=16 (64KB) in the
+  GENERAL fault path (vm/object.c:381) — covers exec AND mmap, not just exec. **Considered + REJECTED bumping the
+  cluster** (advisor): it only serves demand-paging faults, NOT fread/bulk read() (asset loads go straight through
+  nfs_ops_read), so it can't reach the user-visible slowness AND it's global → would over-read on random-access and on
+  SD, regressing the tuned "sweet spot." Net verdict (matches [[project_pi4_nfs_linux_comparison]]): link is
+  cable-capped ~12.5 MB/s (crossover 2-pair); Phoenix 8.2 vs Linux 11.4 MiB/s; closing the 28% needs the deep
+  multi-connection rewrite for a win that STAYS under the physical ceiling. The only move that beats both the cap and
+  the per-file RTT is the owner's RAM-disk pre-stage workaround (documented option; game DATA not currently staged in
+  the export → load pipeline inactive, so not a live pain this heartbeat).
+- **SDL de-Quake + Quake-ports refactor (owner directive #3) — AUDIT CONFIRMS DONE (board line 157, "CONSOLIDATION DONE
+  2026-08-11").** Verified independently this heartbeat: the phoenix SDL backend (SDL_phoenix{video,events,framebuffer,
+  opengl}.c) is a clean SDL-zlib driver (Copyright Sam Lantinga) — NO Quakespasm-derived code, NO GPL/id-Software
+  licensing → de-Quake satisfied. Q1 `quakespasm-sdl` (SP+MP HW-proven), Q2 yQuake2, Q3 quake3e all run on the real
+  libSDL2.a via `build-quakespasm-sdl-phoenix.py`-style templates; the 2026-08-09 "V3D wedge in the SDL video path" was
+  RESOLVED (fix e498158 window-event emission + `-noglslgamma -notexturenpot -nopackedpixels` diag). Only vkQuake still
+  uses the quakespasm sdl-shim HEADERS (Vulkan WSI — real SDL port has no V3DV WSI). Remaining = the board's noted
+  "retire redundant flagship shims (future cleanup)". The SDL backend scan found NO debug/TODO/dead-code markers.
+- **Owner directive #2 (code-review pass on recent additions) — STARTED:** launched a code-review subagent on the SDL
+  phoenix backend (freshest flagship sources/ addition, pre-publication) for correctness/lifecycle/leftover-diagnostic
+  issues; will apply verified findings + commit. Honest maturity note: the tractable SAFE backlog is genuinely drained
+  (SDL done today; NFS banked; backend clean) — remaining owner items are hard/risky (RAM-staging, A1 kernel sync) or
+  blocked (vkQuake WSI). Core build unchanged (no core edits this heartbeat).
+
 2026-08-11 (DECISION: PIVOT from the GIO/GTK slog + fixed 2 general libc header bugs it surfaced). Made the gio
 port-vs-pivot call with evidence: the GTK/XFce-via-GTK path needs glib's gio (large: GSocket/GFile/GApplication/GDBus,
 OS-dependent), and its FIRST build gap (xdgmimecache.c ntohs/ntohl) is one of likely dozens. Since **a full desktop

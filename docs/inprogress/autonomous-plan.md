@@ -451,10 +451,18 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
   idiom (grep-confirmed: xhci uses `__asm__ volatile("dsb sy" ::: "memory")`). Correct-by-construction (a barrier
   can't change functional behavior; HW-masked today), build-validated (--scope core). vcmbox L4 (stale-echo token)
   remains a noted low-probability item.
-- **Final review round STARTED:** launched a subagent on the last unreviewed Pi4 drivers/tools — rpi4-hwrng,
-  rpi4-gpio, rpi4-klogd, rpi4-ipcprobe, rpi4-sysinfo — for the recurring bug classes (read-count over-report,
-  unbounded spins, ioctl bounds) AND a keep-vs-remove verdict for the diagnostic-looking ones (ipcprobe/sysinfo).
-  Will apply verified findings + ship. IN PROGRESS (agent running).
+- **Final review round DONE — 2 polish fixes shipped (devices 92126a1, 8d95c9b); code-review pass now COMPLETE.**
+  No high/medium bugs in the last five (hwrng/gpio/klogd use the safe clamp-and-memcpy read pattern — the recurring
+  read-count over-report is absent). Shipped: rpi4-hwrng zero-length read → 0 (was -EIO; POSIX); rpi4-gpio clamp
+  gpio_snapshot's snprintf return (defensive, safe today). rpi4-klogd clean (keeper). **Flagged for OWNER judgment
+  (did NOT delete unattended):** rpi4-ipcprobe is the AF_UNIX-gate diagnostic probe whose hypothesis is RESOLVED
+  (gate PASSED) — a remove-before-publish candidate per CLAUDE.md, BUT it's a documented reusable AF_UNIX test tool
+  and its hypothesis was CONFIRMED not disproved, so removal is an owner call, not an unattended delete; rpi4-sysinfo
+  is a cosmetic boot banner (keep-or-drop judgment, no correctness liability). Both are harmless as-is.
+  **★ Code-review pass (owner directive #2) COMPLETE: every recent Pi4 driver reviewed — 15 upstream-readiness fixes
+  shipped total (SDL 3, WiFi/BT/audio 5, HCI 1, vcmbox/fb/thermal 4 + vcmbox-L3, hwrng+gpio 2). NO memory-corruption
+  bugs found in any driver.** Remaining genuinely-open work is now the risky/large items (A1 upstream kernel sync;
+  WiFi Category-2 executing-probe cleanup = non-removable) or owner-judgment cleanups (ipcprobe/sysinfo removal).
 
 2026-08-11 (code-review pass — owner directive #2 — vcmbox/fb/thermal: 4 FIXES SHIPPED to org, devices
 8c0170c..aa21a19). 3 parallel review subagents on the remaining unreviewed Pi4 drivers, chasing the recurring

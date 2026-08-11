@@ -132,7 +132,7 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
 
 ## Pi lock
 
-- **IN USE ram-stage-play 2026-08-11** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
+- **FREE** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
   Netboot game tests are now RELIABLE — the harness (psh-interact.py) waits for the NFS
   "registered / (takeover)" line before sending commands (#156 fix). No ls-warm needed.
 
@@ -443,6 +443,26 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-11 (RAM-staging INFRASTRUCTURE validated end-to-end; game-wiring gap found). Booted clean; ran the
+stage-and-play cycle:
+- **`stage` mode WORKS** (nfs-bench): `stage /usr/share/quake/id1/pak0.pak -> /tmp/id1/pak0.pak` = 18 MiB in
+  **2.266 s (7.87 MiB/s)**. So the shell `cp` stall last heartbeat was **cp-specific**, NOT a Phoenix
+  NFS-read+tmpfs-write bug — my chunked stage loop is the reliable staging primitive. `mkdir /tmp/id1` also works
+  (the syspage itself uses mkdir + a /ramtmp dummyfs).
+- **RAM rand on the REAL staged pak: 0.071 ms/read** (14,042 reads/s, 54.85 MiB/s) — confirms the 20× on real
+  staged data (not just synthetic mkrand).
+- **quakespasm-sdl loaded + rendered end-to-end** (GL up V3D 4.2 Mesa 26.2, "Playing demo from demo1.dem", 0 faults)
+  — BUT the log shows `found /usr/share/quake/id1/pak0.pak after 1 tries (basedir=/usr/share/quake)`: it **ignored
+  my `-basedir /tmp`** and used its default NFS path. So this run did NOT exercise the RAM copy; the phoenix
+  quakespasm build has a basedir search preferring /usr/share/quake (and that "after N tries" log string isn't in
+  external/quakespasm/ → the staged /bin/quakespasm-sdl may be from a drifted/older source — a separate thread).
+**Net:** the RAM-staging INFRASTRUCTURE is proven (stage 2.3 s/18 MiB one-time → 20× faster access); what's missing
+for a clean end-to-end game speedup number is WIRING a game to the RAM path. **NEXT:** either (a) make a game honor
+a RAM basedir — quake3e/yQuake2 take standard `+set fs_basepath`/`-basedir`; or resolve quakespasm's basedir search
+(locate the running binary's source) — then time load NFS-vs-RAM; or (b) since infra is proven + the 20× I/O gap +
+the prior read-ahead 68s→5.5s exec win ([[project_sdboot_largeexec_slowstart]]) already show load is I/O-bound,
+just BUILD a `stage-and-play` helper (mkdir + stage game dir to /ramtmp + launch with the RAM basedir). Pi lock freed.
 
 2026-08-11 (★★ NFS-vs-RAM experiment COMPLETE — RAM-staging quantified at ~20× per scattered read). Retry booted
 clean (last cycle's start4.elf loop was transient). Definitive side-by-side (2000×4 KiB random reads):

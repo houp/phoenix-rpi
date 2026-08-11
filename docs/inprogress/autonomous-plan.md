@@ -132,7 +132,7 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
 
 ## Pi lock
 
-- **IN USE nfs-wire-latency 2026-08-12** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
+- **FREE** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
   Netboot game tests are now RELIABLE — the harness (psh-interact.py) waits for the NFS
   "registered / (takeover)" line before sending commands (#156 fix). No ls-warm needed.
 
@@ -443,6 +443,22 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-12 (★ NFS small-read latency = NETWORK-INHERENT, not a fixable Phoenix bug — data-backed, closes the owner's
+"is it a Phoenix bug?" NFS directive). I'd worked around the game-load latency (RAM-staging) without measuring the
+fixable-vs-inherent split the owner's directive calls for. Did it now: host-side tcpdump (`enx00e04c68013a` port 2049)
+during a Phoenix `nfs-read-bench rand` run (reconfirmed 1.458 ms/read), analyzed with tshark. **Per-read breakdown
+(medians over ~2000 READ RPCs):**
+- **host NFS server (nfsd) processing (call→reply): 0.030 ms** (mean 0.090, p90 0.118) — NEGLIGIBLE, the server is not
+  the bottleneck.
+- **client round-trip (reply-out → next request-in): 0.687 ms** + the 4 KiB reply transmission (~0.3 ms @ 100 Mbit).
+So the 1.46 ms/read is dominated by the network ROUND-TRIP (wire RTT ~0.9 ms + 4 KiB transfer), server ~0.1 ms,
+Phoenix-client overhead only modest. **This is network-inherent** — Linux on the same link/RTT hits the same floor
+(the earlier fixable Phoenix bug, lwip poll-readiness, was already fixed; [[project_pi4_poll_readiness]]). **Conclusion
+per the owner's step-3-vs-4: there is no big fixable Phoenix NFS-client bug for cold small-read latency; RAM-staging
+(0.07 ms/read, avoiding the network) is the CORRECT answer, not just a band-aid.** Tooling notes for next time:
+tcpdump needs `-Z root` (privilege-drop chown fails) + full snaplen `-s 0` (`-s 160` truncated NFS dissection; TCP/IP
+timing survived); run tshark as root to read a root-owned pcap. Pi lock freed.
 
 2026-08-12 (RAM-staging feature HANDOFF doc + backlog re-check). Flagship RAM-staging is done+rigorous; wrote a
 concise usage/handoff reference **docs/inprogress/2026-08-12-ram-staging-loadtime.md** (the why + measured numbers

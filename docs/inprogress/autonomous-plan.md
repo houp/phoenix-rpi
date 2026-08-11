@@ -456,12 +456,18 @@ conservatively). Picking up the two HIGH items deferred last heartbeat.
   touches ONLY the parent's sleep, so it provably cannot affect the child's BT bring-up or compilation (both already
   validated); and rpi4-hci is NOT launched at boot (no rc/plo reference — run manually as `rpi4-hci &`), so the wider
   timeout carries zero boot-stall risk. Safe-by-construction per the advisor.
-- **WiFi #1 (~800-line dead diagnostic cleanup) — STARTED, conservative scope.** This is the flagship scanner; a
-  careless cut breaks the 16-AP scan. Launched a mapping subagent to precisely classify wifi_bringup()'s code into
-  (1) COMPILER-DEAD (const-0-gated via g_trivial_mode/g_ioctl_mode → zero-behavior-change deletions), (2) executes-
-  but-diagnostic (VERIFY no side effects — deferred, NOT this pass), (3) live bring-up backbone (KEEP). This pass will
-  delete ONLY category 1 (provably compiler-dead → cannot regress). Category 2 (executing probes) needs per-probe
-  side-effect analysis + a WiFi-scan Pi-validation in a later pass. IN PROGRESS (mapping agent running).
+- **WiFi #1 (dead diagnostic cleanup) — conservative pass DONE + shipped (devices 8c0170c, pushed org).** A mapping
+  subagent classified wifi_bringup()'s code; **it corrected the prior "~800 lines" estimate** — the zero-risk
+  (compiler-dead) set is only ~71 lines, because most of the #91 telemetry EXECUTES real SDIO transactions (several
+  issue window-select WRITES the author explicitly flagged as "part of the proven bring-up sequence") and is NOT
+  safely removable. Removed only the provably-dead subset: the g_ioctl_mode-gated BCDC GET_VERSION diagnostic
+  (g_ioctl_mode is a static never assigned nonzero) — the gated call, its sole-caller function diag_bcdcGetVersion,
+  the g_ioctl_ran report block, and 6 now-unused decls. rpi4-wifi.c 3013→2942; rebuilds clean (0 undef, 0 warnings
+  under -Wall -Wextra; symbols gone from the binary). Zero behavior change (compiler-dead → the build is the
+  authoritative validator; no Pi cycle needed, same logic as the HCI fix). **DEFERRED (Category 2):** the executing-
+  but-diagnostic probes (cnt_pre/post SDIO reads, rstvec/CR4/socram readbacks, telemetry snprintf assembly ~2300-2650)
+  — each does real SDIO I/O, so removing needs per-probe side-effect analysis + a WiFi-scan HW validation; do in a
+  dedicated pass. Both deferred HIGH items from last heartbeat now addressed (HCI fixed; WiFi zero-risk subset done).
 
 2026-08-11 (code-review pass — owner directive #2 — WiFi/BT/audio drivers: 5 FIXES SHIPPED to org, devices
 454d449..4840503). Ran 3 parallel review subagents on the freshest upstream-facing sources/ additions. **Headline:

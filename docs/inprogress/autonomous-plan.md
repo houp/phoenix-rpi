@@ -132,7 +132,7 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
 
 ## Pi lock
 
-- **IN USE q3-nfs-baseline 2026-08-11** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
+- **FREE** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
   Netboot game tests are now RELIABLE — the harness (psh-interact.py) waits for the NFS
   "registered / (takeover)" line before sending commands (#156 fix). No ls-warm needed.
 
@@ -443,6 +443,15 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-11 (Q3 A/B made RIGOROUS: fresh same-build NFS baseline CL_InitCGame **63.77 s** vs RAM **11.61 s** = **5.49×**).
+Ran `/usr/bin/quake3e +set fs_basepath /usr/share/quake3 +set fs_game demoq3 +map q3dm1` (NFS, no staging) → clean
+printed `CL_InitCGame: 63.77 seconds`, matching the historical ~64 s and confirming the ~5.5× vs the RAM run (11.61 s)
+on the SAME Pi + SAME build (only the basepath source differs) — an airtight A/B, no instrumentation (quake3e prints
+it). **Flagship RAM-staging result is now airtight across all 3 games with clean numbers: Q1 quakespasm 3.6× (main→
+Host_Init A/B), Q2 yquake2 (renders 3D gameplay from RAM), Q3 quake3e 5.49× (CL_InitCGame 63.77→11.61 s).** The owner's
+RAM-staging load-time workaround is proven + scaled (256 MiB /tmp) + productized (ram-stage-play) + generalized
+(Q2 basedir + Q3 fs_basepath) + rigorously measured. Pi lock freed.
 
 2026-08-11 (★★★ RAM-staging COMPLETE ACROSS ALL 3 QUAKE GAMES — Q3 via ram-stage-play, ~5.5× faster CL_InitCGame).
 (Note: A1 upstream sync is tooling-BLOCKED unattended — git-siblings.sh is read-only, refuses fetch/rev-list, and

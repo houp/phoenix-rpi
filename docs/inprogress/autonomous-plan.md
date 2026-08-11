@@ -444,6 +444,23 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-11 (DECISION: PIVOT from the GIO/GTK slog + fixed 2 general libc header bugs it surfaced). Made the gio
+port-vs-pivot call with evidence: the GTK/XFce-via-GTK path needs glib's gio (large: GSocket/GFile/GApplication/GDBus,
+OS-dependent), and its FIRST build gap (xdgmimecache.c ntohs/ntohl) is one of likely dozens. Since **a full desktop
+environment (Window Maker) already works + is HW-validated**, XFce-proper's value-add over wmaker is marginal, so the
+multi-heartbeat gio slog is LOW-EV → **DEPRIORITIZED gio/GTK/XFce-proper** (cairo/harfbuzz/fribidi/pango banked as
+REUSABLE wins — they enable many text/GUI apps beyond GTK). Attempted two general libphoenix header fixes the porting surfaced; ONE landed, one REVERTED (build-verify caught a
+regression). (1) **netinet/in.h byte-order (ntohs/ntohl/htons/htonl) — TRIED then REVERTED**: adding them to
+netinet/in.h (glibc/BSD-style, so <netinet/in.h>-only consumers build) CONFLICTED with lwip's own byte-order macros —
+phoenix-rtos-lwip/port/route.c redefinition → -Werror → the --scope core build FAILED (broke the boot-critical lwip).
+Build-verify caught it; reverted netinet/in.h + arpa/inet.h to original + re-ran --scope core → Verification: OK
+(good state restored). Lesson: adding decls to a widely-included header (netinet/in.h) risks conflicts with consumers
+that have their own (lwip). (2) **sys/wait.h `static inline` → `static __inline__` — LANDED** (libphoenix 3a74c04,
+pushed org): compiles under -ansi (fribidi forces it; bare `inline` = "unknown type name 'inline'"); behavior-neutral
+for the default gnu11 build; --scope-core-verified. -ansi-FULL needs ~14 more headers (sys/ioctl.h/poll.h/stdlib.h/
+termios.h/…) — low-value, documented follow-up. Net: 1 tiny header fix shipped; the real value this heartbeat = the
+GIO/GTK PIVOT decision + the reverted-regression lesson. Core build GOOD (Verification: OK).
+
 2026-08-11 (GTK chain — gdk-pixbuf attempt HITS THE GIO WALL; 5 reusable deps done, GTK now blocked on porting glib's
 GIO). Continued toward gdk-pixbuf. Cleared its jpeg (needed CPPFLAGS not just CFLAGS for the header check) + shared-
 mime-info (stubbed .pc) gates, but the link fails: **`cannot find -lgio-2.0`** — glib was built WITHOUT gio.

@@ -186,12 +186,59 @@ static int mode_rand(const char *path, size_t chunk, unsigned long nreads)
 	return 0;
 }
 
+/* mkrand mode: write a `sizeMb` file at `path` (typically a /tmp tmpfs = RAM path),
+ * reporting the staging-write cost, then run the rand read bench on it. Self-contained
+ * RAM-side counterpart to `rand` on an NFS path — no external `cp` needed. The rand
+ * ms/read here (RAM) vs on an NFS file quantifies exactly what RAM-staging buys. */
+static int mode_mkrand(const char *path, size_t sizeMb, size_t chunk, unsigned long nreads)
+{
+	int fd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0644);
+	if (fd < 0) {
+		printf("nfs-bench: create('%s') failed: %s\n", path, strerror(errno));
+		return 2;
+	}
+	size_t wbufsz = 256u * 1024u;
+	char *wbuf = malloc(wbufsz);
+	if (wbuf == NULL) {
+		printf("nfs-bench: OOM\n");
+		close(fd);
+		return 3;
+	}
+	memset(wbuf, 0xa5, wbufsz);
+	size_t towrite = sizeMb * 1024u * 1024u;
+	size_t written = 0;
+	struct timespec w0, w1;
+	clock_gettime(CLOCK_MONOTONIC, &w0);
+	while (written < towrite) {
+		size_t want = towrite - written;
+		ssize_t w;
+		if (want > wbufsz) {
+			want = wbufsz;
+		}
+		w = write(fd, wbuf, want);
+		if (w < 0) {
+			printf("nfs-bench: write failed after %zu B: %s\n", written, strerror(errno));
+			free(wbuf);
+			close(fd);
+			return 4;
+		}
+		written += (size_t)w;
+	}
+	clock_gettime(CLOCK_MONOTONIC, &w1);
+	free(wbuf);
+	close(fd);
+	double wsecs = (double)(w1.tv_sec - w0.tv_sec) + (double)(w1.tv_nsec - w0.tv_nsec) / 1e9;
+	printf("nfs-bench: mkrand staged %zu MiB -> %s in %.3f s (%.2f MiB/s write)\n",
+	       sizeMb, path, wsecs, (wsecs > 0.0) ? ((double)written / (1024.0 * 1024.0) / wsecs) : 0.0);
+	return mode_rand(path, chunk, nreads);
+}
+
 int main(int argc, char **argv)
 {
 	setvbuf(stdout, NULL, _IONBF, 0);
 
 	if (argc < 2) {
-		printf("usage: nfs-read-bench <path> [read <chunk_kib> | mmap | rand <chunk_b> <nreads>]\n");
+		printf("usage: nfs-read-bench <path> [read <chunk_kib> | mmap | rand <chunk_b> <nreads> | mkrand <size_mb> <chunk_b> <nreads>]\n");
 		return 1;
 	}
 	const char *path = argv[1];
@@ -206,6 +253,17 @@ int main(int argc, char **argv)
 		if (rchunk < 1u)
 			rchunk = 4096u;
 		return mode_rand(path, rchunk, rn);
+	}
+
+	if (strcmp(mode, "mkrand") == 0) {
+		size_t smb = (argc >= 4) ? (size_t)strtoul(argv[3], NULL, 10) : 16u;
+		size_t mchunk = (argc >= 5) ? (size_t)strtoul(argv[4], NULL, 10) : 4096u;
+		unsigned long mn = (argc >= 6) ? strtoul(argv[5], NULL, 10) : 2000u;
+		if (smb < 1u)
+			smb = 16u;
+		if (mchunk < 1u)
+			mchunk = 4096u;
+		return mode_mkrand(path, smb, mchunk, mn);
 	}
 
 	/* read mode: optional chunk_kib as argv[2] (back-compat) or argv[3]. */

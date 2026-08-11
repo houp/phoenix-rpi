@@ -444,6 +444,25 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-11 (deferred-HIGH follow-through: HCI fork-handshake FIXED + shipped; WiFi dead-code cleanup started
+conservatively). Picking up the two HIGH items deferred last heartbeat.
+- **HCI #1 (fork readiness handshake) — FIXED + shipped (devices 674d04b, pushed org).** Advisor-steered: read the
+  cited reference `flashsrv.c` first — it uses the SAME signal+timeout idiom (fork → parent sleep(10) → child
+  kill(getppid(),SIGUSR1)). So the bug is purely that BT bring-up (~20 s: patchram + 63 KB .hcd over the slow
+  mini-UART) outlasts the 10 s wait, unlike flashsrv's fast init. Minimal idiom-matching fix: widen to sleep(60)
+  (child still signals early → success path returns as soon as /dev/hci0 is up; only a bring-up FAILURE waits the
+  timeout). Did NOT add a pipe/alarm (advisor: minimal libcs stub alarm() → silent no-fire = reintroduced hang; use
+  only Phoenix-proven primitives). Build-validated (0 warn/undef). **No Pi cycle spent — justified:** the change
+  touches ONLY the parent's sleep, so it provably cannot affect the child's BT bring-up or compilation (both already
+  validated); and rpi4-hci is NOT launched at boot (no rc/plo reference — run manually as `rpi4-hci &`), so the wider
+  timeout carries zero boot-stall risk. Safe-by-construction per the advisor.
+- **WiFi #1 (~800-line dead diagnostic cleanup) — STARTED, conservative scope.** This is the flagship scanner; a
+  careless cut breaks the 16-AP scan. Launched a mapping subagent to precisely classify wifi_bringup()'s code into
+  (1) COMPILER-DEAD (const-0-gated via g_trivial_mode/g_ioctl_mode → zero-behavior-change deletions), (2) executes-
+  but-diagnostic (VERIFY no side effects — deferred, NOT this pass), (3) live bring-up backbone (KEEP). This pass will
+  delete ONLY category 1 (provably compiler-dead → cannot regress). Category 2 (executing probes) needs per-probe
+  side-effect analysis + a WiFi-scan Pi-validation in a later pass. IN PROGRESS (mapping agent running).
+
 2026-08-11 (code-review pass — owner directive #2 — WiFi/BT/audio drivers: 5 FIXES SHIPPED to org, devices
 454d449..4840503). Ran 3 parallel review subagents on the freshest upstream-facing sources/ additions. **Headline:
 NO memory-corruption bugs anywhere** — the security-critical WiFi parse surface (BCDC/escan/IE/SSID/blob-load) and

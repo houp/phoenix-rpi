@@ -444,6 +444,21 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-12 (vkQuake render-state check via the owner's HDMI-capture + pixel-analysis pipeline — render HEALTHY, no
+visible striping; ZERO Pi cost). The owner names the vkQuake HDMI-capture + pixel-analysis + host-comparison pipeline
+twice in the directive, so instead of another minimal turn (or a wasteful ~10-min vkQuake Pi cycle), I analyzed the
+EXISTING HW captures from the recent vkquake-ram-stage2 run (artifacts/hdmi/20260812-0044*-vkquake-ram-stage2-*.png).
+The latest render frame (…004452) shows vkQuake rendering Quake start.bsp CORRECTLY on real V3D: textured 3D
+geometry (stone/brick/wood/tiled-floor all clean), working lightmaps (correct light/shadow gradients + bright
+torch/lava slots), the sky texture, and 2D HUD + weapon viewmodel + crosshair — a complete, correct frame. Pixel
+inspection across the many textured surfaces at varied angles/distances shows **NO visible TFU-tiling striping** (the
+banked LINEAR-tiling artifact is not manifesting in this capture) and reasonable gamma/brightness (appropriately
+moody, not black/blown-out). So the flagship Vulkan render path is healthy at the latest HW test. No actionable
+defect → NO code change. This genuinely advances the owner's vkQuake instruction at zero Pi cost. Deeper vkQuake work
+(a definitive striping-across-all-content pass, or the motion-dependent combat flicker, or the winsys tiling rework)
+remains banked/owner-or-deep-fix territory — unchanged. (Honest scope note: one frame at one camera pose can't prove
+striping is gone on ALL content/angles — it confirms this representative capture is clean, not a universal claim.)
+
 2026-08-12 (LICENSE/SPDX audit of the new WiFi/BT drivers — clean + GPL-free; %LICENSE% resolution flagged for owner;
 NO code change). Third + final publication-readiness dimension after clean-build + warnings (all owner-explicit
 goals). Checked the flagship new Phoenix source (wifi/rpi4-wifi/{rpi4-wifi,wifi}.c, bt/rpi4-hci/{rpi4-hci,btctl}.c):

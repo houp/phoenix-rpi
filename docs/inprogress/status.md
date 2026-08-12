@@ -3,7 +3,38 @@
 > Per-peripheral state at a glance: **[docs/inprogress/pi4-hardware-support-matrix.md](pi4-hardware-support-matrix.md)**.
 > Full chronological log of the multi-day unattended run: **[UNATTENDED-WORK-LOG.md](../../UNATTENDED-WORK-LOG.md)** (repo root).
 
-## 🟢 LATEST — 2026-08-06 (autonomous vacation run: E4 ffmpeg video, libm completions, B2 feasibility, journey capstone)
+## 🟢 LATEST — 2026-08-12 (autonomous vacation run: WiFi/BT, code-review, RAM-staging load-time feature)
+
+Authoritative per-turn state + task board: **[autonomous-plan.md](autonomous-plan.md)**. Major work since 2026-08-06:
+
+- **★ WiFi + Bluetooth (BCM43455 combo) — BOTH RADIOS UP (2026-08-09).** WiFi scans real APs (full
+  SDIO→firmware→BCDC→escan chain, driven entirely by Phoenix); Bluetooth functional (controller + patchram 323/323
+  + real BD_ADDR + HCI Inquiry). tools/wifi-probe + tools/bt-probe; first-class `/dev/wifi` + `/dev/hci0` drivers +
+  `wifi`/`btctl` CLIs.
+- **★ Pre-publication code-review pass (owner directive #2) — 15 upstream-readiness fixes shipped, NO
+  memory-corruption bugs** in any reviewed driver. Covered the SDL2 backend, WiFi/BT/audio, and the shared
+  libvcmbox + fb/thermal/hwrng/gpio. Recurring bug class found + fixed: unbounded VideoCore-mailbox spins + 64→32-bit
+  PA truncation. HW-validated (netboot integration cycle, 0 faults).
+- **★★ RAM-staging load-time feature — the owner's netboot/NFS workaround, built + measured + productized.**
+  Deep NFS analysis (host tcpdump): the small-read latency (~1.46 ms/read) is **network-inherent** (nfsd ~0.03 ms;
+  round-trip-bound), not a fixable Phoenix bug — so per the owner's directive, RAM-staging (avoid the network) is
+  the correct answer. Staging assets to a **256 MiB `/tmp` RAM-disk** (dummyfs cap raised in board_config.h) and
+  running from RAM is **~20× faster per scattered read**. Productized as **`ram-stage-play`** (one command: stage a
+  game's tree to RAM + launch). **Validated across all 4 Quake engines: Q1 quakespasm 3.6× load, Q3 quake3e 5.49×
+  (CL_InitCGame 63.77→11.61 s), Q2 yquake2 renders full 3D from RAM, vkQuake/Vulkan renders from RAM.** The cold
+  binary exec-paging (~7 s, one-time per launch) is a separate cost proven to have no easy lever (binary-RAM-staging
+  and bigger read-ahead clusters both HW-tested + refuted → per-byte/per-page-bound). Feature reference:
+  [2026-08-12-ram-staging-loadtime.md](2026-08-12-ram-staging-loadtime.md).
+- **Regression/health check (2026-08-12): comprehensive PASS, 0 faults** — boot, /dev/thermal, /dev/gpio, WiFi scan
+  (real APs), and a RAM-staged game render all confirmed working after ~25 autonomous commits.
+
+**State:** the flagship work is **done and HW-confirmed working**. The safe/tractable-unattended backlog is
+genuinely drained; every remaining item needs the owner: **A1 Batch 3** (upstream kernel sync — sibling fetch/merge
+not available unattended + silent-regression risk), **A/V player** (ffmpeg audio+video — audio audibility is
+unverifiable on this rig/no speaker, so it must be validated with the owner present), **XFce** (blocked on porting
+glib's GIO), **ipcprobe/sysinfo removal** (owner judgment). All work pushed to the org.
+
+## 🟢 2026-08-06 (autonomous vacation run: E4 ffmpeg video, libm completions, B2 feasibility, journey capstone)
 
 Authoritative per-turn state + task board: **[autonomous-plan.md](autonomous-plan.md)**. Highlights since 2026-08-05:
 

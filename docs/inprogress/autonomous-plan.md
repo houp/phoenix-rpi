@@ -444,6 +444,26 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-12 (LICENSE/SPDX audit of the new WiFi/BT drivers — clean + GPL-free; %LICENSE% resolution flagged for owner;
+NO code change). Third + final publication-readiness dimension after clean-build + warnings (all owner-explicit
+goals). Checked the flagship new Phoenix source (wifi/rpi4-wifi/{rpi4-wifi,wifi}.c, bt/rpi4-hci/{rpi4-hci,btctl}.c):
+- **NO GPL contamination** anywhere in the WiFi/BT driver source. Provenance is clean + documented: rpi4-wifi.c
+  states its SDIO/mailbox helpers were lifted from OUR tools/wifi-probe; rpi4-hci.c notes the Cypress-EULA .hcd
+  firmware blob is loaded from a file at RUNTIME (kept out of the tree) — good licensing hygiene.
+- The driver .c files (rpi4-wifi.c, rpi4-hci.c) carry the FULL STANDARD UPSTREAM Phoenix header (Copyright 2026
+  Phoenix Systems / This file is part of Phoenix-RTOS. / `%LICENSE%`) — identical to the convention in **264 upstream
+  .c files** (e.g. i2c/common/libi2c-msg.c, 2021). So they are NOT missing a header; `%LICENSE%` is the upstream
+  template placeholder, not a bug.
+- Minor inconsistency (NOT a defect): the companion tools btctl.c + wifi.c use a RESOLVED `SPDX-License-Identifier:
+  BSD-3-Clause`, while the drivers use the `%LICENSE%` placeholder. **Deliberately did NOT autonomously resolve it:**
+  `%LICENSE%`→concrete-SPDX is a TREE-WIDE release-process decision (264 upstream files), a licensing assertion that
+  is owner/release territory ([[project_prepublication_licensing]] defers such calls to the user), and fixing only my
+  2 files would make them INCONSISTENT with the upstream tree (arguably worse). Flagged for the owner as a
+  publication-time item.
+**Publication-readiness vein now thoroughly checked** across 3 real dimensions — clean-building ✅, warning-clean ✅,
+license-clean + GPL-free ✅. This vein is DRAINED; do NOT invent a 4th audit dimension next heartbeat (style/tests/
+etc.) — that tips into manufacturing. No Pi, no code change.
+
 2026-08-12 (clean-build WARNING AUDIT — vacation-run code is warning-clean; no action needed). Follow-on to the
 clean-build PASS: the full-clean log compiled every TU from source, so it's the most complete warning surface
 available — audited it (CLAUDE.md: surface build warnings). 40 warnings, 0 errors. Grouped by file: ALL are in

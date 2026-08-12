@@ -1393,11 +1393,14 @@ static void diag_bcdcGetVersion(volatile uint8_t *sdhci, uint32_t sdio_core)
  * channel 1 and extract each AP. See tools/wifi-probe/SCAN-SPEC.md. */
 #define WLC_UP_CMD 2u
 #define BRCMF_C_SET_INFRA 20u
+#define WLC_SET_SSID_CMD 26u       /* BRCMF_C_SET_SSID: brcmf_ssid_le (broadcast WPA2 join) */
+#define WLC_SET_WSEC_PMK_CMD 268u  /* BRCMF_C_SET_WSEC_PMK: brcmf_wsec_pmk_le (passphrase) */
 #define SET_VAR_CMD 263u
 #define GET_VAR_CMD 262u
 #define SCAN_MAX_APS 16
 
 static int g_scan_mode = 0;
+static int g_join_mode = 0;
 static int g_scan_ran = 0;
 static uint32_t g_ram_size = 0u; /* set in the main flow; used to re-read the fw console after scan */
 static int g_scan_em_rc = -100, g_scan_infra_rc = -100, g_scan_up_rc = -100, g_scan_mpc_rc = -100, g_scan_escan_rc = -100;
@@ -1711,6 +1714,171 @@ static int g_trivial_mode = 0;
  *
  * "fw_alive" = HT_AVAIL asserted OR CARD_INTR asserted. See the inline
  * comments (kept verbatim) for the brcmfmac references behind each step. */
+/* ---- radio-as-transport #4 Phase 2: WPA2-PSK JOIN --------------------------
+ * The BCM43455 is fullmac with an in-dongle supplicant (FWSUP): we set the
+ * security params, enable sup_wpa, hand the firmware the ASCII passphrase (it
+ * derives the PMK + runs the 4-way handshake itself), issue a broadcast
+ * WLC_SET_SSID join, then watch WLC_E_SET_SSID(0)/status0 + WLC_E_PSK_SUP(46)/
+ * status6 for success. Mirrors diag_wifiScan's prelude + event demux. Spec:
+ * docs/inprogress/2026-08-12-wifi-join-design.md (from Linux brcmfmac). */
+static int g_join_ran = 0;
+static int g_join_em_rc = -100, g_join_infra_rc = -100, g_join_up_rc = -100;
+static int g_join_wsec_rc = -100, g_join_wpaauth_rc = -100, g_join_sup_rc = -100;
+static int g_join_pmk_rc = -100, g_join_ssid_rc = -100;
+static int g_join_setssid_status = -100; /* WLC_E_SET_SSID status (0 = assoc ok) */
+static int g_join_psksup_status = -100;  /* WLC_E_PSK_SUP status (6 = 4-way keyed) */
+static int g_join_link_up = 0;           /* last WLC_E_LINK flags&0x01 */
+static int g_join_evt_total = 0;
+static char g_join_ssid[33] = "PhoenixNet";
+static char g_join_psk[64] = "phoenixpi2026";
+
+static void diag_wifiJoin(volatile uint8_t *sdhci, uint32_t sdio_core)
+{
+	uint8_t emask[16];
+	uint8_t val4[4];
+	uint8_t pmk[132];
+	uint8_t ssidbuf[36];
+	uint32_t reqid = 1u;
+	uint8_t seq = 0u;
+	int i, t, slen, plen;
+	int got_setssid = 0, got_psksup = 0;
+
+	g_join_ran = 1;
+	diag_sdhciResetDatCmd(sdhci);
+
+	/* event_msgs: enable join events 0(SET_SSID),5,6,7(ASSOC),11,12,16(LINK),
+	 * 46(PSK_SUP) + keep 69(escan, harmless). mask[i/8] |= 1<<(i%8). */
+	for (i = 0; i < 16; ++i) {
+		emask[i] = 0u;
+	}
+	emask[0] = (1u << 0) | (1u << 5) | (1u << 6) | (1u << 7); /* 0,5,6,7 */
+	emask[1] = (1u << 3) | (1u << 4);                         /* 11,12 */
+	emask[2] = (1u << 0);                                     /* 16 */
+	emask[5] = (1u << 6);                                     /* 46 */
+	emask[8] = 0x20u;                                        /* 69 (escan) */
+	g_join_em_rc = diag_iovar(sdhci, sdio_core, 1, "event_msgs", emask, 16u,
+		NULL, 0u, NULL, reqid++, seq++);
+
+	/* CLM (regulatory) before UP so the radio has channels (same as scan). */
+	(void)diag_clmLoad(sdhci, sdio_core, &reqid, &seq);
+
+	/* infra=1 then WLC_UP */
+	val4[0] = 1u; val4[1] = 0u; val4[2] = 0u; val4[3] = 0u;
+	g_join_infra_rc = diag_bcdcCmd(sdhci, sdio_core, 1, BRCMF_C_SET_INFRA,
+		val4, 4u, NULL, 0u, NULL, reqid++, seq++);
+	g_join_up_rc = diag_bcdcCmd(sdhci, sdio_core, 1, WLC_UP_CMD,
+		val4, 4u, NULL, 0u, NULL, reqid++, seq++);
+	usleep(500 * 1000); /* let PHY finish coming up before security/join */
+
+	/* wsec = 4 (AES/CCMP) */
+	val4[0] = 4u; val4[1] = 0u; val4[2] = 0u; val4[3] = 0u;
+	g_join_wsec_rc = diag_iovar(sdhci, sdio_core, 1, "wsec", val4, 4u,
+		NULL, 0u, NULL, reqid++, seq++);
+	/* wpa_auth = 0x80 (WPA2_AUTH_PSK) */
+	val4[0] = 0x80u;
+	g_join_wpaauth_rc = diag_iovar(sdhci, sdio_core, 1, "wpa_auth", val4, 4u,
+		NULL, 0u, NULL, reqid++, seq++);
+	/* sup_wpa = 1 (enable firmware supplicant) -- MUST precede WSEC_PMK */
+	val4[0] = 1u;
+	g_join_sup_rc = diag_iovar(sdhci, sdio_core, 1, "sup_wpa", val4, 4u,
+		NULL, 0u, NULL, reqid++, seq++);
+
+	/* WLC_SET_WSEC_PMK (268): brcmf_wsec_pmk_le { le16 key_len; le16 flags;
+	 * u8 key[128] } = 132 bytes. Passphrase path: flags=0x0001, key=ASCII. */
+	for (i = 0; i < 132; ++i) {
+		pmk[i] = 0u;
+	}
+	plen = 0;
+	while (g_join_psk[plen] != '\0' && plen < 63) {
+		plen++;
+	}
+	pmk[0] = (uint8_t)(plen & 0xff);
+	pmk[1] = (uint8_t)((plen >> 8) & 0xff);
+	pmk[2] = 0x01u; /* BRCMF_WSEC_PASSPHRASE */
+	pmk[3] = 0x00u;
+	for (i = 0; i < plen; ++i) {
+		pmk[4 + i] = (uint8_t)g_join_psk[i];
+	}
+	g_join_pmk_rc = diag_bcdcCmd(sdhci, sdio_core, 1, WLC_SET_WSEC_PMK_CMD,
+		pmk, 132u, NULL, 0u, NULL, reqid++, seq++);
+
+	/* WLC_SET_SSID (26): brcmf_ssid_le { le32 SSID_len; u8 SSID[32] } = 36 B
+	 * broadcast join -> fw associates + runs the handshake. */
+	for (i = 0; i < 36; ++i) {
+		ssidbuf[i] = 0u;
+	}
+	slen = 0;
+	while (g_join_ssid[slen] != '\0' && slen < 32) {
+		slen++;
+	}
+	ssidbuf[0] = (uint8_t)(slen & 0xff);
+	ssidbuf[1] = (uint8_t)((slen >> 8) & 0xff);
+	for (i = 0; i < slen; ++i) {
+		ssidbuf[4 + i] = (uint8_t)g_join_ssid[i];
+	}
+	g_join_ssid_rc = diag_bcdcCmd(sdhci, sdio_core, 1, WLC_SET_SSID_CMD,
+		ssidbuf, 36u, NULL, 0u, NULL, reqid++, seq++);
+
+	/* Watch events off SDPCM channel 1 (same demux as escan): WLC_E_SET_SSID
+	 * (type 0) status, WLC_E_PSK_SUP (type 46) status, WLC_E_LINK (16) flags.
+	 * event_msg fields relative to ehdr (ethhdr@0 + 10B bcmeth + event_msg@24):
+	 * flags be16 @ehdr+26, event_type be32 @ehdr+28, status be32 @ehdr+32. */
+	for (t = 0; t < 3000 && !(got_setssid && got_psksup); ++t) {
+		uint16_t len;
+		uint8_t chan;
+		int fr;
+		uint32_t sdoff, ehdr, etype, status, flags;
+
+		fr = diag_f2RecvFrame(sdhci, g_rxf, &len, &chan);
+		if (fr == 1) {
+			usleep(3000);
+			continue;
+		}
+		if (fr < 0) {
+			usleep(2000);
+			continue;
+		}
+		{
+			uint32_t st = diag_bpRead32(sdhci, sdio_core + 0x20u);
+			if (st != 0u && st != 0xffffffffu) {
+				diag_bpWrite32(sdhci, sdio_core + 0x20u, st);
+			}
+		}
+		if (chan != 1u) {
+			continue;
+		}
+		g_join_evt_total++;
+		sdoff = g_rxf[7];
+		if (sdoff + 4u > len) {
+			continue;
+		}
+		ehdr = sdoff + 4u + 4u * (uint32_t)g_rxf[sdoff + 3u];
+		if (ehdr + 48u > (uint32_t)len) {
+			continue;
+		}
+		if (diag_be16(g_rxf + ehdr + 12u) != 0x886Cu) {
+			continue; /* not ETH_P_LINK_CTL (event) */
+		}
+		flags = diag_be16(g_rxf + ehdr + 26u);
+		etype = diag_be32(g_rxf + ehdr + 28u);
+		status = diag_be32(g_rxf + ehdr + 32u);
+		if (etype == 0u) { /* WLC_E_SET_SSID */
+			g_join_setssid_status = (int)status;
+			got_setssid = 1;
+			if (status != 0u) {
+				break; /* association failed */
+			}
+		}
+		else if (etype == 46u) { /* WLC_E_PSK_SUP */
+			g_join_psksup_status = (int)status;
+			got_psksup = 1;
+		}
+		else if (etype == 16u) { /* WLC_E_LINK */
+			g_join_link_up = (flags & 0x01u) ? 1 : 0;
+		}
+	}
+}
+
 static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 {
 	static uint8_t pre_buf[64];
@@ -2230,6 +2398,9 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 		if (!g_trivial_mode && g_scan_mode) {
 			diag_wifiScan(sdhci, sdio_core);
 		}
+		if (!g_trivial_mode && g_join_mode) {
+			diag_wifiJoin(sdhci, sdio_core);
+		}
 	}
 
 	munmap(sdhci_page, _PAGE_SIZE);
@@ -2620,6 +2791,21 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 		}
 	}
 
+	/* #4 radio-as-transport WPA2 join report. */
+	if (g_join_ran) {
+		int connected = (g_join_setssid_status == 0 && g_join_psksup_status == 6);
+		r = snprintf(buf + off, cap - off,
+			"WiFi JOIN '%s': event_msgs rc=%d infra rc=%d UP rc=%d | wsec rc=%d wpa_auth rc=%d sup_wpa rc=%d pmk rc=%d set_ssid rc=%d\n"
+			"  chan1 evts=%d  SET_SSID status=%d (0=assoc-ok)  PSK_SUP status=%d (6=keyed)  link_up=%d  => %s\n",
+			g_join_ssid, g_join_em_rc, g_join_infra_rc, g_join_up_rc,
+			g_join_wsec_rc, g_join_wpaauth_rc, g_join_sup_rc, g_join_pmk_rc, g_join_ssid_rc,
+			g_join_evt_total, g_join_setssid_status, g_join_psksup_status, g_join_link_up,
+			connected ? "CONNECTED (WPA2 4-way keyed)" : "NOT connected");
+		if (r > 0 && (size_t)r < cap - off) {
+			off += r;
+		}
+	}
+
 	r = snprintf(buf + off, cap - off, ".\n");
 	if (r > 0 && (size_t)r < cap - off) {
 		off += r;
@@ -2642,6 +2828,22 @@ int main(int argc, char **argv)
 		}
 		else if (strcmp(argv[ai], "scan") == 0) {
 			g_scan_mode = 1;
+		}
+		else if (strcmp(argv[ai], "join") == 0) {
+			g_join_mode = 1;
+			/* optional: join <ssid> <psk> */
+			if (ai + 2 < argc) {
+				size_t k;
+				for (k = 0; k + 1 < sizeof(g_join_ssid) && argv[ai + 1][k] != '\0'; ++k) {
+					g_join_ssid[k] = argv[ai + 1][k];
+				}
+				g_join_ssid[k] = '\0';
+				for (k = 0; k + 1 < sizeof(g_join_psk) && argv[ai + 2][k] != '\0'; ++k) {
+					g_join_psk[k] = argv[ai + 2][k];
+				}
+				g_join_psk[k] = '\0';
+				ai += 2;
+			}
 		}
 	}
 

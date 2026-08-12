@@ -484,6 +484,22 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-12 (RADIO-AS-TRANSPORT #4 — Phase 2 WPA2 JOIN implemented + compiles; Pi test next). Extracted the exact
+BCM43455 fullmac join sequence from Linux brcmfmac (subagent, primary-source cited) → saved as
+**docs/inprogress/2026-08-12-wifi-join-design.md**. Key: the chip's firmware runs its OWN supplicant (FWSUP), so I
+use the **passphrase path** (WSEC_PMK ioctl 268, flags=0x0001, ASCII PSK) — the firmware derives the PMK + runs the
+4-way handshake; **no host PBKDF2/EAPOL**. Implemented **diag_wifiJoin** in tools/wifi-probe/wifi-probe.c mirroring
+diag_wifiScan: event_msgs (enable evts 0/5/6/7/11/12/16/46) → clmLoad → infra=1 → WLC_UP → wsec=4(AES) →
+wpa_auth=0x80(WPA2-PSK) → sup_wpa=1 → WSEC_PMK(268, passphrase) → WLC_SET_SSID(26, 36B broadcast join) → event loop
+watching WLC_E_SET_SSID(0)/status0 + WLC_E_PSK_SUP(46)/status6 = CONNECTED. Added `join [ssid psk]` command (default
+PhoenixNet/phoenixpi2026) + a JOIN report line. **Builds clean (0 undefined syms, static aarch64 ELF).** Fixed one
+brace-scramble in the report block (caught by the compile gate). Host AP still UP as the test target.
+**NEXT (Pi test): stage the new wifi-probe binary into the netboot rootfs + run `wifi-probe join` via psh; read the
+JOIN report** — expect SET_SSID status=0 + PSK_SUP status=6 = CONNECTED (or diagnose from the rc/status fields:
+wrong-PSK → PSK_SUP status≠6; no-AP → SET_SSID status≠0; low txpower → SET_SSID never assoc). On CONNECTED → Phase
+2b: DHCP over the wifi netif (needs the resident rpi4-wifi driver + lwip binding, not just the probe) → IP 10.43.0.x
+→ ping 10.43.0.1. NOTE: the probe proves the JOIN control-path; wiring it as a data netif (lwip) is the follow-on.
+
 2026-08-12 (RADIO-AS-TRANSPORT #4 — Phase 1 DONE: host WPA2 AP up + netboot-safe + scripted). First big feature after
 the sync. Recon: mt7925e (wlp3s0) supports AP mode ✓; hostapd MISSING but NetworkManager does WPA2 AP natively.
 Built reproducible **scripts/radio-ap-up.sh** + **radio-ap-down.sh**: NM AP on wlp3s0, SSID **PhoenixNet**, WPA2-PSK

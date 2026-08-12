@@ -36,14 +36,14 @@
 static unsigned long long g_bytes = 0;
 static unsigned long g_files = 0;
 
-static int copy_file(const char *src, const char *dst)
+static int copy_file(const char *src, const char *dst, mode_t mode)
 {
 	int sfd = open(src, O_RDONLY);
 	if (sfd < 0) {
 		printf("ram-stage: open src '%s': %s\n", src, strerror(errno));
 		return -1;
 	}
-	int dfd = open(dst, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	int dfd = open(dst, O_WRONLY | O_CREAT | O_TRUNC, mode);
 	if (dfd < 0) {
 		printf("ram-stage: open dst '%s': %s\n", dst, strerror(errno));
 		close(sfd);
@@ -156,22 +156,32 @@ static int copy_tree(const char *src, const char *dst)
 		closedir(d);
 		return rc;
 	}
-	return copy_file(src, dst);
+	return copy_file(src, dst, 0644);
 }
 
 int main(int argc, char **argv)
 {
-	const char *src, *dst;
+	const char *src, *dst, *exe;
+	char **exeargv;
+	int ai = 1, exec_ram = 0;
 	struct timespec t0, t1;
 	double secs, mib;
 
 	setvbuf(stdout, NULL, _IONBF, 0);
-	if (argc < 4) {
-		printf("usage: ram-stage-play <src-dir> <dst-dir> <exec> [exec-args...]\n");
+	/* Optional leading --exec-ram: also stage the game BINARY into RAM (/tmp, 0755) and
+	 * exec it from there, so the binary's demand-paging is RAM-speed too (not NFS). */
+	if (argc > 1 && strcmp(argv[1], "--exec-ram") == 0) {
+		exec_ram = 1;
+		ai = 2;
+	}
+	if (argc < ai + 3) {
+		printf("usage: ram-stage-play [--exec-ram] <src-dir> <dst-dir> <exec> [exec-args...]\n");
 		return 1;
 	}
-	src = argv[1];
-	dst = argv[2];
+	src = argv[ai];
+	dst = argv[ai + 1];
+	exe = argv[ai + 2];
+	exeargv = &argv[ai + 2];   /* {exe, args..., NULL} */
 
 	clock_gettime(CLOCK_MONOTONIC, &t0);
 	if (mkdir_p(dst) != 0) {
@@ -186,10 +196,29 @@ int main(int argc, char **argv)
 	clock_gettime(CLOCK_MONOTONIC, &t1);
 	secs = (double)(t1.tv_sec - t0.tv_sec) + (double)(t1.tv_nsec - t0.tv_nsec) / 1e9;
 	mib = (double)g_bytes / (1024.0 * 1024.0);
-	printf("ram-stage: staged %s -> %s (%lu files, %.2f MiB) in %.3f s (%.2f MiB/s); exec %s\n",
-	       src, dst, g_files, mib, secs, (secs > 0.0) ? (mib / secs) : 0.0, argv[3]);
+	printf("ram-stage: staged %s -> %s (%lu files, %.2f MiB) in %.3f s (%.2f MiB/s)\n",
+	       src, dst, g_files, mib, secs, (secs > 0.0) ? (mib / secs) : 0.0);
 
-	execv(argv[3], &argv[3]);
-	printf("ram-stage: execv '%s' failed: %s\n", argv[3], strerror(errno));
+	if (exec_ram) {
+		const char *base = strrchr(exe, '/');
+		char rampath[512];
+		unsigned long long b0 = g_bytes;
+		base = (base != NULL) ? base + 1 : exe;
+		snprintf(rampath, sizeof(rampath), "/tmp/%s", base);
+		if (copy_file(exe, rampath, 0755) != 0) {
+			printf("ram-stage: failed to stage exec '%s' -> '%s'\n", exe, rampath);
+			return 4;
+		}
+		printf("ram-stage: staged exec %s -> %s (%.2f MiB); exec from RAM\n",
+		       exe, rampath, (double)(g_bytes - b0) / (1024.0 * 1024.0));
+		exeargv[0] = rampath;   /* run the RAM copy */
+		execv(rampath, exeargv);
+		printf("ram-stage: execv '%s' failed: %s\n", rampath, strerror(errno));
+		return 3;
+	}
+
+	printf("ram-stage: exec %s\n", exe);
+	execv(exe, exeargv);
+	printf("ram-stage: execv '%s' failed: %s\n", exe, strerror(errno));
 	return 3;
 }

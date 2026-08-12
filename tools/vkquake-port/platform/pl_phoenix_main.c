@@ -41,7 +41,13 @@ static const char *g_basedir = "/usr/share/quake";
  * nfs-fs takeover + the libnfs first-read dircache ENOENT, #156). */
 static void wait_for_gamedata(void)
 {
-	static const char *cands[] = { "/usr/share/quake", "/opt/quake", "/" };
+	/* RAM-staged tmpfs paths first (the load-time workaround): if id1/ is staged into a RAM
+	 * fs — e.g. `ram-stage-play /usr/share/quake/id1 /tmp/quake/id1 /usr/bin/vkquake` — asset
+	 * reads are ~20x faster than over NFS (measured; RAM-staging is proven on Q1/Q2/Q3). Falls
+	 * through to the FHS NFS dir when nothing is staged (transparent + backward-compatible).
+	 * vkQuake picks the level from id1/phoenix-map.cfg not argv (#I2), so RAM preference is via
+	 * this candidate list rather than a -basedir override. */
+	static const char *cands[] = { "/ramtmp/quake", "/tmp/quake", "/usr/share/quake", "/opt/quake", "/" };
 	char path[80];
 	int i, c;
 	for (i = 0; i < 360; i++) {     /* ~180 s — NFS mount + DHCP can be slow/variable (#156) */

@@ -484,6 +484,23 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-12 (RADIO-AS-TRANSPORT #4 — Phase 1 DONE: host WPA2 AP up + netboot-safe + scripted). First big feature after
+the sync. Recon: mt7925e (wlp3s0) supports AP mode ✓; hostapd MISSING but NetworkManager does WPA2 AP natively.
+Built reproducible **scripts/radio-ap-up.sh** + **radio-ap-down.sh**: NM AP on wlp3s0, SSID **PhoenixNet**, WPA2-PSK
+**phoenixpi2026**, 2.4GHz **ch6**, subnet **10.43.0.1/24** (ipv4.method=shared → NM dnsmasq DHCP 10.43.0.10-254 +
+NAT to uplink for free). **Verified UP**: `iw dev wlp3s0` type AP ssid PhoenixNet ch6; NM dnsmasq bound ONLY to
+wlp3s0 (--bind-interfaces --listen-address=10.43.0.1) so NO conflict with the netboot dnsmasq. **Netboot confirmed
+UNTOUCHED** (enx…@10.42.0.1 + its dnsmasq PID 489073 both still healthy — separate iface + subnet by design). AP
+LEFT RUNNING as the Phase-2 test target. Watch item: txpower reads 3 dBm (AP-mode/mt7925e quirk despite reg=PL) —
+likely fine at bench range; Phase-2 first check confirms it (can the Pi see PhoenixNet in `wifi scan`?); if not, bump
+via `iw dev wlp3s0 set txpower fixed 2000`.
+**Phase 2 (next turn, the real engineering) — Phoenix WPA2 JOIN**: the BCM43455 driver/wifi-probe does SCAN but not
+join [[project_wifi_fw_exec_gate_91]]. Implement associate: (1) Pi `wifi scan` sees PhoenixNet (power/visibility
+check); (2) join iovars — wsec (WPA2/AES), wpa_auth (WPA2-PSK), set the PMK (wsec_pmk from PSK+SSID PBKDF2, or
+sup_wpa=1 to let firmware run the 4-way handshake), WLC_SET_SSID; (3) watch WLC_E_SET_SSID/ASSOC/LINK events for
+association; (4) DHCP over the wifi netif (lwip) → IP on 10.43.0.x → ping 10.43.0.1. Advisor-consult the
+fw-offload-sup vs in-driver-handshake choice at Phase 2 start. Then Phase 3: use the link as NFS/file transport.
+
 2026-08-12 (★★ UPSTREAM-SYNC task #1 — DONE, verified, pushed to org). Owner directive #1 complete. Gate results:
 **`--scope core` build PASS** (COREBUILD_EXIT=0, no errors — no utils.h-include fallout, no errno/`_PAGE_SIZE`/pthread
 breakage; the utils.h-refactor + SIZE_PAGE→_PAGE_SIZE rename resolved transitively, no manual fix needed).

@@ -277,7 +277,27 @@ build breaks, bisect the offending sibling, roll it back, defer it.
 
 ## Active task
 
-**★★★ 2026-08-09 OWNER UPDATE (Witold, commit 54329a1 — see "## Comments from human operator / owner (2026-08-09)"
+**★★★★ 2026-08-12 OWNER UPDATE (Witold, coord commit 71bb3db — see "## Comments from human operator / owner
+(2026-08-12)" above; "@claude read this please"). NEW BIG-FEATURE MANDATE — supersedes the drained-backlog/minimal-
+turn posture. Owner: "very good progress… do not be afraid of big, risky, multi-cycle projects… plenty of time to
+deliver BIG features." Backlog is NO LONGER drained. I pick order.** New task set (details + memory:
+[[feedback_owner_directive_2026_08_12]]):
+1. **Upstream sync** — pull incoming from ALL sibling repos, ensure nothing breaks. (Unblocks A1; raw `git fetch`
+   works. Foundational — do FIRST so big features build on current upstream; have rollback manifest
+   2026-08-12-vacation-work-validated.)
+2. **XFce even if hard**; else another DE (LXQt).
+3. **DRI/DRM** for X11 GPU accel + concurrent GPU apps (Linux/NetBSD-analogous).
+4. **Radio stack**: host WiFi-AP/BT on the Linux host, join from Phoenix Pi4; use radio as a FASTER-than-100Mbps
+   transport.
+5. **ML inference** framework on Pi4 w/ GPU accel (CV/CNN/"small", not full LLM).
+6. **bash/zsh + coreutils** full UNIX CLI beyond busybox.
+7. **My own impressive feature** (propose).
+Order chosen: **#1 upstream-sync FIRST** (foundational + newly-unblocked + owner's #1), then rotate through the big
+items (radio-as-transport #4 + DRI/DRM #3 are the highest-impact/most-owner-emphasized next). Continue the aggressive
+posture ([[feedback_owner_directive_aggressive_2026_08_07]]): risk-OK, kernel-OK, strict git discipline, compare-with-
+Linux, commit every step, snapshot manifests. HOUSEKEEPING pending: compact MEMORY.md (19.6KB, near read limit).
+
+(prior) **★★★ 2026-08-09 OWNER UPDATE (Witold, commit 54329a1 — see "## Comments from human operator / owner (2026-08-09)"
 above). NEW PRIORITIES (owner back Aug 19 late eve — stay busy the whole time):**
 1. **★ WiFi + Bluetooth (BCM43455 combo) — the headline — BOTH RADIOS UP (2026-08-09).** WiFi: SCAN WORKS (16 real
    APs, full SDIO→fw→BCDC→escan chain). Bluetooth: FUNCTIONAL (controller alive + patchram 323/323 + real BD_ADDR
@@ -463,6 +483,18 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-12 (★★ NEW OWNER DIRECTIVE received + git reconciled + priorities RESET — pivot to BIG features). Discovered
+it via a publish-push REJECTION: the owner (Witold) had pushed coord commit 71bb3db "Document operator feedback…
+@claude read this please" to the ORG coord repo (publish remote) at 17:53. This is the owner-signal channel I'd
+called undetectable — the tell is a non-fast-forward publish reject → `git fetch publish main` reveals it. Fetched +
+READ it: owner is happy ("very good progress") and explicitly mandates BIG, risky, multi-cycle work ("plenty of time
+to deliver BIG features") — 7 tasks (upstream sync, XFce/LXQt, DRI/DRM GPU multi-app, radio-stack host-AP + faster-
+than-eth transport, ML inference, bash/zsh+coreutils, my-own-feature). **This SUPERSEDES the drained-backlog/minimal-
+turn posture** — recorded as [[feedback_owner_directive_2026_08_12]] + MEMORY.md + Active task above. Reconciled the
+divergence WITHOUT force-push: merged 71bb3db into local (merge a0cc35c, clean auto-merge — owner edited the top of
+autonomous-plan.md, I the bottom), pushed both remotes back in sync (origin+publish @ a0cc35c). NEXT: start task #1
+upstream-sync (foundational). Housekeeping: MEMORY.md at 19.6KB (near read limit) — compact soon.
 
 2026-08-12 (verified owner directive #3 "strip all Quake/Quakespasm names from the SDL port" is SATISFIED; no code
 change). Grepped the SDL port's Phoenix backend (sdl2/overlay + glue) for quake/quakespasm name references: the ONLY

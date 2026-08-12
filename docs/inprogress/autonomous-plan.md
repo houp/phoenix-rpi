@@ -502,6 +502,23 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-13 (WIFI DATA-PLANE #4 Phase 2b/3 — DESIGNED; implementation next turn). Continuing radio-as-transport after
+join CONNECTED. Surveyed the owner's net/usbwlan reference + Phoenix lwip netif arch; subagent extracted the full
+design (primary-source, brcmfmac + lwip) → **docs/inprogress/2026-08-13-wifi-dataplane-design.md**. Key findings:
+(1) the data plane rides the SAME SDIO F2 transport as control — SDPCM **channel 2**; wifi-probe.c:1362 ALREADY
+receives ch2 frames + discards them, so the F2 path + demux are proven. Missing = SDPCM(ch2)+**BDC 4B header**
+wrap/unwrap (exact byte layouts in the doc) + **block-mode** (the 512B byte-mode cap corrupts full 1500B frames —
+use the existing block helpers) + **credit flow control** (tx_seq/tx_max from RX window byte9) + an **RX drain
+thread** (SDIO has no completion IRQ) + a **bus mutex** (TX/RX/ioctls share one bus). (2) Architecture **B**
+(netboot-SAFE): keep rpi4-wifi STANDALONE (SDIO/join/data), expose a usbwlan-style **/dev/wlan0** frame device, add a
+THIN lwip client netif (drivers/bcm-wifi.c, ~150 lines like bcm-genet.c) that is **INERT unless a boot arg is
+passed** → the risky fw-download/join/data code stays OUT of the netboot-critical lwip server. (Arch A = in-process
+netif in lwip = risky code in the sole recovery channel → REJECTED.) B1 fast-interim = reuse tuntap /dev/ta0.
+**NEXT (ordered, self-test-trap-aware — a single DHCP frame passes even with a buggy transport):** (1) TX one
+hardcoded DHCP-discover after join → verify via `tcpdump` on host 10.43.0.1; (2) RX-poll ch2 → log the offer; (3)
+block-mode+credits, verify with `ping -s 1400` + ping-flood (the REAL gate); (4) RX thread+bus mutex; (5) B1 tap
+wire-up → dhcp+ping; (6) B2 /dev/wlan0 + bcm-wifi.c. Host AP PhoenixNet still up as the test target.
+
 2026-08-12 (★ UPSTREAM SYNC COMPLETE across ALL 16 siblings — owner "consistent system version" directive DONE).
 Fresh-fetched every sibling origin: 11 already current (kernel/libphoenix/devices/lwip/usb/plo/build/corelibs/
 filesystems/posixsrv/utils), 5 behind → synced + pushed to org this turn: **doc** (12, fast-forward, docs only),

@@ -132,7 +132,7 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
 
 ## Pi lock
 
-- **IN USE vkquake-ram-stage 2026-08-12** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
+- **FREE** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
   Netboot game tests are now RELIABLE — the harness (psh-interact.py) waits for the NFS
   "registered / (takeover)" line before sending commands (#156 fix). No ls-warm needed.
 
@@ -443,6 +443,18 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-12 (★★ RAM-staging extended to vkQuake — the 4th/VULKAN engine renders from RAM; ram-stage-play made robust).
+The owner names vkQuake every heartbeat; extended the RAM-staging feature to it. (a) **vkquake-port (coord 051358a):**
+mirrored the quakespasm RAM-basedir fix — wait_for_gamedata() prefers /ramtmp/quake, /tmp/quake before the NFS dir
+(vkQuake picks its level from id1/phoenix-map.cfg not argv #I2, so RAM-cands not -basedir). Rebuilt (83/83 TUs, LINK OK
+vs the V3DV ICD; note the build needs `--link`). (b) **ram-stage-play bug FIXED (coord 224012a):** it mkdir'd only the
+dst dir, not its parents, so a nested dst (/tmp/quake/id1) failed ENOENT — added mkdir -p. HW-validated end-to-end:
+`ram-stage-play /usr/share/quake/id1 /tmp/quake/id1 /usr/bin/vkquake` → **staged id1 (4 files, 17.83 MiB) to RAM in
+2.7 s, vkQuake found /tmp/quake, initialized V3DV (Vulkan, fb0 scanout, no WSI), and RENDERED the full Quake "start"
+map from RAM** (GPU-compute lightmaps; HDMI 20260812-004452 = the QUAKE-logo entrance hall, torches, slipgate, HUD
+100/25, 0 faults). **RAM-staging now covers ALL 4 Quake engines: Q1 quakespasm/GL 3.6×, Q2 yquake2/GL renders, Q3
+quake3e/GL 5.49×, vkQuake/V3DV-Vulkan renders.** Pi lock freed.
 
 2026-08-12 (★ NFS small-read latency = NETWORK-INHERENT, not a fixable Phoenix bug — data-backed, closes the owner's
 "is it a Phoenix bug?" NFS directive). I'd worked around the game-load latency (RAM-staging) without measuring the

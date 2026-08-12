@@ -1732,6 +1732,91 @@ static int g_join_evt_total = 0;
 static char g_join_ssid[33] = "PhoenixNet";
 static char g_join_psk[64] = "phoenixpi2026";
 
+static int g_join_dtx = 0;             /* jointx: TX a DHCP-discover after join */
+static int g_tx_ran = 0;
+static int g_tx_mac_rc = -100;
+static int g_tx_rc = -100;
+static int g_tx_len = 0;
+
+/* radio-as-transport #4 Phase 2b step 1: TX one DHCP-DISCOVER 802.3 frame as an
+ * SDPCM channel-2 DATA frame (4-byte BDC header), to prove the data-plane TX path
+ * end-to-end (verify via tcpdump on the host AP 10.43.0.1). Mirrors diag_bcdcCmd's
+ * F2 write but channel=2 and the BDC header instead of the 16-byte BCDC dcmd.
+ * Byte-mode ok (frame ~305B < F2_FRAME_MAX). eth frame is built directly into g_txf
+ * at +16 (after SDPCM[12]+BDC[4]). Design: docs/inprogress/2026-08-13-wifi-dataplane-design.md. */
+static void diag_wifiDataTx(volatile uint8_t *sdhci, uint32_t sdio_core, uint8_t seq)
+{
+	uint8_t mac[8];
+	uint32_t ml = 0u;
+	int i, elen;
+	uint32_t total, wlen;
+	int rc;
+
+	g_tx_ran = 1;
+	for (i = 0; i < 8; ++i) {
+		mac[i] = 0u;
+	}
+	g_tx_mac_rc = diag_iovar(sdhci, sdio_core, 0, "cur_etheraddr", NULL, 6u,
+		mac, sizeof(mac), &ml, 200u, seq);
+
+	for (i = 0; i < F2_FRAME_MAX; ++i) {
+		g_txf[i] = 0u;
+	}
+	/* --- 802.3 Ethernet header @16 --- */
+	for (i = 0; i < 6; ++i) {
+		g_txf[16 + i] = 0xffu; /* dst broadcast */
+	}
+	for (i = 0; i < 6; ++i) {
+		g_txf[22 + i] = mac[i]; /* src = Pi wifi MAC */
+	}
+	g_txf[28] = 0x08u; g_txf[29] = 0x00u; /* ethertype IPv4 */
+	/* --- IP header @30 (20B), src 0.0.0.0 dst 255.255.255.255 --- */
+	g_txf[30] = 0x45u; g_txf[31] = 0x00u; /* ver/ihl, tos */
+	g_txf[32] = 0x01u; g_txf[33] = 0x13u; /* total length 275 */
+	g_txf[38] = 0x40u;                    /* ttl 64 */
+	g_txf[39] = 0x11u;                    /* proto UDP */
+	g_txf[40] = 0x79u; g_txf[41] = 0xdbu; /* IP header checksum */
+	g_txf[46] = 0xffu; g_txf[47] = 0xffu; g_txf[48] = 0xffu; g_txf[49] = 0xffu; /* dst */
+	/* --- UDP header @50 (8B), 68->67 --- */
+	g_txf[50] = 0x00u; g_txf[51] = 0x44u; /* src port 68 */
+	g_txf[52] = 0x00u; g_txf[53] = 0x43u; /* dst port 67 */
+	g_txf[54] = 0x00u; g_txf[55] = 0xffu; /* udp length 255 (checksum 0) */
+	/* --- DHCP/BOOTP @58 --- */
+	g_txf[58] = 0x01u; g_txf[59] = 0x01u; g_txf[60] = 0x06u; /* op/htype/hlen */
+	g_txf[62] = 0x12u; g_txf[63] = 0x34u; g_txf[64] = 0x56u; g_txf[65] = 0x78u; /* xid */
+	g_txf[68] = 0x80u; g_txf[69] = 0x00u; /* flags: broadcast */
+	for (i = 0; i < 6; ++i) {
+		g_txf[86 + i] = mac[i]; /* chaddr = MAC */
+	}
+	g_txf[294] = 0x63u; g_txf[295] = 0x82u; g_txf[296] = 0x53u; g_txf[297] = 0x63u; /* magic */
+	g_txf[298] = 0x35u; g_txf[299] = 0x01u; g_txf[300] = 0x01u; /* opt53 DISCOVER */
+	g_txf[301] = 0x37u; g_txf[302] = 0x01u; g_txf[303] = 0x01u; /* opt55 param req */
+	g_txf[304] = 0xffu; /* end */
+	elen = 289;
+	g_tx_len = elen;
+
+	/* SDPCM header (12B): channel=2 DATA, seq, data_offset=12 */
+	total = 12u + 4u + (uint32_t)elen;
+	g_txf[0] = (uint8_t)(total & 0xffu);
+	g_txf[1] = (uint8_t)((total >> 8) & 0xffu);
+	g_txf[2] = (uint8_t)((~total) & 0xffu);
+	g_txf[3] = (uint8_t)(((~total) >> 8) & 0xffu);
+	g_txf[4] = seq;
+	g_txf[5] = 0x02u; /* SDPCM channel = DATA */
+	g_txf[7] = 12u;   /* data_offset */
+	/* BDC header (4B) @12: flags = BCDC proto ver 2 << 4 */
+	g_txf[12] = 0x20u;
+	/* g_txf[13..15] already 0 (priority, flags2, bdc data_offset) */
+
+	diag_setWindow18(sdhci);
+	wlen = (total + 3u) & ~3u;
+	rc = diag_sdioCmd53WriteByteMode(sdhci, 2, /*incr=*/1, IOCTL_F2_ADDR, wlen, g_txf);
+	if (rc != 0) {
+		diag_sdhciResetDatCmd(sdhci);
+	}
+	g_tx_rc = rc;
+}
+
 static void diag_wifiJoin(volatile uint8_t *sdhci, uint32_t sdio_core)
 {
 	uint8_t emask[16];
@@ -1876,6 +1961,12 @@ static void diag_wifiJoin(volatile uint8_t *sdhci, uint32_t sdio_core)
 		else if (etype == 16u) { /* WLC_E_LINK */
 			g_join_link_up = (flags & 0x01u) ? 1 : 0;
 		}
+	}
+
+	/* jointx (step 1): after the join sequence, TX a DHCP-discover data frame so
+	 * the host AP's tcpdump proves the SDPCM channel-2 data-plane TX path. */
+	if (g_join_dtx) {
+		diag_wifiDataTx(sdhci, sdio_core, seq);
 	}
 }
 
@@ -2806,6 +2897,18 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 		}
 	}
 
+	/* #4 Phase 2b step 1: data-plane TX report (DHCP-discover over SDPCM ch2). */
+	if (g_tx_ran) {
+		r = snprintf(buf + off, cap - off,
+			"WiFi DATA-TX (DHCP-discover, SDPCM ch2): cur_etheraddr rc=%d  eth_len=%d  F2-write rc=%d => %s\n"
+			"  (verify on host: sudo tcpdump -ni wlp3s0 -e port 67 or port 68  -- expect BOOTP/DHCP Discover from the Pi MAC)\n",
+			g_tx_mac_rc, g_tx_len, g_tx_rc,
+			(g_tx_rc == 0) ? "F2 WRITE OK (frame handed to fw)" : "F2 write FAILED");
+		if (r > 0 && (size_t)r < cap - off) {
+			off += r;
+		}
+	}
+
 	r = snprintf(buf + off, cap - off, ".\n");
 	if (r > 0 && (size_t)r < cap - off) {
 		off += r;
@@ -2832,6 +2935,23 @@ int main(int argc, char **argv)
 		else if (strcmp(argv[ai], "join") == 0) {
 			g_join_mode = 1;
 			/* optional: join <ssid> <psk> */
+			if (ai + 2 < argc) {
+				size_t k;
+				for (k = 0; k + 1 < sizeof(g_join_ssid) && argv[ai + 1][k] != '\0'; ++k) {
+					g_join_ssid[k] = argv[ai + 1][k];
+				}
+				g_join_ssid[k] = '\0';
+				for (k = 0; k + 1 < sizeof(g_join_psk) && argv[ai + 2][k] != '\0'; ++k) {
+					g_join_psk[k] = argv[ai + 2][k];
+				}
+				g_join_psk[k] = '\0';
+				ai += 2;
+			}
+		}
+		else if (strcmp(argv[ai], "jointx") == 0) {
+			g_join_mode = 1;
+			g_join_dtx = 1;
+			/* optional: jointx <ssid> <psk> */
 			if (ai + 2 < argc) {
 				size_t k;
 				for (k = 0; k + 1 < sizeof(g_join_ssid) && argv[ai + 1][k] != '\0'; ++k) {

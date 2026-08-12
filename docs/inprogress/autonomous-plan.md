@@ -444,6 +444,16 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-12 (verified owner directive #3 "strip all Quake/Quakespasm names from the SDL port" is SATISFIED; no code
+change). Grepped the SDL port's Phoenix backend (sdl2/overlay + glue) for quake/quakespasm name references: the ONLY
+hit is one benign explanatory comment in SDL_phoenixvideo.c:272 ("Apps that gate rendering on those events then
+break: e.g. quake3e") — that names quake3e as an example CONSUMER to document a real event-handling constraint, not
+the Quakespasm-derived branding/identifiers the owner wanted stripped from the copied code. No Quakespasm-origin
+naming remains anywhere in the port. So the de-Quake deliverable is met; left the comment as useful documentation
+(the owner can trivially generalize "e.g. quake3e" → "e.g. some GL apps" at publication if they want it fully
+game-agnostic — flagged, not done, since it's documentation not branding). Confirms a specific, repeated owner
+instruction for the owner's return. No Pi, no code change.
+
 2026-08-12 (vkQuake render-state check via the owner's HDMI-capture + pixel-analysis pipeline — render HEALTHY, no
 visible striping; ZERO Pi cost). The owner names the vkQuake HDMI-capture + pixel-analysis + host-comparison pipeline
 twice in the directive, so instead of another minimal turn (or a wasteful ~10-min vkQuake Pi cycle), I analyzed the

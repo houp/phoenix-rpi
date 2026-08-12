@@ -152,7 +152,7 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
 
 ## Pi lock
 
-- **FREE** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
+- **IN USE — upstream-sync boot-verify (2026-08-12)** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
   Netboot game tests are now RELIABLE — the harness (psh-interact.py) waits for the NFS
   "registered / (takeover)" line before sending commands (#156 fix). No ls-warm needed.
 

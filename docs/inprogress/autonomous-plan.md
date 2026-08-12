@@ -484,6 +484,30 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-12 (UPSTREAM-SYNC task #1 — SCOPED via fresh fetches; execution teed up for next turn). Advisor-steered:
+timebox the sync (don't let it become a hiding place from the big features), scope from the diff, merge clean/
+orthogonal + Pi-boot-verify gate, cherry-pick/defer collisions, fetch ORIGIN (upstream), lwip last (never force-push
+its scrubbed history). Fetched origin on kernel/libphoenix/project. **Incoming assessment:**
+- **kernel: 24 commits.** Tree-wide `54af795c remove Polish diacritics from headers` (drives ~502-file cosmetic
+  churn, low-risk but big merge surface). **`vm/map.c` +140 lines (mprotect/amap-merge fixes) — COLLISION risk with
+  our map-relocation fork.** `!errno renumber to match host` (f788c2a0/4f99d45c). Most hal/* = armv7a/armv7m/stm32
+  = ORTHOGONAL to aarch64 Pi4. Plus posix/unix bind/shutdown, threads_halt, assert-noreturn.
+- **libphoenix: 11 commits.** `a84b216 !errno: transfer errno defines to kernel` = the PAIRED half of the kernel
+  errno change → **errno is a COORDINATED CROSS-REPO BREAKING CHANGE; kernel+libphoenix MUST merge together or ABI/
+  boot breaks.** Also `!pthread PTHREAD_EXPLICIT_SCHED default` (behavior change, affects SDL/game pthreads), socket
+  accept()/send-recv inlines, pthread rwlocks, regex/syslog fixes.
+- **project: 10 commits = IRRELEVANT** (mostly "submodule update" + stm32n6 CI; we use sources/ siblings, not the
+  project's submodules → skip).
+- lwip/others: earlier status showed behind=0 (no incoming) → skip (recheck lwip before any merge).
+**HARD PLAN for next turn (execute, do NOT re-assess):** (1) merge kernel+libphoenix origin/master TOGETHER (keeps
+errno paired); resolve conflicts — expect diacritic-header hunks on files we edited + vm/map vs our reloc fork
+(favor upstream's mprotect/amap fixes but preserve our reloc changes; read both sides). (2) `--scope core` rebuild.
+(3) **ONE Pi boot-verify as the gate** (netboot to psh + a game/wifi smoke — the owner's "make sure nothing breaks");
+red → restore manifest 2026-08-12-vacation-work-validated. (4) snapshot a new manifest. Skip project + orthogonal
+hal. Timebox: if vm/map or errno conflicts turn into a grind, cherry-pick the safe bug-fixes + note-and-defer the
+rest (parity ≠ nothing-breaks). THEN move to the first BIG feature: radio-as-transport (#4, unblocked — host AP on a
+SEPARATE wifi iface off the wired netboot NIC; I own the PSK so the consent blocker is gone).
+
 2026-08-12 (★★ NEW OWNER DIRECTIVE received + git reconciled + priorities RESET — pivot to BIG features). Discovered
 it via a publish-push REJECTION: the owner (Witold) had pushed coord commit 71bb3db "Document operator feedback…
 @claude read this please" to the ORG coord repo (publish remote) at 17:53. This is the owner-signal channel I'd

@@ -132,7 +132,7 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
 
 ## Pi lock
 
-- **IN USE regression-health 2026-08-12** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
+- **FREE** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
   Netboot game tests are now RELIABLE — the harness (psh-interact.py) waits for the NFS
   "registered / (takeover)" line before sending commands (#156 fix). No ls-warm needed.
 
@@ -443,6 +443,23 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-12 (★ CONSOLIDATED REGRESSION/HEALTH CHECK — comprehensive PASS, 0 faults; the port is solid for the owner's
+return). Advisor-steered (don't build the A/V player — its payoff, synced audio+video, is UNVERIFIABLE on this rig
+since audio audibility is deferred/no-speaker; propose it to the owner. And stop re-deriving that the safe/tractable
+backlog is drained — it is proven; the flip-flopping is the waste). Ran the highest-value hand-back: one health cycle
+validating everything works after the ~20 commits since the owner left (+ boot-verifies the reverted cluster kernel):
+- boot → psh ✓ (core + reverted kernel d8baae66); /dev/thermal ✓ 33064 (33 °C, via vcmbox mailbox); /dev/gpio ✓
+  (register snapshot); WiFi ✓ (SDIO→fw-boot→scan found REAL APs: domowy.anuszkiewicz −76 dBm ch4, Orange, HP
+  OfficeJet −32 dBm ch8, BrandNewHope); game ✓ (quakespasm-sdl rendered from RAM-staged id1, V3D 4.2 GL, demo loop);
+  **0 faults** across both sub-cycles. (WiFi AP-list needed a WiFi-only re-run — a game cmd had interleaved the first
+  scan's output; not a WiFi failure.)
+**Honest tail-state (owner back ~Aug 19; recreate cron ~Aug 14):** the flagship work is done + HW-confirmed working.
+The remaining items ALL need the owner: A1 Batch 3 (upstream kernel sync — tooling-blocked unattended + silent-
+regression risk), A/V player (ffmpeg audio+video — unverifiable audio here, needs the owner's speakers), XFce
+(blocked on porting glib's gio), ipcprobe/sysinfo removal (owner judgment). Rule for the tail: bounded+validatable+
+safe > big/speculative; a small clean increment (H1 docs archival) is fine filler — no big deliverable owed per hour.
+Pi lock freed.
 
 2026-08-12 (kernel read-ahead cluster bump 16→64: NO benefit — REVERTED; cold exec-paging is per-byte/per-page-bound,
 no easy lever). Followed up the exec-paging finding with the owner-endorsed kernel experiment: bumped

@@ -152,7 +152,7 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
 
 ## Pi lock
 
-- **IN USE — upstream-sync boot-verify (2026-08-12)** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
+- **FREE** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
   Netboot game tests are now RELIABLE — the harness (psh-interact.py) waits for the NFS
   "registered / (takeover)" line before sending commands (#156 fix). No ls-warm needed.
 
@@ -483,6 +483,21 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-12 (★★ UPSTREAM-SYNC task #1 — DONE, verified, pushed to org). Owner directive #1 complete. Gate results:
+**`--scope core` build PASS** (COREBUILD_EXIT=0, no errors — no utils.h-include fallout, no errno/`_PAGE_SIZE`/pthread
+breakage; the utils.h-refactor + SIZE_PAGE→_PAGE_SIZE rename resolved transitively, no manual fix needed).
+**Pi netboot boot-verify PASS** (log …193852-sync-verify, **0 faults**): boots to `(psh)%`, NFS-root takeover
+complete (mounted 10.42.0.1:/ v4), lwip genet link up 100Mbps + DHCP ip=10.42.0.12, `cat /dev/thermal`→34525
+(mailbox), `cat /dev/gpio`→register snapshot. This exercised the merge's risky paths clean: boot/spawn, scheduler/
+threading (readyTime merge), multi-threaded daemons lwip/nfs (pthread EXPLICIT_SCHED-default change), errno on every
+syscall (kernel↔userspace ABI consistent — no fault), vm mmap. **Pushed to org**: kernel d8baae66→ec58537b,
+libphoenix 3a74c04→8ce5976 (publish remote). Snapshot manifest **2026-08-12-upstream-sync-2026-08-12** = new
+known-good rollback point (supersedes vacation-work-validated). Skipped project (irrelevant submodule updates) +
+orthogonal hal (armv7/stm32). lwip had no incoming (behind=0). Pi lock FREED. **NEXT: first BIG feature —
+radio-as-transport (#4)**: stand a WiFi AP on the Linux host on a SEPARATE wifi iface (NOT the wired netboot NIC/
+dnsmasq path), join from Phoenix Pi4 (scan already works [[project_wifi_fw_exec_gate_91]]) → WPA2 → DHCP → IP; I own
+the AP+PSK so the consent blocker is gone. Then DRI/DRM (#3, deep centerpiece).
 
 2026-08-12 (UPSTREAM-SYNC task #1 — MERGES DONE, core build running as the gate). Executed the planned coordinated
 merge. **kernel** merge origin/master (ec58537b): 2 conflicts resolved — (a) lib/lib.h → took upstream (it now

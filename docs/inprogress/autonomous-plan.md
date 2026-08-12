@@ -13,6 +13,24 @@ host/Linux comparison, UART logs, QEMU, debugger).
 
 ---
 
+## Comments from human operator / owner (more more from 2026-08-12)
+
+- qemu 11.1 was released - please update the host-side toolchain to up-to-date qemu
+- Look at this thread https://lore.kernel.org/lkml/20260811083828.2057695-1-irogers@google.com/ and see if we could implement something similar in Phoenix-RTOS
+- Mesa 26.2.0 has been rerelease - we should re-base our patches agains the release version (previously we used some rc or beta tag).
+- I've noticed that some of the repos are already up-stream synced in our org, but some of them are still behind. I suggest you complete this up-stream syncing to have a consistent system version.
+
+---
+
+
+## Comments from human operator / owner (more from 2026-08-12)
+
+Notice that in phoenix-rtos-ports there is a port of wpa_supplicant which might be helpful for wifi bring-up. Yet, the port which is stored there seems to be old. You can try to upgrade this to an up-to-date wpa_supplicant version and use it.
+
+Also make note that there is: https://github.com/rpi-phoenix-rtos/phoenix-rtos-devices/tree/master/net/usbwlan which seems to be some kind of wifi driver (probably for different device than the one in Pi4). Yet, it would be nice if we follow similar strategy as they did (as long if this makes any sense).
+
+---
+
 ## Comments from human operator / owner (2026-08-12)
 
 Very good progress in the project.

@@ -498,6 +498,10 @@ orthogonal hal (armv7/stm32). lwip had no incoming (behind=0). Pi lock FREED. **
 radio-as-transport (#4)**: stand a WiFi AP on the Linux host on a SEPARATE wifi iface (NOT the wired netboot NIC/
 dnsmasq path), join from Phoenix Pi4 (scan already works [[project_wifi_fw_exec_gate_91]]) → WPA2 → DHCP → IP; I own
 the AP+PSK so the consent blocker is gone. Then DRI/DRM (#3, deep centerpiece).
+RADIO RECON (done this turn, safe/read-only): host has an UNUSED wifi iface **wlp3s0** (driver mt7925e, MediaTek) —
+the AP candidate — fully SEPARATE from the wired netboot NIC **enx00e04c68013a @10.42.0.1** (DO NOT TOUCH) and the
+internet uplink enp1s0f0. Next turn: verify `iw phy` AP-mode support on mt7925e, hostapd+dnsmasq on wlp3s0 only
+(own subnet, e.g. 10.43.0.0/24), then Pi join → WPA2 → DHCP → ping.
 
 2026-08-12 (UPSTREAM-SYNC task #1 — MERGES DONE, core build running as the gate). Executed the planned coordinated
 merge. **kernel** merge origin/master (ec58537b): 2 conflicts resolved — (a) lib/lib.h → took upstream (it now

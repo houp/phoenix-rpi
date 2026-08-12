@@ -444,6 +444,20 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-12 (clean-build WARNING AUDIT — vacation-run code is warning-clean; no action needed). Follow-on to the
+clean-build PASS: the full-clean log compiled every TU from source, so it's the most complete warning surface
+available — audited it (CLAUDE.md: surface build warnings). 40 warnings, 0 errors. Grouped by file: ALL are in
+third-party PORTS (busybox, dropbear, openssl, libevent, lsquic) + host build tooling (kconfig scripts) + a
+test-macros header — i.e. vendored upstream, out of scope + un-upstreamable to touch. **None of the vacation-run
+files I added/edited (WiFi/BT drivers, code-review-touched drivers, kernel, libphoenix) emit ANY warning** — the new
+work is warning-clean. The ONLY Phoenix-source warning is 1× -Wstringop-truncation in phoenix-rtos-filesystems
+nfs/srv.c:179 (wait_for_dhcp_lease, last touched Aug-3 = PRE-vacation-run), and it's a benign GCC FALSE-POSITIVE:
+the code is the correct `strncpy(dst, src, sizeof(dst)-1); dst[sizeof(dst)-1]='\0';` idiom (manually null-terminates
+on the next line). Contorting correct/readable code to silence a false-positive would harm upstreamability → LEFT AS
+IS. Net: the vacation-run work is now confirmed both clean-building AND warning-clean = publication-quality at the
+local tier. Investigated → found no actionable defect → correctly made no change (not manufacturing a fix). No Pi,
+no code change.
+
 2026-08-12 (★ CLEAN-BUILD VERIFICATION — PASS/GREEN; the vacation-run work clean-builds from scratch). Found a real untested gap: the last clean-build evidence is Jul-4, so the ~25 vacation-run commits (new
 WiFi/BT driver .c files, code-review edits, board_config.h DUMMYFS define) have NEVER been clean-built — only
 incrementally (--scope core, which reuses cached .o and MASKS Makefile-wiring/missing-file breakage, a documented

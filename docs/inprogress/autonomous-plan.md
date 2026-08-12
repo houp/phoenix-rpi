@@ -170,7 +170,7 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
 
 ## Pi lock
 
-- **IN USE — wifi data-TX step1 (2026-08-13)** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
+- **FREE** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
   Netboot game tests are now RELIABLE — the harness (psh-interact.py) waits for the NFS
   "registered / (takeover)" line before sending commands (#156 fix). No ls-warm needed.
 
@@ -501,6 +501,22 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-13 (WIFI DATA-PLANE step 1 — TX code done + F2-transport VERIFIED; air-verify blocked by join flakiness).
+Implemented `diag_wifiDataTx` + `jointx` command in wifi-probe.c: builds a DHCP-discover 802.3 frame, wraps it as an
+SDPCM **channel-2 DATA** frame (SDPCM ch=2 + 4-byte BDC header 0x20/doff), byte-mode F2-writes it. Builds clean.
+**HW cycle 1: F2-write rc=0** (cur_etheraddr rc=0, eth_len=289, "frame handed to fw") — **the SDPCM ch2 data-TX
+transport WORKS.** BUT the end-to-end air verify (tcpdump on the host AP) is BLOCKED: **join is flaky this session** —
+cycle 1 got SET_SSID **status=3 (NO_NETWORKS)** so the fw dropped the data frame (no association→no data path); cycle 2
+(moved AP to ch1) the Pi booted 0-faults + ran jointx but wifi-probe produced no captured output (hung in bring-up or
+cut off). Note: join CONNECTED reliably first-try LAST turn — so this is intermittent, not broken. Root suspects:
+(a) AP txpower stuck at **3 dBm** (mt7925e AP-mode driver cap; `iw set txpower`/nmcli can't raise it → marginal
+signal); (b) heavy full-bring-up-per-run (power-cycle→643KB fw→join) occasionally flakes. **NEXT: make join
+RELIABLE, then re-verify air-TX:** (1) add a SET_SSID retry loop in diag_wifiJoin (on status=3, re-issue a few times);
+(2) better — SCAN first (confirm PhoenixNet visible + get its BSSID/channel), then a TARGETED join (the `join` iovar
+with ext_join_params assoc_params: bssid+chanspec) — faster + robust vs a broadcast scan-join at 3 dBm; (3) re-run
+jointx with host tcpdump → confirm the DHCP-discover reaches the host = step 1 DONE. Then step 2 (RX-poll ch2 → parse
+the DHCP offer). AP left UP on ch1. Design: docs/inprogress/2026-08-13-wifi-dataplane-design.md.
 
 2026-08-13 (WIFI DATA-PLANE #4 Phase 2b/3 — DESIGNED; implementation next turn). Continuing radio-as-transport after
 join CONNECTED. Surveyed the owner's net/usbwlan reference + Phoenix lwip netif arch; subagent extracted the full

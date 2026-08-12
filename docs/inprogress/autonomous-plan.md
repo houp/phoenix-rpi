@@ -132,7 +132,7 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
 
 ## Pi lock
 
-- **IN USE exec-ram-ab 2026-08-12** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
+- **FREE** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
   Netboot game tests are now RELIABLE — the harness (psh-interact.py) waits for the NFS
   "registered / (takeover)" line before sending commands (#156 fix). No ls-warm needed.
 
@@ -443,6 +443,22 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-12 (binary-from-RAM A/B: NO benefit — cold exec-paging is FAULT-OVERHEAD-bound, not storage-bound; corrects
+the Q1 number's interpretation + identifies a kernel lever). Added `--exec-ram` to ram-stage-play (stage the game
+BINARY into /tmp 0755 + exec from RAM; coord 4faecc7) and A/B'd Q1 (quakespasm-sdl -loadbench, data-RAM both runs):
+- binary-from-NFS (cold): LOAD-TIME main→Host_Init **7.669 s**
+- binary-from-RAM (--exec-ram): **8.466 s** (staged the 23.76 MiB binary to /tmp)
+**RAM-staging the binary did NOT help** (RAM ≈ NFS, within noise). Conclusions: (1) the COLD binary exec-paging
+(~6.6 s here; ~1 s when warm-cached) is dominated by per-page FAULT-handling overhead (kernel object_fetch), NOT
+storage speed — identical from NFS or tmpfs — so staging the binary can't fix it; the real lever is the kernel
+demand-paging read-ahead cluster (`OBJECT_READAHEAD_PAGES`=16/64 KiB in vm/object.c), owner-endorsed kernel work.
+(2) This means my earlier Q1 "3.6×" conflated a binary-warmth confound (the RAM run was 2nd → warm binary cache); the
+CLEAN data-RAM benefit is Q3's `CL_InitCGame` 5.49× (post-engine ASSET load, contains no exec-paging) + Q2 rendering
+from RAM. All results still valid — interpretation sharpened. `--exec-ram` kept as a (harmless, no-benefit-here)
+option. **NEXT (owner-endorsed kernel work): investigate bumping OBJECT_READAHEAD_PAGES to cut the fault count for
+cold exec-paging** (measure exec-load vs cluster size; watch the SD/random-access regression the earlier analysis
+flagged — but exec-paging IS sequential-ish, so a larger cluster should help it specifically). Pi lock freed.
 
 2026-08-12 (★★ RAM-staging extended to vkQuake — the 4th/VULKAN engine renders from RAM; ram-stage-play made robust).
 The owner names vkQuake every heartbeat; extended the RAM-staging feature to it. (a) **vkquake-port (coord 051358a):**

@@ -444,6 +444,22 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-12 (clean minimal turn — no new owner signal; deferred a consumer-less Pi cycle, correctly). Checked for a
+new owner git signal since 54329a1 (the Aug-9 directive): none — the recent coord commits are all this-session
+autonomous work (Claude co-authored; the "Witold Bołt" author is just the configured git identity), and the kernel
+tops out at d8baae66 (Aug-10, my work). Can't fetch remote-only commits unattended (read-only tooling), so by
+definition nothing new to act on → state unchanged. Considered verifying the Linux-Pi4 netboot reference env still
+boots (owner-explicit "keep Linux ready"), but advisor-checked + DROPPED it: a reference env's value is realized at a
+comparison, and there is NO comparison pending (NFS characterized, latency network-inherent, no active net/NFS
+defect) → the result would have no consumer (validatable ≠ useful). "Ready" also doesn't decay here — nothing touches
+the Linux tree unattended (netboot-server-up.sh rsyncs only the Phoenix rootfs), so re-booting it adds no
+information, only Pi-exclusive + restore-discipline + unbounded-repair-branch risk to a done/validated/rollback-
+pointed system. **Rule reaffirmed for the tail: the discriminating test is "what consumes the result?", not "is it
+validatable." Save the Linux env for when a real net/NFS question needs it (verify-and-use as one consumer-backed
+action).** "DO NOT STOP" is satisfied by keeping the loop alive, not by minting a task each hour. No Pi cycle, no
+code, no core change. Cron expires ~Aug 15 (recreate ~Aug 14, still ~2 days out). Tail-state unchanged — every
+remaining item needs the owner.
+
 2026-08-12 (rollback-discipline gap FIXED: added a correct known-good manifest for the current validated state).
 Verifying git hygiene across siblings (owner's strict-git-discipline directive), found the most-recent manifest
 2026-08-12-readahead-cluster-64 records kernel **8c465fbb** — the read-ahead cluster-bump experiment I later

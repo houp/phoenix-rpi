@@ -444,6 +444,17 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-12 (bounded+safe filler per the tail-rule: refreshed status.md — the owner-facing "current focus" doc — to
+2026-08-12). status.md's LATEST section was dated 2026-08-06, 6 days stale: it still said "backlog drained → lighter-
+cadence stewardship" and missed all the major Aug 7–12 work the owner reads on return. Added a "LATEST — 2026-08-12"
+section (WiFi/BT both radios up; the 15-fix code-review pass; the RAM-staging load-time feature — NFS latency proven
+network-inherent, 256 MiB /tmp, ram-stage-play, all 4 Quake engines Q1 3.6×/Q3 5.49×/Q2+vkQuake render; the health-
+check PASS) + the accurate state line (flagship done + HW-confirmed; remaining needs the owner). Demoted the old
+Aug-06 LATEST heading; verified all links resolve (no dangling refs). Docs-only coord commit 478bc46 → origin +
+publish. Chose this over H1 docs-archival: same bounded/validatable/safe class but higher value (an accurate status
+doc for the owner's return vs. tidiness). No Pi cycle, no core change. Heartbeat: cron expires ~Aug 15 (recreate
+~Aug 14, still ~2–3 days out). Tail-state unchanged — every remaining item still needs the owner.
+
 2026-08-12 (★ CONSOLIDATED REGRESSION/HEALTH CHECK — comprehensive PASS, 0 faults; the port is solid for the owner's
 return). Advisor-steered (don't build the A/V player — its payoff, synced audio+video, is UNVERIFIABLE on this rig
 since audio audibility is deferred/no-speaker; propose it to the owner. And stop re-deriving that the safe/tractable

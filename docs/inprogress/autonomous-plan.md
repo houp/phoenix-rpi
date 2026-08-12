@@ -444,8 +444,7 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
-2026-08-12 (★ CLEAN-BUILD VERIFICATION RUNNING — publication-readiness gap, advisor-endorsed as genuine forward
-work). Found a real untested gap: the last clean-build evidence is Jul-4, so the ~25 vacation-run commits (new
+2026-08-12 (★ CLEAN-BUILD VERIFICATION — PASS/GREEN; the vacation-run work clean-builds from scratch). Found a real untested gap: the last clean-build evidence is Jul-4, so the ~25 vacation-run commits (new
 WiFi/BT driver .c files, code-review edits, board_config.h DUMMYFS define) have NEVER been clean-built — only
 incrementally (--scope core, which reuses cached .o and MASKS Makefile-wiring/missing-file breakage, a documented
 recurring bug class per [[project_clean_build_release_gate]]). Real consumer: the owner's explicit publication goal;
@@ -453,14 +452,15 @@ finding a latent break now (with my context on the changes) beats the owner hitt
 do it CHEAP-FIRST: launched a local `rebuild-rpi4b-fast.sh --scope full-clean` (nfsroot; stage list = clean host fs
 core ports project image; nukes .buildroot, no toolchain rebuild, no showcase) — catches the highest-probability
 regression (new driver not wired into a Makefile) without the 90-min Docker gate or its push-completeness
-prerequisite. **BUILD IN PROGRESS** (detached PID 385115, log
-/home/houp/.claude/jobs/c8f1289c/tmp/cleanbuild-fullclean.log; Monitor armed on CLEANBUILD_EXIT). Next heartbeat: if
-this note still says IN PROGRESS and the log lacks CLEANBUILD_EXIT, the build is still running — DO NOT launch a
-second one; just wait/monitor. On GREEN: real (if not fully authoritative) publication-readiness signal; the Docker
---no-cache gate remains as the publication-TIME check (its unique coverage = toolchain-masking traps, which this
-stretch didn't touch). On RED: mechanical fix (Makefile/include/path) + commit + rebuild; if it becomes a deep grind,
-commit the partial diagnosis and stop (don't destabilize a done/validated system with the owner away; rollback point
-2026-08-12-vacation-work-validated exists). No Pi cycle (host build), no code change yet.
+prerequisite. **RESULT: PASS (CLEANBUILD_EXIT=0).** The full-clean build (nuked .buildroot → clean host fs core ports project
+image) completed end-to-end and exported a bootable image with Verification: OK (rpi4b-sd.img, SHA256 bf6492638aa…).
+So the vacation-run ~25 commits (new WiFi/BT driver .c, code-review edits, board_config.h DUMMYFS define) carry NO
+Makefile-wiring / missing-file / cache-masked breakage — they build from truly clean. Publication-readiness
+confirmed at the LOCAL tier. The authoritative Docker `--no-cache` gate (re-clones the ORG forks; unique coverage =
+fresh-toolchain / sysroot-header / stale-archive masking traps) remains the publication-TIME check — reasonable to
+run WITH the owner when publication actually happens, since this stretch touched neither the toolchain nor libm (the
+change classes that trap bites) and its result feeds a not-yet-pending publish event. No Pi cycle (host build), no
+code change, no regression. This closed a genuine untested-path gap (last clean build was Jul-4).
 
 2026-08-12 (clean minimal turn — no new owner signal; deferred a consumer-less Pi cycle, correctly). Checked for a
 new owner git signal since 54329a1 (the Aug-9 directive): none — the recent coord commits are all this-session

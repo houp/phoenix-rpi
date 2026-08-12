@@ -444,6 +444,22 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-12 (rollback-discipline gap FIXED: added a correct known-good manifest for the current validated state).
+Verifying git hygiene across siblings (owner's strict-git-discipline directive), found the most-recent manifest
+2026-08-12-readahead-cluster-64 records kernel **8c465fbb** — the read-ahead cluster-bump experiment I later
+`git reset --hard`'d away (current known-good kernel is **d8baae66**). That SHA is now unreferenced (only reflog),
+so restore-integration-state.sh against that manifest would check out the reverted-away commit — a broken/wrong
+rollback point, and there was NO manifest capturing the current health-check-validated state. Fixed: snapshot
+**manifests/2026-08-12-vacation-work-validated.md** (kernel d8baae66 clean, devices 8d95c9b, ports 94ee607,
+libphoenix 3a74c04, plo 0033722 — the exact SHAs the 2026-08-12 health check validated: boot + thermal/gpio/
+WiFi-scan/RAM-staged-game render, 0 faults). This is now the correct deterministic rollback point for the full
+vacation-run body of work. Coord commit ccf1e09 → origin + publish. Also confirmed the "dirty" working trees are
+all EXPECTED (build-artifact binaries: btctl/rpi4-hci/bt-probe/wifi-probe/ram-stage-play/nfs-read-bench/dlopen-poc;
+generated firmware blobs in lwip; + the pre-existing vkQuake/v3d WIP the board already flagged "leave untouched" at
+lines 441–443) — every sibling's TRACKED committed state is clean. No git-discipline gap remains. No Pi cycle, no
+core change, no code touched. Cron expires ~Aug 15 (recreate ~Aug 14). Tail-state unchanged — remaining items need
+the owner.
+
 2026-08-12 (bounded+safe filler per the tail-rule: refreshed status.md — the owner-facing "current focus" doc — to
 2026-08-12). status.md's LATEST section was dated 2026-08-06, 6 days stale: it still said "backlog drained → lighter-
 cadence stewardship" and missed all the major Aug 7–12 work the owner reads on return. Added a "LATEST — 2026-08-12"

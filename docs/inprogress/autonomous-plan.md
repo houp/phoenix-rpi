@@ -484,6 +484,21 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-12 (UPSTREAM-SYNC task #1 — MERGES DONE, core build running as the gate). Executed the planned coordinated
+merge. **kernel** merge origin/master (ec58537b): 2 conflicts resolved — (a) lib/lib.h → took upstream (it now
+aggregates includes, macros moved to new lib/utils.h; our single-core AArch64 atomics customization TD-01/TD-11 was
+already DEAD at NUM_CPUS=4U so no active behavior lost + keeping ours would duplicate utils.h); (b) proc/threads.c →
+kept BOTH `t->cpuId = 0;` (our SMP init, cpuId field confirmed still in threads.h:82) + upstream
+`proc_gettime(&t->readyTime, NULL)` (used by next line). vm/map.c (mprotect/amap fixes) + errno auto-merged. **lib
+phoenix** merge origin/master (8ce5976): CLEAN, no conflicts (errno transfer, pthread rwlocks/testcancel/EXPLICIT_
+SCHED-default, socket, regex, syslog). errno now PAIRED (kernel renumber + libphoenix transfer both in). Skipped
+project (submodule updates irrelevant) + orthogonal hal. **NOW: `--scope core` rebuild running** (detached PID
+482161, log cleanup at sync-corebuild.log; Monitor armed) — the gate for utils.h-include reachability in our fork
+files + SIZE_PAGE/_PAGE_SIZE rename fallout + errno consistency + pthread-default build impact. On GREEN → Pi
+boot-verify → snapshot manifest → done, move to radio-as-transport (#4). On RED → fix the missing-include/rename
+fallout (expected: add lib/utils.h include where our fork files use max/min/round_page/lib_atomicIncrement), rebuild.
+Rollback point 2026-08-12-vacation-work-validated if boot regresses. NOT pushed to org yet (push only after boot-verify).
+
 2026-08-12 (UPSTREAM-SYNC task #1 — SCOPED via fresh fetches; execution teed up for next turn). Advisor-steered:
 timebox the sync (don't let it become a hiding place from the big features), scope from the diff, merge clean/
 orthogonal + Pi-boot-verify gate, cherry-pick/defer collisions, fetch ORIGIN (upstream), lwip last (never force-push

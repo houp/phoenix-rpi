@@ -152,7 +152,7 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
 
 ## Pi lock
 
-- **IN USE — wifi-join Pi test (2026-08-12)** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
+- **FREE** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
   Netboot game tests are now RELIABLE — the harness (psh-interact.py) waits for the NFS
   "registered / (takeover)" line before sending commands (#156 fix). No ls-warm needed.
 
@@ -483,6 +483,21 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-12 (★★★ RADIO #4 Phase 2 — WPA2 JOIN **CONNECTED on HW, first try**). Staged the new join-capable wifi-probe
+into the netboot rootfs (/srv/phoenix-rpi4-nfs/bin/, md5-matched) + ran `/bin/wifi-probe join` via psh against the
+host AP PhoenixNet. **RESULT: CONNECTED (WPA2 4-way keyed).** Full report: every step rc=0 (event_msgs/infra/UP/wsec/
+wpa_auth/sup_wpa/pmk/set_ssid), **SET_SSID status=0** (association OK), **PSK_SUP status=6** (firmware supplicant
+completed the 4-way handshake), **link_up=1** (WLC_E_LINK carrier up). FW console confirms "Broadcom BCM4345 …
+7.45.234". So the BCM43455 driven ENTIRELY by Phoenix ASSOCIATED to a real WPA2-PSK AP + encrypted the link — WiFi
+went scan-only → fully associated with WPA2, correct on the FIRST HW try (the brcmfmac primary-source spec extraction
+paid off; the fullmac firmware-supplicant passphrase path is exactly right). The owner's "continue extending the radio
+stack" (#4) join milestone is DONE at the control-plane. Pi lock freed. Host AP left up.
+**NEXT — Phase 2b (data-plane): DHCP over the wifi as a real netif.** The probe proves the JOIN control-path but does
+NOT wire a data interface. To use radio as transport, the RESIDENT rpi4-wifi driver must, after join: present the wifi
+as an lwip netif, run DHCP (→ IP on 10.43.0.x), and carry IP traffic (RX/TX SDPCM data frames ↔ lwip). That's the
+bigger follow-on (fold diag_wifiJoin into the resident driver + SDPCM data path + lwip binding). Then Phase 3: ping
+10.43.0.1 → NFS/iperf over wifi vs the 100Mbps ether (the owner's "faster alternative"). [[project_wifi_fw_exec_gate_91]]
 
 2026-08-12 (RADIO-AS-TRANSPORT #4 — Phase 2 WPA2 JOIN implemented + compiles; Pi test next). Extracted the exact
 BCM43455 fullmac join sequence from Linux brcmfmac (subagent, primary-source cited) → saved as

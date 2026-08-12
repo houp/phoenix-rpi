@@ -13,6 +13,26 @@ host/Linux comparison, UART logs, QEMU, debugger).
 
 ---
 
+## Comments from human operator / owner (2026-08-12)
+
+Very good progress in the project.
+
+Make sure to focus on the following areas:
+
+- Integrating upstream changes into our fork - pull incoming changes from all the repos we are using and make sure nothing breaks.
+- Continue work on XFce if possible. Even if it is hard.
+- If XFce is not possible, pick a different desktop environment like LXqt or something similar and try to port it.
+- Design and implement a proper DRI/DRM functionality (analogous to Linux or NetBSD) that would allow X11 GPU acceleration and multiple apps using GPU at the same time.
+- Since you have wifi and bt on the Pi4 with Phoenix and you have full access to the Linux host machine which also has wifi and bluetooth subsystems which are not used - you can continue with testing and extending the radio stack. The Linux machine that you control can host a wifi AP / bt test connection. You can establish it yourself and then try to connect from the Pi4 with Phoenix.
+- These radio based connections can be a form of test but also can be used as a faster alternative to the 100mbps ethernet!
+- Try to bring-up a Machine Learning inference framework of your choice that would work on the Pi4 on Phoenix and would be able to host simple ML models and/or "small LLMs" using the GPU acceleration. Pi4 is too weak for a proper LLM to work. But some simpler CV models, CCNs or other stuff should work.
+- Currently busybox is supported on Phoenix RTOS giving a Unix-like shell environment. Would it be possible to bring full bash or zsh experience with proper UNIX-like CLI tools (things like coreutils etc.)? Experiment in this direction.
+- Suggest you very own new feature, change or application ported to Phoenix-RTOS on Pi4 that would be impressive to see and use.
+
+You are still free to pick priorities and order in which you do tasks. But do not be afraid of big, risky, multi-cycle projects. You still have plenty of time to delivery BIG features. Keep up good work.
+
+---
+
 ## Comments from human operator / owner (2026-08-10)
 
 Super progress! Congrats.

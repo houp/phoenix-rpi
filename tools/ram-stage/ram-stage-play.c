@@ -92,6 +92,35 @@ static int copy_file(const char *src, const char *dst)
 	return rc;
 }
 
+/* Create `path` and all missing parent directories (like `mkdir -p`). Needed because
+ * copy_tree mkdir's only the dst itself, but a dst like /tmp/quake/id1 needs its parent
+ * /tmp/quake created first. */
+static int mkdir_p(const char *path)
+{
+	char tmp[1024];
+	size_t len = strlen(path);
+	size_t i;
+	if (len == 0u || len >= sizeof(tmp)) {
+		return -1;
+	}
+	memcpy(tmp, path, len + 1u);
+	for (i = 1u; i < len; i++) {
+		if (tmp[i] == '/') {
+			tmp[i] = '\0';
+			if (mkdir(tmp, 0755) < 0 && errno != EEXIST) {
+				printf("ram-stage: mkdir '%s': %s\n", tmp, strerror(errno));
+				return -1;
+			}
+			tmp[i] = '/';
+		}
+	}
+	if (mkdir(tmp, 0755) < 0 && errno != EEXIST) {
+		printf("ram-stage: mkdir '%s': %s\n", tmp, strerror(errno));
+		return -1;
+	}
+	return 0;
+}
+
 static int copy_tree(const char *src, const char *dst)
 {
 	struct stat st;
@@ -145,6 +174,10 @@ int main(int argc, char **argv)
 	dst = argv[2];
 
 	clock_gettime(CLOCK_MONOTONIC, &t0);
+	if (mkdir_p(dst) != 0) {
+		printf("ram-stage: could not create dst path '%s'\n", dst);
+		return 2;
+	}
 	if (copy_tree(src, dst) != 0) {
 		printf("ram-stage: staging FAILED after %llu B / %lu files (tmpfs full? see errno above)\n",
 		       g_bytes, g_files);

@@ -502,6 +502,18 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-12 (★ UPSTREAM SYNC COMPLETE across ALL 16 siblings — owner "consistent system version" directive DONE).
+Fresh-fetched every sibling origin: 11 already current (kernel/libphoenix/devices/lwip/usb/plo/build/corelibs/
+filesystems/posixsrv/utils), 5 behind → synced + pushed to org this turn: **doc** (12, fast-forward, docs only),
+**hostutils** (1, ff, host trace-util typo fix), **ports** (2 → 058078c, port.def.sh CPE-2.3 names + pcre SPDX id —
+metadata only, no built-code change), **tests** (4 → 00d3f0e, new libc tests grp/statvfs/stdio_indicator),
+**project** (10 → 5b38a19, submodule-superproject: gitlink conflicts for 8 uncheckedout submodules resolved to OURS
+via `git update-index --cacheinfo` since we build from sources/ not its submodules; upstream's stm32n6 CI/coremark
+auto-merged). Re-verified: ALL siblings incoming=0. **No Pi cycle needed** — none of the 5 changed boot-image built
+code (kernel/libphoenix core already synced+boot-verified ec58537b/8ce5976). Manifest
+**2026-08-12-all-repos-upstream-synced-2026-08-12**. So the fork is now fully consistent with upstream everywhere.
+NEXT: wifi data-plane (netif+DHCP, ref net/usbwlan) OR wpa_supplicant upgrade OR Mesa-release rebase (owner tasks).
+
 2026-08-12 (MORE owner directives received (coord 33578a2+8992e99) + reconciled). Same publish-push-reject tell; the
 owner added refinements (full details [[feedback_owner_directive_2026_08_12]]): **complete the upstream sync across
 ALL repos** (some org repos still behind — highest-priority follow-on to my kernel+libphoenix sync); wpa_supplicant

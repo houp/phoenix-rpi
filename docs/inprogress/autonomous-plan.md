@@ -132,7 +132,7 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
 
 ## Pi lock
 
-- **IN USE readahead-cluster-ab 2026-08-12** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
+- **FREE** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
   Netboot game tests are now RELIABLE — the harness (psh-interact.py) waits for the NFS
   "registered / (takeover)" line before sending commands (#156 fix). No ls-warm needed.
 
@@ -443,6 +443,22 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-12 (kernel read-ahead cluster bump 16→64: NO benefit — REVERTED; cold exec-paging is per-byte/per-page-bound,
+no easy lever). Followed up the exec-paging finding with the owner-endorsed kernel experiment: bumped
+OBJECT_READAHEAD_PAGES 16u→64u (64→256 KiB clusters, vm/object.c), --scope core, committed to kernel master (local),
+snapshot manifest 2026-08-12-readahead-cluster-64, HW-tested. **Result: cluster-64 cold LOAD-TIME 7.686 s vs cluster-16
+baseline 7.669 s — NO improvement (near-identical), booted clean.** A 4× cluster reduction that leaves the total
+unchanged REFUTES the per-cluster-round-trip hypothesis: round-trips are NOT the dominant exec-paging cost. Combined
+with the earlier NFS≈tmpfs result (storage-invariant), the ~7 s cold exec-paging is **per-byte/per-page-bound**
+(msg-copy of the faulted data + per-page kernel work), invariant to BOTH cluster size and storage backing. So there
+is NO easy lever for the cold exec-paging: not binary-RAM-staging (tested, no help), not bigger clusters (tested, no
+help), not faster storage (NFS≈tmpfs). REVERTED the bump (no benefit + 256 KiB kmalloc pressure = risk for no gain);
+kernel back at d8baae66 (OBJECT_READAHEAD_PAGES 16u), --scope core Verification OK; org kernel never touched (commit
+was local-only). Net: two hypotheses tested+refuted with git discipline; the exec-paging (~7 s, one-time per launch)
+is inherent — while the REPEATED asset-load cost is solved by RAM-staging (Q3 5.49×). Reducing exec-paging would need
+a deeper fault-path/msg-copy optimization or faulting fewer pages — DEFER (low ROI: one-time cost, deep change). Pi
+lock freed; manifest 2026-08-12-readahead-cluster-64 records the tested-then-reverted state.
 
 2026-08-12 (binary-from-RAM A/B: NO benefit — cold exec-paging is FAULT-OVERHEAD-bound, not storage-bound; corrects
 the Q1 number's interpretation + identifies a kernel lever). Added `--exec-ram` to ram-stage-play (stage the game

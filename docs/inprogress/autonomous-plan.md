@@ -502,6 +502,15 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-12 (MORE owner directives received (coord 33578a2+8992e99) + reconciled). Same publish-push-reject tell; the
+owner added refinements (full details [[feedback_owner_directive_2026_08_12]]): **complete the upstream sync across
+ALL repos** (some org repos still behind — highest-priority follow-on to my kernel+libphoenix sync); wpa_supplicant
+port upgrade + net/usbwlan as the wifi data-plane reference; Mesa rebase to the 26.2.0 RELEASE tag (was rc1); qemu
+11.1 host update; an LKML perf thread to evaluate. Merged both owner commits (no force-push, merge fe784b2), pushed
+both remotes in sync. Recorded to memory + Active task. Immediate next-priorities: (a) finish upstream sync (all
+siblings) — consistency, owner-flagged; (b) wifi data-plane (netif+DHCP) informed by net/usbwlan; both fit the
+existing radio/#1 threads.
+
 2026-08-12 (★★★ RADIO #4 Phase 2 — WPA2 JOIN **CONNECTED on HW, first try**). Staged the new join-capable wifi-probe
 into the netboot rootfs (/srv/phoenix-rpi4-nfs/bin/, md5-matched) + ran `/bin/wifi-probe join` via psh against the
 host AP PhoenixNet. **RESULT: CONNECTED (WPA2 4-way keyed).** Full report: every step rc=0 (event_msgs/infra/UP/wsec/

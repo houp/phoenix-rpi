@@ -503,6 +503,20 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-13 (BASH PORT — 58+ build errors → 17; the rest are ALL config, no more libphoenix gaps = bash is CLOSE).
+2nd bash session. Fixed the cascade root: libphoenix **c9f207b** (stdio_ext.h now `#include <sys/cdefs.h>` so
+__THROW is defined — it was undefined → syntax error cascading into ~41 sysroot stdlib.h/wait.h "storage class"
+errors). Also synced _POSIX_VERSION (470faee) + stdio_ext.h into the sysroot for iteration. **Result: 58+ → 17
+errors, and ALL 17 are bash/readline CONFIG issues** — Phoenix HAS everything they need (sigset_t/sigprocmask/
+sigemptyset/SIG_BLOCK all in signal.h, select+fd_set in sys/select.h); readline just didn't DETECT them + gated out
+the includes. Remaining fixes = pure config.cache tuning (ac_cv_func_sigprocmask/sigemptyset/select=yes,
+bcopy/bzero=yes, mktemp=no, HANDLE_MULTIBYTE for parse.y shell_input_line_property) — details in
+docs/inprogress/2026-08-13-bash-port.md. **NO deep libphoenix work left for these.** TWO libphoenix header fixes
+banked LOCAL (470faee _POSIX_VERSION + c9f207b __THROW) — both need --scope core + boot-verify before org push (both
+low-risk: no core code branches on _POSIX_VERSION; __THROW fix only adds an include). NEXT turn: add the config.cache
+vars → reconfigure → rebuild → iterate the next (small) layer → link bash ELF (deterministic milestone); separately
+--scope core + boot-verify the 2 libphoenix fixes + push.
+
 2026-08-13 (BASH PORT started — FEASIBLE, configures clean, first blocker root-caused + fixed at libphoenix). The
 deterministic-win pivot (advisor). bash 5.2.21 **cross-CONFIGURES cleanly** vs the aarch64-phoenix toolchain (cross
 config.cache, saved in docs/inprogress/2026-08-13-bash-port.md). `make` surfaced 2 tractable blockers, both

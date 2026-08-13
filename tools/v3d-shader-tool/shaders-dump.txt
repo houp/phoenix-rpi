@@ -32,3 +32,7 @@
 0x3c203180bb815000ull, /* tmuwt r0                      ; nop                         ; thrsw */
 0x3c003186bb800000ull, /* nop                           ; nop */
 0x3c003186bb800000ull, /* nop                           ; nop */
+/* CS prog_data: threads=4 single_seg=0 uniforms=3 */
+/*   uniform[0]: contents=0 data=0x0000ffff */
+/*   uniform[1]: contents=0 data=0x0000001a */
+/*   uniform[2]: contents=53 data=0x00000000 */

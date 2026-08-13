@@ -30,6 +30,28 @@ gid`), get its QPU + v3d_compute_prog_data; build the minimal CSD harness; dispa
 output BO back and assert exact values. That validates the untested handler end-to-end and nails the cfg[] layout.
 Then the matmul kernel, then wire into llama2.
 
+## CONCRETE CSD SUBMIT RECIPE (session 15-16) — everything the harness needs
+
+**Kernel (probe `out[gid]=gid`):** 12 QPU words (in tools/v3d-shader-tool/shaders-dump.txt), local_size=16x1x1,
+threads=4, single_seg=0, shared=0. Compiled off-device via the extended v3d-shader-tool.
+
+**Uniforms buffer (3 words, from the tool's prog_data dump; QPU disasm confirms ldunif order word0→1→2):**
+`[0]=0x0000ffff` (const), `[1]=0x0000001a` (const), `[2]=<output BO GPU VA>` (the TMU store base — the QPU does
+`add tmua, r5, r4` with r5=word[2]). Only word[2] is runtime-filled by the harness.
+
+**drm_v3d_submit_csd.cfg[0..6]** (authoritative, from Mesa gallium v3dx_draw.c CSD dispatch; ver<71 = V3D 4.2):
+- num_wgs = Π num_workgroups[i]; for a 1-workgroup probe: num_workgroups={1,1,1}, num_wgs=1, wg_size=16.
+- cfg[0..2] = num_workgroups[i] << V3D_CSD_CFG012_WG_COUNT_SHIFT.
+- cfg[3] = (wgs_per_sg & 0xf)<<WGS_PER_SG_SHIFT | (batches_per_sg-1)<<BATCHES_PER_SG_M1_SHIFT | (wg_size & 0xff)<<WG_SIZE_SHIFT.
+  wgs_per_sg via v3d_csd_choose_workgroups_per_supergroup(); batches_per_sg=DIV_ROUND_UP(wgs_per_sg*wg_size,16).
+- cfg[4] = num_batches - 1 (ver<71). num_batches = batches_per_sg*whole_sgs + DIV_ROUND_UP(rem_wgs*wg_size,16).
+- cfg[5] = shader_BO_GPU_VA | V3D_CSD_CFG5_PROPAGATE_NANS (ver<71) | (single_seg?SINGLE_SEG:0) | (threads==4?THREADING:0).
+- cfg[6] = uniforms_BO_GPU_VA.
+- coef[0..3] = 0 (Mesa doesn't set them for ver<71). Shift/flag constants: broadcom v3d packet/regs (V3D_CSD_*).
+
+**Handler:** the existing (untested) ioc_submit_csd (winsys) programs CSD_QUEUED_CFG0..6 from cfg[], kicks CFG0,
+blocks on INT_CSDDONE. So the harness just needs BOs + cfg[] + uniforms + SUBMIT_CSD ioctl, then read back.
+
 ## Feasibility — ESTABLISHED
 
 - **HW:** BCM2711 V3D 4.2 supports compute-shader dispatch (CSD). The Linux v3d driver implements it

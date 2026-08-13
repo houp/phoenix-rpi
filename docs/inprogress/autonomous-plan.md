@@ -503,6 +503,23 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-13 (session 16 — ML phase-2: fully characterized the CSD submit ABI; the harness is now a mechanical build).
+Extended the shader tool to dump the CS prog_data → the compute kernel's **uniforms are 3 words**: [0]=0xffff,
+[1]=0x1a (constants), [2]=output-BO GPU VA (the TMU store base; QPU `add tmua,r5,r4` with r5=word[2] confirms the
+ldunif order). Extracted the authoritative **cfg[0..6] recipe** from Mesa gallium v3dx_draw.c (wg counts, wgs_per_sg/
+batches/wg_size in cfg[3], num_batches-1 in cfg[4], shader VA+flags in cfg[5], uniforms VA in cfg[6]; coef=0 for
+ver<71). Full recipe (kernel 12 QPU words, threads=4/single_seg=0/local_size=16, uniforms, cfg[]) written into
+docs/inprogress/2026-08-13-ml-phase2-v3d-gpu-matmul-design.md ("CONCRETE CSD SUBMIT RECIPE"). shaders-dump.txt
+refreshed. No Pi cycle (host-side ABI characterization).
+
+**NEXT — write the on-Phoenix CSD harness (now mechanical, recipe in the doc):** a small program that (1) allocs 3
+BOs via the v3d winsys (shader=12 words, uniforms=3 words with word[2]=output VA, output=N*4) + gets each BO's GPU VA;
+(2) computes cfg[0..6] per the recipe for num_workgroups={1,1,1}/wg_size=16 (need the V3D_CSD_* shift/flag constants +
+v3d_csd_choose_workgroups_per_supergroup — copy from Mesa/Linux); (3) drmIoctl SUBMIT_CSD → the existing
+ioc_submit_csd; (4) reads back output BO, asserts out[i]==i for i<16. Model BO-alloc + GPU-VA + ioctl plumbing on the
+existing gl_det_harness.c / v3d_libdrm_shim.c. Netboot numeric-verify → validates the untested handler end-to-end.
+Then matmul kernel → wire into llama2.
+
 2026-08-13 (session 15 — ML phase-2 BUILD: V3D compute-kernel generation WORKS — first compute QPU in the project).
 Extended tools/v3d-shader-tool for a **compute shader** (MESA_SHADER_COMPUTE, `out[gid]=gid` via store_ssbo +
 nir_lower_compute_system_values, per gallium v3d's compute path) + added the meson executable target + built against

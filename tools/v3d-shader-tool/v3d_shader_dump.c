@@ -239,6 +239,11 @@ int main(int argc, char **argv)
 			for (uint32_t i = 0; i < cn; i++)
 				printf("0x%016llxull, /* %s */\n", (unsigned long long)ci[i],
 					v3d_qpu_disasm(&devinfo, ci[i]));
+			printf("/* CS prog_data: threads=%u single_seg=%d uniforms=%u */\n",
+				cpd->threads, (int)cpd->single_seg, cpd->uniforms.count);
+			for (uint32_t u = 0; u < cpd->uniforms.count; u++)
+				printf("/*   uniform[%u]: contents=%d data=0x%08x */\n",
+					u, (int)cpd->uniforms.contents[u], cpd->uniforms.data[u]);
 		}
 	}
 

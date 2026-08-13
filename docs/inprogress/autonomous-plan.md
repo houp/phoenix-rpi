@@ -503,6 +503,22 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-13 (session 20 — ★★★ CSD step-2 PASS: V3D GPU compute WRITE path works on Phoenix — real Linux-vs-Phoenix
+cache-flush bug found + fixed). Per the owner "compare with Linux" directive, diffed the post-dispatch cache flush
+vs Linux v3d_clean_caches (v3d_gem.c:202): Linux drains **TMUWCF alone** (+wait) THEN flushes **L2TFLS | FLM=CLEAN**;
+the Phoenix winsys did a single combined `L2TFLS|TMUWCF` with FLM=FLUSH — so the TMU write-combiner data hadn't
+reached L2T when the flush ran, and FLM=FLUSH invalidates rather than cleans → compute TMU-general stores never
+reached DRAM. **Fixed ioc_submit_csd to match Linux exactly.** HW: **STEP2 PASS — out[0]=0xC0DE1234 (written), out[1..3]
+untouched.** Compute dispatch (step-1) + TMU-general store (step-2) both verified on HW. CSD-only change → no
+render (SUBMIT_CL) regression risk. libv3d-phoenix.a rebuilt; csd_probe.c + winsys committed.
+
+**NEXT — step-3 + onward (write path proven, momentum strong):** (1) **out[gid]=gid** kernel (12 QPU words, uniforms
+[0xffff,0x1a,outVA]) as step-3 → assert out[i]==i for i<16 (validates gid reconstruction + per-invocation offsets).
+(2) A **matmul** compute kernel (via the shader tool) → numeric-diff vs CPU matmul on random inputs. (3) Wire the V3D
+matmul into llama2's matmul() (big matmuls on GPU, CPU fallback) → verify bit-identical output vs phase-1 + measure
+tok/s speedup. The hard unknowns (does the untested handler dispatch? does the compute write land?) are BOTH now
+answered YES.
+
 2026-08-13 (session 19 — CSD step-2 narrowed to the TMU-general-STORE path; obvious causes ruled out). Added
 unconditional num_completed logging to winsys ioc_submit_csd (TODO(csd-bringup) marker), rebuilt libv3d-phoenix.a
 (build-v3d-phoenix.py, incremental) + relinked. HW: **CSD status=0x20 num_completed=2 → the CSCONST shader DID

@@ -1576,10 +1576,16 @@ static int ioc_submit_csd(struct drm_v3d_submit_csd *s)
 	csd_status = c0[CSD_STATUS / 4];
 	c0[CTL_INT_CLR / 4] = INT_CSDDONE;
 
-	/* Write back the compute's dirty L2T lines to DRAM + drain the TMU write-combiner so the
-	 * output is visible to the CPU and the next render's TMU. */
-	l2t_flush_wait(c0);
-	c0[CTL_L2TCACTL / 4] = L2TCACTL_L2TFLS | L2TCACTL_TMUWCF;
+	/* Write back the compute's dirty L2T lines to DRAM so the output is visible to
+	 * the CPU. Match linux v3d_clean_caches (v3d_gem.c): FIRST drain the TMU
+	 * write-combiner into L2T with TMUWCF *alone*, THEN flush L2T to RAM with
+	 * L2TFLS + FLM=CLEAN. The prior single combined write (L2TFLS|TMUWCF, FLM=FLUSH)
+	 * did NOT make compute TMU-general stores visible — the combiner data hadn't
+	 * reached L2T when the flush ran, and FLM=FLUSH invalidates rather than cleans. */
+	l2t_flush_wait(c0);                       /* GFXH-1897: pending L2TFLS must be idle */
+	c0[CTL_L2TCACTL / 4] = L2TCACTL_TMUWCF;   /* drain TMU write-combiner -> L2T */
+	for (spins = 1000000u; spins && (c0[CTL_L2TCACTL / 4] & L2TCACTL_TMUWCF); spins--) {}
+	c0[CTL_L2TCACTL / 4] = L2TCACTL_L2TFLS | L2TCACTL_FLM_CLEAN; /* write dirty L2T -> RAM */
 	l2t_flush_wait(c0);
 	__asm__ volatile("dsb sy" ::: "memory");
 

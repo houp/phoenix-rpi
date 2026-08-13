@@ -503,6 +503,23 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-13 (session 17 — ★★★ FIRST V3D GPU COMPUTE DISPATCH ON PHOENIX (CSD step-1 liveness PASS on HW)). Advisor
+called out that "6 turns no Pi cycle" was procrastination (orienting instead of building), not intractability — and
+was right: built + ran it, worked first HW attempt. Emitted the CSNOP liveness kernel (empty thread-end, 3 QPU words,
+uniforms=0) via the shader tool; wrote **tools/v3d-driver-port/csd_probe.c** (allocs shader+uniforms BOs via
+phoenix_v3d_ioctl CREATE_BO/MMAP_BO, hand-computed cfg[] [cfg0=0x10000, cfg3=0x110, cfg4=0, cfg5=shaderVA|0x7,
+cfg6=unifVA], SUBMIT_CSD, UART breadcrumbs); compiled+linked against tools/.gpu-libs/libv3d-phoenix.a (shim-include
+for sys/ioccom.h). **HW netboot (0 faults): SUBMIT_CSD rc=0, CSDDONE fired, no hang → the previously-UNTESTED
+ioc_submit_csd handler is VALIDATED end-to-end** (handler + cfg[] + BO plumbing + V3D power-on + MMU). V3D BOs are
+uncached (cache landmine already handled). coord 10b3522 pushed.
+
+**NEXT — staged CSD bring-up continues (recipe + ABI in the design doc):** step-2 = **constant-store** kernel
+(out[0]=const, TMU write to an output BO, read back + assert) — isolates the TMU+output-VA path via uniforms; then
+step-3 = **out[gid]=gid** (full 3-word uniforms [0xffff,0x1a,outBO_VA], gid math). Emit each kernel via the shader
+tool, add to csd_probe.c (map output BO, read back, assert). Then a **matmul** kernel → numeric-diff vs CPU → wire
+into llama2 (V3D for big matmuls). Momentum is good — the hard "does the untested handler even work" question is
+answered YES.
+
 2026-08-13 (session 16 — ML phase-2: fully characterized the CSD submit ABI; the harness is now a mechanical build).
 Extended the shader tool to dump the CS prog_data → the compute kernel's **uniforms are 3 words**: [0]=0xffff,
 [1]=0x1a (constants), [2]=output-BO GPU VA (the TMU store base; QPU `add tmua,r5,r4` with r5=word[2] confirms the

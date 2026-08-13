@@ -503,6 +503,20 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-13 (BASH PORT session 4 — 7 → 1 error; final blocker = libphoenix lacks wctype.h + the isw* family). Fixed
+the readline includes (guard-anchored, past the comment) → cleared sigset_t/timercmp errors; applied source patches:
+readline input.c:810 **readfds gate** (`#if HAVE_PSELECT` → `|| HAVE_SELECT`, Phoenix has select not pselect);
+**tmpfile.c** `#ifdef USE_MKTEMP`→`#if 0` (Phoenix lacks mktemp, use the mkstemp/random branch); config.h HAVE_WCTYPE_T;
+regenerated parse.c via host bison. **7→1.** FINAL blocker: `parse.y:2653 shell_input_line_property` — bash REQUIRES
+HANDLE_MULTIBYTE (parse.y uses it unconditionally), which needs `<wctype.h>` + iswctype/iswlower/iswupper/wctype_t —
+**Phoenix has NONE of these** (real libphoenix gap; wchar.h/mbrtowc/wcwidth exist but not the wide-ctype family).
+**NEXT: implement the wctype.h family in libphoenix** (header + wctype_t/wint_t + isw{alpha,digit,alnum,space,upper,
+lower,punct,cntrl,print,graph,xdigit,blank,ctype} + tow{lower,upper,ctrans} + wctype/wctrans — ASCII wrappers over the
+narrow ctype, ~1 line each) → enables HANDLE_MULTIBYTE → bash LINKS (the deterministic milestone). This is a genuine
+POSIX libphoenix improvement (helps all wide-char ports). All bash source patches recorded in
+docs/inprogress/2026-08-13-bash-port.md for the eventual port.def.sh patches dir. FOUR libphoenix header fixes banked
+LOCAL this arc (470faee/c9f207b/aba418a + next: wctype.h) — need --scope core + boot-verify before org push.
+
 2026-08-13 (BASH PORT session 3 — 17 → 7 errors; fixed a real libphoenix timercmp bug; bash is VERY close to linking).
 Applied config.cache detection vars (forced sigprocmask/select/bcopy/bzero=yes → readline HAVE_POSIX_SIGNALS/
 HAVE_SELECT now defined) + missing-include patches. **17→7.** Found + FIXED a 3rd real libphoenix bug: **timercmp**

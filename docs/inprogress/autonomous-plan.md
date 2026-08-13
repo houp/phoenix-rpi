@@ -502,6 +502,26 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-13 (WIFI DATA-PLANE BANKED at the frame-drop wall; PIVOT to breadth — advisor-steered triage). The advisor
+(correcting its own prior "keep going", which was about JOIN RELIABILITY — now DONE) called bank+pivot: the frame-drop
+is a NEW deeper wall = realistically 5–15 more expensive single-UART Pi cycles (block-mode → credits → RX drain
+thread + bus mutex → lwip netif → the real ping-flood gate), for an UNVALIDATED payoff (3 dBm / 20 MHz / 2.4 GHz AP —
+zero evidence radio beats the 100 Mbps wire). Banked win is real + shippable: **WPA2 join CONNECTED, driven entirely
+by Phoenix** = the owner's "extend the radio stack". **RESUMPTION (precise):** the fw accepts the F2 data bytes
+(rc=0) but silently drops the frame → debug SDPCM data-channel **tx_seq/credit** (read fw tx_max from RX SDPCM byte9;
+honor the credit window) — cheapest first step = a PURE diagnostic cycle (post-TX fw-console re-read + capture the RX
+window byte), let the fw say why, don't blind-code. Design: docs/inprogress/2026-08-13-wifi-dataplane-design.md; code
+in tools/wifi-probe/wifi-probe.c (diag_wifiDataTx + jointx). Host AP PhoenixNet left up on ch1 as the test target.
+**NOW: Mesa 26.2.0-release rebase (bounded owner win) → then DRI/DRM (big arc, HDMI-verifiable, no flaky radio).**
+→ **MESA REBASE DONE this turn (208ee9a):** rebased external/mesa phoenix-v3d-port from mesa-26.2.0-rc1 onto the
+**mesa-26.2.0 FINAL** tag. git auto-dropped 3 incidental non-v3d commits (anv Cyberpunk / nv50_ir_ra nouveau /
+.pick_status.json) + already-backported ones (18→11 port commits). Regenerated patches/mesa/phoenix-rpi4-v3d.patch
+(835 lines); **VERIFIED it applies CLEAN against a fresh mesa-26.2.0 worktree.** Updated the pin ref in
+bootstrap-linux-host.sh (rc1→final) + comments. **Remaining (deferred, long): a clean build to confirm the port
+COMPILES against the release source** (apply is clean + git verified our commits rebase cleanly, so low-risk; the
+clean-build gate or a local v3d build will confirm). NEXT big arc: **DRI/DRM** (owner #3 — X11 GPU accel + concurrent
+GPU apps; HDMI-verifiable, builds on the proven V3D/Mesa stack, no flaky radio).
+
 2026-08-13 (WIFI DATA-PLANE step 1 — join now RELIABLE; TX reaches fw but NOT the air → SDPCM seq/credit next).
 Advisor-steered: ran the step-0 scan diagnostic first (no new code). **PhoenixNet visible at RSSI −25 dBm (excellent
 — link is fine, NOT signal-marginal despite the 3 dBm AP cap).** So the join flakiness = broadcast-join-scan timing.

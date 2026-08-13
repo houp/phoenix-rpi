@@ -516,13 +516,18 @@ psh/pshlogin/posixsrv booted clean → crt0 change is boot-safe across userspace
 org** (publish/master 8ce5976..a59c800): 470faee _POSIX_VERSION, c9f207b __THROW, aba418a timercmp, a3e976c wctype,
 1f10581 mbrlen/wcwidth, b15587a 5 wide fns, a59c800 crt0-envp. Manifest: manifests/2026-08-13-bash-runs-crt0-envp-fix.md.
 
-**NEXT:** (1) prove bash executes real shell logic despite psh's quoting — run a **script file** (write /root/t.sh
-with echo + `$((..))` + a for-loop into the NFS root, `/bin/bash /root/t.sh`; no inline quotes → psh passes only the
-path) → expect `hello`, `5`, loop output; then try **interactive** bash over UART (`/bin/bash -i`, needs tty — psh
-provides /dev/pts via posixsrv). (2) Formalize sources/phoenix-rtos-ports/bash/port.def.sh (autoconf template like
+**bash EXECUTES real shell logic (HW-verified, 0 faults):** `/bin/bash /t.sh` printed `bash_exec_ok` (command
+output) / `loop=1/2/3` (for-loop control flow) / `FOO=bar` (export+read via libphoenix setenv realloc) / `nested=bar`
+(env PROPAGATED to a child `bash -c` through fork/exec+environ) / `via_busybox` (fork/exec external binary) /
+`arith=42` / `done_marker`. **psh-quoting theory CONFIRMED via A/B:** inline `bash -c 'echo x'` still dies on the
+quote, yet the identical `'...'` INSIDE the script (nested `bash -c 'echo nested=$FOO'`) worked → bash's parser is
+fine; psh mangles single quotes on the command line.
+
+**NEXT:** (1) **interactive** bash over UART (`/bin/bash -i` — needs a tty; psh provides /dev/pts via posixsrv) =
+the fullest owner-visible win. (2) Formalize sources/phoenix-rtos-ports/bash/port.def.sh (autoconf template like
 dropbear + artifacts/bash/config.cache + the source patches in docs/inprogress/2026-08-13-bash-port.md; use only the
-precise config drops, drop --allow-multiple-definition). (3) Then coreutils. Consider filing the psh single-quote
-forwarding limitation as a separate psh issue ([[project_pi4_posixsrv_psh]]).
+precise config drops, drop --allow-multiple-definition) + add to the image via --with-ports. (3) Then coreutils.
+(4) File the psh single-quote command-line forwarding limitation as a separate psh issue ([[project_pi4_posixsrv_psh]]).
 
 2026-08-13 (BASH PORT session 7 — bash RUNS (`--version` prints the Phoenix banner); found+fixing a real
 libphoenix crt0 bug that crashed full-shell startup). Cleared the org-push gate: **0 `_POSIX_VERSION`/`_POSIX2_VERSION`

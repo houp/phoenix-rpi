@@ -1583,9 +1583,9 @@ static int ioc_submit_csd(struct drm_v3d_submit_csd *s)
 	l2t_flush_wait(c0);
 	__asm__ volatile("dsb sy" ::: "memory");
 
-	if (timed_out || (csd_status & 0x3u))
-		fprintf (stderr, "v3d-winsys: CSD %s cfg0=0x%08x int_sts=0x%08x status=0x%08x num_completed=%u\n",
-		         timed_out ? "TIMEOUT" : "done", s->cfg[0], sts, csd_status, (csd_status >> 4) & 0xffu);
+	/* TODO(csd-bringup): unconditional log while validating compute dispatch; gate on error once done. */
+	fprintf (stderr, "v3d-winsys: CSD %s cfg0=0x%08x int_sts=0x%08x status=0x%08x num_completed=%u\n",
+	         timed_out ? "TIMEOUT" : "done", s->cfg[0], sts, csd_status, (csd_status >> 4) & 0xffu);
 	return 0;
 }
 

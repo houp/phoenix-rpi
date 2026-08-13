@@ -503,6 +503,23 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-13 (session 19 — CSD step-2 narrowed to the TMU-general-STORE path; obvious causes ruled out). Added
+unconditional num_completed logging to winsys ioc_submit_csd (TODO(csd-bringup) marker), rebuilt libv3d-phoenix.a
+(build-v3d-phoenix.py, incremental) + relinked. HW: **CSD status=0x20 num_completed=2 → the CSCONST shader DID
+execute** (dispatch ran a supergroup; step-1 CSNOP=1, step-2=2 cumulative), no HW error/timeout. But out[] still the
+0xEE sentinel → the TMU write didn't reach DRAM. **RULED OUT:** CPU cache (default BOs are MAP_UNCACHED, flags=0 →
+line 57-58), SSBO address (QUNIFORM_SSBO_OFFSET = cl_aligned_reloc(bo, offset) = raw GPU VA, exactly what I supplied),
+MMU PTE write-perm (BOs mapped PTE_W|PTE_V), post-dispatch flush (ioc_submit_csd does L2TFLS|TMUWCF+dsb), QPU
+(Mesa-generated: mov tmud/tmua/tmuwt). **Remaining suspect: the TMU GENERAL STORE path itself — likely never
+exercised on Phoenix (render used TMU *reads* + TLB writes, not TMU general *writes*).**
+
+**NEXT diagnostics (well-signaled, keep going):** (1) run the **gid kernel** (out[gid]=gid, 16 invocations → out[0..15]
+=0..15) as step-3 — a different write pattern; if it also writes nothing → systemic TMU-store issue; if partial →
+narrows further. (2) Try a **post-dispatch SLCACTL clean** in ioc_submit_csd (pre-dispatch does SLCACTL_INVAL_ALL but
+post does only L2TFLS|TMUWCF — maybe the compute TMU write sits in the SLC and needs a post SLC flush). (3) Compare
+against Linux v3d_csd_job_run's exact cache sequence (external/linux .../v3d/v3d_sched.c) + check if the CSD needs a
+TMU/shared config the winsys doesn't set. Cache/addr/PTE/flush already cleared, so this is TMU-store-path specific.
+
 2026-08-13 (session 18 — CSD step-2 (constant-store) precisely LOCALIZED: dispatch runs, but no TMU write lands).
 Continued the staged bring-up (build-don't-over-orient). Emitted CSCONST (out[0]=0xC0DE1234, 6 QPU words, uniforms=
 {const 0xC0DE1234, SSBO#0 base VA}; contents=53 = QUNIFORM_SSBO_OFFSET confirmed). Extended csd_probe.c step-2:

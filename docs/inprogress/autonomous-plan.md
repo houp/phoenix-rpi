@@ -503,6 +503,24 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-13 (session 13 — ML phase-2 V3D-GPU-matmul DESIGN + feasibility established; key insight upgrades it to
+autonomously-attemptable). Continued the owner's ML task toward "on Pi4 GPU". **Feasibility ESTABLISHED via code
+investigation:** V3D 4.2 HW supports compute/CSD (Linux v3d driver + PARAM_SUPPORTS_CSD); the port's v3d_drm.h
+already has DRM_V3D_SUBMIT_CSD + drm_v3d_submit_csd{cfg[7],coef[4]}; but tools/v3d-driver-port/v3d_libdrm_shim.c is
+**render-only** (SUBMIT_CL synchronous on FLDONE/FRDONE) — **no CSD handler yet**; and the port's Mesa build likely
+lacks the v3d compute-compiler sources (→ Mesa-compute vs hand-QPU decision). **KEY INSIGHT:** a compute matmul is
+**numerically verifiable** (read-back + diff vs CPU, NO HDMI) and additive (compute path separate from the
+load-bearing GL render path → LOW regression risk) → phase-2 is **AUTONOMOUSLY ATTEMPTABLE**, not owner-gated as
+previously assumed. Design + multi-cycle build plan (CSD dispatch bring-up → matmul kernel → wire into llama2, each
+numeric-verified) in **docs/inprogress/2026-08-13-ml-phase2-v3d-gpu-matmul-design.md**. No code changes yet (design
+turn); no Pi cycle used.
+
+**NEXT — implement ML phase-2 step 1 (CSD dispatch bring-up):** add a SUBMIT_CSD handler to v3d_libdrm_shim.c
+(program CSD_QUEUED_CFG0..7 from cfg[]/coef[], block on CSDDONE, model on the existing SUBMIT_CL) + a trivial compute
+kernel → read-back + numeric-verify on HW. That milestone decides Mesa-compute vs hand-QPU and whether the full phase
+is autonomously tractable. (This is the big risky multi-cycle GPU work the owner wants, and it's numeric-verifiable.)
+Alternative rotations remain: DRI/DRM design, XFce/LXQt, qemu 11.1, wpa_supplicant, LKML thread.
+
 2026-08-13 (session 12 — ★★★ **LLM INFERENCE RUNS ON PHOENIX/RPi4** (ML task, phase 1 CPU) — HW-verified
 bit-identical at 260K AND 15M scale). Rotated off coreutils to the owner's ML task; picked llama2.c (Karpathy,
 pure C, MIT) — autonomous-verifiable, zero regression risk to the GPU stack, bounded dep tail (libm + syscalls).

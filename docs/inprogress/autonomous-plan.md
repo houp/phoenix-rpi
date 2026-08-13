@@ -526,9 +526,15 @@ Mesa/libGL UNTOUCHED — only phoenix_v3d_ioctl becomes a thin IPC stub), COARSE
 behavior, ZERO regression) as the floor + COARSE-job FIFO for interleaved windows; copy-first compositing (no new
 kernel facility). **★ The verification is DETERMINISTIC** (serialized server → no concurrency → Phase 1a = run
 gl_det_harness through the server, PASS = output-crc32 bit-identical to in-process ref; Phase 1b = 2 clients both
-CRC-correct) — this DISSOLVES the advisor's concurrency-verification-trap concern. So Phase 1a is bounded +
-deterministic + low-regression = the narrow scope worth re-consulting the advisor on. Owner decisions banked (§4:
-expectation reset, isolation posture, transport, scope gate).
+CRC-correct) — this DISSOLVES the advisor's concurrency-verification-trap concern. **RE-CONSULTED the advisor: DESIGN
+IS THE #3 DELIVERABLE — do NOT implement now.** What changed: the deterministic-verify concern is gone (conceded).
+What did NOT: (1) the owner SCOPE-GATE (§4: whole-GPU-lease ~1wk vs job-server ~3wk) is the owner's call — don't
+front-run it with the owner back in ~a week; (2) regression is NOT "low/zero" — Phase 1a adds a process boundary +
+**cross-process BO mapping** (client must CPU-fill BOs whose pages the SERVER owns) = an UNVERIFIED kernel-facility
+question (peer-proc physmem share), NOT "today's behavior via IPC"; (3) Phase 1a shows nothing owner-visible (one app
+relocated = today's picture; payoff = 1b+compositing, more turns) — the wifi "F2-write rc=0 felt like the finish"
+echo. **So: design banked (owner signs off the scope on return); PIVOT to DETERMINISTIC finishable wins.** Owner
+decisions banked (§4: expectation reset, isolation posture, transport, scope gate).
 
 2026-08-13 (WIFI DATA-PLANE BANKED at the frame-drop wall; PIVOT to breadth — advisor-steered triage). The advisor
 (correcting its own prior "keep going", which was about JOIN RELIABILITY — now DONE) called bank+pivot: the frame-drop

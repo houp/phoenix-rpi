@@ -69,7 +69,14 @@ proc BO mapping — both isolated + CRC-testable (Phase 1a). Rollback via manife
 4. **Scope gate:** enforced whole-GPU lease (COARSE-app, ~1wk, safely one-app-at-a-time) vs full job-arbitrating
    server (~3wk, interleaved multi-window). Explicit owner call.
 
-## STATUS / next
-Design banked. Phase 1a is bounded + deterministic (CRC-equivalence) — the ONE narrow scope worth re-consulting
-the advisor on before implementing (per its redirect). Otherwise: fill the week with deterministic wins
-(bash/zsh+coreutils, qemu 11.1, a CV/ML demo) and leave the DRM re-arch as an owner-signed-off decision.
+## STATUS / next (advisor re-consulted 2026-08-13 — DESIGN IS THE DELIVERABLE; do NOT implement now)
+Correction to the "regression LOW/bounded" claim above: Phase 1a is NOT "today's behavior via IPC" — it adds a
+process boundary + **cross-process BO mapping** (the client must CPU-fill vertex/texture/uniform BOs whose pages
+the SERVER owns + inserts into the PT), which rests on an **UNVERIFIED** Phoenix kernel facility (mapping a peer
+process's physmem into a client). So regression risk is **gated on that unverified question**, not settled.
+Also: Phase 1a demonstrates nothing owner-visible (one app relocated = today's picture; the multi-window payoff is
+1b + compositing, several more turns). And the SCOPE GATE (§4: ~1wk lease vs ~3wk server) is the OWNER'S call —
+starting the build now front-runs a decision reserved for the owner (back ~1 week). **Decision: bank this design as
+the #3 deliverable; the owner signs off the scope on return. Fill the remaining week with DETERMINISTIC finishable
+wins — bash/zsh+coreutils (highest owner value, verifiable over psh), qemu 11.1, a CV/ML inference demo.** The
+v3d-server is a fine post-return / owner-signed-off build, not a solo last-week re-arch.

@@ -514,9 +514,15 @@ compute NIR shader → v3d_compile(MESA_SHADER_COMPUTE) → QPU + prog_data → 
 design in docs/inprogress/2026-08-13-ml-phase2-v3d-gpu-matmul-design.md (UPDATE session 14). No code yet (2nd
 investigation turn — NEXT turn MUST build).
 
+**Mesa host-build platform READY (built this turn):** `.../mesa-v3d-build` meson-configured + `libbroadcom_v3d.a`
+built (venv .../mesa-py with mako/pyyaml/packaging; ninja target `src/broadcom/libbroadcom_v3d.a`, NINJA_DONE=0). So
+next turn skips setup and goes straight to extending + building the tool. v3d_shader_dump.c structure understood
+(FS: store_output intrinsic + v3d_fs_key; VS: deref-based + v3d_vs_key; both call v3d_compile).
+
 **NEXT (BUILD — no more planning):** step 1 concretely = (a) extend tools/v3d-shader-tool/v3d_shader_dump.c with a
-trivial COMPUTE shader (`out[gid]=gid`), build it in the Mesa host tree (per its README meson recipe), dump QPU +
-v3d_compute_prog_data; (b) write a minimal on-Phoenix CSD harness (alloc BOs shader/uniforms/output, fill cfg[] from
+trivial COMPUTE shader (MESA_SHADER_COMPUTE; body: nir_load_global_invocation_id → nir_store_ssbo out[gid]=gid; set
+shader->info.workgroup_size; compile with a base v3d_key), add the meson `executable('v3d_shader_dump', …)` target
+(README recipe) + ninja it, dump QPU + v3d_compute_prog_data (local_size → cfg[] fields); (b) write a minimal on-Phoenix CSD harness (alloc BOs shader/uniforms/output, fill cfg[] from
 prog_data, call the existing ioc_submit_csd, read back the output BO); (c) netboot → assert exact read-back values →
 validates the untested handler + nails cfg[] layout. Then matmul kernel → wire into llama2. All numeric-verifiable,
 LOW regression risk (additive, GL render untouched).

@@ -1,222 +1,3 @@
-diff --git a/.pick_status.json b/.pick_status.json
-new file mode 100644
-index 00000000000..3cf87023a69
---- /dev/null
-+++ b/.pick_status.json
-@@ -0,0 +1,212 @@
-+[
-+    {
-+        "sha": "d021138b4100bf1dc876e930645f3a382d1ed78d",
-+        "description": "anv: hide Intel vendor ID for Cyberpunk",
-+        "nominated": false,
-+        "nomination_type": 0,
-+        "resolution": 1,
-+        "main_sha": null,
-+        "because_sha": null,
-+        "notes": null
-+    },
-+    {
-+        "sha": "1be67a7d22c33095381206dcecda9a0c26980b26",
-+        "description": "nir/opt_vectorize: handle commutative ALU sources",
-+        "nominated": false,
-+        "nomination_type": 0,
-+        "resolution": 4,
-+        "main_sha": null,
-+        "because_sha": null,
-+        "notes": null
-+    },
-+    {
-+        "sha": "05f9f41fc294f6adb6d9b8ffed9a801bb232f40e",
-+        "description": "nv50_ir_ra: align B96 spill slots to vec4",
-+        "nominated": true,
-+        "nomination_type": 2,
-+        "resolution": 1,
-+        "main_sha": null,
-+        "because_sha": "d12e16fc3b5217613aa077f5f3418f16cf5cb824",
-+        "notes": null
-+    },
-+    {
-+        "sha": "f449a3ae575910ab6ee06d9607d2ffcdf442aae2",
-+        "description": "freedreno/a6xx: Split VS driver params",
-+        "nominated": false,
-+        "nomination_type": 0,
-+        "resolution": 4,
-+        "main_sha": null,
-+        "because_sha": null,
-+        "notes": null
-+    },
-+    {
-+        "sha": "df806d864a8a0f5e2961e3c8fcaea830634c674d",
-+        "description": "freedreno/a6xx: Split driver UBO upload and emit",
-+        "nominated": false,
-+        "nomination_type": 0,
-+        "resolution": 4,
-+        "main_sha": null,
-+        "because_sha": null,
-+        "notes": null
-+    },
-+    {
-+        "sha": "cbf6697c550584d5cc31386a19d2552ecb0d3302",
-+        "description": "freedreno: Remove VS driver param patching",
-+        "nominated": false,
-+        "nomination_type": 0,
-+        "resolution": 4,
-+        "main_sha": null,
-+        "because_sha": null,
-+        "notes": null
-+    },
-+    {
-+        "sha": "03bd1ff924b5474d2788e1e0406a659078fa3e80",
-+        "description": "kraid/nir: Implement 64-bit integer comparisons",
-+        "nominated": false,
-+        "nomination_type": 0,
-+        "resolution": 4,
-+        "main_sha": null,
-+        "because_sha": null,
-+        "notes": null
-+    },
-+    {
-+        "sha": "9a18efb87eeffe052389c25b38c214bdf975856e",
-+        "description": "kraid: Add OpICmpMulti and plumb it through",
-+        "nominated": false,
-+        "nomination_type": 0,
-+        "resolution": 4,
-+        "main_sha": null,
-+        "because_sha": null,
-+        "notes": null
-+    },
-+    {
-+        "sha": "48c8b0b1e5d18e56b24376944acba3931f230e7a",
-+        "description": "kraid: Rework comparison folding",
-+        "nominated": false,
-+        "nomination_type": 0,
-+        "resolution": 4,
-+        "main_sha": null,
-+        "because_sha": null,
-+        "notes": null
-+    },
-+    {
-+        "sha": "e906eb87cd19b9c426913170100c11fcc43070b6",
-+        "description": "kraid/nir: Implement 64-bit integer down-conversions",
-+        "nominated": false,
-+        "nomination_type": 0,
-+        "resolution": 4,
-+        "main_sha": null,
-+        "because_sha": null,
-+        "notes": null
-+    },
-+    {
-+        "sha": "54b8ab7e28b1bc0bad5b169df4ef94e95992d133",
-+        "description": "pan/nir: Cast 64-bit comparison results to 32 bits",
-+        "nominated": false,
-+        "nomination_type": 0,
-+        "resolution": 4,
-+        "main_sha": null,
-+        "because_sha": null,
-+        "notes": null
-+    },
-+    {
-+        "sha": "259470dbad8b43e55046f0dfbbd1d3fe6944ea34",
-+        "description": "pan/nir: Use a single ALU op switch in lower_bool_to_bitsize",
-+        "nominated": false,
-+        "nomination_type": 0,
-+        "resolution": 4,
-+        "main_sha": null,
-+        "because_sha": null,
-+        "notes": null
-+    },
-+    {
-+        "sha": "ed41cf233f1ae4aaba14d521de30345b52f23983",
-+        "description": "mediafoundation: fix shadow variable in stats_buffer_manager.cpp, also remove using namespace std to avoid collision",
-+        "nominated": false,
-+        "nomination_type": 0,
-+        "resolution": 4,
-+        "main_sha": null,
-+        "because_sha": null,
-+        "notes": null
-+    },
-+    {
-+        "sha": "6e786bed04314899f92e8f928fcd9874b0fbb66c",
-+        "description": "mediafoundation: fix drain/flush when running ProcessDX12Context outside of m_lock, and allocator/buffer pool release.",
-+        "nominated": false,
-+        "nomination_type": 0,
-+        "resolution": 4,
-+        "main_sha": null,
-+        "because_sha": null,
-+        "notes": null
-+    },
-+    {
-+        "sha": "0b3f2666029d6296cc4f9fcccbe71bbfabe4fcb7",
-+        "description": "mesa: fix variable shadowing",
-+        "nominated": false,
-+        "nomination_type": 0,
-+        "resolution": 4,
-+        "main_sha": null,
-+        "because_sha": null,
-+        "notes": null
-+    },
-+    {
-+        "sha": "fb7300c6da2b740b0605b1562fe569391f33be94",
-+        "description": "v3dv: record the no-op fragment shader with its Vulkan stage bit",
-+        "nominated": true,
-+        "nomination_type": 2,
-+        "resolution": 1,
-+        "main_sha": null,
-+        "because_sha": "02de1d9ab16f4818a9da29f96d222f19b11a106b",
-+        "notes": null
-+    },
-+    {
-+        "sha": "1d9201e377eb6f595c83d68757b054818bd4176a",
-+        "description": "v3dv: record the multiview geometry shader with its Vulkan stage bit",
-+        "nominated": true,
-+        "nomination_type": 2,
-+        "resolution": 1,
-+        "main_sha": null,
-+        "because_sha": "5872c7ca7ba79f5e5bf8824ee474b30fa9c12948",
-+        "notes": null
-+    },
-+    {
-+        "sha": "771dfe55fcb62b62212b418d7f702ab8d42ea07e",
-+        "description": "v3dv: use the binning VS variant for the binning VPM config",
-+        "nominated": true,
-+        "nomination_type": 2,
-+        "resolution": 1,
-+        "main_sha": null,
-+        "because_sha": "9e7d9a6efb6714848ea05209950e910fd7efe446",
-+        "notes": null
-+    },
-+    {
-+        "sha": "9d534e38a2e20d1076e2dbd4b82d8c9e6b65e932",
-+        "description": "v3dv: make room in the descriptor map for the no-sampler entries",
-+        "nominated": true,
-+        "nomination_type": 2,
-+        "resolution": 1,
-+        "main_sha": null,
-+        "because_sha": "fc17231b2b4eb2e24506db289cf89978779d9204",
-+        "notes": null
-+    },
-+    {
-+        "sha": "6895c0736ac7201889f85e1ff720f6c2fe7943ff",
-+        "description": "docs: reset new_features.txt",
-+        "nominated": false,
-+        "nomination_type": 0,
-+        "resolution": 4,
-+        "main_sha": null,
-+        "because_sha": null,
-+        "notes": null
-+    },
-+    {
-+        "sha": "06272731414da4e0206d9ed52ec32b0ba560c96c",
-+        "description": "VERSION: bump to 26.3",
-+        "nominated": false,
-+        "nomination_type": 0,
-+        "resolution": 4,
-+        "main_sha": null,
-+        "because_sha": null,
-+        "notes": null
-+    }
-+]
-\ No newline at end of file
 diff --git a/include/renderdoc_app.h b/include/renderdoc_app.h
 index b2d10c5e2d2..c19305b198f 100644
 --- a/include/renderdoc_app.h
@@ -270,7 +51,7 @@ index 1417dda7212..0b090e4100b 100644
     bo->map = NULL;
     bo->map_size = 0;
 diff --git a/src/broadcom/vulkan/v3dv_cmd_buffer.c b/src/broadcom/vulkan/v3dv_cmd_buffer.c
-index 4db0298232d..cd1dabe1531 100644
+index 56643df63d2..becf42561f1 100644
 --- a/src/broadcom/vulkan/v3dv_cmd_buffer.c
 +++ b/src/broadcom/vulkan/v3dv_cmd_buffer.c
 @@ -521,6 +521,22 @@ v3dv_job_start_frame(struct v3dv_job *job,
@@ -296,33 +77,6 @@ index 4db0298232d..cd1dabe1531 100644
     /* Start by computing frame tiling spec for this job assuming that
      * double-buffer mode is disabled.
      */
-diff --git a/src/broadcom/vulkan/v3dv_descriptor_set.h b/src/broadcom/vulkan/v3dv_descriptor_set.h
-index aa70cfea1b3..388451e1ed7 100644
---- a/src/broadcom/vulkan/v3dv_descriptor_set.h
-+++ b/src/broadcom/vulkan/v3dv_descriptor_set.h
-@@ -202,6 +202,12 @@ v3dv_descriptor_set_layout_unref(struct v3dv_device *device,
-       v3dv_descriptor_set_layout_destroy(device, set_layout);
- }
- 
-+/* Number of entries the sampler map reserves for the "no sampler" cases, see
-+ * V3DV_NO_SAMPLER_16BIT_IDX below. They are added before any real sampler, so
-+ * the sampler map needs room for them on top of V3D_MAX_TEXTURE_SAMPLERS.
-+ */
-+#define V3DV_NUM_NO_SAMPLER_IDX 2
-+
- /*
-  * We are using descriptor maps for ubo/ssbo and texture/samplers, so we need
-  * it to be big enough to include the max value for all of them.
-@@ -209,7 +215,8 @@ v3dv_descriptor_set_layout_unref(struct v3dv_device *device,
-  * FIXME: one alternative would be to allocate the map as big as you need for
-  * each descriptor type. That would means more individual allocations.
-  */
--#define DESCRIPTOR_MAP_SIZE MAX3(V3D_MAX_TEXTURE_SAMPLERS,                         \
-+#define DESCRIPTOR_MAP_SIZE MAX3(V3D_MAX_TEXTURE_SAMPLERS +                        \
-+                                 V3DV_NUM_NO_SAMPLER_IDX,                          \
-                                  MAX_UNIFORM_BUFFERS + MAX_INLINE_UNIFORM_BUFFERS, \
-                                  MAX_STORAGE_BUFFERS)
- 
 diff --git a/src/broadcom/vulkan/v3dv_device.c b/src/broadcom/vulkan/v3dv_device.c
 index 2ee6acafc7f..26a0ce26109 100644
 --- a/src/broadcom/vulkan/v3dv_device.c
@@ -447,10 +201,19 @@ index 2ee6acafc7f..26a0ce26109 100644
  
  uint32_t
 diff --git a/src/broadcom/vulkan/v3dv_meta_copy.c b/src/broadcom/vulkan/v3dv_meta_copy.c
-index f43181cb394..a31c2ba1b10 100644
+index f43181cb394..11846cdf3ec 100644
 --- a/src/broadcom/vulkan/v3dv_meta_copy.c
 +++ b/src/broadcom/vulkan/v3dv_meta_copy.c
-@@ -1943,6 +1943,10 @@ copy_buffer_image_tfu(struct v3dv_cmd_buffer *cmd_buffer,
+@@ -21,6 +21,8 @@
+  * IN THE SOFTWARE.
+  */
+ 
++#include <stdlib.h> /* getenv (V3DV_DBGCOPY trace gate) */
++
+ #include "v3dv_device.h"
+ #include "v3dv_cmd_buffer.h"
+ #include "v3dv_image.h"
+@@ -1943,6 +1945,10 @@ copy_buffer_image_tfu(struct v3dv_cmd_buffer *cmd_buffer,
      */
     if (cmd_buffer->device->devinfo.ver < 71 &&
         (to_buffer || !image->tiled)) {
@@ -461,7 +224,7 @@ index f43181cb394..a31c2ba1b10 100644
        return false;
     }
  
-@@ -1961,8 +1965,12 @@ copy_buffer_image_tfu(struct v3dv_cmd_buffer *cmd_buffer,
+@@ -1961,8 +1967,12 @@ copy_buffer_image_tfu(struct v3dv_cmd_buffer *cmd_buffer,
     /* Region must include full slice */
     const uint32_t offset_x = region->imageOffset.x;
     const uint32_t offset_y = region->imageOffset.y;
@@ -475,7 +238,7 @@ index f43181cb394..a31c2ba1b10 100644
  
     uint32_t width, height;
     if (region->bufferRowLength == 0)
-@@ -1995,6 +2003,11 @@ copy_buffer_image_tfu(struct v3dv_cmd_buffer *cmd_buffer,
+@@ -1995,6 +2005,11 @@ copy_buffer_image_tfu(struct v3dv_cmd_buffer *cmd_buffer,
      */
     if (region->imageExtent.width != slice->width ||
         region->imageExtent.height != slice->height) {
@@ -487,7 +250,28 @@ index f43181cb394..a31c2ba1b10 100644
        return false;
     }
  
-@@ -3404,12 +3417,46 @@ v3dv_CmdCopyBufferToImage2(VkCommandBuffer commandBuffer,
+@@ -3385,6 +3400,20 @@ copy_buffer_to_image_shader(struct v3dv_cmd_buffer *cmd_buffer,
+    }
+ }
+ 
++#if defined(__phoenix__)
++/* Per-region copy-path tracer (#29 striping investigation). Uploading a Quake map records
++ * hundreds of textures x 6-7 mip regions each; printing every region to the ~115200-baud UART
++ * dominated map-load wall time. Gate the trace behind V3DV_DBGCOPY (checked once) so it is
++ * silent — and fast — by default, and re-enableable when the striping work resumes. */
++static bool v3dv_trace_copy(void)
++{
++   static int on = -1;
++   if (on < 0)
++      on = getenv("V3DV_DBGCOPY") != NULL;
++   return on != 0;
++}
++#endif
++
+ VKAPI_ATTR void VKAPI_CALL
+ v3dv_CmdCopyBufferToImage2(VkCommandBuffer commandBuffer,
+                               const VkCopyBufferToImageInfo2 *info)
+@@ -3404,12 +3433,49 @@ v3dv_CmdCopyBufferToImage2(VkCommandBuffer commandBuffer,
         * where we are copying full images, since they should be the fastest.
         */
        uint32_t batch_size = 1;
@@ -502,6 +286,7 @@ index f43181cb394..a31c2ba1b10 100644
 +      {
 +         const struct v3d_resource_slice *s0 = &image->planes[0].slices[
 +            info->pRegions[r].imageSubresource.mipLevel];
++         if (v3dv_trace_copy())
 +         fprintf(stderr, "v3dv: CmdCopyBufferToImage region %u/%u extent=%ux%ux%u off=%d,%d,%d "
 +                 "buf(off=%llu rowlen=%u imgh=%u) | IMAGE create=%ux%ux%u type=%u fmt=%u tiled=%d "
 +                 "slice0=%ux%u -> trying TFU\n",
@@ -521,6 +306,7 @@ index f43181cb394..a31c2ba1b10 100644
 -                                false /* to_buffer */))
 +                                false /* to_buffer */)) {
 +#if defined(__phoenix__)
++         if (v3dv_trace_copy())
 +         fprintf(stderr, "v3dv: CmdCopyBufferToImage region %u -> path=TFU\n", r);
 +#endif
           goto handled;
@@ -529,6 +315,7 @@ index f43181cb394..a31c2ba1b10 100644
 -      if (copy_buffer_to_image_tlb(cmd_buffer, image, buffer, &info->pRegions[r]))
 +      if (copy_buffer_to_image_tlb(cmd_buffer, image, buffer, &info->pRegions[r])) {
 +#if defined(__phoenix__)
++         if (v3dv_trace_copy())
 +         fprintf(stderr, "v3dv: CmdCopyBufferToImage region %u -> path=TLB\n", r);
 +#endif
           goto handled;
@@ -536,66 +323,27 @@ index f43181cb394..a31c2ba1b10 100644
  
        /* Otherwise, we are copying subrects, so we fallback to copying
         * via shader and texel buffers and we try to batch the regions
-@@ -3439,6 +3486,9 @@ v3dv_CmdCopyBufferToImage2(VkCommandBuffer commandBuffer,
+@@ -3439,6 +3505,10 @@ v3dv_CmdCopyBufferToImage2(VkCommandBuffer commandBuffer,
  
        if (copy_buffer_to_image_shader(cmd_buffer, image, buffer,
                                        batch_size, &info->pRegions[r], true)) {
 +#if defined(__phoenix__)
++         if (v3dv_trace_copy())
 +         fprintf(stderr, "v3dv: CmdCopyBufferToImage region %u -> path=SHADER(texel)\n", r);
 +#endif
           goto handled;
        }
  
-@@ -3450,6 +3500,9 @@ v3dv_CmdCopyBufferToImage2(VkCommandBuffer commandBuffer,
+@@ -3450,6 +3520,10 @@ v3dv_CmdCopyBufferToImage2(VkCommandBuffer commandBuffer,
         */
        if (copy_buffer_to_image_shader(cmd_buffer, image, buffer,
                                        batch_size, &info->pRegions[r], false)) {
 +#if defined(__phoenix__)
++         if (v3dv_trace_copy())
 +         fprintf(stderr, "v3dv: CmdCopyBufferToImage region %u -> path=SHADER(blit)\n", r);
 +#endif
           goto handled;
        }
- 
-diff --git a/src/broadcom/vulkan/v3dv_pipeline.c b/src/broadcom/vulkan/v3dv_pipeline.c
-index e62ce49b94a..2fa8bd3e07c 100644
---- a/src/broadcom/vulkan/v3dv_pipeline.c
-+++ b/src/broadcom/vulkan/v3dv_pipeline.c
-@@ -1813,7 +1813,8 @@ pipeline_lower_nir(struct v3dv_pipeline *pipeline,
-     * shader doesn't need any other samplers, get rid of them so we can
-     * recognize that this program doesn't use any samplers at all.
-     */
--   if (!needs_default_sampler_state && maps->sampler_map.num_desc == 2)
-+   if (!needs_default_sampler_state &&
-+       maps->sampler_map.num_desc == V3DV_NUM_NO_SAMPLER_IDX)
-       maps->sampler_map.num_desc = 0;
- 
-    p_stage->feedback.duration += os_time_get_nano() - stage_start;
-@@ -2393,7 +2394,7 @@ pipeline_add_multiview_gs(struct v3dv_pipeline *pipeline,
- 
-    pipeline->has_gs = true;
-    pipeline->stages[BROADCOM_SHADER_GEOMETRY] = p_stage;
--   pipeline->active_stages |= MESA_SHADER_GEOMETRY;
-+   pipeline->active_stages |= VK_SHADER_STAGE_GEOMETRY_BIT;
- 
-    pipeline->stages[BROADCOM_SHADER_GEOMETRY_BIN] =
-       pipeline_stage_create_binning(p_stage, pAllocator);
-@@ -2530,7 +2531,7 @@ pipeline_compile_graphics(struct v3dv_pipeline *pipeline,
-          p_atomic_inc_return(&physical_device->next_program_id);
- 
-       pipeline->stages[BROADCOM_SHADER_FRAGMENT] = p_stage;
--      pipeline->active_stages |= MESA_SHADER_FRAGMENT;
-+      pipeline->active_stages |= VK_SHADER_STAGE_FRAGMENT_BIT;
-    }
- 
-    /* If multiview is enabled, we inject a custom passthrough geometry shader
-@@ -2689,7 +2690,7 @@ compute_vpm_config(struct v3dv_pipeline *pipeline)
-    struct v3dv_shader_variant *vs_variant =
-       pipeline->shared_data->variants[BROADCOM_SHADER_VERTEX];
-    struct v3dv_shader_variant *vs_bin_variant =
--      pipeline->shared_data->variants[BROADCOM_SHADER_VERTEX];
-+      pipeline->shared_data->variants[BROADCOM_SHADER_VERTEX_BIN];
-    struct v3d_vs_prog_data *vs = vs_variant->prog_data.vs;
-    struct v3d_vs_prog_data *vs_bin =vs_bin_variant->prog_data.vs;
  
 diff --git a/src/broadcom/vulkan/v3dv_queue.c b/src/broadcom/vulkan/v3dv_queue.c
 index d1b2e4d0c97..fbce1015a3d 100644
@@ -632,19 +380,6 @@ index d1b2e4d0c97..fbce1015a3d 100644
     switch (job->type) {
     case V3DV_JOB_TYPE_GPU_CL:
        return handle_cl_job(queue, job, counter_pass_idx, sync_info);
-diff --git a/src/gallium/drivers/nouveau/codegen/nv50_ir_ra.cpp b/src/gallium/drivers/nouveau/codegen/nv50_ir_ra.cpp
-index f0fad0ded4e..ea80acdf440 100644
---- a/src/gallium/drivers/nouveau/codegen/nv50_ir_ra.cpp
-+++ b/src/gallium/drivers/nouveau/codegen/nv50_ir_ra.cpp
-@@ -1548,7 +1548,7 @@ GCRA::cleanup(const bool success)
- Symbol *
- SpillCodeInserter::assignSlot(const Interval &livei, const unsigned int size)
- {
--   int32_t address = align(stackSize + func->tlsBase, size);
-+   int32_t address = align(stackSize + func->tlsBase, util_next_power_of_two(size));
- 
-    Symbol *sym = new_Symbol(func->getProgram(), FILE_MEMORY_LOCAL);
-    sym->setAddress(NULL, address);
 diff --git a/src/gallium/drivers/v3d/v3d_bufmgr.c b/src/gallium/drivers/v3d/v3d_bufmgr.c
 index e82fd069b18..0eed759e4e0 100644
 --- a/src/gallium/drivers/v3d/v3d_bufmgr.c
@@ -941,20 +676,6 @@ index 0ce11c17a7e..8ba2a4f64ac 100644
          }
  
          v3d->dirty |= V3D_DIRTY_FRAMEBUFFER;
-diff --git a/src/intel/vulkan/00-anv-defaults.conf b/src/intel/vulkan/00-anv-defaults.conf
-index 7f8753dc8d4..2876590d8a4 100644
---- a/src/intel/vulkan/00-anv-defaults.conf
-+++ b/src/intel/vulkan/00-anv-defaults.conf
-@@ -70,6 +70,9 @@
-             See: https://gitlab.freedesktop.org/mesa/mesa/-/issues/9241
-             -->
-             <option name="shader_spilling_rate" value="15" />
-+            <!-- work around XeSS misrendering with Intel vendor ID shown.
-+                 see https://gitlab.freedesktop.org/mesa/mesa/-/work_items/15739 -->
-+            <option name="force_vk_vendor" value="-1" />
-         </application>
-         <application name="Elden Ring" executable="eldenring.exe">
-             <option name="fake_sparse" value="true" />
 diff --git a/src/mesa/state_tracker/st_atom_framebuffer.c b/src/mesa/state_tracker/st_atom_framebuffer.c
 index cc5ad3d3cb7..487fa4e44df 100644
 --- a/src/mesa/state_tracker/st_atom_framebuffer.c
@@ -1031,20 +752,21 @@ index 98b3cd6f8d8..16de49d8b28 100644
  
  static inline void *
 diff --git a/src/vulkan/runtime/vk_cmd_copy.c b/src/vulkan/runtime/vk_cmd_copy.c
-index 5b4ef8a28d2..7303a7c47f2 100644
+index 5b4ef8a28d2..398fb72be29 100644
 --- a/src/vulkan/runtime/vk_cmd_copy.c
 +++ b/src/vulkan/runtime/vk_cmd_copy.c
-@@ -24,6 +24,9 @@
+@@ -24,6 +24,10 @@
  #include "vk_common_entrypoints.h"
  #include "vk_device.h"
  #include "vk_util.h"
 +#if defined(__phoenix__)
-+#include <stdio.h>   /* #29 triage trampoline trace */
++#include <stdio.h>    /* #29 triage trampoline trace */
++#include <stdlib.h>   /* getenv (V3DV_DBGCOPY gate) */
 +#endif
  
  VKAPI_ATTR void VKAPI_CALL
  vk_common_CmdCopyBuffer(VkCommandBuffer commandBuffer,
-@@ -128,6 +131,21 @@ vk_common_CmdCopyBufferToImage(VkCommandBuffer commandBuffer,
+@@ -128,6 +132,22 @@ vk_common_CmdCopyBufferToImage(VkCommandBuffer commandBuffer,
           .imageOffset         = pRegions[r].imageOffset,
           .imageExtent         = pRegions[r].imageExtent,
        };
@@ -1055,6 +777,7 @@ index 5b4ef8a28d2..7303a7c47f2 100644
 +       * converted region2s) the field copy: equal+nonzero here but 0 at v3dv = corruption
 +       * downstream of this trampoline; 0 already on `in` = upstream (vkQuake/proc-addr); 0
 +       * only on `out` = a struct/field mismatch in this very copy. */
++      if (getenv("V3DV_DBGCOPY"))
 +      fprintf(stderr, "vk-trampoline: CmdCopyBufferToImage region %u in=%ux%ux%u out=%ux%ux%u "
 +              "(sizeof in=%u out=%u)\n", r,
 +              pRegions[r].imageExtent.width, pRegions[r].imageExtent.height,

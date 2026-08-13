@@ -100,7 +100,7 @@ UPSTREAM_ONLY_REPOS=(
 
 # BUILD-REQUIRED external dependencies cloned into external/ and pinned. These
 # feed the V3D GPU / GL stack + the GLQuake showcase:
-#   - external/mesa       -> UPSTREAM Mesa at the immutable tag mesa-26.2.0-rc1 +
+#   - external/mesa       -> UPSTREAM Mesa at the immutable tag mesa-26.2.0 (final) +
 #                            our patch (patches/mesa/phoenix-rpi4-v3d.patch);
 #                            tools/v3d-driver-port builds libGL/libv3d/libv3dv.
 #                            NOT a fork — reproducible from the frozen tag, so it
@@ -122,9 +122,10 @@ UPSTREAM_ONLY_REPOS=(
 # Format: "<subdir>|<git-url>|<pinned-ref>[|<port-patch-relpath>]". mesa clones
 # PRISTINE UPSTREAM at the tag and apply_dep_patch applies our diff; quakespasm
 # comes from our org fork (its upstream pin is no longer fetchable). Bump refs
-# deliberately (and, for mesa, re-base the patch when 26.2.0 final ships).
+# deliberately (mesa: rebased to the mesa-26.2.0 final tag 2026-08-13, 11 port
+# commits; 3 incidental non-v3d commits + upstream-backported ones dropped).
 EXTERNAL_DEPS=(
-	"mesa|https://gitlab.freedesktop.org/mesa/mesa.git|mesa-26.2.0-rc1|patches/mesa/phoenix-rpi4-v3d.patch"
+	"mesa|https://gitlab.freedesktop.org/mesa/mesa.git|mesa-26.2.0|patches/mesa/phoenix-rpi4-v3d.patch"
 	"quakespasm|${EXTERNAL_FORK_BASE}/quakespasm.git|4abb3249fe45c835d3d8540845a18a114e283996"
 	"vkquake|${EXTERNAL_FORK_BASE}/vkquake.git|phoenix-rpi4-port"
 )

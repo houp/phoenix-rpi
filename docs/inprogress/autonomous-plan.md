@@ -503,6 +503,20 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-13 (BASH PORT started — FEASIBLE, configures clean, first blocker root-caused + fixed at libphoenix). The
+deterministic-win pivot (advisor). bash 5.2.21 **cross-CONFIGURES cleanly** vs the aarch64-phoenix toolchain (cross
+config.cache, saved in docs/inprogress/2026-08-13-bash-port.md). `make` surfaced 2 tractable blockers, both
+diagnosed to root: **(1)** jobs.h `union wait` incomplete type — root = libphoenix <unistd.h> missing
+**`_POSIX_VERSION`** (a POSIX system must define it; without it bash's posixwait.h picks the undefined `union wait`
+over `typedef int WAIT`). **FIXED: libphoenix 470faee** adds `_POSIX_VERSION`/`_POSIX2_VERSION`=200809L (correct,
+helps ALL ports, no core code branches on it = low risk; kept LOCAL, needs --scope core + boot-verify before org
+push). **(2)** mkbuiltins.c K&R errors under gcc 14 (host build-tool) — fix = permissive `CFLAGS_FOR_BUILD`
+(-Wno-error=implicit-function-declaration -std=gnu89), port-local. So bash IS portable — the blockers are config/libc
+gaps, not fundamental. **NEXT:** --scope core (propagate _POSIX_VERSION + boot-verify → push libphoenix) → rebuild
+bash with the build-tool flag → iterate the next layer (watch job-control: does Phoenix have tcsetpgrp/pgroups? else
+--disable-job-control) → link the bash ELF (deterministic milestone) → formalize sources/phoenix-rtos-ports/bash/
+port.def.sh → Pi-run interactive bash over UART. Then coreutils. Doc: 2026-08-13-bash-port.md.
+
 2026-08-13 (DRI/DRM #3 — DESIGN-ONLY per advisor redirect; then fill the week with deterministic-verification wins).
 The advisor (owning its prior glib "start DRI/DRM" endorsement) redirected: do NOT open the implementation now.
 Reasons: (1) it RE-PLUMBS the load-bearing GPU stack (move the in-process V3D winsys → an arbitration server) →

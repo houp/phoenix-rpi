@@ -18,6 +18,12 @@ task — a working, deterministically-verified inference pipeline that the GPU
 `not implemented`. libphoenix's libm already covers the full math surface
 (expf/exp/sqrtf/sinf/cosf/powf) — no libphoenix changes were needed.
 
+**Verified at real-model scale too:** `stories15M.bin` (~60 MB, 15M params) with the
+32000-vocab `tokenizer.bin` also generates output **exact-diff bit-identical** to the
+x86 reference on the Pi (0 faults) — proving the 60 MB malloc+fread over NFS and the
+larger RunState allocations. ~5.8 tok/s (fp32 CPU, single-thread) — which is precisely
+the motivation for the phase-2 GPU matmul.
+
 ## Source & license
 
 `run.c` is from Andrej Karpathy's llama2.c (https://github.com/karpathy/llama2.c),

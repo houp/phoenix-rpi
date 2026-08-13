@@ -503,6 +503,25 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-13 (session 12 — ★★★ **LLM INFERENCE RUNS ON PHOENIX/RPi4** (ML task, phase 1 CPU) — HW-verified
+bit-identical at 260K AND 15M scale). Rotated off coreutils to the owner's ML task; picked llama2.c (Karpathy,
+pure C, MIT) — autonomous-verifiable, zero regression risk to the GPU stack, bounded dep tail (libm + syscalls).
+Advisor-endorsed. Only port change: under `__phoenix__` the checkpoint loader reads the model into RAM (malloc+fread)
+instead of mmap()ing the file (Phoenix file-mmap-over-NFS not relied upon). **libphoenix libm already covered the full
+math surface (expf/exp/sqrtf/sinf/cosf/powf) — NO libphoenix change needed.** Cross-compiled static AArch64 ELF.
+**HW (netboot, 0 faults, temp-0 greedy = deterministic):** stories260K (~1MB) → 370 tok/s; **stories15M (~60MB, real
+scale) → 5.8 tok/s** — BOTH **exact-diff bit-identical to the x86 reference** (programmatic diff, not eyeball; 15M
+proves the 60MB malloc+fread over NFS + larger RunState). Shipped: **tools/llama2-port/** (run.c + README + build.sh),
+coord **ba5318f** pushed to org. Wording discipline: this is **CPU inference, deterministic, 260K+15M verified — NOT
+"ML done"**; the V3D-matmul GPU half ("on Pi4 GPU") is the hard, non-autonomously-verifiable part → **design-doc +
+owner-gate (phase 2)**.
+
+**NEXT:** (a) **phase 2 design-doc** for V3D GPU matmul accel of llama2 (V3D CSD compute dispatch; no Clover/OpenCL on
+the port → novel; owner-gate — like the DRI/DRM + interactive-console deferrals); OR (b) ROTATE to another BIG owner
+item (DRI/DRM design, XFce/LXQt, qemu 11.1, wpa_supplicant, LKML thread). Breadth is now good: bash (shipped),
+coreutils groundwork (6 libphoenix commits), ML phase-1 (shipped). Still open/banked: coreutils FILE-internal wall,
+getty/pts interactive bash, `--with-ports` bash-image build.
+
 2026-08-13 (session 11 — COREUTILS 2 more libphoenix-hardening walls cleared → 32 errors; BANKED at the gnulib
 FILE-internal wall; rotate next). Advisor drew the principled stop line: **clear walls only while they yield reusable
 libphoenix value; stop at the gnulib-internal-glue tar pit.** Cleared: **getprogname/setprogname** (libphoenix

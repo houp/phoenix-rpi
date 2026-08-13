@@ -503,6 +503,24 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-13 (session 14 — ML phase-2: discovered the CSD dispatch handler ALREADY EXISTS (untested); corrected the
+plan; identified the kernel-gen path). Went to implement "step 1 (CSD handler)" but reading the actual code
+(check-before-claiming-novelty) found it's already done: **v3d_phoenix_winsys.c `ioc_submit_csd()` (commit 1067af1)
+programs CSD_QUEUED_CFG0..6, kicks via CFG0, blocks on INT_CSDDONE** — wired in phoenix_v3d_ioctl, PARAM_SUPPORTS_CSD=1.
+BUT **never exercised: no compute kernel has ever been dispatched through it.** So the real step-1 = feed a real
+kernel + numeric-verify. **Kernel-gen path identified + PROVEN for FS/VS:** tools/v3d-shader-tool drives Mesa
+`v3d_compile()` off-device → QPU; Mesa v3d compiler supports compute (v3d_compute_prog_data{local_size[3]}), so a
+compute NIR shader → v3d_compile(MESA_SHADER_COMPUTE) → QPU + prog_data → fills drm_v3d_submit_csd.cfg[]. Corrected
+design in docs/inprogress/2026-08-13-ml-phase2-v3d-gpu-matmul-design.md (UPDATE session 14). No code yet (2nd
+investigation turn — NEXT turn MUST build).
+
+**NEXT (BUILD — no more planning):** step 1 concretely = (a) extend tools/v3d-shader-tool/v3d_shader_dump.c with a
+trivial COMPUTE shader (`out[gid]=gid`), build it in the Mesa host tree (per its README meson recipe), dump QPU +
+v3d_compute_prog_data; (b) write a minimal on-Phoenix CSD harness (alloc BOs shader/uniforms/output, fill cfg[] from
+prog_data, call the existing ioc_submit_csd, read back the output BO); (c) netboot → assert exact read-back values →
+validates the untested handler + nails cfg[] layout. Then matmul kernel → wire into llama2. All numeric-verifiable,
+LOW regression risk (additive, GL render untouched).
+
 2026-08-13 (session 13 — ML phase-2 V3D-GPU-matmul DESIGN + feasibility established; key insight upgrades it to
 autonomously-attemptable). Continued the owner's ML task toward "on Pi4 GPU". **Feasibility ESTABLISHED via code
 investigation:** V3D 4.2 HW supports compute/CSD (Linux v3d driver + PARAM_SUPPORTS_CSD); the port's v3d_drm.h

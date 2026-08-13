@@ -5,6 +5,31 @@ Phase 1 (CPU) shipped: llama2.c runs on Phoenix/RPi4, deterministic, HW-verified
 CPU) — the motivation for GPU offload. This doc scopes phase 2: offloading llama2's `matmul()` (the dominant cost)
 to the Pi 4's V3D 4.2 GPU via **compute (CSD)**.
 
+## UPDATE (session 14) — the code is AHEAD of the earlier plan; approach corrected
+
+Reading the actual port code (not just the notes) changed the plan materially:
+- **The CSD dispatch handler ALREADY EXISTS.** `tools/v3d-driver-port/v3d_phoenix_winsys.c` has
+  `ioc_submit_csd()` (commit **1067af1** "implement CSD (compute dispatch) — was a no-op stub"): it programs
+  CSD_QUEUED_CFG0..6 from `s->cfg[]`, writes CFG0 to KICK, and synchronously blocks on `INT_CSDDONE` (BIT 7),
+  wrapped in the same MMU-TLB + cache-coherency bracket as `ioc_submit_cl`. `phoenix_v3d_ioctl` routes
+  `DRM_V3D_SUBMIT_CSD → ioc_submit_csd` (line ~1645), and `PARAM_SUPPORTS_CSD` returns 1. So step-1 is NOT "write
+  the handler" — the handler is done, just **UNTESTED: no compute kernel has ever been dispatched through it.**
+- **Kernel generation path is PROVEN (for FS/VS) and extends to compute.** `tools/v3d-shader-tool/v3d_shader_dump.c`
+  already drives Mesa's `v3d_compile()` off-device (host) to turn a NIR shader into V3D-4.2 QPU bytecode (used to
+  derive GLQuake shaders). Mesa's v3d compiler supports compute: `struct v3d_compute_prog_data { base; uint16_t
+  local_size[3]; ... }` (v3d_compiler.h:1111). So: build a compute NIR shader → `v3d_compile(MESA_SHADER_COMPUTE)`
+  → QPU insts + `v3d_compute_prog_data`. The prog_data (local_size + the standard CSD layout) supplies the
+  `drm_v3d_submit_csd.cfg[0..6]` fields (workgroup size/count, shader addr, uniforms addr, etc.).
+- **Net:** the remaining work is (a) compile a compute kernel to QPU off-device via the shader tool, (b) a small
+  on-Phoenix harness that lays out BOs (shader/uniforms/input/output), fills `cfg[]`, calls the existing
+  ioc_submit_csd, and reads back — numeric-verify. This is more tractable than the original "build the whole CSD
+  path" estimate.
+
+**Revised step 1:** extend v3d-shader-tool with a trivial COMPUTE shader (e.g. `out[gl_GlobalInvocationID.x] =
+gid`), get its QPU + v3d_compute_prog_data; build the minimal CSD harness; dispatch through ioc_submit_csd; read the
+output BO back and assert exact values. That validates the untested handler end-to-end and nails the cfg[] layout.
+Then the matmul kernel, then wire into llama2.
+
 ## Feasibility — ESTABLISHED
 
 - **HW:** BCM2711 V3D 4.2 supports compute-shader dispatch (CSD). The Linux v3d driver implements it

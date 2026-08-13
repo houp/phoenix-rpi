@@ -510,7 +510,20 @@ So all three staged milestones pass: dispatch (step-1) / TMU constant-store (ste
 / gid per-lane store (step-3). **V3D compute is now a validated Phoenix capability** (kernel-gen via v3d-shader-tool;
 dispatch+store via ioc_submit_csd; numeric read-back oracle). coord 2ed54d3.
 
-**NEXT — the real payload: a matmul compute kernel → wire into llama2** (consulting advisor on the approach). llama2
+**Advisor plan captured** (design doc "MATMUL PLAN"): numeric-diff GPU-vs-CPU = PRIMARY gate (bit-identical is dead
+once offloaded; story = demo); **microbench ONE matmul BEFORE integrating** (bandwidth-bound + sync dispatch may be
+SLOWER than CPU — honest outcome, NOT failure, and NO optimization grind); persistent pre-alloc BOs; this kernel does
+the first TMU general LOADs (expect maybe 1 more bring-up bug, caught by the diff). **Kernel-gen path CONFIRMED:**
+glslangValidator IS on the host → wrote tools/v3d-shader-tool/matmul.comp (GLSL compute, one invocation/row, N=D=256
+compile-time for the bench) → compiles to SPIR-V (479 words). spirv_to_nir is in the mesa tree.
+
+**NEXT — build the matmul microbench:** (1) extend v3d-shader-tool to load matmul.spv → **spirv_to_nir** → v3d_compile
+(MESA_SHADER_COMPUTE) → dump QPU + prog_data (add the spirv frontend to the meson deps). (2) Microbench harness
+(persistent BOs w[256*256]/x[256]/o[256]/uniforms): fill random fp32, dispatch, **numeric-diff vs CPU matmul (tight
+rel-tol)** = the gate; time GPU (dispatch-incl) vs CPU = the honest perf number. (3) If correct: integrate as optional
+llama2 path + report tok/s honestly, then LAND. OLD NEXT below:
+
+**NEXT (superseded) — the real payload: a matmul compute kernel → wire into llama2** (consulting advisor on the approach). llama2
 matmul(xout,x,w,n,d): xout[i]=Σ_j w[i*n+j]*x[j], i∈[0,d). Plan: write a matmul compute shader (via the tool; likely
 one invocation per output row i, loop j) → numeric-diff vs CPU on random fp32 (ULP-bounded) → wire the big matmuls
 (dim×dim attn proj, dim×hidden FFN) to V3D with CPU fallback → verify bit-identical vs phase-1 (260K/15M refs) +

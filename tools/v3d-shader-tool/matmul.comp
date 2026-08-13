@@ -1,0 +1,18 @@
+#version 450
+/* llama2 matmul-vector: o[i] = sum_j w[i*N + j] * x[j], one invocation per row i.
+ * v1 (advisor: do not optimize before microbench). N,D compile-time for the bench. */
+layout(local_size_x = 64) in;
+layout(std430, binding = 0) readonly  buffer Wbuf { float w[]; };
+layout(std430, binding = 1) readonly  buffer Xbuf { float x[]; };
+layout(std430, binding = 2) writeonly buffer Obuf { float o[]; };
+const uint N = 256u;
+const uint D = 256u;
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= D) return;
+    float sum = 0.0;
+    for (uint j = 0u; j < N; j++) {
+        sum += w[i * N + j] * x[j];
+    }
+    o[i] = sum;
+}

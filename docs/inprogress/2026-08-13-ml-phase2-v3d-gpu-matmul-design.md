@@ -80,6 +80,31 @@ and rotate — the kernel-gen (first V3D compute QPU) + this ABI recipe are alre
 (same clean-line discipline as the coreutils bank). 5 turns deep with no Pi cycle is mild evidence this is closer to
 the owner-gate reality than autonomously-trivial; the staged attempt will tell which, fast.
 
+## MATMUL PLAN (advisor, session 21) — CSD bring-up is DONE (3/3 steps HW-verified); this is the payload
+
+**Verification — numeric diff is the PRIMARY gate, not the story.** GPU fp accumulation ≠ CPU order, so full-pipeline
+bit-identical is DEAD once offloaded — accept it. The real gate: per-matmul **GPU-vs-CPU numeric diff, tight relative/
+ULP tolerance, random inputs at real weight magnitudes** — deterministic + near-airtight. The end-to-end llama2 run is
+a DEMO, not a check (a fluent story survives a subtly-wrong matmul; a correct matmul still diverges the token stream
+via ULP→argmax flips).
+
+**Perf — MICROBENCH one matmul BEFORE integrating.** matmul-vector is memory-bandwidth-bound (each weight read once);
+dispatch is synchronous spin-on-CSDDONE + double cache-flush; llama2 fires ~dozens of matmuls/token. GPU-incl-dispatch
+may be SLOWER than CPU. Measure a single dim×dim (GPU w/ persistent pre-alloc BOs vs CPU) in isolation — that number
+decides whether integration is worth building. **Success = "a numerically-correct V3D matmul, integrated as an
+optional llama2 path"; tok/s is a MEASURED outcome reported honestly.** A negative perf result is a legit finding, NOT
+a failure — and it must NOT spawn an optimization grind (tiling/shared-mem/async). Measure → integrate correct kernel
+→ document perf reality → LAND the arc (same bank discipline, applied to perf).
+
+**Technical flags:** (a) this kernel does the **first TMU general LOADs** (reads of w,x) — a distinct path from the
+proven writes; expect maybe one more bring-up bug (the numeric diff catches it instantly; load has no flush-visibility
+trap since it's the GPU reading DRAM we wrote). (b) **Pre-allocate persistent BOs** (w/x/xout/uniforms) ONCE + reuse
+across dispatches — per-call CREATE_BO in the hot loop would dominate + pollute the perf number.
+
+**Kernel (v1, do NOT optimize before microbench):** one invocation per output row i, loop over inner dim j:
+`xout[i]=Σ_j w[i*n+j]*x[j]`. Kernel-gen: hand-build the NIR loop (nir_push_loop + load_ssbo/fmul/fadd/store_ssbo) OR
+GLSL→SPIR-V(glslangValidator offline)→spirv_to_nir→v3d_compile (like gen-triangle-spirv.py). NEXT.
+
 ## Feasibility — ESTABLISHED
 
 - **HW:** BCM2711 V3D 4.2 supports compute-shader dispatch (CSD). The Linux v3d driver implements it

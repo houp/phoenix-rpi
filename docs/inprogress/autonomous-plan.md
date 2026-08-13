@@ -170,7 +170,7 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
 
 ## Pi lock
 
-- **IN USE — wifi scan diagnostic (2026-08-13)** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
+- **FREE** _(set to "IN USE <label> <timestamp>" before booting the Pi; clear to FREE after)_
   Netboot game tests are now RELIABLE — the harness (psh-interact.py) waits for the NFS
   "registered / (takeover)" line before sending commands (#156 fix). No ls-warm needed.
 
@@ -501,6 +501,22 @@ vkquake_shaders.c, triangle_spirv*, drm*.h, texprobe/, two 2026-07-2x analysis d
 before the vacation handoff — NOT ours; leave untouched (always `git add <path>`, never -A).
 
 ## Last progress
+
+2026-08-13 (WIFI DATA-PLANE step 1 — join now RELIABLE; TX reaches fw but NOT the air → SDPCM seq/credit next).
+Advisor-steered: ran the step-0 scan diagnostic first (no new code). **PhoenixNet visible at RSSI −25 dBm (excellent
+— link is fine, NOT signal-marginal despite the 3 dBm AP cap).** So the join flakiness = broadcast-join-scan timing.
+Added: (a) a SET_SSID **retry loop** (retry on status=3 NO_NETWORKS; this run CONNECTED first-try, attempts=1); (b)
+**JOIN-START/JOIN-DONE/DATATX-DONE progress markers** (print+flush) — the probe buffers its whole report to the end,
+so the earlier "no output" cycles were **slowness/short-window, NOT a hang** (with --idle-secs 300 + markers it
+completed cleanly: JOIN-DONE setssid=0 psksup=6 link=1 CONNECTED, DATATX-DONE rc=0). **KEY NEW FINDING:** join
+CONNECTED + data-TX F2-write rc=0, but **tcpdump on the host AP saw NOTHING** → the fw ACCEPTS the F2 bytes but
+DROPS the frame. F2-write success ≠ frame-on-air (exactly the design's self-test-trap warning). **NEXT (real debug):
+SDPCM data-channel tx_seq/credit** — the data channel is credit-flow-controlled; I passed the join's seq without
+reading the fw's **tx_max** (RX SDPCM sw-header byte 9). Read tx_max from an RX frame, track tx_seq, only TX within
+the credit window; also re-verify the SDPCM(ch2)+BDC byte layout + the 802.3/IP/UDP/DHCP frame bytes vs a known-good
+brcmfmac capture. The fw console (read early in bring-up) gave no drop reason — may need a post-TX console re-read or
+an RX-side check. Host AP PhoenixNet on ch1, still up. **CRON: recreate ~Aug-14 (now Aug-13 ~02:50) — do it at the
+next Aug-14 heartbeat via CronDelete d4af8f7f + CronCreate (avoid double-fire).** Design: 2026-08-13-wifi-dataplane-design.md.
 
 2026-08-13 (WIFI DATA-PLANE step 1 — TX code done + F2-transport VERIFIED; air-verify blocked by join flakiness).
 Implemented `diag_wifiDataTx` + `jointx` command in wifi-probe.c: builds a DHCP-discover 802.3 frame, wraps it as an

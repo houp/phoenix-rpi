@@ -163,8 +163,9 @@ plus continued vkQuake rendering work. Everything clean, tested, and pushed to t
   DOWN 30min→2h→4h→8h (2026-08-06→08) during the mistaken "backlog drained / maintenance" phase; the
   owner's "do not stop, do not waste time" directive reverses that — active continuous work resumed, so
   a faster heartbeat is correct again. Reversible (CronDelete + CronCreate).
-- **Re-arm before 7-day expiry** (recreated 2026-08-08 → expires ~2026-08-15).
-- Job ID: `d4af8f7f` (CronList to verify; CronDelete to cancel). Session-only (dies
+- **Re-arm before 7-day expiry** (RECREATED 2026-08-13 → expires ~2026-08-20; old d4af8f7f deleted). Prompt refreshed
+  to reference the 2026-08-12 owner task set + the publish-push-reject owner-signal detection + advisor usage.
+- Job ID: `519509e8` (CronList to verify; CronDelete to cancel). Session-only (dies
   if this background session ends — no cloud fallback has Pi access). The saturation/near-no-op
   + day-granular-tally guidance is baked into the cron prompt itself so each fire doesn't re-derive it.
 

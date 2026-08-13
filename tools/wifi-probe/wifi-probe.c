@@ -1725,6 +1725,7 @@ static int g_join_ran = 0;
 static int g_join_em_rc = -100, g_join_infra_rc = -100, g_join_up_rc = -100;
 static int g_join_wsec_rc = -100, g_join_wpaauth_rc = -100, g_join_sup_rc = -100;
 static int g_join_pmk_rc = -100, g_join_ssid_rc = -100;
+static int g_join_attempts = 0;          /* SET_SSID attempts (retry on no-network) */
 static int g_join_setssid_status = -100; /* WLC_E_SET_SSID status (0 = assoc ok) */
 static int g_join_psksup_status = -100;  /* WLC_E_PSK_SUP status (6 = 4-way keyed) */
 static int g_join_link_up = 0;           /* last WLC_E_LINK flags&0x01 */
@@ -1827,8 +1828,11 @@ static void diag_wifiJoin(volatile uint8_t *sdhci, uint32_t sdio_core)
 	uint8_t seq = 0u;
 	int i, t, slen, plen;
 	int got_setssid = 0, got_psksup = 0;
+	int attempt = 0;
 
 	g_join_ran = 1;
+	printf("wifi: JOIN-START (ssid=%s)\n", g_join_ssid);
+	fflush(stdout);
 	diag_sdhciResetDatCmd(sdhci);
 
 	/* event_msgs: enable join events 0(SET_SSID),5,6,7(ASSOC),11,12,16(LINK),
@@ -1901,6 +1905,14 @@ static void diag_wifiJoin(volatile uint8_t *sdhci, uint32_t sdio_core)
 	for (i = 0; i < slen; ++i) {
 		ssidbuf[4 + i] = (uint8_t)g_join_ssid[i];
 	}
+	/* Retry the join: at good RSSI a broadcast WLC_SET_SSID can still intermittently
+	 * miss the AP in the fw's join-scan (WLC_E_SET_SSID status=3 NO_NETWORKS); a
+	 * few retries reliably associate. Stop as soon as connected. */
+	for (attempt = 0; attempt < 5; ++attempt) {
+	got_setssid = 0;
+	got_psksup = 0;
+	g_join_setssid_status = -100;
+	g_join_psksup_status = -100;
 	g_join_ssid_rc = diag_bcdcCmd(sdhci, sdio_core, 1, WLC_SET_SSID_CMD,
 		ssidbuf, 36u, NULL, 0u, NULL, reqid++, seq++);
 
@@ -1963,10 +1975,24 @@ static void diag_wifiJoin(volatile uint8_t *sdhci, uint32_t sdio_core)
 		}
 	}
 
+	g_join_attempts = attempt + 1;
+	if (g_join_setssid_status == 0 && g_join_psksup_status == 6) {
+		break; /* connected -- stop retrying */
+	}
+	if (attempt < 4) {
+		usleep(700 * 1000); /* brief settle before the next join attempt */
+	}
+	}
+	printf("wifi: JOIN-DONE attempts=%d setssid=%d psksup=%d link=%d\n",
+		g_join_attempts, g_join_setssid_status, g_join_psksup_status, g_join_link_up);
+	fflush(stdout);
+
 	/* jointx (step 1): after the join sequence, TX a DHCP-discover data frame so
 	 * the host AP's tcpdump proves the SDPCM channel-2 data-plane TX path. */
 	if (g_join_dtx) {
 		diag_wifiDataTx(sdhci, sdio_core, seq);
+		printf("wifi: DATATX-DONE rc=%d len=%d\n", g_tx_rc, g_tx_len);
+		fflush(stdout);
 	}
 }
 
@@ -2887,10 +2913,10 @@ static int diag_format_sdio_fwrelease(char *buf, size_t cap)
 		int connected = (g_join_setssid_status == 0 && g_join_psksup_status == 6);
 		r = snprintf(buf + off, cap - off,
 			"WiFi JOIN '%s': event_msgs rc=%d infra rc=%d UP rc=%d | wsec rc=%d wpa_auth rc=%d sup_wpa rc=%d pmk rc=%d set_ssid rc=%d\n"
-			"  chan1 evts=%d  SET_SSID status=%d (0=assoc-ok)  PSK_SUP status=%d (6=keyed)  link_up=%d  => %s\n",
+			"  attempts=%d  chan1 evts=%d  SET_SSID status=%d (0=assoc-ok)  PSK_SUP status=%d (6=keyed)  link_up=%d  => %s\n",
 			g_join_ssid, g_join_em_rc, g_join_infra_rc, g_join_up_rc,
 			g_join_wsec_rc, g_join_wpaauth_rc, g_join_sup_rc, g_join_pmk_rc, g_join_ssid_rc,
-			g_join_evt_total, g_join_setssid_status, g_join_psksup_status, g_join_link_up,
+			g_join_attempts, g_join_evt_total, g_join_setssid_status, g_join_psksup_status, g_join_link_up,
 			connected ? "CONNECTED (WPA2 4-way keyed)" : "NOT connected");
 		if (r > 0 && (size_t)r < cap - off) {
 			off += r;

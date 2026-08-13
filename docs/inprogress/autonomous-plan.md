@@ -503,6 +503,21 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-13 (BASH PORT session 5 — IMPLEMENTED the libphoenix wide-char surface bash needs; ready to link next turn).
+The 1-error blocker was HANDLE_MULTIBYTE needing wide-ctype + mbrlen/wcwidth, all ABSENT from libphoenix. Implemented
+them: **libphoenix a3e976c** = new **wctype/ module + <wctype.h>** (self-contained C/POSIX-locale isw*/tow*/wctype/
+wctrans family, ~18 fns; wired into the build like ctype/); **libphoenix 1f10581** = **mbrlen + wcwidth** added to
+wchar/wchar.c + wchar.h. Verified via a fast ar-into-sysroot iteration that with wctype present, bash's configure
+detects HAVE_WCTYPE_H/ISWCTYPE/ISWLOWER/ISWUPPER/TOWLOWER/TOWUPPER/WCTYPE/WCTYPE_T + friends = 1 (only mbrlen/wcwidth
+were then 0 → now added). The ar-hack hit a flags wall on wchar.c (EILSEQ — pre-existing code needs the real build
+env), so the PROPER path is `--scope core`. **NEXT (the link, next turn): (1) `--scope core`** — rebuilds libphoenix.a
++ sysroot with ALL FIVE banked fixes (470faee _POSIX_VERSION, c9f207b __THROW, aba418a timercmp, a3e976c wctype,
+1f10581 mbrlen/wcwidth) + the image; **(2) Pi boot-verify** (0 faults — confirms the 5 libphoenix changes are safe;
+this is the propagation+verify owed before the org push); **(3) rebuild bash** against the fresh sysroot → reconfigure
+(HANDLE_MULTIBYTE now genuinely enables) → make → **LINK the bash ELF** (the deterministic milestone); **(4)** push
+the 5 libphoenix fixes to org + snapshot manifest; then formalize the port + Pi-run bash. All bash source patches +
+config.cache are in docs/inprogress/2026-08-13-bash-port.md. FIVE real libphoenix POSIX gaps found+fixed this arc.
+
 2026-08-13 (BASH PORT session 4 — 7 → 1 error; final blocker = libphoenix lacks wctype.h + the isw* family). Fixed
 the readline includes (guard-anchored, past the comment) → cleared sigset_t/timercmp errors; applied source patches:
 readline input.c:810 **readfds gate** (`#if HAVE_PSELECT` → `|| HAVE_SELECT`, Phoenix has select not pselect);

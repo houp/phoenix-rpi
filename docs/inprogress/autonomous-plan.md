@@ -503,6 +503,22 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-13 (BASH PORT session 3 — 17 → 7 errors; fixed a real libphoenix timercmp bug; bash is VERY close to linking).
+Applied config.cache detection vars (forced sigprocmask/select/bcopy/bzero=yes → readline HAVE_POSIX_SIGNALS/
+HAVE_SELECT now defined) + missing-include patches. **17→7.** Found + FIXED a 3rd real libphoenix bug: **timercmp**
+(sources/libphoenix/include/sys/time.h) used `a.tv_sec` (value) but its args are `struct timeval *` per POSIX/BSD —
+every standard caller (readline) failed to compile. Fixed to `->` (aba418a; safe — nothing in Phoenix used it).
+**REMAINING 7 errors + exact fixes for next turn (all identified):** (1) rlprivate.h + lib/readline/input.c still
+need `#include <signal.h>`/`<sys/select.h>` — my sed added them at line 1 which landed INSIDE the license comment;
+REDO after the config.h include block. (2) input.c timeout — FIXED by the timercmp commit (will clear on rebuild).
+(3) parse.y `shell_input_line_property` = HANDLE_MULTIBYTE not enabled — config-bot.h needs HAVE_WCHAR_T/WCTYPE_T/
+WINT_T/towlower/towupper/mbrlen/wctype/wcwidth; add `ac_cv_type_wchar_t=yes ac_cv_type_wctype_t=yes ac_cv_type_wint_t
+=yes ac_cv_func_towlower=yes ac_cv_func_towupper=yes ac_cv_func_mbrlen=yes` to config.cache. (4) tmpfile.c `mktemp` —
+Phoenix lacks it (deprecated); add mktemp to libphoenix OR patch tmpfile.c → mkstemp. **THREE libphoenix header
+fixes banked LOCAL this session** (c9f207b __THROW, aba418a timercmp) + 470faee _POSIX_VERSION prior — all need
+--scope core + boot-verify before org push (all low-risk header-only). Next turn: apply the 3 remaining fixes →
+rebuild → link the bash ELF (deterministic milestone). Doc: 2026-08-13-bash-port.md.
+
 2026-08-13 (BASH PORT — 58+ build errors → 17; the rest are ALL config, no more libphoenix gaps = bash is CLOSE).
 2nd bash session. Fixed the cascade root: libphoenix **c9f207b** (stdio_ext.h now `#include <sys/cdefs.h>` so
 __THROW is defined — it was undefined → syntax error cascading into ~41 sysroot stdlib.h/wait.h "storage class"

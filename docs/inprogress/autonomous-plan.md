@@ -503,6 +503,30 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-14 (session 22 — ★★★ ML-GPU ARC LANDED: V3D compute matmul numerically CORRECT (bit-identical); GPU 6.63×
+slower = dispatch-bound; NOT integrated (would be slower); batched-dispatch redesign deferred). Built the matmul
+compute kernel (hand-NIR loop, 30 QPU instrs, first TMU general LOADs) + the microbench csd_matmul.c (persistent BOs,
+256×256 matmul-vector). **HW (0 faults): max_rel_err=0.000e+00 — GPU bit-identical to CPU** (same j-order accumulation,
+no fma) → the compute matmul is numerically correct, rigorously (memset 0 → GPU wrote −7.03244 = a real dot,
+independently matching CPU). **Perf: GPU 11.96 vs CPU 1.80 ms/matmul = 6.63× SLOWER** — the ~4µs of actual compute is
+swamped by synchronous per-dispatch overhead (per-call SLCACTL-invalidate + 2× L2T flush-with-wait + spin-on-CSDDONE).
+Advisor-endorsed LANDING: don't integrate into llama2 (dozens of matmuls/token × 6.63× → 5.8→<0.1 tok/s = a strictly
+worse demo proving nothing new; also N=256 is folded into the QPU so integration = a new uniform-parameterized kernel-
+gen, real work). **This fully + honestly answers "ML inference on Pi4 GPU":** V3D GPU compute brought up + validated
+end-to-end (dispatch/store/load), a real upstreamable cache-flush bug found+fixed via Linux comparison, a correct
+compute matmul, rigorous perf characterization.
+
+**DEFERRED (future, scoped, owner-gated — do NOT start as an optimization grind):** a **batched/persistent-job CSD
+dispatch** that amortizes the cache-flush across many matmuls (or async dispatch without per-call flush) is the
+plausible path to a GPU win — the 12ms is dispatch overhead, not compute. Requires re-architecting ioc_submit_csd's
+per-call synchronous flush model. Kernel-gen (uniform-parameterized N), the CSD ABI, and the tooling are all in place
+(tools/v3d-shader-tool CSMATMUL, tools/v3d-driver-port/csd_matmul.c, design doc). [[project_ml_inference_llama2]]
+
+**NEXT — ROTATE to an untouched owner item for breadth** (~9 turns on ML-GPU; bash + coreutils-groundwork + ML
+phase-1 + this arc all banked/landed). Host-side/bounded fits autonomous mode: **qemu 11.1** (dev-env upgrade),
+**wpa_supplicant upgrade**, the **LKML perf thread** (analysis); or design-first **DRI/DRM** / **XFce-LXQt DE**. Also
+open: coreutils FILE-internal wall (banked), getty/pts interactive bash (deferred), a --with-ports bash-image build.
+
 2026-08-14 (session 21 — ★★★ CSD staged bring-up COMPLETE: V3D GPU compute fully working on Phoenix, 3/3 steps PASS).
 Added step-3 (out[gid]=gid, gid-reconstruct consts [0xffff,0x1a]+SSBO VA) to csd_probe.c. HW (0 faults): **STEP3 PASS
 — out[i]==i for all 16 invocations** → gid reconstruction + per-lane TMU offsets + multi-invocation writes all work.

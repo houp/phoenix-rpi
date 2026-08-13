@@ -517,13 +517,18 @@ the first TMU general LOADs (expect maybe 1 more bring-up bug, caught by the dif
 glslangValidator IS on the host → wrote tools/v3d-shader-tool/matmul.comp (GLSL compute, one invocation/row, N=D=256
 compile-time for the bench) → compiles to SPIR-V (479 words). spirv_to_nir is in the mesa tree.
 
-**NEXT — build the matmul microbench:** (1) extend v3d-shader-tool to load matmul.spv → **spirv_to_nir** → v3d_compile
-(MESA_SHADER_COMPUTE) → dump QPU + prog_data (add the spirv frontend to the meson deps). (2) Microbench harness
-(persistent BOs w[256*256]/x[256]/o[256]/uniforms): fill random fp32, dispatch, **numeric-diff vs CPU matmul (tight
-rel-tol)** = the gate; time GPU (dispatch-incl) vs CPU = the honest perf number. (3) If correct: integrate as optional
-llama2 path + report tok/s honestly, then LAND. OLD NEXT below:
+**MATMUL KERNEL-GEN DONE (session 22):** chose hand-NIR (spirv_to_nir needs Vulkan descriptor lowering) — added
+CSMATMUL to v3d-shader-tool (nir loop w/ local-var float accumulator → nir_lower_vars_to_ssa; load_ssbo w[i*N+j] &
+x[j], fmul+fadd, store_ssbo o[i]; N=D=256, local_size=64). **v3d_compile → 30 QPU instrs** (uses ldtmu = first TMU
+general LOADs; loop via bu branch). QPU in shaders-dump.txt (CSMATMUL). **Uniform layout (8):** [0]=0xffff [1]=0x1a
+[2]=0x100(=N) [5]=0x4 [6]=0xfffffff0 constants; **[3]=w SSBO VA, [4]=x SSBO VA, [7]=o SSBO VA** (contents=53).
 
-**NEXT (superseded) — the real payload: a matmul compute kernel → wire into llama2** (consulting advisor on the approach). llama2
+**NEXT — the microbench harness (csd_probe-style, PERSISTENT BOs):** alloc once w[256*256*4]/x[256*4]/o[256*4]/
+uniforms[8*4]; fill w,x random fp32; uniforms=[0xffff,0x1a,0x100, wVA,xVA, 4,0xfffffff0, oVA]; **cfg[] for D=256
+local_size=64 → 4 workgroups**: cfg[0]=4<<16, cfg[1]=cfg[2]=1<<16, wg_size=64 → wgs_per_sg=1, batches_per_sg=
+DIV_ROUND_UP(64,16)=4, num_batches=4*4=16 → cfg[3]=(1<<8)|((4-1)<<12)|(64<<0)=0x3140, cfg[4]=15, cfg[5]=shVA|0x5,
+cfg[6]=unifVA. Dispatch → **numeric-diff vs CPU matmul (tight rel-tol) = the GATE**; time GPU(incl dispatch) vs CPU =
+honest perf. If correct → integrate as optional llama2 path, report tok/s, LAND (no optimization grind). llama2
 matmul(xout,x,w,n,d): xout[i]=Σ_j w[i*n+j]*x[j], i∈[0,d). Plan: write a matmul compute shader (via the tool; likely
 one invocation per output row i, loop j) → numeric-diff vs CPU on random fp32 (ULP-bounded) → wire the big matmuls
 (dim×dim attn proj, dim×hidden FFN) to V3D with CPU fallback → verify bit-identical vs phase-1 (260K/15M refs) +

@@ -36,6 +36,54 @@
 /*   uniform[0]: contents=0 data=0x0000ffff */
 /*   uniform[1]: contents=0 data=0x0000001a */
 /*   uniform[2]: contents=53 data=0x00000000 */
+/* CSMATMUL QPU: 30 instructions; threads=4 single_seg=0 uniforms=8 */
+0x3c403186bb800000ull, /* nop                           ; nop                         ; ldunif */
+0x3c403180b582e000ull, /* and r0, rf0, r5               ; nop                         ; ldunif */
+0x3de031827c838006ull, /* shl r2, r0, 6                 ; nop */
+0x3de010c17dfee080ull, /* shr r1, rf2, r5               ; mov rf3, 0 */
+0x3de0010538fca000ull, /* add rf5, r2, r1               ; mov rf4, 0 */
+0x3d81f186bb800000ull, /* nop                           ; nop                         ; ldunifrf.rf7 */
+0x3de021867c83e148ull, /* shl rf6, rf5, 8               ; nop */
+0x3c4031833883e183ull, /* add r3, rf6, rf3              ; nop                         ; ldunif */
+0x3de031847c83b002ull, /* shl r4, r3, 2                 ; nop */
+0x05e033007c97e0c2ull, /* shl r0, rf3, 2                ; add tmua, r5, r4 */
+0x3de021833883e0c1ull, /* add rf3, rf3, 1               ; nop */
+0x3c60f1863c83e0c7ull, /* sub.pushc -, rf3, rf7         ; nop                         ; thrsw; ldunif */
+0x3c00318c38805000ull, /* add tmua, r5, r0              ; nop */
+0x3c003186bb800000ull, /* nop                           ; nop */
+0x3c907186bb800000ull, /* nop                           ; nop                         ; ldtmu.r1 */
+0x020000270020d000ull, /* bu.allnap  32, r:unif */
+0x3c90b186bb800000ull, /* nop                           ; nop                         ; ldtmu.r2 */
+0x540030c6bb440000ull, /* nop                           ; fmul r3, r1, r2 */
+0x3c00218405833100ull, /* fadd rf4, r3, rf4             ; nop */
+0x02ffff80ff00d000ull, /* bu  -128, r:unif */
+0x3c003186bb800000ull, /* nop                           ; nop */
+0x3c003186bb800000ull, /* nop                           ; nop */
+0x3c003186bb800000ull, /* nop                           ; nop */
+0x3de031847c83e142ull, /* shl r4, rf5, 2                ; nop */
+0x3c6032c6bbf80100ull, /* nop                           ; mov tmud, rf4               ; thrsw; ldunif */
+0x3c20318c38825000ull, /* add tmua, r5, r4              ; nop                         ; thrsw */
+0x3c003186bb800000ull, /* nop                           ; nop */
+0x3c203180bb815000ull, /* tmuwt r0                      ; nop                         ; thrsw */
+0x3c003186bb800000ull, /* nop                           ; nop */
+0x3c003186bb800000ull, /* nop                           ; nop */
+/*   uniform[0]: contents=0 data=0x0000ffff */
+/*   uniform[1]: contents=0 data=0x0000001a */
+/*   uniform[2]: contents=0 data=0x00000100 */
+/*   uniform[3]: contents=53 data=0x00000000 */
+/*   uniform[4]: contents=53 data=0x00000001 */
+/*   uniform[5]: contents=0 data=0x00000004 */
+/*   uniform[6]: contents=0 data=0xfffffff0 */
+/*   uniform[7]: contents=53 data=0x00000002 */
+/* CSCONST QPU: 6 instructions; threads=4 single_seg=0 uniforms=2 */
+0x3c603186bb800000ull, /* nop                           ; nop                         ; thrsw; ldunif */
+0x3db032c6bbf40000ull, /* nop                           ; mov tmud, r5                ; thrsw; ldunifrf.r0 */
+0x3c003306bbe00000ull, /* nop                           ; mov tmua, r0 */
+0x3c203181bb815000ull, /* tmuwt r1                      ; nop                         ; thrsw */
+0x3c003186bb800000ull, /* nop                           ; nop */
+0x3c003186bb800000ull, /* nop                           ; nop */
+/*   uniform[0]: contents=0 data=0xc0de1234 */
+/*   uniform[1]: contents=53 data=0x00000000 */
 /* CSNOP QPU: 3 instructions; threads=4 single_seg=1 uniforms=0 */
 0x3c203186bb800000ull, /* nop                           ; nop                         ; thrsw */
 0x3c003186bb800000ull, /* nop                           ; nop */

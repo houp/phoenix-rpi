@@ -247,6 +247,70 @@ int main(int argc, char **argv)
 		}
 	}
 
+	/* ---- CSMATMUL: o[i] = sum_j w[i*N+j]*x[j], N=D=256 (microbench, hand-NIR loop) ---- */
+	{
+		const unsigned MMN = 256u;
+		nir_builder mb = nir_builder_init_simple_shader(MESA_SHADER_COMPUTE,
+			&v3d_options, "csmatmul");
+		mb.shader->info.workgroup_size[0] = 64;
+		mb.shader->info.workgroup_size[1] = 1;
+		mb.shader->info.workgroup_size[2] = 1;
+		mb.shader->info.num_ssbos = 3;
+
+		nir_variable *sumv = nir_local_variable_create(mb.impl, glsl_float_type(), "sum");
+		nir_variable *jvar = nir_local_variable_create(mb.impl, glsl_uint_type(), "j");
+		nir_def *ii = nir_channel(&mb, nir_load_global_invocation_id(&mb, 32), 0);
+		nir_store_var(&mb, sumv, nir_imm_float(&mb, 0.0f), 0x1);
+		nir_store_var(&mb, jvar, nir_imm_int(&mb, 0), 0x1);
+
+		nir_push_loop(&mb);
+		{
+			nir_def *jj = nir_load_var(&mb, jvar);
+			nir_break_if(&mb, nir_uge_imm(&mb, jj, MMN));
+			nir_def *widx = nir_iadd(&mb, nir_imul_imm(&mb, ii, MMN), jj);
+			nir_def *wval = nir_load_ssbo(&mb, 1, 32, nir_imm_int(&mb, 0),
+				nir_imul_imm(&mb, widx, 4), .align_mul = 4, .align_offset = 0);
+			nir_def *xval = nir_load_ssbo(&mb, 1, 32, nir_imm_int(&mb, 1),
+				nir_imul_imm(&mb, jj, 4), .align_mul = 4, .align_offset = 0);
+			nir_def *acc = nir_fadd(&mb, nir_load_var(&mb, sumv),
+				nir_fmul(&mb, wval, xval));
+			nir_store_var(&mb, sumv, acc, 0x1);
+			nir_store_var(&mb, jvar, nir_iadd_imm(&mb, jj, 1), 0x1);
+		}
+		nir_pop_loop(&mb, NULL);
+
+		nir_store_ssbo(&mb, nir_load_var(&mb, sumv), nir_imm_int(&mb, 2),
+			nir_imul_imm(&mb, ii, 4), .write_mask = 0x1, .access = 0,
+			.align_mul = 4, .align_offset = 0);
+
+		nir_shader_gather_info(mb.shader, nir_shader_get_entrypoint(mb.shader));
+		struct nir_lower_compute_system_values_options mo = { 0 };
+		nir_lower_compute_system_values(mb.shader, &mo);
+		nir_lower_vars_to_ssa(mb.shader);
+		v3d_optimize_nir(NULL, mb.shader);
+		nir_lower_var_copies(mb.shader);
+
+		struct v3d_key mk = { 0 };
+		struct v3d_prog_data *mpd = NULL;
+		uint32_t msz = 0;
+		uint64_t *mins = v3d_compile(compiler, &mk, &mpd, mb.shader,
+			dbg_out, NULL, 0, 0, &msz);
+		if (!mins) {
+			fprintf(stderr, "CSMATMUL compile FAILED\n");
+		}
+		else {
+			uint32_t mnn = msz / sizeof(uint64_t);
+			printf("/* CSMATMUL QPU: %u instructions; threads=%u single_seg=%d uniforms=%u */\n",
+				mnn, mpd->threads, (int)mpd->single_seg, mpd->uniforms.count);
+			for (uint32_t z = 0; z < mnn; z++)
+				printf("0x%016llxull, /* %s */\n", (unsigned long long)mins[z],
+					v3d_qpu_disasm(&devinfo, mins[z]));
+			for (uint32_t u = 0; u < mpd->uniforms.count; u++)
+				printf("/*   uniform[%u]: contents=%d data=0x%08x */\n",
+					u, (int)mpd->uniforms.contents[u], mpd->uniforms.data[u]);
+		}
+	}
+
 	/* ---- CSCONST: store a constant to out[0] (TMU write, no gid math) — step 2 ---- */
 	{
 		nir_builder cb = nir_builder_init_simple_shader(MESA_SHADER_COMPUTE,

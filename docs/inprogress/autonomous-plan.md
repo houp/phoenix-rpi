@@ -503,6 +503,34 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-13 (BASH PORT session 6 — `--scope core` PASS; bash reached the FINAL LINK stage — multiple-def conflicts,
+all fixable). `--scope core` **COREEXIT=0** (all 5 libphoenix fixes + a 6th commit build clean; image 5dc28939,
+Verification OK — **boot-verify still PENDING**). Synced the built libphoenix.a + headers to the sysroot; then bash's
+multibyte (now genuinely ENABLED) exposed 5 more missing wide fns → added **libphoenix b15587a** (wcswidth/wcscoll/
+wctob/wmemchr/wcsdup, C-locale) + fast-compiled+ar'd into the sysroot lib. bash now COMPILES fully (0 compile errors)
+and reaches the **final LINK**, which fails on **multiple-definition** (NOT missing syms): (a) wcswidth/getenv/setenv/
+putenv/unsetenv/strtoimax — bash ships its OWN libc fallbacks in lib/sh that clash with libphoenix's; (b) termcap
+PC/UP/BC — gcc-14 -fno-common tentative-definition clash. **FIX (next turn): reconfigure bash with HAVE_GETENV/
+SETENV/PUTENV/UNSETENV/STRTOIMAX/WCSWIDTH=yes (so bash drops its fallbacks + uses libphoenix's) + CFLAGS `-fcommon`
+(termcap) → LINK.** Then: (1) Pi boot-verify the --scope-core image (0 faults — confirms the 6 libphoenix changes are
+boot-safe); (2) push the libphoenix fixes to org (470faee/c9f207b/aba418a/a3e976c/1f10581/b15587a) + manifest; (3)
+Pi-run bash. SIX libphoenix POSIX gaps found+fixed this arc (3 header fixes + wctype module + mbrlen/wcwidth + 5 more
+wide fns). bash source patches + config.cache in docs/inprogress/2026-08-13-bash-port.md.
+
+2026-08-13 (BASH PORT session 6 — `--scope core` RUNNING to propagate the 5 libphoenix fixes; then link bash). No
+owner signal. Launched `rebuild-rpi4b-fast.sh --scope core` detached (PID 577588, log scopecore-bash.log; Monitor
+bxdhk9vqj armed on COREEXIT) — rebuilds libphoenix.a + the image with all FIVE banked fixes (470faee _POSIX_VERSION,
+c9f207b __THROW, aba418a timercmp, a3e976c wctype module, 1f10581 mbrlen/wcwidth). **WHEN THE MONITOR FIRES:**
+(1) if COREEXIT=0 → **sync the freshly-built libphoenix.a + the updated headers (wctype.h, wchar.h, unistd.h,
+stdio_ext.h, sys/time.h) from .buildroot into the .toolchain sysroot** ([[project_pi4_glib2_mc]] pattern), so bash
+links against the real rebuilt lib (the ar-hack was incomplete — wchar.c mbrlen/wcwidth weren't in it);
+(2) **rebuild bash** (scratch tree /home/houp/.claude/jobs/c8f1289c/tmp/bash-build/bash-5.2.21) with the CFLAGS_FOR_
+BUILD flag → reconfigure (HANDLE_MULTIBYTE now genuinely enables) → make → **LINK the bash ELF** (milestone);
+(3) **Pi boot-verify** the --scope-core image (0 faults — confirms the 5 libphoenix changes are boot-safe, the
+verify owed before the org push); (4) push the 5 libphoenix fixes to org + snapshot manifest. If COREEXIT!=0 →
+a libphoenix change broke the core build; read the errors + fix. Do NOT double-launch --scope core if this note
+still says RUNNING + the log lacks COREEXIT.
+
 2026-08-13 (BASH PORT session 5 — IMPLEMENTED the libphoenix wide-char surface bash needs; ready to link next turn).
 The 1-error blocker was HANDLE_MULTIBYTE needing wide-ctype + mbrlen/wcwidth, all ABSENT from libphoenix. Implemented
 them: **libphoenix a3e976c** = new **wctype/ module + <wctype.h>** (self-contained C/POSIX-locale isw*/tow*/wctype/

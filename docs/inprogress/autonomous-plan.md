@@ -523,8 +523,30 @@ output) / `loop=1/2/3` (for-loop control flow) / `FOO=bar` (export+read via libp
 quote, yet the identical `'...'` INSIDE the script (nested `bash -c 'echo nested=$FOO'`) worked → bash's parser is
 fine; psh mangles single quotes on the command line.
 
-**NEXT:** (1) **interactive** bash over UART (`/bin/bash -i` — needs a tty; psh provides /dev/pts via posixsrv) =
-the fullest owner-visible win. (2) Formalize sources/phoenix-rtos-ports/bash/port.def.sh (autoconf template like
+**INTERACTIVE bash finding (session 8):** `/bin/bash -i` **starts + prints its prompt `bash-5.2#`** (HW, 0 faults),
+but then gets **immediate EOF on stdin and exits** (bash prints `exit` on Ctrl-D/EOF — log line `bash-5.2# exit`).
+Root cause: **psh does not hand its console tty to a spawned child** — bash's fd0 is empty/EOF, so psh keeps reading
+the UART (proof: later `X=7; echo` → `psh: X=7; not found`, psh's error not bash's). Interactive input to a psh child
+over the raw UART is therefore blocked at the psh/console layer, NOT in bash. Proper route = a **pts** (as xterm does:
+`/dev/ptmx`→`/dev/pts/N` via posixsrv) driven by a **getty-style UART↔pts-master bridge** that spawns bash on the
+slave — a separate console/tty/login sub-project ([[project_pi4_posixsrv_psh]], [[project_x11_afunix_gate]]).
+
+**PORT FORMALIZED + PUSHED (session 8, advisor-flagged reproducibility gap CLOSED):** the patched bash source lived
+only in the job scratch tree (deleted on job cleanup) — captured it as a real reproducible port. **ports f5aa4d4 →
+org**: `sources/phoenix-rtos-ports/bash/` = dropbear-style `port.def.sh` + 3 verified `patches/` (readline signal/
+select includes, termcap unistd, tmpfile mkstemp — dry-run apply clean to pristine) + the 477-line cross
+`config.cache` + a README documenting the REQUIRED 7 libphoenix commits + the interactive limitation. Also verified
+the **clean link** (dropped `--allow-multiple-definition`; the config drops bash_cv_getenv_redef=no + HAVE_WCSWIDTH/
+HAVE_STRTOIMAX fully resolve the multiple-def) and cleaned dead in-comment includes from rlprivate.h/rldefs.h.
+Pristine bash-5.2.21.tar.gz sha256 c8e31bdc…, size 10952391.
+
+**NEXT:** (1) **coreutils** — the other half of the owner's "full bash + coreutils" task; fits the automated
+psh-interact verify model (run `ls`/`cat`/`echo` non-interactively like `bash /t.sh`); expect it to surface more
+libphoenix gaps (same high-value forcing function as bash). (2) Validate the bash port via a real `--with-ports`
+image build (the port.def.sh is captured + the clean link verified, but not yet exercised through the port infra).
+(3) DEFER (owner-invited but not autonomous-friendly — needs a watchable terminal + touches fragile psh/posixsrv
+tty/session internals the psh-interact harness can't verify): the **getty → /dev/ptmx → bash-on-pts** interactive
+console sub-project. (4) OLD: formalize the port — DONE this session. (2) Formalize sources/phoenix-rtos-ports/bash/port.def.sh (autoconf template like
 dropbear + artifacts/bash/config.cache + the source patches in docs/inprogress/2026-08-13-bash-port.md; use only the
 precise config drops, drop --allow-multiple-definition) + add to the image via --with-ports. (3) Then coreutils.
 (4) File the psh single-quote command-line forwarding limitation as a separate psh issue ([[project_pi4_posixsrv_psh]]).

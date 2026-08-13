@@ -46,6 +46,23 @@ static const uint64_t CSCONST[] = {
 	0x3c003186bb800000ull, /* nop ; nop */
 };
 
+/* CSGID: out[gid]=gid for gid 0..15 (local_size=16). threads=4, single_seg=0,
+ * uniforms={0xffff, 0x1a, SSBO base VA} (gid-reconstruct consts + SSBO addr). */
+static const uint64_t CSGID[] = {
+	0x3c403186bb800000ull, /* nop ; nop ; ldunif */
+	0x3c403180b582e000ull, /* and r0, rf0, r5 ; nop ; ldunif */
+	0x3de031827c838004ull, /* shl r2, r0, 4 ; nop */
+	0x3c4031817d82e080ull, /* shr r1, rf2, r5 ; nop ; ldunif */
+	0x3c0031833880a000ull, /* add r3, r2, r1 ; nop */
+	0x3de032c47cefb002ull, /* shl r4, r3, 2 ; mov tmud, r3 */
+	0x3c20318c38825000ull, /* add tmua, r5, r4 ; nop ; thrsw */
+	0x3c203186bb800000ull, /* nop ; nop ; thrsw */
+	0x3c003186bb800000ull, /* nop ; nop */
+	0x3c203180bb815000ull, /* tmuwt r0 ; nop ; thrsw */
+	0x3c003186bb800000ull, /* nop ; nop */
+	0x3c003186bb800000ull, /* nop ; nop */
+};
+
 static uint32_t make_bo(int fd, uint32_t size, uint32_t *gpuva, void **cpu)
 {
 	struct drm_v3d_create_bo c;
@@ -185,6 +202,59 @@ int main(void)
 			printf("csd-probe: STEP2 PASS — TMU write verified on HW\n");
 		else
 			printf("csd-probe: STEP2 FAIL rc=%d got=0x%08x\n", r, got);
+	}
+
+	/* ===== STEP 3: out[gid]=gid for gid 0..15 (gid reconstruction + per-lane offsets) ===== */
+	printf("csd-probe: STEP3 gid-store (out[i]=i for i<16)\n");
+	{
+		uint32_t shva3, unva3, outva3;
+		void *shcpu3, *uncpu3, *outcpu3;
+		uint32_t shbo3, unbo3, outbo3, h3[3];
+		struct drm_v3d_submit_csd s3;
+		volatile uint32_t *out;
+		int i, ok = 1;
+
+		shbo3 = make_bo(fd, (uint32_t)sizeof(CSGID), &shva3, &shcpu3);
+		outbo3 = make_bo(fd, 64, &outva3, &outcpu3); /* 16 x u32 */
+		unbo3 = make_bo(fd, 64, &unva3, &uncpu3);
+		if (shbo3 == 0 || outbo3 == 0 || unbo3 == 0) {
+			printf("csd-probe: STEP3 BO alloc FAILED\n");
+			return 1;
+		}
+		memcpy(shcpu3, CSGID, sizeof(CSGID));
+		memset(outcpu3, 0xEE, 64);
+		((uint32_t *)uncpu3)[0] = 0x0000ffffu; /* gid-reconstruct const */
+		((uint32_t *)uncpu3)[1] = 0x0000001au; /* gid-reconstruct const */
+		((uint32_t *)uncpu3)[2] = outva3;        /* SSBO base VA */
+
+		memset(&s3, 0, sizeof(s3));
+		s3.cfg[0] = 1u << WG_COUNT_SHIFT;
+		s3.cfg[1] = 1u << WG_COUNT_SHIFT;
+		s3.cfg[2] = 1u << WG_COUNT_SHIFT;
+		s3.cfg[3] = (1u << WGS_PER_SG_SHIFT) | (0u << BATCHES_M1_SHIFT) | (16u << WG_SIZE_SHIFT);
+		s3.cfg[4] = 0;
+		s3.cfg[5] = shva3 | CFG5_PROPAGATE_NANS | CFG5_THREADING; /* single_seg=0 */
+		s3.cfg[6] = unva3;
+		h3[0] = shbo3;
+		h3[1] = outbo3;
+		h3[2] = unbo3;
+		s3.bo_handles = (uint64_t)(uintptr_t)h3;
+		s3.bo_handle_count = 3;
+
+		r = phoenix_v3d_ioctl(fd, DRM_IOCTL_V3D_SUBMIT_CSD, &s3);
+		out = (volatile uint32_t *)outcpu3;
+		printf("csd-probe: STEP3 SUBMIT_CSD rc=%d out[0..7]=%u %u %u %u %u %u %u %u\n",
+			r, out[0], out[1], out[2], out[3], out[4], out[5], out[6], out[7]);
+		for (i = 0; i < 16; i++) {
+			if (out[i] != (uint32_t)i) {
+				ok = 0;
+				break;
+			}
+		}
+		if (r == 0 && ok)
+			printf("csd-probe: STEP3 PASS — out[i]==i for all 16 (gid reconstruction verified)\n");
+		else
+			printf("csd-probe: STEP3 FAIL rc=%d (first mismatch at i=%d)\n", r, i);
 	}
 
 	return 0;

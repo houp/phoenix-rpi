@@ -36,3 +36,7 @@
 /*   uniform[0]: contents=0 data=0x0000ffff */
 /*   uniform[1]: contents=0 data=0x0000001a */
 /*   uniform[2]: contents=53 data=0x00000000 */
+/* CSNOP QPU: 3 instructions; threads=4 single_seg=1 uniforms=0 */
+0x3c203186bb800000ull, /* nop                           ; nop                         ; thrsw */
+0x3c003186bb800000ull, /* nop                           ; nop */
+0x3c003186bb800000ull, /* nop                           ; nop */

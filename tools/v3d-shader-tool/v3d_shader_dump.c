@@ -247,5 +247,37 @@ int main(int argc, char **argv)
 		}
 	}
 
+	/* ---- CSNOP: empty compute kernel (thread-end only) for CSD liveness ---- */
+	{
+		nir_builder nb = nir_builder_init_simple_shader(MESA_SHADER_COMPUTE,
+			&v3d_options, "csnop");
+		nb.shader->info.workgroup_size[0] = 16;
+		nb.shader->info.workgroup_size[1] = 1;
+		nb.shader->info.workgroup_size[2] = 1;
+		/* no body: just thread-end */
+		nir_shader_gather_info(nb.shader, nir_shader_get_entrypoint(nb.shader));
+		struct nir_lower_compute_system_values_options o = { 0 };
+		nir_lower_compute_system_values(nb.shader, &o);
+		v3d_optimize_nir(NULL, nb.shader);
+		nir_lower_var_copies(nb.shader);
+
+		struct v3d_key k = { 0 };
+		struct v3d_prog_data *pd = NULL;
+		uint32_t sz = 0;
+		uint64_t *ins = v3d_compile(compiler, &k, &pd, nb.shader,
+			dbg_out, NULL, 0, 0, &sz);
+		if (!ins) {
+			fprintf(stderr, "CSNOP compile FAILED\n");
+		}
+		else {
+			uint32_t nn = sz / sizeof(uint64_t);
+			printf("/* CSNOP QPU: %u instructions; threads=%u single_seg=%d uniforms=%u */\n",
+				nn, pd->threads, (int)pd->single_seg, pd->uniforms.count);
+			for (uint32_t i = 0; i < nn; i++)
+				printf("0x%016llxull, /* %s */\n", (unsigned long long)ins[i],
+					v3d_qpu_disasm(&devinfo, ins[i]));
+		}
+	}
+
 	return 0;
 }

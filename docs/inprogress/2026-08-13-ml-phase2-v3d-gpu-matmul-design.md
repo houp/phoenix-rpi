@@ -52,6 +52,34 @@ threads=4, single_seg=0, shared=0. Compiled off-device via the extended v3d-shad
 **Handler:** the existing (untested) ioc_submit_csd (winsys) programs CSD_QUEUED_CFG0..6 from cfg[], kicks CFG0,
 blocks on INT_CSDDONE. So the harness just needs BOs + cfg[] + uniforms + SUBMIT_CSD ioctl, then read back.
 
+## STAGED BRING-UP (advisor, session 16) — do NOT test all 5 unverified layers at once
+
+First run of an untested GPU submit rarely works; with one Pi + UART/HDMI, a failed `out[i]==i` gives no layer
+attribution. So stage each kernel so a failure points at ONE layer:
+1. **Handler liveness:** a kernel that only thread-ends (no TMU, no uniforms). Success = ioc_submit_csd returns +
+   CSDDONE fired, no hang. Isolates handler + cfg[] + BO plumbing.
+2. **Constant store:** write a fixed constant to out[0] at a HARDCODED offset (minimal/no uniforms, no gid math).
+   Success = readback shows the constant. Isolates TMU-write + output-BO-VA path.
+3. **out[gid]=gid** with the full 3-word uniforms. If step 2 passed and this fails → gid math / supergroup packing.
+
+Emit all three kernels via the host v3d-shader-tool (same off-device oracle as the QPU).
+
+**Two landmines that masquerade as "wrong kernel":**
+- **CPU cache on readback:** ioc_submit_csd's bracket handles the GPU side, but the CPU's view of the output BO must
+  be invalidated after CSDDONE — or **map the output BO UNCACHED** for the probe (removes the variable; matches the
+  winsys "MAP_CONTIGUOUS returns non-zeroed DRAM" class of gotcha).
+- **wgs_per_sg:** do NOT hand-port `v3d_csd_choose_workgroups_per_supergroup` — have the host tool CALL it and PRINT
+  the value (+ num_batches, + the full cfg[0..6]) for num_wgs=1/wg_size=16, and hardcode that for the probe.
+
+**Highest-leverage — host submit oracle:** extend the tool to print the exact cfg[0..6] + uniform bytes Mesa would
+produce for this dispatch, so the harness reproduces known-good bytes instead of hand-encoding → step-1 failures can
+only be plumbing.
+
+**Timebox:** one clean staged attempt. If step 1 hangs the GPU with no signal after ~2 turns of blind poking, BANK
+and rotate — the kernel-gen (first V3D compute QPU) + this ABI recipe are already durable, reusable deliverables
+(same clean-line discipline as the coreutils bank). 5 turns deep with no Pi cycle is mild evidence this is closer to
+the owner-gate reality than autonomously-trivial; the staged attempt will tell which, fast.
+
 ## Feasibility — ESTABLISHED
 
 - **HW:** BCM2711 V3D 4.2 supports compute-shader dispatch (CSD). The Linux v3d driver implements it

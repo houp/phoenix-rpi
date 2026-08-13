@@ -512,13 +512,16 @@ ver<71). Full recipe (kernel 12 QPU words, threads=4/single_seg=0/local_size=16,
 docs/inprogress/2026-08-13-ml-phase2-v3d-gpu-matmul-design.md ("CONCRETE CSD SUBMIT RECIPE"). shaders-dump.txt
 refreshed. No Pi cycle (host-side ABI characterization).
 
-**NEXT — write the on-Phoenix CSD harness (now mechanical, recipe in the doc):** a small program that (1) allocs 3
-BOs via the v3d winsys (shader=12 words, uniforms=3 words with word[2]=output VA, output=N*4) + gets each BO's GPU VA;
-(2) computes cfg[0..6] per the recipe for num_workgroups={1,1,1}/wg_size=16 (need the V3D_CSD_* shift/flag constants +
-v3d_csd_choose_workgroups_per_supergroup — copy from Mesa/Linux); (3) drmIoctl SUBMIT_CSD → the existing
-ioc_submit_csd; (4) reads back output BO, asserts out[i]==i for i<16. Model BO-alloc + GPU-VA + ioctl plumbing on the
-existing gl_det_harness.c / v3d_libdrm_shim.c. Netboot numeric-verify → validates the untested handler end-to-end.
-Then matmul kernel → wire into llama2.
+**NEXT — build the on-Phoenix CSD harness with STAGED bring-up (advisor-guided; full plan in the design doc):**
+(0) First extend the host tool to (a) emit 3 staged kernels — **thread-end-only**, **constant-store-to-out[0]**,
+and the existing **out[gid]=gid**; (b) CALL v3d_csd_choose_workgroups_per_supergroup + print wgs_per_sg/num_batches/
+the full cfg[0..6] for num_wgs=1/wg_size=16 (host submit-oracle — hardcode known-good, don't hand-port). (1) Harness
+allocs BOs via the v3d winsys + gets GPU VAs; **map the output BO UNCACHED** (else stale-DRAM readback masquerades as
+a dead kernel). (2) Staged netboot runs: **liveness (thread-end) → constant-store → gid** — each failure localizes to
+ONE layer (handler+cfg+plumbing / TMU+VA / gid+supergroup). (3) assert readback. Model BO-alloc/VA/ioctl on
+gl_det_harness.c + v3d_libdrm_shim.c. **Timebox:** one clean staged attempt; if step-1 hangs with no signal after ~2
+turns, BANK + rotate (kernel-gen + ABI recipe already durable/reusable — coreutils-style clean line). Then matmul
+kernel → wire into llama2.
 
 2026-08-13 (session 15 — ML phase-2 BUILD: V3D compute-kernel generation WORKS — first compute QPU in the project).
 Extended tools/v3d-shader-tool for a **compute shader** (MESA_SHADER_COMPUTE, `out[gid]=gid` via store_ssbo +

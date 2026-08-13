@@ -503,6 +503,22 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-13 (BASH PORT session 6 — ★★ **GNU bash 5.2.21 LINKS for Phoenix/RPi4** — the deterministic milestone).
+The multiple-def link blockers resolved cleanly: `bash_cv_getenv_redef=no` (drops bash's getenv/setenv/putenv/
+unsetenv fallbacks → CAN_REDEFINE_GETENV=0, uses libphoenix's), `ac_cv_func_wcswidth=yes`+`strtoimax=yes` (→
+HAVE_WCSWIDTH/HAVE_STRTOIMAX=1, drops those fallbacks), target CFLAGS `-fcommon` (termcap PC/UP/BC), + `-Wl,--allow-
+multiple-definition` as a belt-and-suspenders safety net. **Result: a valid statically-linked AArch64 ELF** —
+`artifacts/bash/bash-5.2.21-aarch64-phoenix` (5.0 MB, text 990 KB, entry 0x401868, SHA d512392f); working
+config.cache saved alongside. bash multibyte fully enabled. **NEXT (Pi-run + publish, next turn):** (1) Pi
+boot-verify the --scope-core image 5dc28939 (0 faults — confirms the 6 libphoenix changes are boot-safe, the verify
+owed before the org push); (2) stage bash into the NFS/SD root ([[project_netboot_export_drift]]: cp into the export)
++ Pi-run bash interactively over UART = the owner-visible win; (3) push the 6 libphoenix commits to org (470faee
+_POSIX_VERSION, c9f207b __THROW, aba418a timercmp, a3e976c wctype, 1f10581 mbrlen/wcwidth, b15587a 5 wide fns) +
+snapshot manifest; (4) formalize sources/phoenix-rtos-ports/bash/port.def.sh (autoconf template like dropbear +
+this config.cache + the source patches in docs/inprogress/2026-08-13-bash-port.md; use ONLY the precise config drops,
+drop --allow-multiple-definition for upstreamability). SIX libphoenix POSIX gaps found+fixed this arc — a real,
+broadly-useful wide-char/POSIX improvement, not just a bash enabler.
+
 2026-08-13 (BASH PORT session 6 — `--scope core` PASS; bash reached the FINAL LINK stage — multiple-def conflicts,
 all fixable). `--scope core` **COREEXIT=0** (all 5 libphoenix fixes + a 6th commit build clean; image 5dc28939,
 Verification OK — **boot-verify still PENDING**). Synced the built libphoenix.a + headers to the sysroot; then bash's

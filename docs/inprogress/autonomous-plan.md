@@ -503,6 +503,23 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-13 (session 15 — ML phase-2 BUILD: V3D compute-kernel generation WORKS — first compute QPU in the project).
+Extended tools/v3d-shader-tool for a **compute shader** (MESA_SHADER_COMPUTE, `out[gid]=gid` via store_ssbo +
+nir_lower_compute_system_values, per gallium v3d's compute path) + added the meson executable target + built against
+the host Mesa v3d compiler. **`v3d_compile()` emits a valid 12-instruction CS QPU** (local_size=16x1x1): ldunif SSBO
+base + workgroup base, compute global index, `mov tmud`=index / `add tmua`=base+idx*4 / `tmuwt` — a correct
+TMU-general store. Dump saved to tools/v3d-shader-tool/shaders-dump.txt. Also fixed the tool for Mesa 26.2.0
+(v3d_type_size int→unsigned; nir_lower_io callback sig changed post-rebase). FS/VS/CS all compile. No Pi cycle
+(host-side kernel-gen).
+
+**NEXT — the on-Phoenix CSD harness (the remaining half of step 1):** write a small Phoenix program that (a) allocs
+BOs: shader (the 12 CS QPU words), uniforms (must carry the output SSBO's GPU VA — the kernel ldunif's it), output
+(N*4 bytes); (b) fills `drm_v3d_submit_csd.cfg[0..6]` — derive the exact layout from Linux v3d_sched.c
+`v3d_csd_job_run` / v3d_regs.h V3D_CSD_QUEUED_CFG* (cfg0..3 = wg count/size, cfg5 = shader addr, cfg6 = uniforms/
+num_batches, etc.); (c) drmIoctl SUBMIT_CSD → the existing ioc_submit_csd; (d) reads back the output BO and asserts
+`out[i]==i`. Netboot, numeric-verify → validates the untested handler end-to-end. Then a matmul kernel → wire into
+llama2. Model BO alloc/VA on the existing v3d winsys + libvcmbox patterns. All numeric, additive, low regression risk.
+
 2026-08-13 (session 14 — ML phase-2: discovered the CSD dispatch handler ALREADY EXISTS (untested); corrected the
 plan; identified the kernel-gen path). Went to implement "step 1 (CSD handler)" but reading the actual code
 (check-before-claiming-novelty) found it's already done: **v3d_phoenix_winsys.c `ioc_submit_csd()` (commit 1067af1)

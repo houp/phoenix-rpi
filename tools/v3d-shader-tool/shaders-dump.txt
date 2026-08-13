@@ -19,3 +19,16 @@
 0x3c203186bb800000ull, /* nop                           ; nop                         ; thrsw */
 0x3c003186bb800000ull, /* nop                           ; nop */
 0x3c003186bb800000ull, /* nop                           ; nop */
+/* CS QPU: 12 instructions; local_size=16x1x1 shared=0 */
+0x3c403186bb800000ull, /* nop                           ; nop                         ; ldunif */
+0x3c403180b582e000ull, /* and r0, rf0, r5               ; nop                         ; ldunif */
+0x3de031827c838004ull, /* shl r2, r0, 4                 ; nop */
+0x3c4031817d82e080ull, /* shr r1, rf2, r5               ; nop                         ; ldunif */
+0x3c0031833880a000ull, /* add r3, r2, r1                ; nop */
+0x3de032c47cefb002ull, /* shl r4, r3, 2                 ; mov tmud, r3 */
+0x3c20318c38825000ull, /* add tmua, r5, r4              ; nop                         ; thrsw */
+0x3c203186bb800000ull, /* nop                           ; nop                         ; thrsw */
+0x3c003186bb800000ull, /* nop                           ; nop */
+0x3c203180bb815000ull, /* tmuwt r0                      ; nop                         ; thrsw */
+0x3c003186bb800000ull, /* nop                           ; nop */
+0x3c003186bb800000ull, /* nop                           ; nop */

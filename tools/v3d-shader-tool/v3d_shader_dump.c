@@ -18,7 +18,7 @@
 
 static void dbg_out(const char *msg, void *data) { (void)data; fprintf(stderr, "%s", msg); }
 
-static int v3d_type_size(const struct glsl_type *type, bool bindless)
+static unsigned v3d_type_size(const struct glsl_type *type, bool bindless)
 { (void)bindless; return glsl_count_attribute_slots(type, false); }
 
 /* Replicate the driver's pre-compile NIR finalization so I/O is wired correctly
@@ -194,6 +194,52 @@ int main(int argc, char **argv)
 		for (uint32_t i = 0; i < vn; i++)
 			printf("0x%016llxull, /* %s */\n", (unsigned long long)vi[i],
 				v3d_qpu_disasm(&devinfo, vi[i]));
+	}
+
+	/* ---- Compute shader (CSD probe: out[gid] = gid) ----
+	 * Models gallium v3d's compute path (v3d_program.c:281): a zeroed base
+	 * v3d_key, plus nir_lower_compute_system_values to lower
+	 * gl_GlobalInvocationID. Output is written to SSBO 0 so an on-device CSD
+	 * harness can read it back and numerically verify the dispatch. */
+	{
+		nir_builder cb = nir_builder_init_simple_shader(MESA_SHADER_COMPUTE,
+			&v3d_options, "csprobe");
+		cb.shader->info.workgroup_size[0] = 16;
+		cb.shader->info.workgroup_size[1] = 1;
+		cb.shader->info.workgroup_size[2] = 1;
+		cb.shader->info.num_ssbos = 1;
+
+		nir_def *gid = nir_load_global_invocation_id(&cb, 32);
+		nir_def *idx = nir_channel(&cb, gid, 0);
+		nir_def *byteoff = nir_imul_imm(&cb, idx, 4);
+		nir_store_ssbo(&cb, idx, nir_imm_int(&cb, 0), byteoff,
+			.write_mask = 0x1, .access = 0, .align_mul = 4, .align_offset = 0);
+
+		nir_shader_gather_info(cb.shader, nir_shader_get_entrypoint(cb.shader));
+		struct nir_lower_compute_system_values_options cs_opts = { 0 };
+		nir_lower_compute_system_values(cb.shader, &cs_opts);
+		v3d_optimize_nir(NULL, cb.shader);
+		nir_lower_var_copies(cb.shader);
+
+		struct v3d_key ckey = { 0 };
+		struct v3d_prog_data *cpd = NULL;
+		uint32_t csz = 0;
+		uint64_t *ci = v3d_compile(compiler, &ckey, &cpd, cb.shader,
+			dbg_out, NULL, 0, 0, &csz);
+		if (!ci) {
+			fprintf(stderr, "CS compile FAILED\n");
+		}
+		else {
+			uint32_t cn = csz / sizeof(uint64_t);
+			struct v3d_compute_prog_data *cs =
+				(struct v3d_compute_prog_data *)cpd;
+			printf("/* CS QPU: %u instructions; local_size=%ux%ux%u shared=%u */\n",
+				cn, cs->local_size[0], cs->local_size[1], cs->local_size[2],
+				cs->shared_size);
+			for (uint32_t i = 0; i < cn; i++)
+				printf("0x%016llxull, /* %s */\n", (unsigned long long)ci[i],
+					v3d_qpu_disasm(&devinfo, ci[i]));
+		}
 	}
 
 	return 0;

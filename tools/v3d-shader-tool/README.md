@@ -5,6 +5,21 @@ dumps + disassembles the QPU bytecode, so we derive correct, validated V3D-4.2
 shaders for the Phoenix bare-metal GPU path WITHOUT the Pi (the proprietary v3d
 simulator is unavailable; we drive `v3d_compile()` directly).
 
+## Status (2026-08-13, session 15): COMPUTE (CSD) shader added — for ML phase-2
+
+Added a **compute-shader** path (`MESA_SHADER_COMPUTE`, `out[gid]=gid` via store_ssbo,
+`nir_lower_compute_system_values` per gallium v3d's compute path). `v3d_compile()`
+emits a valid **12-instruction CS QPU** (local_size=16x1x1): `ldunif` the SSBO base +
+workgroup base, compute the global index, `mov tmud`=index / `add tmua`=base+idx*4 /
+`tmuwt` — a correct TMU-general store. Dump in `shaders-dump.txt` (CS section). This is
+the kernel-gen half of ML phase-2 (V3D GPU matmul); the winsys `ioc_submit_csd` handler
+already exists (untested) — NEXT is the on-Phoenix CSD harness (shader BO + uniforms BO
+carrying the SSBO GPU VA + output BO; fill `drm_v3d_submit_csd.cfg[]`; dispatch; read
+back + numeric-verify). See docs/inprogress/2026-08-13-ml-phase2-v3d-gpu-matmul-design.md.
+
+Also: fixed `v3d_type_size` to return `unsigned` (Mesa 26.2.0's `nir_lower_io` changed the
+`type_size` callback signature int→unsigned; the tool predated the Mesa-26 rebase).
+
 ## Status (2026-06-11): WORKS
 `v3d_compile()` produces valid QPU for a fragment shader (10 inst, 4 threads);
 disasm shows `thrsw` / `ldtlb` / `mov tlb,..` / thread-end — a well-formed FS.

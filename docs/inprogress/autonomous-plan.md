@@ -503,6 +503,47 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-13 (BASH PORT session 7 — ★★★ **GNU bash 5.2.21 RUNS on Phoenix/RPi4** + a real libphoenix crt0 bug found,
+fixed, HW-verified, and the 7 commits pushed to org). The startup crash was root-caused to **libphoenix crt0
+calling `main(argc, argv)` (2 args)** → bash's `main(int,char**,char**)` read a garbage 3rd arg (`shell_environment`
+= 0x40) and faulted walking it. **Fixed: libphoenix a59c800** — `_startc` now calls `main(argc, argv, environ)`
+(glibc parity; ABI-safe for 2-param mains). `--scope core` PASS (image **bd62ec1e**), synced libphoenix.a + **crt0.o**
+to the sysroot, relinked bash. **Netboot HW test (0 faults, 0 Data Aborts, 0 `not implemented`, psh prompt 7×):**
+`/bin/bash --version` → full banner `GNU bash, version 5.2.21(11)-release (aarch64-unknown-phoenix)` + GPLv3 notice,
+CLEAN; `/bin/bash -c '…'` → bash now **executes its parser** (reports `unexpected EOF matching '` — a **psh
+single-quote forwarding artifact**, psh mangles the quotes before bash sees them; NOT a bash/crt0 bug). New-crt0
+psh/pshlogin/posixsrv booted clean → crt0 change is boot-safe across userspace. **Pushed all 7 libphoenix commits to
+org** (publish/master 8ce5976..a59c800): 470faee _POSIX_VERSION, c9f207b __THROW, aba418a timercmp, a3e976c wctype,
+1f10581 mbrlen/wcwidth, b15587a 5 wide fns, a59c800 crt0-envp. Manifest: manifests/2026-08-13-bash-runs-crt0-envp-fix.md.
+
+**NEXT:** (1) prove bash executes real shell logic despite psh's quoting — run a **script file** (write /root/t.sh
+with echo + `$((..))` + a for-loop into the NFS root, `/bin/bash /root/t.sh`; no inline quotes → psh passes only the
+path) → expect `hello`, `5`, loop output; then try **interactive** bash over UART (`/bin/bash -i`, needs tty — psh
+provides /dev/pts via posixsrv). (2) Formalize sources/phoenix-rtos-ports/bash/port.def.sh (autoconf template like
+dropbear + artifacts/bash/config.cache + the source patches in docs/inprogress/2026-08-13-bash-port.md; use only the
+precise config drops, drop --allow-multiple-definition). (3) Then coreutils. Consider filing the psh single-quote
+forwarding limitation as a separate psh issue ([[project_pi4_posixsrv_psh]]).
+
+2026-08-13 (BASH PORT session 7 — bash RUNS (`--version` prints the Phoenix banner); found+fixing a real
+libphoenix crt0 bug that crashed full-shell startup). Cleared the org-push gate: **0 `_POSIX_VERSION`/`_POSIX2_VERSION`
+consumers anywhere in the siblings** → defining it flips no branch in existing Phoenix userspace (advisor-confirmed the
+`WAIT` typedef that changed was in *bash's* own posixwait.h). Staged bash into the NFS root + netboot Pi cycle:
+`/bin/bash --version` → **prints `GNU bash, version 5.2.21(11)-release (aarch64-unknown-phoenix)`** (ELF loads,
+basic runtime OK); but `/bin/bash -c '...'` → **Data Abort (EL0)**. Root-caused via addr2line + objdump: fault at
+`initialize_shell_variables` walking the env array with base `x27=0x40` — bash's `shell_environment` = **main's 3rd
+arg**, which was **garbage** because libphoenix **crt0-common.c:92 called `main(argc, argv)` (2 args)**. bash declares
+the POSIX `main(int, char**, char**)` and read uninitialized x2. **FIX committed: libphoenix a59c800** — `_startc`
+now calls `main(argc, argv, environ)` (environ was already set at line 79; passing an extra arg to a 2-param main is
+ABI-safe; matches glibc `__libc_start_main`). This is a CORE change (every program's startup) → **`--scope core`
+RUNNING** (PID 601048, log scopecore-crt0.log; Monitor **buukvr84e** on COREEXIT). **WHEN THE MONITOR FIRES:**
+(1) COREEXIT=0 → sync the built libphoenix.a + **crt0 startup objects** + headers into the .toolchain sysroot;
+(2) rebuild bash against the new crt0 (scratch tree, same configure+make as the milestone); (3) **restage the fresh
+new-crt0 psh/posixsrv + bash into the NFS root** (honest boot-verify = new-crt0 userspace must still boot) → netboot
+Pi cycle → grade on **clean output, NO `not implemented`/abort/Data Abort**: expect psh boots + `bash -c 'echo hi'`
+now prints `hi`; (4) if clean → push the **7 libphoenix commits** to org (470faee/c9f207b/aba418a/a3e976c/1f10581/
+b15587a + **a59c800 crt0**) + snapshot manifest. If COREEXIT!=0 → the crt0 change broke the build; read errors + fix.
+Do NOT double-launch --scope core while this says RUNNING + the log lacks COREEXIT.
+
 2026-08-13 (BASH PORT session 6 — ★★ **GNU bash 5.2.21 LINKS for Phoenix/RPi4** — the deterministic milestone).
 The multiple-def link blockers resolved cleanly: `bash_cv_getenv_redef=no` (drops bash's getenv/setenv/putenv/
 unsetenv fallbacks → CAN_REDEFINE_GETENV=0, uses libphoenix's), `ac_cv_func_wcswidth=yes`+`strtoimax=yes` (→

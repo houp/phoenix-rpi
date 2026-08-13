@@ -35,6 +35,17 @@ static const uint64_t CSNOP[] = {
 	0x3c003186bb800000ull, /* nop ; nop */
 };
 
+/* CSCONST: store 0xC0DE1234 to out[0] (TMU write, no gid). local_size=16,
+ * threads=4, single_seg=0, uniforms={const 0xC0DE1234, SSBO base VA}. */
+static const uint64_t CSCONST[] = {
+	0x3c603186bb800000ull, /* nop ; nop ; thrsw ; ldunif */
+	0x3db032c6bbf40000ull, /* nop ; mov tmud, r5 ; thrsw ; ldunifrf.r0 */
+	0x3c003306bbe00000ull, /* nop ; mov tmua, r0 */
+	0x3c203181bb815000ull, /* tmuwt r1 ; nop ; thrsw */
+	0x3c003186bb800000ull, /* nop ; nop */
+	0x3c003186bb800000ull, /* nop ; nop */
+};
+
 static uint32_t make_bo(int fd, uint32_t size, uint32_t *gpuva, void **cpu)
 {
 	struct drm_v3d_create_bo c;
@@ -73,6 +84,10 @@ int main(void)
 	void *shcpu = NULL, *uncpu = NULL;
 	uint32_t shbo, unbo, handles[2];
 	int r;
+
+	/* Unbuffered: so breadcrumbs survive a GPU-wedge hang (block-buffered stdout
+	 * would otherwise lose everything up to the hang). */
+	setvbuf(stdout, NULL, _IONBF, 0);
 
 	printf("csd-probe: START (STEP1 liveness: empty thread-end kernel)\n");
 
@@ -123,6 +138,54 @@ int main(void)
 		printf("csd-probe: STEP1 PASS — CSD dispatch completed (no hang)\n");
 	else
 		printf("csd-probe: STEP1 FAIL rc=%d\n", r);
+
+	/* ===== STEP 2: constant store to out[0] + readback ===== */
+	printf("csd-probe: STEP2 constant-store (out[0]=0xC0DE1234)\n");
+	{
+		uint32_t shva2, unva2, outva2;
+		void *shcpu2, *uncpu2, *outcpu2;
+		uint32_t shbo2, unbo2, outbo2, h2[3];
+		struct drm_v3d_submit_csd s2;
+		uint32_t got;
+
+		shbo2 = make_bo(fd, (uint32_t)sizeof(CSCONST), &shva2, &shcpu2);
+		outbo2 = make_bo(fd, 64, &outva2, &outcpu2);
+		unbo2 = make_bo(fd, 64, &unva2, &uncpu2);
+		if (shbo2 == 0 || outbo2 == 0 || unbo2 == 0) {
+			printf("csd-probe: STEP2 BO alloc FAILED\n");
+			return 1;
+		}
+		memcpy(shcpu2, CSCONST, sizeof(CSCONST));
+		memset(outcpu2, 0xEE, 64); /* sentinel: distinguishes "GPU didn't write" from "wrote 0" */
+		((uint32_t *)uncpu2)[0] = 0xC0DE1234u; /* uniform[0]: const value */
+		((uint32_t *)uncpu2)[1] = outva2;       /* uniform[1]: SSBO base VA */
+
+		memset(&s2, 0, sizeof(s2));
+		s2.cfg[0] = 1u << WG_COUNT_SHIFT;
+		s2.cfg[1] = 1u << WG_COUNT_SHIFT;
+		s2.cfg[2] = 1u << WG_COUNT_SHIFT;
+		s2.cfg[3] = (1u << WGS_PER_SG_SHIFT) | (0u << BATCHES_M1_SHIFT) | (16u << WG_SIZE_SHIFT);
+		s2.cfg[4] = 0;
+		s2.cfg[5] = shva2 | CFG5_PROPAGATE_NANS | CFG5_THREADING; /* single_seg=0 */
+		s2.cfg[6] = unva2;
+		h2[0] = shbo2;
+		h2[1] = outbo2;
+		h2[2] = unbo2;
+		s2.bo_handles = (uint64_t)(uintptr_t)h2;
+		s2.bo_handle_count = 3;
+		printf("csd-probe: STEP2 pre-submit shaderVA=0x%08x outVA=0x%08x unifVA=0x%08x cfg5=0x%08x\n",
+			shva2, outva2, unva2, s2.cfg[5]);
+
+		r = phoenix_v3d_ioctl(fd, DRM_IOCTL_V3D_SUBMIT_CSD, &s2);
+		got = ((volatile uint32_t *)outcpu2)[0];
+		printf("csd-probe: STEP2 SUBMIT_CSD rc=%d out[0..3]=0x%08x 0x%08x 0x%08x 0x%08x (0xEE=untouched, expect out[0]=0xC0DE1234)\n",
+			r, got, ((volatile uint32_t *)outcpu2)[1],
+			((volatile uint32_t *)outcpu2)[2], ((volatile uint32_t *)outcpu2)[3]);
+		if (r == 0 && got == 0xC0DE1234u)
+			printf("csd-probe: STEP2 PASS — TMU write verified on HW\n");
+		else
+			printf("csd-probe: STEP2 FAIL rc=%d got=0x%08x\n", r, got);
+	}
 
 	return 0;
 }

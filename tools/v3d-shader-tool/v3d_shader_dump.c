@@ -247,6 +247,43 @@ int main(int argc, char **argv)
 		}
 	}
 
+	/* ---- CSCONST: store a constant to out[0] (TMU write, no gid math) — step 2 ---- */
+	{
+		nir_builder cb = nir_builder_init_simple_shader(MESA_SHADER_COMPUTE,
+			&v3d_options, "csconst");
+		cb.shader->info.workgroup_size[0] = 16;
+		cb.shader->info.workgroup_size[1] = 1;
+		cb.shader->info.workgroup_size[2] = 1;
+		cb.shader->info.num_ssbos = 1;
+		nir_store_ssbo(&cb, nir_imm_int(&cb, 0xC0DE1234), nir_imm_int(&cb, 0),
+			nir_imm_int(&cb, 0), .write_mask = 0x1, .access = 0,
+			.align_mul = 4, .align_offset = 0);
+		nir_shader_gather_info(cb.shader, nir_shader_get_entrypoint(cb.shader));
+		struct nir_lower_compute_system_values_options o = { 0 };
+		nir_lower_compute_system_values(cb.shader, &o);
+		v3d_optimize_nir(NULL, cb.shader);
+		nir_lower_var_copies(cb.shader);
+		struct v3d_key k = { 0 };
+		struct v3d_prog_data *pd = NULL;
+		uint32_t sz = 0;
+		uint64_t *ins = v3d_compile(compiler, &k, &pd, cb.shader,
+			dbg_out, NULL, 0, 0, &sz);
+		if (!ins) {
+			fprintf(stderr, "CSCONST compile FAILED\n");
+		}
+		else {
+			uint32_t nn = sz / sizeof(uint64_t);
+			printf("/* CSCONST QPU: %u instructions; threads=%u single_seg=%d uniforms=%u */\n",
+				nn, pd->threads, (int)pd->single_seg, pd->uniforms.count);
+			for (uint32_t i = 0; i < nn; i++)
+				printf("0x%016llxull, /* %s */\n", (unsigned long long)ins[i],
+					v3d_qpu_disasm(&devinfo, ins[i]));
+			for (uint32_t u = 0; u < pd->uniforms.count; u++)
+				printf("/*   uniform[%u]: contents=%d data=0x%08x */\n",
+					u, (int)pd->uniforms.contents[u], pd->uniforms.data[u]);
+		}
+	}
+
 	/* ---- CSNOP: empty compute kernel (thread-end only) for CSD liveness ---- */
 	{
 		nir_builder nb = nir_builder_init_simple_shader(MESA_SHADER_COMPUTE,

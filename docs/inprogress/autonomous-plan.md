@@ -503,6 +503,24 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-13 (session 18 — CSD step-2 (constant-store) precisely LOCALIZED: dispatch runs, but no TMU write lands).
+Continued the staged bring-up (build-don't-over-orient). Emitted CSCONST (out[0]=0xC0DE1234, 6 QPU words, uniforms=
+{const 0xC0DE1234, SSBO#0 base VA}; contents=53 = QUNIFORM_SSBO_OFFSET confirmed). Extended csd_probe.c step-2:
+alloc shader+output+uniforms BOs, uniforms=[0xC0DE1234, outVA], cfg5=shaderVA|0x5 (PROPAGATE_NANS|THREADING,
+single_seg=0), SUBMIT_CSD, read back. **Found + fixed a diagnostic trap first:** stdout was block-buffered → a
+mid-run issue lost ALL breadcrumbs; added `setvbuf(_IONBF)`. HW result (3 Pi cycles): **STEP1 still PASS**; **STEP2:
+SUBMIT_CSD rc=0, CSDDONE, NO winsys HW-error/timeout, but out[0..3] stay the 0xEE sentinel → the GPU wrote NOTHING.**
+ioc_submit_csd already flushes post-dispatch (L2TFLS|TMUWCF), so it's not a readback-coherency gap — the TMU write
+never happened. Harness commit forthcoming.
+
+**NEXT diagnostic (clear signal, not blind-poking):** make winsys ioc_submit_csd log **num_completed** (CSD_STATUS
+>>4) UNCONDITIONALLY (currently only on error/timeout), rebuild libv3d-phoenix.a (build-v3d-phoenix.py), relink+rerun.
+num_completed==0 → the dispatch executed 0 batches = a cfg[3]/cfg[4] workgroup-config bug (check MAX_SG_ID/
+OVERLAP_WITH_PREV in cfg[3], and num_batches). num_completed>0 → it ran but the SSBO write went nowhere = SSBO-address
+ABI (does QUNIFORM_SSBO_OFFSET need the address in a packed/relative form? does v3d need a TMU/SSBO config uniform I'm
+missing?) — cross-check Mesa v3d_write_uniforms emission for QUNIFORM_SSBO_OFFSET. This is well-localized GPU
+bring-up with signal; keep going (step-1 dispatch already proven).
+
 2026-08-13 (session 17 — ★★★ FIRST V3D GPU COMPUTE DISPATCH ON PHOENIX (CSD step-1 liveness PASS on HW)). Advisor
 called out that "6 turns no Pi cycle" was procrastination (orienting instead of building), not intractability — and
 was right: built + ran it, worked first HW attempt. Emitted the CSNOP liveness kernel (empty thread-end, 3 QPU words,

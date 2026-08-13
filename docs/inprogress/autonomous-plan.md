@@ -503,6 +503,19 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-14 (session 21 — ★★★ CSD staged bring-up COMPLETE: V3D GPU compute fully working on Phoenix, 3/3 steps PASS).
+Added step-3 (out[gid]=gid, gid-reconstruct consts [0xffff,0x1a]+SSBO VA) to csd_probe.c. HW (0 faults): **STEP3 PASS
+— out[i]==i for all 16 invocations** → gid reconstruction + per-lane TMU offsets + multi-invocation writes all work.
+So all three staged milestones pass: dispatch (step-1) / TMU constant-store (step-2, after the Linux cache-flush fix)
+/ gid per-lane store (step-3). **V3D compute is now a validated Phoenix capability** (kernel-gen via v3d-shader-tool;
+dispatch+store via ioc_submit_csd; numeric read-back oracle). coord 2ed54d3.
+
+**NEXT — the real payload: a matmul compute kernel → wire into llama2** (consulting advisor on the approach). llama2
+matmul(xout,x,w,n,d): xout[i]=Σ_j w[i*n+j]*x[j], i∈[0,d). Plan: write a matmul compute shader (via the tool; likely
+one invocation per output row i, loop j) → numeric-diff vs CPU on random fp32 (ULP-bounded) → wire the big matmuls
+(dim×dim attn proj, dim×hidden FFN) to V3D with CPU fallback → verify bit-identical vs phase-1 (260K/15M refs) +
+measure tok/s vs 5.8. All numeric-verifiable, additive (CSD-only), low regression risk to the render path.
+
 2026-08-13 (session 20 — ★★★ CSD step-2 PASS: V3D GPU compute WRITE path works on Phoenix — real Linux-vs-Phoenix
 cache-flush bug found + fixed). Per the owner "compare with Linux" directive, diffed the post-dispatch cache flush
 vs Linux v3d_clean_caches (v3d_gem.c:202): Linux drains **TMUWCF alone** (+wait) THEN flushes **L2TFLS | FLM=CLEAN**;

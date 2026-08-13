@@ -29,7 +29,40 @@ gap — a dependency *tree*. Advisor-endorsed to timebox + bank once the walls t
 - libphoenix commits pending propagation (all LOCAL, additive/low-risk): 29f5373 getmntent + d2a2c1f (its -Werror
   unused-var fix) + 26317c2 assert re-includable. `--scope core` validation in progress this session.
 
-## REMAINING BUILD WALLS (34 errors) — next session
+## SESSION 11 (2026-08-13): 2 more libphoenix-hardening walls cleared → 32 errors; BANKED at the FILE-internal wall
+Advisor-guided stop line: **keep clearing walls only while they yield reusable libphoenix value; stop at the
+gnulib-internal-glue tar pit.** Cleared the two remaining libphoenix wins:
+- **getprogname/setprogname** added to libphoenix (**a7abcfd**, stdlib/progname.c backed by crt0 argv_progname;
+  declared in <stdlib.h>). configure now HAVE_GETPROGNAME=1 → gnulib's getprogname.c #error gone.
+- **pthread_sigmask** declared in <signal.h> (a7abcfd; was only in <pthread.h>). POSIX-correct; gnulib pselect.c
+  implicit-decl gone.
+These are standard-libc hardening reusable by ANY port. --scope core validation in progress; then org push.
+
+**BANK LINE REACHED — remaining walls are gnulib-internal glue (marginal value over busybox, open-ended):**
+The FILE-internal accessors #error on Phoenix's custom `struct _FILE` layout — and there are **6**, not 3 (exactly as
+predicted): `fpending.c`, `freadahead.c`, `freading.c`, `freadptr.c`, `freadseek.c`, `fseterr.c`. Porting them means
+per-file gnulib patches poking Phoenix FILE internals (bufpos/bufeof/buffer/flags — the fields ARE there, so it's
+doable but fragile, port-local, and unbounded: more accessors may surface). Coreutils-the-binary is marginal over the
+busybox utils Phoenix already ships, so value/cost goes negative here. **DECISION: bank; do NOT port the FILE-internal
+glue.** Resume as a dedicated push only if GNU-coreutils-specific behavior is explicitly needed.
+
+## RESUME STATE (exact, for a future dedicated coreutils push)
+Scratch build: was at /home/houp/.claude/jobs/.../coreutils-build (ephemeral). Reproduce: extract coreutils 9.5,
+apply ports `coreutils/patches/0001-rename-gnulib-gettime-settime.patch`, configure `--host=aarch64-phoenix
+CC=aarch64-phoenix-gcc --disable-nls`, `make CFLAGS_FOR_BUILD="-std=gnu89 -Wno-error=implicit-function-declaration
+-Wno-error=implicit-int"`. Requires libphoenix >= a7abcfd (getmntent, re-includable assert, getprogname,
+pthread_sigmask-in-signal.h). Then the remaining walls, in order:
+1. **Port the 6 gnulib FILE-internal files** (fpending/freadahead/freading/freadptr/freadseek/fseterr) with a Phoenix
+   branch each, using `struct _FILE` { fd, flags, mode, bufeof, bufpos, bufsz, buffer } — e.g. freadptr returns
+   `buffer+bufpos` with size `bufeof-bufpos` when in read mode. Capture as coreutils patches 0002+.
+2. **config.cache** (add to a coreutils/config.cache for the port): force lchown "works" (gl_cv_func_lchown_works=yes
+   or REPLACE_LCHOWN=0) so gnulib doesn't compile its lchown.c; force the struct-rlimit detection so src/sort.c does
+   NOT define its `struct rlimit { size_t rlim_cur; }` fallback (Phoenix HAS struct rlimit in <sys/resource.h>).
+3. **EXCLUDE from the built subset:** `stat` (needs struct statfs/statfs() — add <sys/statfs.h> to libphoenix if
+   wanted later) and `stty` (termios macro gap). Build specific targets, not `make all`.
+4. Formalize sources/phoenix-rtos-ports/coreutils/port.def.sh once it links a subset.
+
+## REMAINING BUILD WALLS (original 34-error breakdown) — next session
 1. **[~16] `struct statfs`/`statfs()` (src/stat.c).** Phoenix lacks `<sys/statfs.h>` + statfs(). **EXCLUDE `stat`**
    from the built subset (it's a leaf util); revisit statfs later if wanted.
 2. **[1] `getprogname` #error "not ported" (gnulib lib/).** Used widely (error messages) — NOT excludable. Add

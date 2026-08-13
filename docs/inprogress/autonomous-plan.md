@@ -503,6 +503,27 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-13 (session 11 — COREUTILS 2 more libphoenix-hardening walls cleared → 32 errors; BANKED at the gnulib
+FILE-internal wall; rotate next). Advisor drew the principled stop line: **clear walls only while they yield reusable
+libphoenix value; stop at the gnulib-internal-glue tar pit.** Cleared: **getprogname/setprogname** (libphoenix
+a7abcfd, stdlib/progname.c via crt0 argv_progname → HAVE_GETPROGNAME=1) + **pthread_sigmask declared in <signal.h>**
+(a7abcfd; POSIX location, was pthread.h-only). Both standard-libc hardening, reusable by ANY port; validated
+--scope core (image d2282911, clean) + **pushed to org** (d2a2c1f..a7abcfd). **BANK LINE:** remaining coreutils walls
+are gnulib FILE-internal glue that #errors on Phoenix's custom struct _FILE — **6 modules** (fpending/freadahead/
+freading/freadptr/freadseek/fseterr), open-ended per-file gnulib patches for MARGINAL value over the busybox utils
+Phoenix already ships. Did NOT take the "only a few left" bait. **coreutils banked** with exact resume state (patches,
+config.cache vars for lchown/rlimit, stat/stty excludes, the FILE-internal port recipe) in docs/inprogress/
+2026-08-13-coreutils-port.md. Net coreutils value delivered = **6 libphoenix commits** (getmntent, re-includable
+assert, getprogname, pthread_sigmask, + the gettime-collision insight) — all pushed, reusable.
+
+**NEXT — ROTATE to a BIG untouched owner item** (advisor: after two arcs on the shell/coreutils item, breadth has
+value; 4 owner BIG-items untouched). Weight toward host-side or design-first (autonomous-verifiable); the radio
+data-plane is Pi-cycle-heavy/marginal-link (deprioritize). Candidates: **DRI/DRM design→build for X11 GPU multi-app**
+(design doc exists; V3D single-context known — good design-first fit), **ML inference on Pi4 GPU** (novel; scope
+first), **XFce/LXQt DE** (needs gtk/glib — heavy port), qemu 11.1 (tooling, host-side, bounded), wpa_supplicant
+upgrade, LKML perf thread (analysis). Pick one, analyze, make concrete progress. Also open: deferred getty/pts
+interactive bash console; a --with-ports build exercising the shipped bash port.
+
 2026-08-13 (session 10 — COREUTILS build 325→34 errors, 2 walls cleared, 3 libphoenix fixes pushed to org). Chose to
 CONTINUE coreutils (host-side build grind = more autonomous-friendly than the Pi-cycle-heavy WiFi data-plane).
 **Wall #1 (gettime/settime collision, 122 errors) CLEARED:** Phoenix uses bare gettime/settime at 108 device sites →

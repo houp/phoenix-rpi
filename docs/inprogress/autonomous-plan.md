@@ -503,6 +503,33 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-13 (DRI/DRM #3 — DESIGN-ONLY per advisor redirect; then fill the week with deterministic-verification wins).
+The advisor (owning its prior glib "start DRI/DRM" endorsement) redirected: do NOT open the implementation now.
+Reasons: (1) it RE-PLUMBS the load-bearing GPU stack (move the in-process V3D winsys → an arbitration server) →
+regression risk to EVERY proven Quake/vkQuake/SDL demo; (2) its key milestone (no GPU corruption under CONCURRENT
+submit from 2 procs) is a concurrency/corruption property = brutal to verify on the flaky single-UART rig — the exact
+trap that cost the wifi week; (3) it's an owner-collaborative architecture decision + owner back ~a week → poor
+sequencing to START a multi-week re-arch in the last mile. **DO: produce a DESIGN DOC** (durable, zero-regression,
+HDMI-independent) resolving the key scoping fork FROM SOURCE — "multiple apps at the same time" may be satisfied by
+**coarse serialized GPU LEASES** (whole-GPU lock/arbiter: app A renders a frame + releases, B leases next) at a
+fraction of the cost of **true concurrent DRI** (GEM/dma-buf/DRI3); is the V3D genuinely single-context or is there
+MMU/context isolation? — state the regression risk, present both, recommend. **THEN spend the week on
+DETERMINISTIC-verification wins banked as COMPLETED:** bash/zsh + coreutils (huge owner-visible payoff, verifiable
+over psh, no flaky hw), qemu 11.1 (bounded), a small CV/ML inference demo (deterministic output), propose-own. (If
+the coarse-lease path proves small enough to finish+verify in ~2 cycles, re-consult the advisor before implementing.)
+→ **DESIGN DONE this turn (subagent, source-cited): docs/inprogress/2026-08-13-dri-drm-design.md.** DECISIVE FINDING:
+the **V3D 4.2 (Pi4) is a SINGLE-CONTEXT device** — NCORES=1, one CT0/CT1 submit iface, one shared PT, GMP isolation
+unimplemented even in Linux. **True concurrent multi-app GPU is HARDWARE-BLOCKED**; "multiple apps at once" = FIFO
+time-slicing that looks concurrent (what Linux v3d does, credit_limit=1). Recommend a **v3d-server daemon** (the
+current in-process winsys lifted verbatim into a server owning the V3D + arbitrating client SUBMIT_CL via IPC;
+Mesa/libGL UNTOUCHED — only phoenix_v3d_ioctl becomes a thin IPC stub), COARSE-app (whole-GPU lease = today's
+behavior, ZERO regression) as the floor + COARSE-job FIFO for interleaved windows; copy-first compositing (no new
+kernel facility). **★ The verification is DETERMINISTIC** (serialized server → no concurrency → Phase 1a = run
+gl_det_harness through the server, PASS = output-crc32 bit-identical to in-process ref; Phase 1b = 2 clients both
+CRC-correct) — this DISSOLVES the advisor's concurrency-verification-trap concern. So Phase 1a is bounded +
+deterministic + low-regression = the narrow scope worth re-consulting the advisor on. Owner decisions banked (§4:
+expectation reset, isolation posture, transport, scope gate).
+
 2026-08-13 (WIFI DATA-PLANE BANKED at the frame-drop wall; PIVOT to breadth — advisor-steered triage). The advisor
 (correcting its own prior "keep going", which was about JOIN RELIABILITY — now DONE) called bank+pivot: the frame-drop
 is a NEW deeper wall = realistically 5–15 more expensive single-UART Pi cycles (block-mode → credits → RX drain

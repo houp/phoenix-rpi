@@ -503,6 +503,25 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-13 (session 9 — COREUTILS scouted; configure cleared, build = dedicated multi-cycle project, BANKED with a
+precise resume doc). Started the owner's coreutils half. Downloaded coreutils 9.5. The one fatal **configure** wall
+was gnulib mountlist ("could not determine how to read list of mounted file systems") — Phoenix's `<mntent.h>` was an
+EMPTY file. **Fixed: libphoenix 29f5373** implements the getmntent family (new `mntent/` module) → **configure now
+PASSES (exit 0)**. The **build** then revealed coreutils' true depth (gnulib is a dependency *tree*, not bash's flat
+list): `make -k` → 325 errors clustering into ~6 gaps, dominant = a **122-error `gettime`/`settime` namespace
+collision** (Phoenix `sys/time.h` exposes non-standard `gettime(time_t*,time_t*)`/`settime(time_t)` clashing with
+gnulib's `gettime(struct timespec*)`), plus `struct statfs`, `assert`/assure.h (39), getprogname "not ported",
+pthread_sigmask, lchown, rlimit redef. **Per the advisor's timebox → BANKED** as a dedicated multi-cycle project with
+a full wall-by-wall analysis + fix strategy + subset plan in **docs/inprogress/2026-08-13-coreutils-port.md**.
+**Loose end:** libphoenix 29f5373 (getmntent) is committed LOCAL, pending `--scope core` + Pi boot-verify + org push
+(additive, 0 regression risk — batch with the first real coreutils build cycle).
+
+**NEXT (pick one — coreutils is now well-scoped for resumption anytime):** (a) CONTINUE coreutils = propagate 29f5373
+(--scope core + boot-verify + push) then clear wall #1 (port-local gnulib gettime/settime rename) → reassess; OR
+(b) ROTATE to another owner task (XFce/LXQt DE, DRI/DRM, radio data-plane, ML inference, wpa_supplicant, qemu 11.1,
+LKML perf thread) since the big bash half already shipped. Also still open: getty→/dev/ptmx→bash-on-pts interactive
+console (deferred — not autonomous-verifiable); a `--with-ports` image build to exercise the shipped bash port.
+
 2026-08-13 (BASH PORT session 7 — ★★★ **GNU bash 5.2.21 RUNS on Phoenix/RPi4** + a real libphoenix crt0 bug found,
 fixed, HW-verified, and the 7 commits pushed to org). The startup crash was root-caused to **libphoenix crt0
 calling `main(argc, argv)` (2 args)** → bash's `main(int,char**,char**)` read a garbage 3rd arg (`shell_environment`

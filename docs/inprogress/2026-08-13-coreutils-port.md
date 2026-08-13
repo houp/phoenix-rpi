@@ -16,7 +16,34 @@ gap — a dependency *tree*. Advisor-endorsed to timebox + bank once the walls t
 - Cross-configure invocation (drop `--enable-static`, coreutils warns it's unrecognized; static comes from the
   toolchain/LDFLAGS): `./configure --host=aarch64-phoenix CC=aarch64-phoenix-gcc --disable-nls`.
 
-## BUILD WALLS (make -k → 325 errors, clustered) — the real work, in priority order
+## PROGRESS 2026-08-13 session 10: 325 → 34 build errors (2 walls cleared)
+- **Wall #1 CLEARED (gettime/settime collision, was 122 errors).** Phoenix uses bare `gettime`/`settime` at 108 sites
+  across the device/sensor tree (native time API) → the Phoenix-side namespace fix is OUT (too broad). Instead a
+  **port-local rename of gnulib's** gettime/settime → gl_gettime/gl_settime (word-boundary, leaves clock_gettime/
+  gettimeofday/gettime_res untouched) across 10 files. **Captured: sources/phoenix-rtos-ports/coreutils/patches/
+  0001-rename-gnulib-gettime-settime.patch** (dry-run applies clean to pristine). 325 → 75.
+- **Wall #2 CLEARED (assert, was 39 errors) — a real Phoenix libc bug.** gnulib's `<assert.h>` substitute does
+  `#include_next <assert.h>` relying on assert being redefined each inclusion; Phoenix's assert.h had a permanent
+  once-guard so assert was defined only once → gnulib assure()/affirm() → undeclared assert. **Fixed: libphoenix
+  26317c2** (drop the once-guard, `#undef assert`+redefine each include, glibc/musl parity). 75 → 34.
+- libphoenix commits pending propagation (all LOCAL, additive/low-risk): 29f5373 getmntent + d2a2c1f (its -Werror
+  unused-var fix) + 26317c2 assert re-includable. `--scope core` validation in progress this session.
+
+## REMAINING BUILD WALLS (34 errors) — next session
+1. **[~16] `struct statfs`/`statfs()` (src/stat.c).** Phoenix lacks `<sys/statfs.h>` + statfs(). **EXCLUDE `stat`**
+   from the built subset (it's a leaf util); revisit statfs later if wanted.
+2. **[1] `getprogname` #error "not ported" (gnulib lib/).** Used widely (error messages) — NOT excludable. Add
+   `getprogname`/`setprogname` (+ maybe `program_invocation_name`) to libphoenix. HIGH priority next.
+3. **[3] fseterr.c / freadptr.c / freadseek.c #error "port to your platform" (gnulib lib/).** These poke Phoenix's
+   FILE internals (buffer ptrs, ferror/clearerr/getc/fflush internals). HARDEST class. Check which built utils pull
+   them (od, tac, shuf?) — may be excludable; else port to Phoenix's FILE layout (sources/libphoenix/stdio).
+4. **[1] `struct rlimit` redefinition (sort.c).** Phoenix `<sys/resource.h>` vs gnulib — header conflict; sort is
+   WANTED. Reconcile (likely a gnulib config/guard or a Phoenix resource.h guard).
+5. **[1] `pthread_sigmask` implicit (gnulib pselect.c).** Add pthread_sigmask to libphoenix pthread (or gnulib sub).
+6. **[1] `lchown` implicit.** Add lchown to libphoenix (symlink-aware chown; or gnulib substitute).
+7. **[1] stty.c expected-expression (termios macro gap).** EXCLUDE `stty`.
+
+## ORIGINAL BUILD WALLS (make -k → 325 errors, clustered) — for reference
 1. **[122 errors] `gettime`/`settime` namespace collision (HIGHEST LEVERAGE).** Phoenix `sys/time.h:34,37` declares
    NON-STANDARD `int gettime(time_t *raw, time_t *offs)` + `int settime(time_t offs)` (Phoenix's native time API).
    gnulib `lib/timespec.h:93,94` declares `void gettime(struct timespec *)` + `int settime(struct timespec const *)`.

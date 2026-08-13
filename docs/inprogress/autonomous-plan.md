@@ -503,6 +503,27 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-13 (session 10 — COREUTILS build 325→34 errors, 2 walls cleared, 3 libphoenix fixes pushed to org). Chose to
+CONTINUE coreutils (host-side build grind = more autonomous-friendly than the Pi-cycle-heavy WiFi data-plane).
+**Wall #1 (gettime/settime collision, 122 errors) CLEARED:** Phoenix uses bare gettime/settime at 108 device sites →
+Phoenix-side fix OUT; instead a **port-local rename of gnulib's** gettime/settime→gl_gettime/gl_settime (10 files,
+word-boundary so clock_gettime/gettimeofday/gettime_res untouched). Captured as **ports 08848d0**: sources/phoenix-
+rtos-ports/coreutils/patches/0001 (dry-run applies clean). **Wall #2 (assert, 39 errors) CLEARED — a real Phoenix
+libc bug:** gnulib's <assert.h> substitute does #include_next relying on assert being redefined per-inclusion, but
+Phoenix's assert.h had a permanent once-guard → assert defined once → gnulib assure()/affirm() undeclared. **Fixed
+libphoenix 26317c2** (drop guard, #undef+redefine each include, glibc parity). **libphoenix 3 commits validated
+(--scope core clean, image b45039f3, netboot psh+0 faults) + PUSHED to org** (a59c800..d2a2c1f: 29f5373 getmntent,
+d2a2c1f -Werror fix, 26317c2 assert). Progression: 325→75 (gettime)→34 (assert). Full analysis +
+remaining-wall plan in docs/inprogress/2026-08-13-coreutils-port.md.
+
+**NEXT (coreutils, 34 errors, well-scoped):** (1) add **getprogname/setprogname** to libphoenix (gnulib #error "not
+ported"; used widely, NOT excludable — HIGH priority); (2) add **lchown** + **pthread_sigmask** to libphoenix;
+(3) reconcile **struct rlimit** redefinition (sort.c, Phoenix sys/resource.h vs gnulib); (4) EXCLUDE stat (struct
+statfs) + stty (termios) from the built subset; (5) assess fseterr/freadptr/freadseek (gnulib FILE-internal ports —
+hardest; may be excludable). Then build the value subset → stage into NFS root → psh-interact verify (`ls`/`wc`/
+`sort` like `bash /t.sh`) → formalize sources/phoenix-rtos-ports/coreutils/port.def.sh. Alternative: ROTATE to
+another owner task (bash half + coreutils groundwork both shipped).
+
 2026-08-13 (session 9 — COREUTILS scouted; configure cleared, build = dedicated multi-cycle project, BANKED with a
 precise resume doc). Started the owner's coreutils half. Downloaded coreutils 9.5. The one fatal **configure** wall
 was gnulib mountlist ("could not determine how to read list of mounted file systems") — Phoenix's `<mntent.h>` was an

@@ -503,6 +503,23 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-14 (session 23 — ROTATED off ML-GPU to the owner's LKML task; accessed it despite Anubis + fully scoped it).
+The owner "LKML perf thread" (board line 19) is a SPECIFIC ask: the thread = **"[PATCH v1] perf: Add Raspberry Pi AXI
+PMU driver"** (Ian Rogers) — Linux uncore PMU for the Broadcom AXI-bus + VPU performance counters (bytes/bandwidth).
+The lore HTTP views are **Anubis (JS-PoW) gated** — bypassed via **NNTP** (nntp.lore.kernel.org ARTICLE by
+message-id). "Similar for Phoenix" = a userspace driver reading the **BCM2711 System AXI bandwidth monitors** → real
+HW bus/memory-bandwidth (the perf work — NFS/genet/V3D — has only ever INFERRED bandwidth, never measured it at the
+bus). **Fully scoped the register map** (base 0xfe009800, GEN_CTRL@0, 3 bandwidth watchers BW0/1/2, A/W/R
+transaction/wait/max counters, 31-bit; programming = reset|enable|bus-select then read) from the Linux DT
+(bcm270x.dtsi) + the vendor driver raspberrypi_axi_monitor.c. Fits the rpi4-thermal/hwrng mmap-peripheral pattern.
+Design + register map + plan in docs/inprogress/2026-08-14-axi-pmu-driver.md. (qemu already 11.0.0 → 11.1 marginal;
+picked the LKML task as concrete + owner-specified + relevant + autonomous-verifiable.)
+
+**NEXT — build the AXI PMU reader** (advisor consult first): userspace tool tools/axi-pmu/ mmaps 0xfe009800 uncached,
+programs BW0 to watch the DRAM/L2 bus (extract the BUS_WATCH enum from the vendor driver), enables GEN_CTRL, reads
+R/W/A transaction counters over an interval → bytes/s. Verify during a known workload (memcpy / NFS read / V3D
+render) — counters increment + track the load; compare vs known figures (owner "compare with Linux").
+
 2026-08-14 (session 22 — ★★★ ML-GPU ARC LANDED: V3D compute matmul numerically CORRECT (bit-identical); GPU 6.63×
 slower = dispatch-bound; NOT integrated (would be slower); batched-dispatch redesign deferred). Built the matmul
 compute kernel (hand-NIR loop, 30 QPU instrs, first TMU general LOADs) + the microbench csd_matmul.c (persistent BOs,

@@ -503,6 +503,21 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-14 (session 24 — ★★★ AXI PMU reader LANDED: real HW bus-bandwidth measurement on Phoenix/Pi4, verified 3
+ways). Fixed the counter (added the missing GEN_CTL_WATCH_BIT); **scanned all 16 buses** empirically → the monitor
+COUNTS (buses 6=HVS-display, 10=A72 CPU-memory, 13=writes all show memcpy-correlated traffic). Dose-response on
+**bus 10**: PERFECTLY LINEAR (dR/dW scale 2× per copy-size step, reads≈writes), **16-byte AXI bursts**, and — the
+absolute cross-check — **counter-derived bandwidth 1.43 GB/s == wall-clock memcpy 1.40 GB/s (within 2%)**. So the
+BCM2711 AXI performance monitor is now readable from Phoenix + verified. tools/axi-pmu/ (axi-pmu.c + README);
+delivers the owner LKML task ("implement something similar") — the project can now measure NFS/genet/V3D bandwidth at
+the bus, not just infer it. Debugged through 3 bugs: page-aligned mmap, memcpy DCE, the WATCH bit. HW 0 faults.
+
+**NEXT — this arc is LANDABLE; pick the next rotation.** Options: (a) wire axi-pmu into the F2 perf work (measure
+genet-RX / NFS-read / V3D-render bandwidth at the bus — the counters make the long-inferred figures directly
+measurable; a natural, high-value follow-up); (b) another untouched owner item — wpa_supplicant, DRI/DRM design,
+XFce/LXQt; (c) deferred: AXI-PMU VPU-mailbox monitor + /dev/axiperf, ML-GPU batched-dispatch, coreutils FILE-internal,
+getty/pts interactive bash. (qemu already 11.0.0.)
+
 2026-08-14 (session 23 — ROTATED off ML-GPU to the owner's LKML task; accessed it despite Anubis + fully scoped it).
 The owner "LKML perf thread" (board line 19) is a SPECIFIC ask: the thread = **"[PATCH v1] perf: Add Raspberry Pi AXI
 PMU driver"** (Ian Rogers) — Linux uncore PMU for the Broadcom AXI-bus + VPU performance counters (bytes/bandwidth).

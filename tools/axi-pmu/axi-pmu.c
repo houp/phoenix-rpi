@@ -35,7 +35,7 @@
 #define BW_RTRANS      0x1cu
 #define BW_CTRL_RESET  (1u << 31)
 #define BW_CTRL_ENABLE (1u << 30)
-#define BUS_ARM_L2     11u           /* system_bus_string_2711[11] = ARM_L2 (CPU<->memory) */
+#define BUS_ARM_L2     10u           /* scan found bus 10 shows CPU memcpy read+write traffic */
 
 static volatile uint32_t *pmu;
 
@@ -65,8 +65,40 @@ int main(void)
 		return 1;
 	}
 	pmu = (volatile uint32_t *)((char *)m + AXIPERF_OFF);
-	printf("axi-pmu: mapped BCM2711 System AXI monitor @0x%08x; watching ARM_L2 (bus %u)\n",
-		AXIPERF_BASE, BUS_ARM_L2);
+	printf("axi-pmu: mapped BCM2711 System AXI monitor @0x%08x\n", AXIPERF_BASE);
+
+	/* BUS SCAN: which BUS_WATCH value shows a CPU memcpy's DRAM traffic? Program
+	 * BW0 for each bus 0..15, run a fixed 8MB x2 memcpy, read the deltas. */
+	{
+		int bus;
+		char *src = malloc(8u << 20), *dst = malloc(8u << 20);
+		if (src && dst) {
+			memset(src, 0xa5, 8u << 20);
+			for (bus = 0; bus < 16; bus++) {
+				uint32_t r0b, w0b, a0b, r1b, w1b, a1b;
+				volatile uint64_t chk = 0;
+				size_t z; int rep;
+				wr(GEN_CTRL, GEN_CTL_RESET);
+				wr(BW0_CTRL, BW_CTRL_RESET);
+				wr(BW0_CTRL, BW_CTRL_ENABLE | ((uint32_t)bus & 0x3fu));
+				wr(GEN_CTRL, GEN_CTL_ENABLE | GEN_CTL_WATCH);
+				r0b = rd(BW0_CTRL + BW_RTRANS); w0b = rd(BW0_CTRL + BW_WTRANS); a0b = rd(BW0_CTRL + BW_ATRANS);
+				for (rep = 0; rep < 2; rep++) { memcpy(dst, src, 8u << 20); src[rep] = dst[rep] + 1; __asm__ volatile("":::"memory"); }
+				__asm__ volatile("":::"memory");
+				r1b = rd(BW0_CTRL + BW_RTRANS); w1b = rd(BW0_CTRL + BW_WTRANS); a1b = rd(BW0_CTRL + BW_ATRANS);
+				for (z = 0; z < (8u << 20); z += 4096) chk += (unsigned char)dst[z];
+				(void)chk;
+				printf("axi-pmu: SCAN bus %2d: dR=%u dW=%u dA=%u\n", bus, r1b - r0b, w1b - w0b, a1b - a0b);
+			}
+		}
+		free(src); free(dst);
+	}
+	printf("axi-pmu: --- dose-response on bus %u ---\n", BUS_ARM_L2);
+	/* Reconfigure BW0 for the chosen bus (the scan left it on bus 15). */
+	wr(GEN_CTRL, GEN_CTL_RESET);
+	wr(BW0_CTRL, BW_CTRL_RESET);
+	wr(BW0_CTRL, BW_CTRL_ENABLE | (BUS_ARM_L2 & 0x3fu));
+	wr(GEN_CTRL, GEN_CTL_ENABLE | GEN_CTL_WATCH);
 
 	/* Vendor sequence (raspberrypi_axi_monitor.c): reset monitor, reset watcher,
 	 * configure watcher (enable|bus, NO reset bit), then enable monitor WITH the
@@ -83,8 +115,8 @@ int main(void)
 	nanosleep(&idle, NULL);
 	r1 = rd(BW0_CTRL + BW_RTRANS);
 	w1 = rd(BW0_CTRL + BW_WTRANS);
-	printf("axi-pmu: IDLE 200ms baseline: dRTRANS=%u dWTRANS=%u (expect ~small)\n",
-		r1 - r0, w1 - w0);
+	printf("axi-pmu: 200ms background on bus %u: dR=%u dW=%u (bus 10 = all A72 memory traffic, never truly idle)\n",
+		BUS_ARM_L2, r1 - r0, w1 - w0);
 
 	/* Dose-response: memcpy 4/8/16 MB x4 reps; transactions should scale linearly. */
 	for (k = 0; k < 3; k++) {
@@ -125,9 +157,13 @@ int main(void)
 			(void)chk;
 		}
 
-		printf("axi-pmu: memcpy %2zuMB x4 (%zu bytes moved, %.2f ms): dRTRANS=%u dWTRANS=%u dATRANS=%u | ~%.1f B/RTRANS\n",
-			sz >> 20, (size_t)4 * 2 * sz, t1 - t0, rb - ra, wb - wa, ab - aa,
-			(rb - ra) ? (double)((size_t)4 * sz) / (double)(rb - ra) : 0.0);
+		{
+			double bytes = (double)((uint64_t)(rb - ra) + (uint64_t)(wb - wa)) * 16.0; /* 16 B/AXI burst */
+			double gbs = bytes / ((t1 - t0) / 1000.0) / 1.0e9;
+			printf("axi-pmu: memcpy %2zuMB x4 (%zu B moved, %.2f ms): dR=%u dW=%u dA=%u | 16 B/xfer => %.2f GB/s bus-traffic (memcpy ~%.2f GB/s)\n",
+				sz >> 20, (size_t)4 * 2 * sz, t1 - t0, rb - ra, wb - wa, ab - aa, gbs,
+				(double)((size_t)4 * 2 * sz) / ((t1 - t0) / 1000.0) / 1.0e9);
+		}
 		free(src);
 		free(dst);
 	}

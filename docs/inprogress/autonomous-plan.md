@@ -503,6 +503,21 @@ before the vacation handoff — NOT ours; leave untouched (always `git add <path
 
 ## Last progress
 
+2026-08-14 (session 26 — ★★★ SQLite RUNS on Phoenix/RPi4 — full SQL database, in-memory + file VFS, HW-verified).
+Rotated to a fresh BIG feature (SQLite; public domain, no GPL). **Cross-compiled on the FIRST TRY with ZERO libphoenix
+gaps** (one gcc command, no patches — vs bash/coreutils' many libc fixes; the amalgamation is that portable). HW
+netboot (0 faults): (1) **in-memory engine** — tables, INSERT, ORDER BY, aggregates COUNT/SUM/AVG-REAL, printf, LIKE,
+recursive CTE + group_concat, all matching the x86 reference; (2) **file-backed VFS** (the real forcing-function) —
+B-tree table+PK, INSERT/UPDATE/DELETE, CREATE INDEX (2nd on-disk B-tree), index scan, rollback journal
+(write→fsync→delete), and **PRAGMA integrity_check = ok** (SQLite verified its own on-disk page/B-tree structures).
+Exact expected output reproduced. So Phoenix's unix VFS (open/read/write/lseek/fstat/fcntl/truncate/fsync) works.
+tools/sqlite-port/ (build.sh + test.sql/testf.sql; coord 5df0359). psh-safe via `-init FILE …:memory:/.exit`.
+
+**NEXT — SQLite is a clean landed win; pick the next rotation.** SQLite deferred bits: WAL mode (shared-mem mmap,
+untested), multi-process locking. Fresh options: another BIG autonomous port (a language/service), an untouched owner
+item (wpa_supplicant bounded; DRI/DRM + XFce/LXQt HDMI-heavy), or deferred (AXI-PMU VPU-mailbox, ML-GPU
+batched-dispatch, coreutils FILE-internal, getty/pts interactive bash). (qemu already 11.0.0.)
+
 2026-08-14 (session 24 — ★★ AXI PMU reader LANDED: BCM2711 AXI bus counters readable from Phoenix, MECHANISM
 verified). Fixed the counter (added the missing GEN_CTL_WATCH_BIT); **scanned all 16 buses** → the monitor COUNTS
 (buses 6=HVS-display, 10=CPU-memcpy path, 13=writes all show memcpy-correlated traffic). Dose-response on **bus 10**:

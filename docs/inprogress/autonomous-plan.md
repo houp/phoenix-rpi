@@ -515,11 +515,21 @@ is real + large: ~4M reads/200ms), and per-master bus IDs + background subtracti
 GB/s" cross-check is partly definitional (16 B/xfer is hardcoded/back-derived) — the real evidence is linearity + R≈W
 + constant-16-burst (~2.5 checks). "bus 10 = CPU memcpy path" is empirical (enum labeled 10=ARM_UC; ARM_L2=11 read 0).
 
-**NEXT — this arc is LANDED; pick the next rotation.** Options: (a) F2-perf follow-up = the REAL remaining work behind
-flag #1 (identify each master's bus index [genet/V3D/DMA] + control/subtract background) — scope as NEW investigation,
-not a quick "point it at genet"; (b) another untouched owner item — wpa_supplicant, DRI/DRM design, XFce/LXQt;
-(c) deferred: AXI-PMU VPU-mailbox monitor + /dev/axiperf, ML-GPU batched-dispatch, coreutils FILE-internal, getty/pts
-interactive bash. (qemu already 11.0.0.)
+**Session 25 — per-master AXI scan done + landed.** Added a network-read bus scan. **Clean win: bus 6 = HVS display
+scanout ≈ 517 MB/s**, independently matching 1920×1080×4×60fps = 497 MB/s (~4%, external theory — a genuine absolute
+cross-check; the display continuously eats ~0.5 GB/s, relevant to V3D-fill-bound). NFS read measured 7.3 MB/s
+(confirms the inferred ~8, but wall-clock not bus-isolated). **genet-DMA bus NOT cleanly isolatable** — at ~7 MB/s
+it's buried under display (517 MB/s) + CPU + background (the advisor's flag #1 = real background-control work, confirmed
+hard); bus 13 anomaly (~4 GB/s) unexplained, not chased. AXI-PMU arc LANDED (coord 1e8e0ce): a working reader + one
+clean absolute-verified per-master number (display). Per-master isolation of small masters = deferred (needs
+background differencing).
+
+**NEXT — ROTATE to a fresh item** (AXI-PMU per-master has diminishing returns; ~8 turns of perf/systems/GPU work
+banked). Candidates: (a) a BIG autonomous-verifiable feature — **SQLite** port (self-contained C, SQL→deterministic
+output over psh, exercises the FS/VFS layer = breadth + forcing-function); (b) an untouched owner item — wpa_supplicant
+(bounded), DRI/DRM design, XFce/LXQt (both HDMI-heavy); (c) deferred: AXI-PMU VPU-mailbox + /dev/axiperf, ML-GPU
+batched-dispatch, coreutils FILE-internal, getty/pts interactive bash. (qemu already 11.0.0.) Lean: SQLite = clean
+BIG autonomous win + breadth.
 
 2026-08-14 (session 23 — ROTATED off ML-GPU to the owner's LKML task; accessed it despite Anubis + fully scoped it).
 The owner "LKML perf thread" (board line 19) is a SPECIFIC ask: the thread = **"[PATCH v1] perf: Add Raspberry Pi AXI

@@ -1,8 +1,14 @@
 # axi-pmu — Raspberry Pi 4 (BCM2711) AXI bus performance-monitor reader
 
 A Phoenix userspace tool that reads the BCM2711 **System AXI bandwidth monitors** to
-measure **real hardware bus/memory bandwidth** — the first time this project measures
-bus traffic at the hardware, rather than inferring it from wall-clock throughput.
+measure **real hardware bus/memory traffic** — the first time this project reads bus
+counters at the hardware, rather than inferring bandwidth from wall-clock throughput.
+
+Scope of what's validated: the **mechanism** is proven on **one bus (bus 10) with a CPU
+memcpy**. It is NOT yet a general "measure any master's bandwidth" tool — the counter
+reports *total* traffic on a bus over the window (background is real and large, see the
+idle reading), and each master's (genet / V3D / DMA) bus index + background attribution
+are un-validated. Those are the follow-up work, not done here.
 
 Phoenix response to the owner's LKML task: *"Look at [the AXI PMU perf patch] and see if
 we could implement something similar in Phoenix-RTOS"* — the thread is Ian Rogers'
@@ -11,17 +17,24 @@ mmap the perf block + program a bandwidth watcher + read the counters.
 
 ## Result (HW-verified 2026-08-14, netboot, 0 faults)
 
-A memcpy dose-response on **bus 10** (the A72 CPU↔memory AXI path, found by scanning all
-16 buses) is perfectly linear and cross-checks against wall-clock:
+A memcpy dose-response on **bus 10** (empirically the bus that tracks a CPU memcpy, found
+by scanning all 16 buses — note the vendor enum labels 10=ARM_UC and 11=ARM_L2, but 11
+read zero, so treat "bus 10 = CPU memcpy path" as measured, not a confirmed architectural
+identity) is perfectly linear:
 
     memcpy  4MB x4: dR=1.05M dW=1.08M | 16 B/xfer => 1.43 GB/s   (wall-clock memcpy 1.40 GB/s)
     memcpy  8MB x4: dR=2.13M dW=2.14M | 16 B/xfer => 1.42 GB/s   (wall-clock 1.40 GB/s)
     memcpy 16MB x4: dR=4.26M dW=4.24M | 16 B/xfer => 1.44 GB/s   (wall-clock 1.42 GB/s)
 
-Verified three ways: (1) **linear dose-response** — transactions scale exactly with copy
-size; (2) **16-byte AXI bursts** — bytes/transaction is constant (`readl & 0x7fffffff`,
-16 MB / 1.05M transfers ≈ 16 B); (3) **absolute cross-check** — the counter-derived
-bandwidth (1.43 GB/s) matches the independent wall-clock memcpy (1.40 GB/s) within ~2%.
+What's actually load-bearing (≈2.5 checks, stated honestly): (1) **linear dose-response**
+— transactions scale exactly 2× per copy-size step; (2) **read ≈ write symmetry** —
+matches a memcpy (each is neither circular); (3) **bytes/transaction is a STABLE 16
+across all three sizes** — a hardware-plausible 128-bit AXI burst. Note the GB/s figure
+uses a *hardcoded* 16 B/xfer back-derived from known_bytes/transactions, so "1.43 vs 1.40
+GB/s" is partly definitional (near-tautological) — the real evidence is linearity +
+R≈W + the constant-16 burst, not an independent absolute oracle. The idle "control" came
+back large (~4M reads/200 ms), not the ~0 predicted — labeled "never truly idle" but
+unreconciled; don't lean on it.
 
 ## How it works
 

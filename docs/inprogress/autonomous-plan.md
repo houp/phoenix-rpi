@@ -515,10 +515,21 @@ transaction/wait/max counters, 31-bit; programming = reset|enable|bus-select the
 Design + register map + plan in docs/inprogress/2026-08-14-axi-pmu-driver.md. (qemu already 11.0.0 → 11.1 marginal;
 picked the LKML task as concrete + owner-specified + relevant + autonomous-verifiable.)
 
-**NEXT — build the AXI PMU reader** (advisor consult first): userspace tool tools/axi-pmu/ mmaps 0xfe009800 uncached,
-programs BW0 to watch the DRAM/L2 bus (extract the BUS_WATCH enum from the vendor driver), enables GEN_CTRL, reads
-R/W/A transaction counters over an interval → bytes/s. Verify during a known workload (memcpy / NFS read / V3D
-render) — counters increment + track the load; compare vs known figures (owner "compare with Linux").
+**AXI PMU reader BUILT + mostly working (session 23):** tools/axi-pmu/axi-pmu.c (coord 31fa833) — mmaps the BCM2711
+System AXI monitor (page 0xfe009000 +0x800 offset; MAP_PHYSMEM needs page-alignment — first bug), programs BW0 to
+watch ARM_L2 (bus 11), memcpy dose-response (4/8/16MB). **HW-verified working:** mmap OK, config regs read back
+(GEN_CTRL, BW0_CTRL=0x4000000b), memcpy runs real linear-time copies (~1.4 GB/s; had to defeat DCE with a checksum +
+barrier — second bug). **Counters read 0** with the incomplete enable (only wrote GEN_CTL_ENABLE) — the vendor
+sequence needs **GEN_CTL_WATCH_BIT (BIT2)**: reset monitor(GEN_CTRL=2) → reset watcher(BW0_CTRL=BIT31) → configure
+(BW0_CTRL=BIT30|bus) → enable(GEN_CTRL=ENABLE|WATCH=0x5). **Added that**; last Pi run was inconclusive (no output
+captured — timing/transient, prior runs fine).
+
+**NEXT — re-run + confirm counting (advisor's idle-baseline + dose-response gate):** (1) netboot axi-pmu again; if
+the ARM_L2 counter now increments + scales ~linearly with copy size → derive bytes/transaction from the slope → LAND
+(one clean tool + honest measurement). (2) If still 0: the bus enum choice is the make-or-break — try SYSTEM_L2 (bus
+5) or re-check whether memcpy DRAM traffic routes via a different system bus (the ARM cluster's memory path); the
+counter mechanism (WATCH/latch) may need a sample window. Keep scoped: System-monitor MMIO only; VPU-mailbox +
+/dev/axiperf deferred.
 
 2026-08-14 (session 22 — ★★★ ML-GPU ARC LANDED: V3D compute matmul numerically CORRECT (bit-identical); GPU 6.63×
 slower = dispatch-bound; NOT integrated (would be slower); batched-dispatch redesign deferred). Built the matmul

@@ -36,6 +36,21 @@ R≈W + the constant-16 burst, not an independent absolute oracle. The idle "con
 back large (~4M reads/200 ms), not the ~0 predicted — labeled "never truly idle" but
 unreconciled; don't lean on it.
 
+## Per-master findings (session 25 — scan buses during memcpy vs NFS read)
+
+- **bus 6 = HVS display scanout ≈ 517 MB/s** — the cleanest result: 16.2M reads × 16 B over a ~0.5 s window = 517
+  MB/s, which independently matches **1920×1080×4 B × 60 fps = 497 MB/s** (within 4%; the fps/resolution is external
+  theory, nothing hardcoded — a genuine absolute cross-check). So the 1080p display continuously consumes ~0.5 GB/s of
+  the Pi's memory bandwidth — a real number relevant to the "V3D fill-bound at 1080p" story (display + V3D contend).
+- **bus 10 = CPU memcpy path** (~1.4 GB/s, prior session).
+- **NFS read: 7.3 MB/s** (wall-clock fread throughput over the 100 Mbps link) — directly confirms the long-INFERRED
+  ~8 MB/s. But this is a wall-clock number, not a clean bus-counter isolation.
+- **The genet-RX-DMA bus is NOT cleanly isolated:** at ~7 MB/s the network DMA traffic is tiny next to the display
+  (~517 MB/s on bus 6) + the CPU's own file reads (bus 10) + background. Isolating a small master needs background
+  control / differencing — the real follow-up work (advisor flag), not done here.
+- **bus 13 anomaly:** shows ~128M write-transactions in ~0.5 s (≈4 GB/s), far above any real workload — likely a
+  free-running / non-byte counter or an unidentified master. Unexplained; not chased (rabbit-hole discipline).
+
 ## How it works
 
 - Base **0xfe009800** (BCM2711 System AXI monitor; DT `bcm270x.dtsi` axiperf `0x7e009800`).

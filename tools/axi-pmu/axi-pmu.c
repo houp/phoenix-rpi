@@ -93,6 +93,43 @@ int main(void)
 		}
 		free(src); free(dst);
 	}
+	/* NETWORK SCAN: read a 60MB file from the NFS root linearly, cycling the
+	 * watched bus per segment. Buses active here but NOT during the memcpy scan
+	 * reveal the genet-RX-DMA / network path (CPU+background are common to both). */
+	{
+		FILE *nf = fopen("/stories15M.bin", "rb");
+		if (nf == NULL) {
+			printf("axi-pmu: NETSCAN skipped (no /stories15M.bin)\n");
+		}
+		else {
+			static char buf[65536];
+			size_t seg = 60816028u / 16u;
+			int bus;
+			double nt0 = now_ms();
+			for (bus = 0; bus < 16; bus++) {
+				uint32_t r0b, w0b, a0b, r1b, w1b, a1b;
+				size_t got = 0;
+				wr(GEN_CTRL, GEN_CTL_RESET);
+				wr(BW0_CTRL, BW_CTRL_RESET);
+				wr(BW0_CTRL, BW_CTRL_ENABLE | ((uint32_t)bus & 0x3fu));
+				wr(GEN_CTRL, GEN_CTL_ENABLE | GEN_CTL_WATCH);
+				r0b = rd(BW0_CTRL + BW_RTRANS); w0b = rd(BW0_CTRL + BW_WTRANS); a0b = rd(BW0_CTRL + BW_ATRANS);
+				while (got < seg) {
+					size_t want = seg - got;
+					size_t n = fread(buf, 1, want < sizeof(buf) ? want : sizeof(buf), nf);
+					if (n == 0) break;
+					got += n;
+				}
+				r1b = rd(BW0_CTRL + BW_RTRANS); w1b = rd(BW0_CTRL + BW_WTRANS); a1b = rd(BW0_CTRL + BW_ATRANS);
+				printf("axi-pmu: NETSCAN bus %2d: dR=%u dW=%u dA=%u (read %zuKB)\n",
+					bus, r1b - r0b, w1b - w0b, a1b - a0b, got >> 10);
+			}
+			fclose(nf);
+			printf("axi-pmu: NETSCAN read 60MB over NFS in %.0f ms (~%.1f MB/s)\n",
+				now_ms() - nt0, 60.0 / ((now_ms() - nt0) / 1000.0));
+		}
+	}
+
 	printf("axi-pmu: --- dose-response on bus %u ---\n", BUS_ARM_L2);
 	/* Reconfigure BW0 for the chosen bus (the scan left it on bus 15). */
 	wr(GEN_CTRL, GEN_CTL_RESET);

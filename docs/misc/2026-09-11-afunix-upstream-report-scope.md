@@ -75,3 +75,55 @@ those two submodule pointers, so it follows both.
 ⚠ Resolution gotcha for whoever does it: the tests conflict boundary does **not** fall on a function
 boundary, so a naive "keep both" splice leaves one side's closing brace attached to the other's last
 function. Compare brace balance against **both** parents (each 0) — a naive splice reads +1.
+
+
+## ★★★ 2026-09-12 (evening): OWNER DECISION — TAKE UPSTREAM. Deferral is over.
+
+Owner, verbatim intent: *"we prefer upstream changes vs. our own. If we can use upstream — super. If
+we need to get upstream and re-apply some of our changes this is also fine. But we don't want to
+reject upstream changes — even if it means more work for us. We want to be compatible with upstream
+as much as possible."*
+
+That settles the question this document was written to ask. The re-port is **scheduled work, not a
+decision item**, and the tie-breaker on every conflict hunk is now explicit: **upstream's structure
+wins; our change is re-expressed on top of it, never restored over it.**
+
+### Execution plan
+
+**Phase 0 — safety net (no repo changes).** Snapshot the integration state so
+`scripts/restore-integration-state.sh` can roll the whole tree back in one step. The delivered demo
+image is untouched by all of this and remains the flash target; restoring the Pi boot outranks the
+merge if anything goes wrong.
+
+**Phase 1 — merge kernel + tests TOGETHER.** Never one without the other: the measured reason is in
+the section above (tests alone = 6 EL0 Data Aborts, 10 of 27 tests). `phoenix-rtos-project` follows
+afterwards, since its single commit only bumps those two submodule pointers.
+- `posix/unix.c` is **deleted by upstream** (`git status` shows `UD`). Under the decision above that
+  deletion is *accepted* — the file goes, and anything of ours that still matters is re-expressed
+  against the endpoint/channel model. Do not resurrect the old file.
+- `posix/posix.c` has 8 conflict hunks: resolve toward upstream's shape.
+- Tests: the conflict boundary does **not** fall on a function boundary. Check brace balance against
+  **both** parents (each 0); a naive "keep both" splice reads +1.
+
+**Phase 2 — triage our five fixes against the new model, one at a time.** The rule from §"How to
+approach it" stands and is now the main work: *re-applying a fix for a bug the rewrite deleted is
+worse than not applying it.* For each, first establish whether the defect still exists upstream:
+
+| our fix | first question to answer |
+|---|---|
+| `69d9a448` socket-id recycling | does the endpoint/channel model even have an id namespace to recycle? If not, drop it. |
+| `9c60b783` `unix_accept4` use-after-free | does the new accept path still hold a connecting socket that can be freed? |
+| `381152c6` `recvmsg` control length | is `SCM_RIGHTS` length reporting already correct upstream? |
+| `7a52147c` readiness-woken `poll()` | **performance-critical.** If the new model does not wake on readiness, X IPC regresses and the desktop feels slow. **Measure it, do not assume.** |
+| `137ec58f` `SO_RCVBUF` 64 kB → 256 kB | is the new buffer still one page by default? |
+
+Anything that turns out to be a genuine upstream defect should be **reported/offered upstream**
+rather than carried as a private patch — that is the same preference applied in the other direction.
+
+**Phase 3 — verify on hardware, not on a build.** `--scope core` rebuild, boot test, then the real
+gates: the libc socket suite (which should now include upstream's 745 lines of new UNIX-socket
+tests), and **X11 with a client** (`startx_gpu` + xterm/xclock) against the 90.2%-non-black baseline.
+A green build proves nothing here — the last attempt built clean and failed on hardware.
+
+**Phase 4 — push or roll back.** Push kernel, then tests, then project. If the boot or X regresses,
+`scripts/restore-integration-state.sh` with the Phase-0 manifest, and re-verify before anything else.

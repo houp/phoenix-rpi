@@ -127,3 +127,39 @@ A green build proves nothing here — the last attempt built clean and failed on
 
 **Phase 4 — push or roll back.** Push kernel, then tests, then project. If the boot or X regresses,
 `scripts/restore-integration-state.sh` with the Phase-0 manifest, and re-verify before anything else.
+
+### ✅ Phase 2 triage DONE (2026-09-12) — 3 of our 5 fixes are OBSOLETE
+
+Upstream had independently fixed three of the five, in one case more thoroughly than we did. This is
+the "prefer upstream" policy paying for itself: three private patches retire outright.
+
+| our fix | verdict | evidence |
+|---|---|---|
+| `69d9a448` socket-id recycling | **OBSOLETE** | Upstream allocates ids **monotonically** (`usocket_nameAlloc`, `usocket.c:215-254`) with the same stated rationale and the same wrap caveat. **Stronger than ours**: the id leaves the tree at `close()` (`usocket.c:1426`), not only at `unlink()`, plus a new `usocket_unlink()` detaches the name when the socket *file* goes while the socket stays usable. The "refuse a dead destination" half is there too (`-ECONNREFUSED` at `usocket.c:641,1095,1121`). |
+| `9c60b783` `accept4` use-after-free | **OBSOLETE** | The pending list is now **reference-counted** — the fix we deliberately avoided. `usocket_connect()` refs before linking (`usocket.c:705`); `accept4` inherits that reference and drops it on every exit path (`usocket.c:814-866`), re-checking liveness under `cs->lock`. ⚠ Our commit message's objection ("the list's ref becomes the last one ⇒ hang") no longer applies: the acceptor never keeps a pointer to the connector, only to the shared channel. |
+| `381152c6` `recvmsg` control length | **OBSOLETE** | `*controllen` is set on **every** path: `usocket.c:1058-1062`, the `rx == NULL` early-out `usocket.c:1033-1044`, and `fdpass_unpack` writes the real length (`fdpass.c:186`) or 0 (`fdpass.c:144`). |
+| `7a52147c` readiness-woken `poll()` | **STILL NEEDED — and more urgent than before** | Upstream has **no** readiness integration and restored `POLL_INTERVAL 100000` (100 ms, `posix.c:39`) — worse than the 2 ms interim ours superseded. `usocket_poll()` is a pure level-triggered snapshot that never registers a waiter (`usocket.c:1437-1521`). Taking upstream as-is regresses **every libxcb round trip to up to 100 ms**. The wake queues already exist (`uchannel_t.rxwait/txwait`) and are broadcast at 10 sites; the work is to connect them to `posix_poll`. |
+| `137ec58f` `SO_RCVBUF` ceiling | **STILL NEEDED** | Default is still one page (`USOCKET_DEF_BUFFER_SIZE SIZE_PAGE`, `usocket.c:55`) and the max is still 64 kB (`usocket.c:57`). One-line re-apply. ⚠ Re-measure before quoting the old +12%: `uchannel_write()` now loops internally (`uchannel.c:125-139`), so the "~300 round-trips" are kernel-internal block/wake cycles inside one `write()`, not user↔kernel crossings. |
+
+### ⚠⚠ Two traps that would each cost a wasted cycle
+
+1. **`posix_poll()` merges CLEANLY and the tree then does not link.** The 3-way merge keeps our
+   `POLL_INTERVAL 20000` and our call to `unix_pollWait()` — a function upstream deleted — with **no
+   conflict marker**. A clean-looking merge is not a working one. Treat it as the signal to do fix 4
+   properly rather than to patch the call out.
+2. **Do NOT "take upstream `posix.c`".** The ~993-line shrink in a `HEAD..origin/master` diff is
+   almost entirely **our** work disappearing, not upstream refactor: fcntl POSIX record locks
+   (`3844d204`), `sys_fdpath` (`9a0593d0`), the open()-construction-window series, the exit/exec
+   fd-sweep. Upstream's own delta is ~+50/−40, mostly `unix_*(f->oid.id, …)` → `usocket_*(f->sock, …)`
+   renames. **Take upstream for `unix.c` → `usocket.c`/`uchannel.c`; MERGE `posix.c`.**
+
+**Conflict shape:** 8 blocks in `posix.c` (7 touch our code) + 2 trivial in `posix_private.h`;
+`unix.c` is a clean delete/add and `fdpass.[ch]`, `lib/cbuffer.[ch]`, `posix/Makefile` merge cleanly.
+Blocks 2-7 are six instances of **one** mechanical rule — *our construction scaffolding + their
+handle-based call* — so they are one decision, not six.
+
+**New upstream behaviour worth knowing for X11:** blocking stream writes are now all-or-nothing
+(matches Linux); half-close is real, with `POLLHUP` only when both directions are shut (better for
+xtrans teardown); `open()` on a socket file now returns `-ENXIO`; `read(fd, buf, 0)` no longer blocks.
+⚠ `uchannel_resize()` **drops buffered data** when it does not fit the new ring (upstream FIXME at
+`uchannel.c:434-442`) — growing is safe, shrinking a busy socket loses a slice of the stream.

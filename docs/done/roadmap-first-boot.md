@@ -149,7 +149,7 @@ Exit criteria:
   UART log.
 - Tag the kernel repo `known-good/first-full-boot` at the validated
   commit.
-- Write a milestone doc mirroring `MILESTONE-MAP-RELOCATION-COMPLETED.md`.
+- Write a milestone doc mirroring [`2026-04-19-milestone-map-relocation-completed.md`](2026-04-19-milestone-map-relocation-completed.md).
 
 ## Post-boot cleanup order
 

@@ -1,7 +1,7 @@
 # Phoenix-RTOS Raspberry Pi 4 Port Status
 
 > Per-peripheral state at a glance: **[docs/inprogress/pi4-hardware-support-matrix.md](pi4-hardware-support-matrix.md)**.
-> Full chronological log of the multi-day unattended run: **[UNATTENDED-WORK-LOG.md](../../UNATTENDED-WORK-LOG.md)** (repo root).
+> Full chronological log of the multi-day unattended run: **[2026-06-17-unattended-work-log.md](2026-06-17-unattended-work-log.md)**.
 
 ## 🟢 LATEST — 2026-08-12 (autonomous vacation run: WiFi/BT, code-review, RAM-staging load-time feature)
 
@@ -207,7 +207,7 @@ SD work is parked/HW-gated. SD #154 status: `2026-06-07-sd-write-completion-root
 ## Current Status: 2026-06-17 — unattended multi-day run (GPU/Quake, audio, Vulkan)
 
 Autonomous `/loop` run (Witold away until Fri; netboot-only; SD/WiFi/USB-HW items skipped).
-Full chronological detail + parked items: **`UNATTENDED-WORK-LOG.md`** (repo root).
+Full chronological detail + parked items: **[`2026-06-17-unattended-work-log.md`](2026-06-17-unattended-work-log.md)**.
 
 - **GLQuake polished to shippable:** render-to-scanout (~40-42fps@1080p), the R/B color swap
   fixed (`swap_color_rb` on the scanout RT, coord b6a9250), and the explosion-square + intermittent

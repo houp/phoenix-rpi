@@ -163,3 +163,25 @@ handle-based call* — so they are one decision, not six.
 xtrans teardown); `open()` on a socket file now returns `-ENXIO`; `read(fd, buf, 0)` no longer blocks.
 ⚠ `uchannel_resize()` **drops buffered data** when it does not fit the new ring (upstream FIXME at
 `uchannel.c:434-442`) — growing is safe, shrinking a busy socket loses a slice of the stream.
+
+### Phase 3 checklist, with concrete pass criteria (prepared 2026-09-13)
+
+Both merges are done on branches `agent/afunix-upstream-report` (kernel `114ce7d3`, tests `2a627bf`)
+and pre-build-reviewed. What remains is mechanical, but each step has a number attached so "it built"
+cannot be mistaken for "it works" — the last attempt built clean and failed on hardware.
+
+1. **Build** `./scripts/rebuild-rpi4b-fast.sh --scope core --with-tests` — kernel *and* tests changed.
+   ⚠ A clean build is not the signal here: `posix_poll()` merged without a conflict marker while
+   calling a deleted function, so a **link** error is the thing to watch for, not a compile error.
+2. **Boot test** — banner + `(psh)%`. If the boot regresses, `scripts/restore-integration-state.sh
+   manifests/2026-09-12-afunix-preport-baseline.md` and re-verify before anything else.
+3. **Socket suite**: `/bin/test-libc-unix-socket`. Baseline is **27 tests / 0 failures / `OK`**;
+   the merged tree must report **38 / 0 / `OK`** (upstream's 36 + our 2 unique stale-name tests).
+   A count below 38 means test bodies were lost in the splice; a count of 38 with failures means the
+   kernel rewrite is not behaving as upstream's tests expect.
+4. **X11 with a client** — `startx_gpu` plus xterm/xclock, content-graded against the **90.2%
+   non-black** baseline. This is the step that matters: AF_UNIX *is* the X transport, and the
+   readiness-poll fix is what keeps it snappy. ⚠ If `poll()` readiness regressed, the symptom is a
+   slow desktop rather than a failure — so compare the frame rate, not just "it rendered".
+5. **Only then** take `phoenix-rtos-project`'s `29e6c64` (it just bumps the two submodule pointers),
+   and push kernel → tests → project.

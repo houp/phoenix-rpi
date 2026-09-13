@@ -17,14 +17,43 @@ reads as a regression when the scene simply happened to be dark.
 import sys, os, glob, collections
 from PIL import Image
 
-runs = collections.defaultdict(list)
+# Group by LABEL *and* by RUN. Labels repeat every time a gate is re-run, and
+# keying on the label alone silently pools frames from different runs into one
+# "best" -- which made a post-change gate report numbers identical to the digit
+# with the pre-change one, because the winning frame came from the older run.
+# Frames inside a run are ~15 s apart, so a gap of more than RUN_GAP_S starts a
+# new run.
+RUN_GAP_S = 120
+
+def _stamp(base):
+    d, t = base.split('-')[0], base.split('-')[1]
+    return (int(d[0:4]), int(d[4:6]), int(d[6:8]), int(t[0:2]), int(t[2:4]), int(t[4:6]))
+
+def _secs(s):
+    import calendar, datetime
+    return calendar.timegm(datetime.datetime(*s).timetuple())
+
+bylabel = collections.defaultdict(list)
 for p in glob.glob('artifacts/hdmi/*-tick.png'):
     base = os.path.basename(p)
     parts = base.split('-')
     if len(parts) < 4:
         continue
-    label = '-'.join(parts[2:-1])
-    runs[label].append(p)
+    try:
+        ts = _secs(_stamp(base))
+    except Exception:
+        continue
+    bylabel['-'.join(parts[2:-1])].append((ts, p))
+
+runs = collections.defaultdict(list)
+for label, items in bylabel.items():
+    items.sort()
+    run_no, prev = 0, None
+    for ts, p in items:
+        if prev is not None and (ts - prev) > RUN_GAP_S:
+            run_no += 1
+        prev = ts
+        runs[label if run_no == 0 else '%s#%d' % (label, run_no)].append(p)
 
 want = [l for l in runs if any(l.startswith(x) for x in sys.argv[1:])] if len(sys.argv) > 1 else list(runs)
 for label in sorted(want):

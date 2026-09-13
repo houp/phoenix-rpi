@@ -22,9 +22,13 @@
 # enough to exclude the documented ~68 s cold-exec class (a large ELF demand-paged
 # from the NFS root: see docs -- project_sdboot_largeexec_slowstart). Below that,
 # "printed nothing" and "had not finished loading yet" are the same observation.
-# Every silent-shaped trial in this repo's artifact history -- all five of them,
-# across four different benches -- had a ~45 s window, so not one of them is a
-# sound reproduction. Trials under MIN_WINDOW_SECS are reported INCONCLUSIVE.
+# Sweeping the artifact history for trials whose LAST output is the command echo
+# finds five, across four benches, and every one ran a ~45 s window -- so the
+# bench-derived reproductions are not sound evidence. That sweep is a FLOOR, not
+# a census: it misses any silent launch followed by unrelated driver chatter, and
+# it says nothing about the two long-window observations recorded elsewhere (the
+# original event at idle 240 / max 300, and the spawn-storm stall of >=218 s),
+# which stand. Trials under MIN_WINDOW_SECS are reported INCONCLUSIVE.
 #
 # Two more classes are essential and easy to miss:
 #   * a trial with no psh prompt is a truncated capture: not evidence either way;
@@ -65,28 +69,31 @@ label = os.environ['LABEL']
 
 min_window = float(os.environ['MIN_WINDOW'])
 counts = {'OK': 0, 'SILENT': 0, 'LIBC-INIT': 0, 'NO-CMD': 0, 'VOID': 0, 'INCONCLUSIVE': 0}
-STAMP = re.compile(r'\[T\+\s*([0-9.]+)\]')
+WINDOW_END = re.compile(r'\*\*\* capture-window ended after ([0-9.]+)s')
 
 
-def window_secs(path, lines, start):
-    """Seconds of capture AFTER the command echo.
+def window_secs(lines, start):
+    """Seconds the harness waited AFTER the command echo, or None if unknown.
 
-    Exact when the trial was run with --stamp (psh-interact writes `[T+  x.xx]`
-    before each chunk, measured from the moment the command was sent). Otherwise
-    fall back to file mtime minus the timestamp in the filename, which is the
-    WHOLE trial including boot and so OVERSTATES the window -- that direction is
-    safe here: it can only make a short window look acceptable, so the fallback
-    is reported as approximate rather than used silently.
+    THE WINDOW CANNOT BE INFERRED FROM THE DATA IN THE LOG. `[T+ x.xx]` stamps
+    mark when a chunk ARRIVED, and the whole point of a silent trial is that
+    nothing arrived -- so the last stamp sits just after the command echo no
+    matter how long the harness then waited. Taking max(stamp) as the window
+    scores a genuine 300 s hang as INCONCLUSIVE: the same error as counting a
+    45 s window as an event, only inverted, and it fires on exactly the run this
+    exists to catch. File mtime is no better -- it covers the whole trial
+    including boot, so it OVERSTATES, and against a MINIMUM floor overstating is
+    the direction that lets a too-short window through.
+
+    So only an explicit marker written by psh-interact.py counts. Absent it the
+    window is unknown and no event is claimed; the harness's own stdout carries
+    its `max-cmd-secs (Ns) reached` line for that case.
     """
-    stamps = [float(m.group(1)) for s in lines[start:] for m in [STAMP.search(s)] if m]
-    if stamps:
-        return max(stamps), True
-    m = re.search(r'(\d{8})-(\d{6})', os.path.basename(path))
-    if not m:
-        return None, False
-    import datetime
-    t0 = datetime.datetime.strptime(m.group(1) + m.group(2), '%Y%m%d%H%M%S').timestamp()
-    return os.stat(path).st_mtime - t0, False
+    for s in lines[start:]:
+        m = WINDOW_END.search(s)
+        if m:
+            return float(m.group(1))
+    return None
 traced_anywhere = False
 rows = []
 
@@ -122,16 +129,18 @@ for path in sys.argv[1:]:
     elif n_marker > 0:
         cls, detail = 'LIBC-INIT', 'reached _libc_init (%d), never reached main()' % n_marker
     else:
-        w, exact = window_secs(path, lines, start if start is not None else 0)
-        if w is not None and w < min_window:
+        w = window_secs(lines, start if start is not None else 0)
+        if w is None:
             cls = 'INCONCLUSIVE'
-            detail = ('silent, but the window was only %.0f s%s (< %.0f s): a slow cold '
-                      'exec looks identical' % (w, '' if exact else ' (approx, whole trial)',
-                                                min_window))
+            detail = ('silent, but the log carries no end-of-window marker, so the wait '
+                      'is unknown -- check the harness stdout for its max-cmd-secs line')
+        elif w < min_window:
+            cls = 'INCONCLUSIVE'
+            detail = ('silent, but the window was only %.0f s (< %.0f s): a slow cold '
+                      'exec looks identical' % (w, min_window))
         else:
             cls = 'SILENT'
-            detail = ('0 post-echo markers in %s s -- never reached _libc_init'
-                      % ('%.0f' % w if w is not None else '?'))
+            detail = ('0 post-echo markers in %.0f s -- never reached _libc_init' % w)
     counts[cls] += 1
     rows.append((os.path.basename(path), cls, detail))
 

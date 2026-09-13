@@ -1,4 +1,22 @@
-# premain-hang: bounding the trigger to COLD BOOT + HEAVY launch (2026-09-13)
+# premain-hang: the condition grid (2026-09-13) — ⚠ SUPERSEDED, see the banner
+
+> ## ⚠⚠ THIS GRID IS WITHDRAWN (2026-09-13, later the same day)
+>
+> Every silent-shaped trial it counts ran a **~45 s** post-command window. The documented cold-exec
+> class for a large ELF demand-paged from the NFS root is **~68 s**, so below that "the program
+> printed nothing" and "the program had not finished loading" are the *same observation*. The
+> **cold+heavy trigger** (Fisher p = 4.4e-04) and the **"reproduced on QuakeSpasm, 2 in 23"** result
+> below are therefore **not sound evidence** and must not be quoted.
+>
+> What replaced it: 30 cold `quakespasm -loadbench` launches with a readiness marker and a **300 s**
+> deadline — 25 reached readiness in ~2 s, **5 printed nothing at all**, with **zero
+> `libc-init: enter` markers after the echo**. The fault is **before `_libc_init`**, in exec/program
+> loading or psh's spawn path. See the `premain-hang` row of `docs/KNOWN-ISSUES.md`.
+>
+> Unaffected, and still standing: the two **long-window** observations — the original event
+> (idle 240 / max 300) and the spawn-storm stall (>=218 s).
+>
+> Kept unedited below as the record of how the wrong turn was taken.
 
 Working detail moved out of the weekly log. Live summary is in the current week's log and the
 `premain-hang` row of `docs/KNOWN-ISSUES.md`.

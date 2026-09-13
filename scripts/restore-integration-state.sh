@@ -35,6 +35,14 @@ coord_root="${PHOENIX_COORD_ROOT:-$(cd "${script_dir}/.." && pwd)}"
 sources_dir="${PHOENIX_SOURCES_DIR:-${coord_root}/sources}"
 [ -d "$sources_dir" ] || die "sources directory not found: $sources_dir"
 
+# ⚠ THIS SCRIPT ALSO MOVES THE COORDINATION REPO. A manifest's `_build` row is the
+# coordination repo itself, so a restore detaches THIS repo to the recorded SHA --
+# taking scripts/ and docs/ with it. The experiment you restored the tree to run
+# then executes against week-old tooling: on 2026-09-13 a bench silently fell back
+# to plain boot captures because the `--stamp` support it needed did not exist yet
+# at the restored SHA, and the only tell was `-netboot-` in the log name.
+# Commit and push before restoring, and `git checkout <branch>` here afterwards.
+#
 # Extract the machine-parseable block. Uses awk so the script stays dependency-free.
 block="$(awk '
 	/^```integration-state-v1/ { in_block=1; next }

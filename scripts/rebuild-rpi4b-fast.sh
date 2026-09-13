@@ -657,7 +657,12 @@ libc_trace_stamp="${repo_root}/artifacts/.libc-startup-trace-state"
 libc_trace_want="${LIBC_STARTUP_TRACE:-n}"
 if [ "${libc_trace_want}" = "y" ]; then
 	libc_trace_env="LIBC_STARTUP_TRACE='y' "
-	printf 'Diagnostic: LIBC_STARTUP_TRACE=y (pre-main trace ON -- do not ship this build)\n'
+	printf 'Diagnostic: LIBC_STARTUP_TRACE=y (all 8 pre-main markers ON -- do not ship this build)\n'
+elif [ "${libc_trace_want}" = "min" ]; then
+	# One marker instead of eight: same answer to "did it reach _libc_init at all?"
+	# with an eighth of the timing perturbation.
+	libc_trace_env="LIBC_STARTUP_TRACE_MIN='y' "
+	printf 'Diagnostic: LIBC_STARTUP_TRACE=min (entry marker only -- do not ship this build)\n'
 fi
 # Touch the guarded source whenever the knob CHANGES STATE, in either direction. Turning a
 # -D off does not invalidate the objects it changed any more than turning it on does, so

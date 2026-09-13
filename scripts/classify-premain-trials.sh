@@ -18,6 +18,14 @@
 # "reached _libc_init" on the strength of the boot's own markers -- i.e. it would
 # confidently return the WRONG verdict, which is worse than none.
 #
+# A silent trial is only EVIDENCE if the window after the command was long
+# enough to exclude the documented ~68 s cold-exec class (a large ELF demand-paged
+# from the NFS root: see docs -- project_sdboot_largeexec_slowstart). Below that,
+# "printed nothing" and "had not finished loading yet" are the same observation.
+# Every silent-shaped trial in this repo's artifact history -- all five of them,
+# across four different benches -- had a ~45 s window, so not one of them is a
+# sound reproduction. Trials under MIN_WINDOW_SECS are reported INCONCLUSIVE.
+#
 # Two more classes are essential and easy to miss:
 #   * a trial with no psh prompt is a truncated capture: not evidence either way;
 #   * a trial where the command was never ECHOED never launched the app at all
@@ -33,6 +41,9 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 label="${1:?usage: classify-premain-trials.sh <label> [app-first-line-ERE] [cmd-echo-ERE]}"
 app_re="${2:-main\(\) entered}"
 cmd_re="${3:-}"
+# The floor comes from the ~68 s cold-exec class plus a wide margin; 240 s is the
+# figure the prior investigation settled on. Override only with a reason.
+min_window="${MIN_WINDOW_SECS:-240}"
 
 shopt -s nullglob
 logs=( "${repo_root}/artifacts/rpi4b-uart/"rpi4b-uart-*-"${label}"-T*.log )
@@ -42,6 +53,7 @@ if [ ${#logs[@]} -eq 0 ]; then
 fi
 
 MARKER='libc-init: enter' APP_RE="$app_re" CMD_RE="$cmd_re" LABEL="$label" \
+MIN_WINDOW="$min_window" \
 python3 - "${logs[@]}" <<'PYEOF'
 import os, re, sys
 
@@ -51,7 +63,30 @@ cmd_src = os.environ['CMD_RE']
 cmd_re = re.compile(cmd_src) if cmd_src else None
 label = os.environ['LABEL']
 
-counts = {'OK': 0, 'SILENT': 0, 'LIBC-INIT': 0, 'NO-CMD': 0, 'VOID': 0}
+min_window = float(os.environ['MIN_WINDOW'])
+counts = {'OK': 0, 'SILENT': 0, 'LIBC-INIT': 0, 'NO-CMD': 0, 'VOID': 0, 'INCONCLUSIVE': 0}
+STAMP = re.compile(r'\[T\+\s*([0-9.]+)\]')
+
+
+def window_secs(path, lines, start):
+    """Seconds of capture AFTER the command echo.
+
+    Exact when the trial was run with --stamp (psh-interact writes `[T+  x.xx]`
+    before each chunk, measured from the moment the command was sent). Otherwise
+    fall back to file mtime minus the timestamp in the filename, which is the
+    WHOLE trial including boot and so OVERSTATES the window -- that direction is
+    safe here: it can only make a short window look acceptable, so the fallback
+    is reported as approximate rather than used silently.
+    """
+    stamps = [float(m.group(1)) for s in lines[start:] for m in [STAMP.search(s)] if m]
+    if stamps:
+        return max(stamps), True
+    m = re.search(r'(\d{8})-(\d{6})', os.path.basename(path))
+    if not m:
+        return None, False
+    import datetime
+    t0 = datetime.datetime.strptime(m.group(1) + m.group(2), '%Y%m%d%H%M%S').timestamp()
+    return os.stat(path).st_mtime - t0, False
 traced_anywhere = False
 rows = []
 
@@ -87,7 +122,16 @@ for path in sys.argv[1:]:
     elif n_marker > 0:
         cls, detail = 'LIBC-INIT', 'reached _libc_init (%d), never reached main()' % n_marker
     else:
-        cls, detail = 'SILENT', '0 post-echo markers -- never reached _libc_init'
+        w, exact = window_secs(path, lines, start if start is not None else 0)
+        if w is not None and w < min_window:
+            cls = 'INCONCLUSIVE'
+            detail = ('silent, but the window was only %.0f s%s (< %.0f s): a slow cold '
+                      'exec looks identical' % (w, '' if exact else ' (approx, whole trial)',
+                                                min_window))
+        else:
+            cls = 'SILENT'
+            detail = ('0 post-echo markers in %s s -- never reached _libc_init'
+                      % ('%.0f' % w if w is not None else '?'))
     counts[cls] += 1
     rows.append((os.path.basename(path), cls, detail))
 
@@ -97,9 +141,14 @@ for r in rows:
     print('%-52s %-12s %s' % r)
 
 n = len(rows)
-print('\n=== %s: %d trials -- OK %d | SILENT %d | LIBC-INIT %d | NO-CMD %d | VOID %d ==='
+print('\n=== %s: %d trials -- OK %d | SILENT %d | LIBC-INIT %d | INCONCLUSIVE %d | NO-CMD %d | VOID %d ==='
       % (label, n, counts['OK'], counts['SILENT'], counts['LIBC-INIT'],
-         counts['NO-CMD'], counts['VOID']))
+         counts['INCONCLUSIVE'], counts['NO-CMD'], counts['VOID']))
+if counts['INCONCLUSIVE']:
+    print('NOTE: %d trial(s) printed nothing but ran too short a window to distinguish a'
+          % counts['INCONCLUSIVE'])
+    print('      hang from a slow cold exec. Re-run those with --ready-line + a 300 s')
+    print('      --max-cmd-secs (and --stamp) before counting them as events.')
 
 if cmd_re is None:
     print('NOTE: no <cmd-echo-ERE> given, so markers were counted over the WHOLE log')
@@ -120,6 +169,13 @@ elif counts['SILENT'] > 0:
     print('VERDICT: the fault is BEFORE libc -- exec / program loading, kernel side.')
 elif counts['LIBC-INIT'] > 0:
     print('VERDICT: the fault is INSIDE a libc initialiser.')
+elif counts['INCONCLUSIVE'] > 0:
+    print('VERDICT: no CONFIRMED event, but %d trial(s) are inconclusive, so this bench'
+          % counts['INCONCLUSIVE'])
+    print('         does not bound the rate either. It is %d clean out of %d that could be'
+          % (counts['OK'], counts['OK'] + counts['INCONCLUSIVE']))
+    print('         scored at all -- do not quote it as %d/%d clean.'
+          % (counts['OK'], counts['OK']))
 else:
     print('VERDICT: no event in this bench; the rate bound is %d/%d clean.'
           % (counts['OK'], counts['OK'] + counts['SILENT'] + counts['LIBC-INIT']))

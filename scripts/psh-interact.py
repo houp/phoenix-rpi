@@ -309,6 +309,16 @@ def main():
                             print(f"\n*** ready after {ready_at - cmd_start:.0f}s "
                                   f"(--ready-line matched); capturing "
                                   f"{args.ready_extra_secs:.0f}s more")
+            # Record how long THIS command's capture window actually lasted,
+            # in the log itself. A silent trial is otherwise indistinguishable
+            # from a truncated one: the analysis needs the length of a wait
+            # during which, by definition, nothing arrived, and neither an
+            # arrival stamp nor the file mtime can supply that. (check-capture-
+            # complete.py ignores this line so it does not turn "no output" into
+            # "CAPTURE OK".)
+            log.write(("\n*** capture-window ended after %.1fs\n"
+                       % (time.time() - cmd_start)).encode("ascii"))
+            log.flush()
         print("\n*** done")
         return 0
     finally:

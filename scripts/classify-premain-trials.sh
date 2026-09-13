@@ -69,6 +69,7 @@ label = os.environ['LABEL']
 
 min_window = float(os.environ['MIN_WINDOW'])
 counts = {'OK': 0, 'SILENT': 0, 'LIBC-INIT': 0, 'NO-CMD': 0, 'VOID': 0, 'INCONCLUSIVE': 0}
+STAMP_INSERT = re.compile(r'\n\[T\+\s*[0-9.]+\] ')
 WINDOW_END = re.compile(r'\*\*\* capture-window ended after ([0-9.]+)s')
 
 
@@ -98,7 +99,15 @@ traced_anywhere = False
 rows = []
 
 for path in sys.argv[1:]:
-    lines = open(path, 'rb').read().decode('utf8', 'replace').split('\n')
+    text = open(path, 'rb').read().decode('utf8', 'replace')
+    # psh-interact --stamp writes "\n[T+  x.xx] " BETWEEN chunks, which splits the
+    # capture mid-token: a healthy trial's `libc-init: enter` comes out as "libc"
+    # on one line and "-init: enter" on the next, and a line-wise grep then scores
+    # a perfectly healthy run as having reached neither libc nor main. Undo the
+    # insertion before matching -- it is exactly this prefix and nothing else, so
+    # removing it restores the original byte stream.
+    text = STAMP_INSERT.sub('', text)
+    lines = text.split('\n')
     if any(marker in s for s in lines):
         traced_anywhere = True
 

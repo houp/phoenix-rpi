@@ -71,7 +71,12 @@ def main():
               "the cycle may not have reached the psh prompt at all")
         return 1
 
-    after = [ln for ln in lines[anchor + 1:] if ln.strip()]
+    # psh-interact writes its own end-of-window marker into the log. It is
+    # harness bookkeeping, not program output: counting it would turn every
+    # genuinely silent run into "CAPTURE OK" -- the precise inversion this
+    # check exists to prevent.
+    after = [ln for ln in lines[anchor + 1:]
+             if ln.strip() and "*** capture-window ended after" not in ln]
     if not args.quiet:
         print(f"CAPTURE: last command {label!r}; {len(after)} non-empty lines after it "
               f"({len(text)} bytes total)")

@@ -36,7 +36,8 @@ set -o pipefail
 
 if [ $# -lt 2 ]; then
     echo "usage: test-cycle-bench.sh <N> <label> [--capture-secs <s>] [--idle-secs <s>]" >&2
-    echo "       [--max-cmd-secs <s>] [--ready-line <ERE>] [--ready-extra-secs <s>] [-- <cmd>...]" >&2
+    echo "       [--max-cmd-secs <s>] [--ready-line <ERE>] [--ready-extra-secs <s>] [--stamp]" >&2
+    echo "       [-- <cmd>...]" >&2
     exit 1
 fi
 
@@ -52,6 +53,7 @@ shift 2
 idle_secs=60
 max_cmd_secs=150
 ready_args=()
+stamp_arg=()
 capture_secs_arg=()
 # A LOOP, not an if/elif chain: the original consumed at most ONE option, so a
 # second flag would have been silently swallowed into the command list.
@@ -62,6 +64,10 @@ while [ $# -ge 2 ]; do
     --max-cmd-secs)     max_cmd_secs="$2"; shift 2 ;;
     --ready-line)       ready_args+=( --ready-line "$2" ); shift 2 ;;
     --ready-extra-secs) ready_args+=( --ready-extra-secs "$2" ); shift 2 ;;
+    # --stamp takes no argument, so it must be handled here AND in the $#-eq-1
+    # sweep below -- the loop above only runs while two args remain, so a trailing
+    # `--stamp --` would otherwise fall through to the command list.
+    --stamp)            stamp_arg=( --stamp ); shift ;;
     # The bare `--` separator ends option parsing -- it must be matched BEFORE the
     # --* catch-all below, or the catch-all rejects the separator itself.
     --)                 break ;;
@@ -72,12 +78,18 @@ while [ $# -ge 2 ]; do
     # (a test-cycle-psh-interact.sh option, not one of ours) was passed here.
     --*)
         printf 'test-cycle-bench.sh: unknown option %s\n' "$1" >&2
-        printf '  known: --capture-secs --idle-secs --max-cmd-secs --ready-line --ready-extra-secs\n' >&2
+        printf '  known: --capture-secs --idle-secs --max-cmd-secs --ready-line --ready-extra-secs --stamp\n' >&2
         printf '  NOTE: --inter-cmd-secs belongs to test-cycle-psh-interact.sh and is not forwarded.\n' >&2
         exit 2
         ;;
     *)                  break ;;
     esac
+done
+
+# A no-argument flag can be the last thing before `--`, which the two-argument
+# loop above cannot see. Sweep those here.
+while [ $# -ge 1 ] && [ "$1" = "--stamp" ]; do
+    stamp_arg=( --stamp ); shift
 done
 
 # Everything after `--` is a psh command line to run in each trial.
@@ -105,7 +117,7 @@ for i in $(seq 1 "$N"); do
     if [ "${#cmds[@]}" -gt 0 ]; then
         "${repo_root}/scripts/test-cycle-psh-interact.sh" --label "$trial_label" \
             --inter-cmd-secs 8 --idle-secs "$idle_secs" --max-cmd-secs "$max_cmd_secs" \
-            "${ready_args[@]}" -- "${cmds[@]}" || true
+            "${ready_args[@]}" "${stamp_arg[@]}" -- "${cmds[@]}" || true
     else
         "${repo_root}/scripts/test-cycle-netboot.sh" --label "$trial_label" "${capture_secs_arg[@]}" || true
     fi

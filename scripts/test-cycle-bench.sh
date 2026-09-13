@@ -62,6 +62,20 @@ while [ $# -ge 2 ]; do
     --max-cmd-secs)     max_cmd_secs="$2"; shift 2 ;;
     --ready-line)       ready_args+=( --ready-line "$2" ); shift 2 ;;
     --ready-extra-secs) ready_args+=( --ready-extra-secs "$2" ); shift 2 ;;
+    # The bare `--` separator ends option parsing -- it must be matched BEFORE the
+    # --* catch-all below, or the catch-all rejects the separator itself.
+    --)                 break ;;
+    # An UNKNOWN --flag must be fatal. Breaking out of the loop leaves it sitting
+    # where `--` is expected, so the command list below comes out EMPTY and every
+    # trial silently degrades to a plain boot capture -- 20 trials that look like
+    # they ran and sent nothing. That cost two full runs when --inter-cmd-secs
+    # (a test-cycle-psh-interact.sh option, not one of ours) was passed here.
+    --*)
+        printf 'test-cycle-bench.sh: unknown option %s\n' "$1" >&2
+        printf '  known: --capture-secs --idle-secs --max-cmd-secs --ready-line --ready-extra-secs\n' >&2
+        printf '  NOTE: --inter-cmd-secs belongs to test-cycle-psh-interact.sh and is not forwarded.\n' >&2
+        exit 2
+        ;;
     *)                  break ;;
     esac
 done

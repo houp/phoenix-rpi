@@ -688,6 +688,28 @@ if [ "$(cat "${libc_trace_stamp}" 2>/dev/null || echo n)" != "${libc_trace_want}
 	printf '%s' "${libc_trace_want}" > "${libc_trace_stamp}" 2>/dev/null || true
 fi
 
+# KERNEL_DIAG: diagnostic -D flags for the kernel only (see the kernel Makefile).
+# Same knob-change hazard as LIBC_STARTUP_TRACE above and the same remedy: turning a
+# -D OFF does not invalidate the objects it changed, so without this a build that
+# drops the flag happily relinks the instrumented objects and ships a diagnostic
+# kernel while printing nothing. Delete the kernel objects on ANY change of state,
+# in either direction.
+kernel_diag_env=""
+kernel_diag_stamp="${repo_root}/artifacts/.kernel-diag-state"
+kernel_diag_want="${KERNEL_DIAG:-}"
+if [ -n "${kernel_diag_want}" ]; then
+	kernel_diag_env="KERNEL_DIAG='${kernel_diag_want}' "
+	printf 'Diagnostic: KERNEL_DIAG=%s (do not ship this build)\n' "${kernel_diag_want}"
+fi
+if [ "$(cat "${kernel_diag_stamp}" 2>/dev/null || true)" != "${kernel_diag_want}" ]; then
+	printf 'KERNEL_DIAG changed (%s -> %s): deleting kernel objects to force a rebuild\n' \
+		"$(cat "${kernel_diag_stamp}" 2>/dev/null || echo '<none>')" \
+		"${kernel_diag_want:-<none>}"
+	rm -rf "${buildroot}/_build/${target}/phoenix-rtos-kernel" 2>/dev/null || true
+	mkdir -p "${repo_root}/artifacts" 2>/dev/null || true
+	printf '%s' "${kernel_diag_want}" > "${kernel_diag_stamp}" 2>/dev/null || true
+fi
+
 # One build.sh invocation with the given stage list. build.sh runs stages in its
 # own fixed order (clean -> fs -> host -> core -> test -> ports -> project ->
 # image), so a stage list is a SET; splitting the set across two invocations is
@@ -723,7 +745,7 @@ run_phoenix_build() {
 	local stages="$*"
 	printf 'Build:     ./phoenix-rtos-build/build.sh %s\n' "${stages}"
 	run_build_shell \
-		"set -euo pipefail; export PATH='${repo_root}/.venv/bin':'${toolchain_path}':\$PATH; cd '${buildroot}'; env ${log_to_file_env}${libc_trace_env}${gpu_libs_env}${showcase_env}RPI4B_DTB_PATH='${dtb_path}' RPI4B_VARIANT='${variant}' TARGET='${target}' ./phoenix-rtos-build/build.sh ${stages}"
+		"set -euo pipefail; export PATH='${repo_root}/.venv/bin':'${toolchain_path}':\$PATH; cd '${buildroot}'; env ${log_to_file_env}${libc_trace_env}${kernel_diag_env}${gpu_libs_env}${showcase_env}RPI4B_DTB_PATH='${dtb_path}' RPI4B_VARIANT='${variant}' TARGET='${target}' ./phoenix-rtos-build/build.sh ${stages}"
 
 	verify_libc_trace_state
 

@@ -709,6 +709,24 @@ if [ "$(cat "${libc_diag_stamp}" 2>/dev/null || true)" != "${libc_diag_want}" ];
 	printf '%s' "${libc_diag_want}" > "${libc_diag_stamp}" 2>/dev/null || true
 fi
 
+# FS_DIAG: diagnostic -D flags for the filesystem servers only. Same knob-change
+# hazard and remedy as the others: turning a -D off does not invalidate the
+# objects it changed, so the nfs objects are deleted on any change of state.
+fs_diag_env=""
+fs_diag_stamp="${repo_root}/artifacts/.fs-diag-state"
+fs_diag_want="${FS_DIAG:-}"
+if [ -n "${fs_diag_want}" ]; then
+	fs_diag_env="FS_DIAG='${fs_diag_want}' "
+	printf 'Diagnostic: FS_DIAG=%s (do not ship this build)\n' "${fs_diag_want}"
+fi
+if [ "$(cat "${fs_diag_stamp}" 2>/dev/null || true)" != "${fs_diag_want}" ]; then
+	printf 'FS_DIAG changed (%s -> %s): deleting filesystem objects to force a rebuild\n' \
+		"$(cat "${fs_diag_stamp}" 2>/dev/null || echo '<none>')" "${fs_diag_want:-<none>}"
+	rm -rf "${buildroot}/_build/${target}/phoenix-rtos-filesystems" 2>/dev/null || true
+	mkdir -p "${repo_root}/artifacts" 2>/dev/null || true
+	printf '%s' "${fs_diag_want}" > "${fs_diag_stamp}" 2>/dev/null || true
+fi
+
 # KERNEL_DIAG: diagnostic -D flags for the kernel only (see the kernel Makefile).
 # Same knob-change hazard as LIBC_STARTUP_TRACE above and the same remedy: turning a
 # -D OFF does not invalidate the objects it changed, so without this a build that
@@ -766,7 +784,7 @@ run_phoenix_build() {
 	local stages="$*"
 	printf 'Build:     ./phoenix-rtos-build/build.sh %s\n' "${stages}"
 	run_build_shell \
-		"set -euo pipefail; export PATH='${repo_root}/.venv/bin':'${toolchain_path}':\$PATH; cd '${buildroot}'; env ${log_to_file_env}${libc_trace_env}${libc_diag_env}${kernel_diag_env}${gpu_libs_env}${showcase_env}RPI4B_DTB_PATH='${dtb_path}' RPI4B_VARIANT='${variant}' TARGET='${target}' ./phoenix-rtos-build/build.sh ${stages}"
+		"set -euo pipefail; export PATH='${repo_root}/.venv/bin':'${toolchain_path}':\$PATH; cd '${buildroot}'; env ${log_to_file_env}${libc_trace_env}${libc_diag_env}${fs_diag_env}${kernel_diag_env}${gpu_libs_env}${showcase_env}RPI4B_DTB_PATH='${dtb_path}' RPI4B_VARIANT='${variant}' TARGET='${target}' ./phoenix-rtos-build/build.sh ${stages}"
 
 	verify_libc_trace_state
 

@@ -688,6 +688,27 @@ if [ "$(cat "${libc_trace_stamp}" 2>/dev/null || echo n)" != "${libc_trace_want}
 	printf '%s' "${libc_trace_want}" > "${libc_trace_stamp}" 2>/dev/null || true
 fi
 
+# LIBC_DIAG: diagnostic -D flags for libphoenix only (see its Makefile). Same
+# knob-change hazard and the same remedy as the kernel's KERNEL_DIAG below:
+# turning a -D off does not invalidate the objects it changed, so the whole
+# libphoenix object tree is deleted whenever the flag changes state.
+libc_diag_env=""
+libc_diag_stamp="${repo_root}/artifacts/.libc-diag-state"
+libc_diag_want="${LIBC_DIAG:-}"
+if [ -n "${libc_diag_want}" ]; then
+	libc_diag_env="LIBC_DIAG='${libc_diag_want}' "
+	printf 'Diagnostic: LIBC_DIAG=%s (do not ship this build)\n' "${libc_diag_want}"
+fi
+if [ "$(cat "${libc_diag_stamp}" 2>/dev/null || true)" != "${libc_diag_want}" ]; then
+	printf 'LIBC_DIAG changed (%s -> %s): deleting libphoenix objects to force a rebuild\n' \
+		"$(cat "${libc_diag_stamp}" 2>/dev/null || echo '<none>')" "${libc_diag_want:-<none>}"
+	# Objects only -- libc.a/libm.a/libpthread.a are SYMLINKS to libphoenix.a and
+	# deleting the archive leaves dangling links that break every port link.
+	find "${buildroot}/_build/${target}/libphoenix" -name '*.o' -delete 2>/dev/null || true
+	mkdir -p "${repo_root}/artifacts" 2>/dev/null || true
+	printf '%s' "${libc_diag_want}" > "${libc_diag_stamp}" 2>/dev/null || true
+fi
+
 # KERNEL_DIAG: diagnostic -D flags for the kernel only (see the kernel Makefile).
 # Same knob-change hazard as LIBC_STARTUP_TRACE above and the same remedy: turning a
 # -D OFF does not invalidate the objects it changed, so without this a build that
@@ -745,7 +766,7 @@ run_phoenix_build() {
 	local stages="$*"
 	printf 'Build:     ./phoenix-rtos-build/build.sh %s\n' "${stages}"
 	run_build_shell \
-		"set -euo pipefail; export PATH='${repo_root}/.venv/bin':'${toolchain_path}':\$PATH; cd '${buildroot}'; env ${log_to_file_env}${libc_trace_env}${kernel_diag_env}${gpu_libs_env}${showcase_env}RPI4B_DTB_PATH='${dtb_path}' RPI4B_VARIANT='${variant}' TARGET='${target}' ./phoenix-rtos-build/build.sh ${stages}"
+		"set -euo pipefail; export PATH='${repo_root}/.venv/bin':'${toolchain_path}':\$PATH; cd '${buildroot}'; env ${log_to_file_env}${libc_trace_env}${libc_diag_env}${kernel_diag_env}${gpu_libs_env}${showcase_env}RPI4B_DTB_PATH='${dtb_path}' RPI4B_VARIANT='${variant}' TARGET='${target}' ./phoenix-rtos-build/build.sh ${stages}"
 
 	verify_libc_trace_state
 

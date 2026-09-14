@@ -205,6 +205,26 @@ for r in "${rows[@]}"; do
 	printf '%-8s %-4s %-7s %-7s %-9s %-7s %s\n' "$a" "$rc" "$p" "$f" "$l" "$fr" "$lg"
 done
 echo
+
+# One pixel-level check runs automatically, because #67's entire history is false
+# closures from not measuring: the vkQuake wall torches were declared fixed five
+# times on single screenshots, once on a moving lavaball mistaken for a torch.
+# vkQuake now boots `map start` (its boot map comes from id1/phoenix-map.cfg --
+# this port has no argv path), so every gate cycle lands on the SAME viewpoint and
+# the torch ROIs are scoreable without any extra Pi time.
+if [ -x "${repo_root}/scripts/check-torch-rois.py" ]; then
+	printf -- '--- #67 vkQuake wall torches (ROI score, %s-vkq) ---\n' "${label}"
+	if "${repo_root}/scripts/check-torch-rois.py" --label "${label}-vkq"; then
+		printf 'torches: PRESENT\n'
+	else
+		printf 'torches: NOT CONFIRMED -- see the ROI output above.\n'
+		printf '  A single dark frame is not a failure (the flame animates); this needs\n'
+		printf '  >=2 frames with both ROIs lit. If it says 0 at-viewpoint frames, vkQuake\n'
+		printf '  did not reach the start map -- check that id1/phoenix-demo.cfg is ABSENT.\n'
+	fi
+	echo
+fi
+
 echo "⚠ MECHANICAL RESULT ONLY. Now LOOK at the HDMI frames for each app"
 echo "  (artifacts/hdmi/*<label>*) before recording a pass -- a clean log does not"
 echo "  mean anything was drawn."

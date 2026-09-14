@@ -85,7 +85,12 @@ apps_default=(
 )
 
 label="gate"
-wait_secs=150
+# 150 s was not enough for the FIRST cycle of a session: twice on 2026-09-14 a
+# cold first boot missed the `(psh)%` deadline, the app scored rc=2 with "(no
+# log)", and a retry at 220 s passed with 0 faults and a normally-rendering
+# desktop. A first-cycle miss reads exactly like the app being broken, so give
+# the deadline enough room rather than teaching the reader to discount failures.
+wait_secs=220
 idle_secs=240
 max_cmd_secs=300
 # Wait this long after the psh prompt before typing the launch command.

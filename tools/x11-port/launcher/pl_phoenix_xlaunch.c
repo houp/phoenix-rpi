@@ -66,6 +66,8 @@
 #define X_SOCKET_DIR      "/tmp/.X11-unix"
 #define X_SOCKET_PATH     X_SOCKET_DIR "/X" DISPLAY_NUM
 #define DISPLAY_VALUE     ":" DISPLAY_NUM
+/* Xorg's server lock for this display; see the unlink before the server fork. */
+#define X_LOCK_PATH       "/tmp/.X" DISPLAY_NUM "-lock"
 
 /* Bounded readiness poll: ~10 ms per tick, ~10 s total. */
 #define POLL_INTERVAL_MS  10
@@ -727,6 +729,28 @@ int main(int argc, char *argv[])
 	if (client_env == NULL) {
 		fprintf(stderr, "xlaunch: out of memory building client env\n");
 		return EXIT_FAILURE;
+	}
+
+	/* Drop a leftover lock before starting the server (#66).
+	 *
+	 * Xorg's LockServer() reads the pid out of /tmp/.X0-lock and calls
+	 * kill(pid, 0) to decide whether it is stale. That probe works correctly
+	 * here -- test-libc-signal's `liveness` group proves kill() answers ESRCH
+	 * for a reaped pid and 0 for a live one, without delivering anything -- so
+	 * the failure is not a broken probe. It is PID REUSE: the kernel allocates
+	 * the LOWEST free pid (lib_idtreeAlloc with minimum 0), so the pid a dead X
+	 * server released is very likely already held by something else by the time
+	 * the next launch reads the file, and Xorg then refuses with "Server is
+	 * already active for display :0".
+	 *
+	 * We are the only launcher on a board with exactly one display, and we are
+	 * about to start a fresh server, so nothing we could be racing owns that
+	 * lock. Remove it rather than making the user do it by hand. */
+	if (unlink(X_LOCK_PATH) == 0) {
+		fprintf(stderr, "xlaunch: removed leftover %s (see #66)\n", X_LOCK_PATH);
+	}
+	else if (errno != ENOENT) {
+		fprintf(stderr, "xlaunch: could not remove %s: %s\n", X_LOCK_PATH, strerror(errno));
 	}
 
 	/* --- fork the X server --- */

@@ -95,3 +95,61 @@ build. New `scripts/analyze-bo-trace.py` bakes that distinction in and prints PA
 still fires ~2 runs in 23 — separate, and contained.
 ⓘ `docs/misc/2026-09-08-x-soak-and-v3d-bo-residue.md` ("do not fix before the demo") is marked
 superseded: the daemon has reaped dead clients' BOs since devices `1eb8608` (2026-09-08).
+
+---
+
+# Later the same day — measurement work moved out of the weekly log
+
+## 3c. `V3D-binner-wedge` — the row's "named next step" was stale; done properly (2026-09-15)
+
+**6 more q3dm7 runs: 0 wedges, 0 faults, 58 123 frames.** Total now **9 q3dm7 runs, ~85 700 frames,
+0 wedges**; last actually observed **2026-08-22**.
+
+The source diff the row asked for (`TILE_BINNING_MODE_CFG`, tile sizing, CT0QMA/QMS, CPU→GPU
+coherency, ours vs Mesa/Linux) **had already been done on 08-22** — the row never said so. Re-verified
+against today's tree, and three of the four arms are structurally impossible:
+`TILE_BINNING_MODE_CFG` **cannot differ — we emit no field of it** (upstream Mesa does, and no Phoenix
+commit touches those files); tile_alloc uses **Mesa's own formula**, whose headroom term saturates by
+~16 draws, so q3dm1 and q3dm7 get the *same* ~570 KiB — and the wedge dump showed 520 KiB still free;
+**no unflushed CPU→GPU write exists** (every binner-input BO is Normal-NC, per-frame writes drained by
+`dsb sy`).
+⓵ **One real divergence, new:** we write `CTL_MISCCFG=0x05` (`QRMAXCNT=2`, `OVRTMUOUT`) at init;
+**Linux writes that register only for ver < 41 — never on 4.2** — and our own cold probe reads the
+silicon default as `0x06`. `QRMAXCNT=2` was A/B-tuned; the default has never been benched.
+⚠ **Deliberately not changing it:** the bug has not reproduced, so an A/B would destroy the only signal.
+⏭ Next step is an **observation, not a change**: at the next recurrence read `CL@ct0ca`. Foreign
+content ⇒ BO aliasing survived the three fixes that landed after the last sighting → re-run
+`V3D_BO_TRACE=1` + `analyze-bo-trace.py` for *temporal* overlap. A valid draw item with `FDBGS` stall
+bits ⇒ a real front-end starve, and *then* MISCCFG parity is the A/B.
+ⓘ Aside, unverified and not this bug: `_pmap_cacheOpAfterChange` flushes by **VA** while
+`_pmap_writeEntry` edits page tables through `scratch_tt` — i.e. possibly a non-current pmap. V3D
+self-maps so it is unaffected; noted so it is not lost.
+
+## 3d. ✅ Full libc sweep — 21 suites, 1171 tests, 0 failures; one real coverage gap closed
+
+Ran **every** `test-libc-*` on the tree the demo image came from: **21 suites, 1171 tests, 0 failures,
+28 ignored, 0 faults.** That is the broad health statement behind "stable enough to present".
+
+★ The sweep found a gap worth fixing: **`inet-socket` had 2 cases** against `unix-socket`'s 38, and
+**`socket()` — the call whose kernel path we changed this week — had no coverage at all.** Added five
+(tests `4e0da18`, 2 → 7, all PASS on hardware), aimed squarely at what the new `/dev/netsocket` oid
+cache can get wrong: 64 sequential creates must all succeed **and be distinct** (a cache handing back
+one shared object would still return a valid fd); a mix of families/types through the same cached
+port, with `AF_INET6` allowed to be unsupported but not to crash or return a v4 socket; a **failed**
+`socket()` in between must not poison the cache for the next good one; `bind(port 0)` must actually
+assign a port; and a UDP loopback round-trip must deliver the bytes with the source attributed to
+loopback. Manifest `manifests/2026-09-15-libc-sweep-inet.md`.
+
+## 3e. ✅ Demo-length X soak — 10 minutes, clean
+
+Longest run we had ever verified was ~5 minutes; a presentation is longer than that, so the gap was
+real. `startx_gpu --quit-after 600 action` — the full 6-client desktop (Window Maker + GPU window +
+xterm + xbill + xclock) for **600 s**, then a clean `--quit-after` shutdown:
+
+**0 faults · 0 GPU wedges · 0 allocator events · 0 lock warnings**, and `session ended` reached
+normally.
+
+ⓘ Memory across one full X lifecycle: **91 204 KB → 246 336 KB** (202 → 501 map entries). That is the
+known per-session GPU/X residue, now measured at demo length instead of 150 s. On a 4 GB board it is
+fine for the one or two desktop starts a presentation does; it is not fine for dozens, and it stays on
+the post-demo list.

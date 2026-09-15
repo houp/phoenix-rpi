@@ -401,9 +401,16 @@ A **modern 3D kart racer** — not a 1990s engine — running on the V3D GPU via
 its SP renderer on **OpenGL ES 3.x**:
 
 ```
-stk                                  # launch SuperTuxKart
-stk -N --track=olivermath            # auto-race flags: drive a race with no input
+stk                                             # launch SuperTuxKart (menus, you drive)
+stk --track=hacienda --numkarts=4 --profile-laps=2   # AI race, no input needed
+stk -N --track=olivermath                       # skip the start screen, you drive
 ```
+
+The middle line is the one to use for a demo: `--profile-laps` runs the race under
+AI control with nobody at the keyboard, and it is the exact command the six-app
+showcase gate runs, so it has fresh evidence behind it every time the gate does
+(0 faults, ~2000 frames, 99.9% of the screen painted). `-N` is
+`--no-start-screen` — it skips the menus but still expects you to drive.
 
 SuperTuxKart is built by the `supertuxkart` framework port and **ships on the
 image** (`/usr/bin/supertuxkart`, launched via `stk`); its two asset roots

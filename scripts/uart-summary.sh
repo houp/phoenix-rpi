@@ -70,32 +70,42 @@ echo "bytes: $size"
 echo
 echo "=== STAGES ==="
 
+# check_stage <label> <pattern> [dbg]
+#
+# A third argument marks the stage as a DEBUG-BUILD marker: a stock build never
+# prints it, so its absence is not a failure and must not read like one. Nine of
+# the nineteen rows used to show [NO ] on a perfectly healthy boot, which is the
+# same trap as a green build that built nothing -- the table has to mean what it
+# says or nobody can use it.
 check_stage() {
     local label="$1"
     local pattern="$2"
+    local dbg="${3:-}"
     if grep -qE "$pattern" "$target"; then
         first=$(grep -nE "$pattern" "$target" | head -n 1 | cut -d: -f1)
         echo "[YES] $label  (line $first)"
+    elif [ -n "$dbg" ]; then
+        echo "[ - ] $label  (debug-build marker, absent in a stock build)"
     else
         echo "[NO ] $label"
     fi
 }
 
-check_stage "firmware boot       " "arm_loader: Starting ARM"
-check_stage "armstub markers     " "132AS0|^132"
+check_stage "firmware boot       " "arm_loader: Starting ARM" dbg
+check_stage "armstub markers     " "132AS0|^132" dbg
 check_stage "plo console_init    " "hal: console_init done"
-check_stage "plo sctlr-M         " "mem: post-sctlr-M"
+check_stage "plo sctlr-M         " "mem: post-sctlr-M" dbg
 check_stage "plo hal_init done   " "hal: init complete"
 check_stage "plo banner          " "Phoenix-RTOS loader"
-check_stage "plo->kernel handoff " "hal: jump exit el1|hal: jump exit"
+check_stage "plo->kernel handoff " "hal: jump exit el1|hal: jump exit" dbg
 check_stage "kernel banner       " "Phoenix-RTOS microkernel"
-check_stage "threads scheduler   " "threads: ready queued|threads: schedule"
-check_stage "init thread spawn   " "main: spawn dummyfs-root"
-check_stage "spawn loop done     " "main: spawn loop done|entering proc_reap"
+check_stage "threads scheduler   " "threads: ready queued|threads: schedule" dbg
+check_stage "init thread spawn   " "main: Starting syspage programs|main: spawn dummyfs-root"
+check_stage "spawn loop done     " "main: spawn loop done|entering proc_reap" dbg
 check_stage "fbcon up            " "fbcon: ok"
-check_stage "pcie running        " "pcie: enter main|pcie: linkUp"
+check_stage "pcie running        " "pcie: [0-9a-f]{2}:[0-9a-f]{2}\\.[0-9] ven|pcie: enter main|pcie: linkUp"
 check_stage "xhci running        " "xhci: capProbe|xhci: pre reset"
-check_stage "psh tty open        " "psh: tty open|psh: ready"
+check_stage "psh tty open        " "psh: tty open|psh: ready" dbg
 check_stage "psh prompt          " "\\(psh\\)%"
 # Network stages — matches test-cycle-netboot.sh's own boot-health probes
 # and surfaces the late-boot subsystems the test-cycle banner doesn't.

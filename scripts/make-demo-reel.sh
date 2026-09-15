@@ -63,7 +63,7 @@ out="${1:-$vid_dir/$(date -u +%Y%m%d-%H%M%S)-phoenix-rtos-rpi4-showcase.mp4}"
 segments=(
 	"20260908-202248-shell-demo|32|24|Boot — plo -> kernel -> lwIP -> NFS root -> psh, on real hardware"
 	"20260908-202248-shell-demo|112|26|Shell — uname, the ported /usr/bin userland, Lua 5.4.7 / jq 1.7.1 / Python 3.14.4"
-	"20260908-202248-shell-demo|164|22|Python 3.14 + ncurses — Conway's Game of Life, 239x66 on the HDMI console"
+	"20260915-175343-life2|75|22|Python 3.14 + ncurses — Conway's Game of Life, 239x66 on the HDMI console"
 	"20260909-122231-x-shipped-image|20|26|X11 desktop — Window Maker on glamor GPU-accelerated X: live OpenGL window, Python 3.14 + ncurses Game of Life, top, xbill and xclock"
 	"20260915-174539-browse|84|13|Dillo web browser — page fetched over TCP/IP from the dev host, rendered under glamor X"
 	"20260909-161007-owner-video-hw|5|24|Hardware H.265 decode — BCM2711 rpivid decoding a 1080p phone recording, full-screen at 21.7 fps"

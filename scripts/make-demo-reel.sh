@@ -71,7 +71,7 @@ segments=(
 	"20260915-160828-video|85|24|Hardware H.265 decode — BCM2711 rpivid decoding a 1080p phone recording, full-screen at 21.7 fps"
 	"20260915-152409-qs|116|22|QuakeSpasm — OpenGL on Mesa v3d, id1 demo1 playback, ~37 fps on screen"
 	"20260915-164244-q2demo|97|22|Quake II — yQuake2 on OpenGL ES, q2demo1 playback, ~35 fps on screen"
-	"20260915-171943-vkq-demo2|112|22|vkQuake — Vulkan via V3DV, id1 demo2 playback on the current build"
+	"20260915-193527-vkq-flip|112|22|vkQuake — Vulkan via V3DV, id1 demo2 playback, page-flipped present"
 	"20260915-172704-q3orbit|122|24|Quake III Arena — 5-bot deathmatch on q3dm1, orbiting third-person camera, 36 fps on screen"
 	"20260915-155315-stk|161|24|SuperTuxKart 1.4 — OpenGL ES 3.1, 4-kart AI race"
 )

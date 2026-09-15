@@ -39,6 +39,7 @@
       "Bash(python3 scripts/compare-boots.py:*)",
       "Bash(./scripts/diag-udp-probe.sh:*)",
       "Bash(./scripts/test-cycle-psh-interact.sh:*)",
+      "Bash(./scripts/test-nfs-recovery.sh:*)",
       "Bash(./scripts/capture-rpi4b-uart.sh:*)",
       "Bash(./scripts/pi_power_off.sh)",
       "Bash(./scripts/pi_power_off.sh:*)",

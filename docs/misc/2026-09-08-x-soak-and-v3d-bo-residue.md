@@ -53,6 +53,14 @@ the source.
 ~15.7 MB per desktop restart on a 4 GB board: restarting ten times costs ~157 MB. **Not a demo
 risk** — a presentation starts the desktop once or twice, and 0 faults across every run.
 
+> ⚠ **SUPERSEDED 2026-09-15.** Both halves of this recommendation were overtaken within days.
+> The daemon *does* reap now — devices `1eb8608` (2026-09-08) reclaims the BOs of clients that died
+> without `GEM_CLOSE` — and the winsys ownership question was settled separately by devices
+> `7a1e3db` + mesa `274ee5abea9` (2026-09-12), which made the winsys the single owner of a BO's CPU
+> mapping and closed the route by which BO pages became allocator metadata. A `V3D_BO_TRACE=1` run
+> now scores 0 overlapping reuses (`scripts/analyze-bo-trace.py`). The residue measurements above
+> stand; the advice below does not.
+
 **Do not fix this before the demo.** Adding per-client BO ownership + reaping to the GPU
 daemon touches the allocator and the VA page tables (`va_alloc`/`va_free`, `GPUVA_PT_PAGES`),
 which is exactly the code whose bugs previously produced render wedges and VA exhaustion. It is

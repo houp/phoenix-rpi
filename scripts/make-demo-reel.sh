@@ -47,31 +47,33 @@ out="${1:-$vid_dir/$(date -u +%Y%m%d-%H%M%S)-phoenix-rtos-rpi4-showcase.mp4}"
 # drops to the console; and the first ~30 s of any capture is skipped because the
 # grabber's first frames are a stale pink card, not the Pi.
 #
-# The X11 clip was re-recorded 2026-09-09 and replaces the old x-restored capture,
-# which predated the whole X11 fix series and showed the mirrored-Clip artefact,
-# grey bands bleeding between xterms, xbill hidden under another window, and a
-# desktop reaching HDMI only ~2.3 times a second. The replacement was measured
-# rather than eyeballed: across all 100 s of it the desktop is fully populated
-# (22-24% bright pixels) and xbill's board is 95.5% white, i.e. every client is up
-# and unobstructed for the entire clip, so any window works -- the old note about
-# stopping at ~150 s "because life.py freezes" no longer applies (that was Conway
-# converging to still lifes, not a hang).
+# The X11 clip is the 2026-09-15 `startx_gpu action` capture. Measured rather than
+# eyeballed: over the chosen window the desktop never freezes (mean frame-to-frame
+# 4.54, min 2.40, 0 frozen steps, 0 black frames), the GL window never stalls, and
+# Life is live at 17.4 gen/s -- matching its own on-screen readout. All five
+# `action`-mode clients are drawn, unobstructed and not half-painted.
+#
+# NOTE, checked 2026-09-15: in THIS capture xbill sits on its title screen (0.00
+# motion across the whole clip) and xclock has no second hand. The older note here
+# claimed "xbill's board is 95.5% white, every client up and animating" -- that
+# described the 2026-09-09 clip and is not true of this one, so do not grade a
+# future X capture against it.
 #
 # The four Quake segments and SuperTuxKart all carry the engine's OWN on-screen
 # frame-rate readout, so the performance figures in this reel are the system
 # reporting itself rather than a claim in a caption.
 segments=(
-	"20260908-202248-shell-demo|32|24|Boot — plo -> kernel -> lwIP -> NFS root -> psh, on real hardware"
+	"20260915-161533-shell|48|17|Boot — kernel -> drivers -> lwIP -> NFS root -> psh, on real hardware"
 	"20260908-202248-shell-demo|112|26|Shell — uname, the ported /usr/bin userland, Lua 5.4.7 / jq 1.7.1 / Python 3.14.4"
 	"20260915-175343-life2|75|22|Python 3.14 + ncurses — Conway's Game of Life, 239x66 on the HDMI console"
-	"20260909-122231-x-shipped-image|20|26|X11 desktop — Window Maker on glamor GPU-accelerated X: live OpenGL window, Python 3.14 + ncurses Game of Life, top, xbill and xclock"
+	"20260915-160020-x|139|26|X11 desktop — Window Maker on glamor GPU-accelerated X: live OpenGL window, Python 3.14 + ncurses Game of Life, top, xbill and xclock"
 	"20260915-174539-browse|84|13|Dillo web browser — page fetched over TCP/IP from the dev host, rendered under glamor X"
-	"20260909-161007-owner-video-hw|5|24|Hardware H.265 decode — BCM2711 rpivid decoding a 1080p phone recording, full-screen at 21.7 fps"
-	"20260908-191446-qs-fps2|95|22|QuakeSpasm — OpenGL on Mesa v3d, id1 demo1 playback, 35 FPS on screen"
+	"20260915-160828-video|85|24|Hardware H.265 decode — BCM2711 rpivid decoding a 1080p phone recording, full-screen at 21.7 fps"
+	"20260915-152409-qs|116|22|QuakeSpasm — OpenGL on Mesa v3d, id1 demo1 playback, ~37 fps on screen"
 	"20260915-164244-q2demo|97|22|Quake II — yQuake2 on OpenGL ES, q2demo1 playback, ~35 fps on screen"
 	"20260915-171943-vkq-demo2|112|22|vkQuake — Vulkan via V3DV, id1 demo2 playback on the current build"
 	"20260915-172704-q3orbit|122|24|Quake III Arena — 5-bot deathmatch on q3dm1, orbiting third-person camera, 36 fps on screen"
-	"20260908-182836-stk-fps3|196|24|SuperTuxKart 1.4 — OpenGL ES 3.1, 4-kart AI race"
+	"20260915-155315-stk|161|24|SuperTuxKart 1.4 — OpenGL ES 3.1, 4-kart AI race"
 )
 
 command -v ffmpeg >/dev/null 2>&1 || { echo "make-demo-reel: ffmpeg not found" >&2; exit 1; }

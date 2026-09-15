@@ -229,6 +229,60 @@ else
 	fi
 fi
 
+# --- (4) is the filesystem sound, and does it boot the root it carries? --------
+#
+# Everything above reads FILES. None of it would notice an ext2 that fsck rejects,
+# or a loader.disk that boots the WRONG ROOT -- and the second is a documented
+# footgun on this project: a `--variant sd` build overwrites the netboot TFTP
+# loader, and the mirror-image mistake (an SD image carrying a netboot loader that
+# looks for `nfs;/`) would leave the first person to flash it staring at a hang.
+# Nobody can test that here: this host has no card reader, so the owner boots it
+# first. These three checks are the closest stand-in.
+echo
+echo "== filesystem + boot target =="
+
+if command -v e2fsck >/dev/null 2>&1; then
+	# `?offset=` is e2fsprogs' own syntax, so this needs no loopback and no root.
+	if e2fsck -fn "$E2" >"$TMP/fsck" 2>&1; then
+		echo "  OK   ext2 rootfs consistent ($(grep -oE '[0-9]+/[0-9]+ files' "$TMP/fsck" | tail -1))"
+	else
+		echo "  FAIL ext2 rootfs is NOT consistent:"
+		sed 's/^/         /' "$TMP/fsck" | tail -20
+		rc=1
+	fi
+else
+	echo "  SKIP e2fsck not installed (e2fsprogs)"
+fi
+
+if [ -n "${fat_off:-}" ] && [ "${fat_off:-0}" != "0" ] && 		mtype -i "${IMG}@@${fat_off}" ::loader.disk >"$TMP/loader" 2>/dev/null && [ -s "$TMP/loader" ]; then
+	ldr_sd=$(strings "$TMP/loader" | grep -c 'mmcblk0p2:ext2' || true)
+	ldr_nfs=$(strings "$TMP/loader" | grep -c 'nfs;/' || true)
+	if [ "$ldr_sd" -gt 0 ] && [ "$ldr_nfs" -eq 0 ]; then
+		echo "  OK   loader.disk boots /dev/mmcblk0p2:ext2 (and carries no nfs root)"
+	else
+		echo "  FAIL loader.disk boot target wrong: mmcblk0p2:ext2=$ldr_sd nfs=$ldr_nfs"
+		echo "         an SD image must boot the SD root; a netboot loader here hangs at first boot"
+		rc=1
+	fi
+
+	# A demo image whose plo list omits usb has NO KEYBOARD, which no file-presence
+	# check can see -- the binaries are all there, they are just never started.
+	# grep -c, never grep -q -- see marker_count() above. Under `set -o pipefail`
+	# a `grep -q` exits on its first match, `strings` dies of SIGPIPE, and the
+	# pipeline fails, so a MATCH reads as absent. This check reported "no USB
+	# keyboard" on an image whose plo list plainly starts usb, on the first run.
+	for prog in usb lwip; do
+		if [ "$(strings "$TMP/loader" | grep -cE "^app ram0 -x ${prog}[;[:space:]]" || true)" -gt 0 ]; then
+			echo "  OK   plo starts ${prog}"
+		else
+			echo "  FAIL plo does not start ${prog} — $([ "$prog" = usb ] && echo 'no USB keyboard' || echo 'no network') on this image"
+			rc=1
+		fi
+	done
+else
+	echo "  SKIP loader.disk not readable from the FAT partition"
+fi
+
 echo
 [ "$rc" -eq 0 ] && echo "RESULT: image PASSES — safe to flash" || echo "RESULT: image FAILS — do not flash"
 exit "$rc"

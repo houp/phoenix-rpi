@@ -340,7 +340,7 @@ int main(int argc, char *argv[])
 		 *   startx wmaker    -> Window Maker            (same as bare startx)
 		 *   startx twm       -> Window Maker            (twm is not shipped; see below)
 		 *   startx desktop   -> Window Maker (WM) + xlogo (managed window)
-		 *   startx term      -> twm (WM) + xterm (managed terminal window)
+		 *   startx term      -> Window Maker + xterm (managed terminal window)
 		 *   startx deskapps  -> Window Maker + xterm + xclock + xcalc + xlogo
 		 *   startx wmmedia   -> Window Maker + GPU window + H.264 video + clock
  *   startx browse [url] -> Window Maker + Dillo (web browser)
@@ -392,15 +392,18 @@ int main(int argc, char *argv[])
 			n_clients = 2;
 		}
 		else if (strcmp(client, "term") == 0) {
-			/* twm (WM) + xterm (managed terminal). The window manager is
-			 * essential here, not cosmetic: with no WM the server uses
+			/* Window Maker (WM) + xterm (managed terminal). The window manager
+			 * is essential here, not cosmetic: with no WM the server uses
 			 * PointerRoot focus, so keystrokes go to whatever window the
 			 * pointer happens to be over — making a keyboard test
-			 * non-deterministic. twm gives xterm a titlebar and (with the
-			 * compiled-in config) click-to-focus, so typed keys reliably
-			 * reach the shell running inside xterm. A -geometry supplies a
-			 * USPosition hint so twm places the window immediately (see the
-			 * desktop-mode note) instead of an interactive rubber-band. */
+			 * non-deterministic. The WM gives xterm a titlebar and
+			 * click-to-focus, so typed keys reliably reach the shell running
+			 * inside it. A -geometry supplies a USPosition hint so the window
+			 * is placed immediately (see the desktop-mode note) instead of an
+			 * interactive rubber-band.
+			 *
+			 * This said "twm" until 2026-09-15, in three places, while the code
+			 * below has always resolved `wmaker` — twm is not shipped at all. */
 			static char *const xterm_geom[2] = { "-geometry", "80x24+48+48" };
 			resolve_client(cp_bufs[0], sizeof(cp_bufs[0]), prefix, "wmaker");
 			resolve_client(cp_bufs[1], sizeof(cp_bufs[1]), prefix, "xterm");

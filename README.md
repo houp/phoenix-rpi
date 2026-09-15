@@ -261,7 +261,7 @@ work; `⛔` blocked on external dependencies; `⬜` not started.
 | GPU (V3D 4.2) — Vulkan (V3DV) | ✅ | Ported Mesa `v3dv` Vulkan driver on real V3D 4.2 — init, texture upload (no-WSI buffer→image copy), SPIR-V vertex/fragment/compute shaders and render passes all execute on the GPU (HW-validated); **vkQuake renders the start map** — re-verified on the clean SD image, `artifacts/hdmi/20260903-040557-vkq-rep2-tick.png`. (An intermittent V3D binner wedge on long GPU runs — not Vulkan-specific — is tracked separately.) Fork: [rpi-phoenix-rtos/vkQuake](https://github.com/rpi-phoenix-rtos/vkQuake), branch `phoenix-rpi4-port` |
 | GPU concurrency (`v3d-server`) | ✅ | A userspace **`v3d-server` daemon** (`/dev/v3d-srv`, `/sbin/rpi4-v3d`) owns the single V3D and serializes GPU submits from multiple clients over a message port, so **an accelerated X desktop and a second GPU program can run at the same time**. HW-proven end-to-end: BO/compute/render/TFU submit bit-exact through the daemon, two concurrent compute clients serialized, and a glamor GPU-accelerated X desktop with a **live GPU-rendered window running concurrently** on one screen. Lifts the earlier single-GPU-process limit. Clients link `libv3d-client`; opt-in today (not the default boot). Details: [docs/misc/2026-08-22-concurrent-gpu-v3d-server-feasibility.md](docs/misc/2026-08-22-concurrent-gpu-v3d-server-feasibility.md) |
 | Audio (PWM, 3.5 mm jack) | 🟡 | `/dev/audio0` streaming DMA; Quakespasm audio backend |
-| X11 / windowing (kdrive) | ✅ | Xphoenix **fbdev DDX** (CPU shadow-blit — the default, always-on path) + kbd/mouse; WindowMaker/JWM/twm, xterm/xcalc/xedit/xeyes/xclock. Migrated to real `phoenix-rtos-ports` (the X server, xterm, WindowMaker and dillo build as framework ports). A **glamor build** runs GPU-accelerated 2D X on the V3D GPU and is now the desktop of record (mirror artefacts, the dead damage path, the AF_UNIX one-page ring and two distinct desktop-exit crashes were all fixed 2026-09-08/09; HDMI updates went 2.3 → 25.6 per second and desktop exits are 20/20 clean) — `startx_gpu deskapps` on the clean SD image brings up Window Maker with an xterm running a live shell plus `xclock` and `xcalc` (`artifacts/hdmi/20260903-053119-final-xgpu-tick.png`; known cosmetic issue: the root window paints black instead of mauve) — and, via the `v3d-server` daemon (row above), can now do so **concurrently with another GPU client** (accelerated desktop + a live GPU window at once), lifting the former single-GPU-process restriction. Modern modesetting/DRM remains a future goal |
+| X11 / windowing (kdrive) | ✅ | Xphoenix **fbdev DDX** (CPU shadow-blit — the default, always-on path) + kbd/mouse; WindowMaker (the WM used by every `startx` mode; JWM and twm were built during bring-up but are not shipped), xterm/xcalc/xedit/xeyes/xclock. Migrated to real `phoenix-rtos-ports` (the X server, xterm, WindowMaker and dillo build as framework ports). A **glamor build** runs GPU-accelerated 2D X on the V3D GPU and is now the desktop of record (mirror artefacts, the dead damage path, the AF_UNIX one-page ring and two distinct desktop-exit crashes were all fixed 2026-09-08/09; HDMI updates went 2.3 → 25.6 per second and desktop exits are 20/20 clean) — `startx_gpu deskapps` on the clean SD image brings up Window Maker with an xterm running a live shell plus `xclock` and `xcalc` (`artifacts/hdmi/20260903-053119-final-xgpu-tick.png`; known cosmetic issue: the root window paints black instead of mauve) — and, via the `v3d-server` daemon (row above), can now do so **concurrently with another GPU client** (accelerated desktop + a live GPU window at once), lifting the former single-GPU-process restriction. Modern modesetting/DRM remains a future goal |
 | posixsrv / psh userland | ✅ | pipes, ptys, `/dev/{null,zero,urandom,full}`, AF_UNIX |
 | WiFi (BCM43455 SDIO) | 🟡 | **Joins WPA2 + gets a DHCP IP lease over the air** — associates to a real WPA2-PSK AP, completes the 4-way handshake, and carries real traffic: a full DHCP exchange (DISCOVER→OFFER→REQUEST→ACK) binds an IP, confirmed by the AP's `DHCPACK` (`tools/wifi-probe jointxcnt`). Remaining: an lwip netif so arbitrary sockets use WiFi — until then **use wired Ethernet** for general networking |
 | Bluetooth (BCM43455) | 🟡 | **Driver-level bring-up works** — `/dev/hci0` up, firmware patchram loads (323/323), a real BD_ADDR is read, and an HCI Inquiry completes. **No host Bluetooth stack** — no pairing, profiles, or audio yet |
@@ -328,16 +328,21 @@ and renders a small frame inside the 1080p scanout. Open the in-game console wit
 `` ` `` and type `quit` to exit (or Esc → menu → Quit). GLQuake links the V3D
 driver in-process, so no separate GPU daemon is needed.
 
-### X11 desktop (twm / Window Maker)
+### X11 desktop (Window Maker)
 
 The `startx` launcher starts the Xphoenix server plus a session in one command:
 
 ```
 startx              # Window Maker desktop (the default session)
-startx term         # twm + an xterm you can type in
-startx desktop      # twm + xeyes
-startx deskapps     # twm + xterm + xclock + xcalc + xeyes
+startx term         # Window Maker + an xterm you can type in
+startx desktop      # Window Maker + xlogo (one managed window)
+startx deskapps     # Window Maker + xterm + xclock + xcalc + xlogo
+startx browse [url] # Window Maker + Dillo
+startx action       # Window Maker + a GPU window + xterm + xbill + xclock
 ```
+
+Window Maker is the window manager in every mode — **twm is not shipped**, despite
+what older notes (including this one) used to say.
 
 For **GPU-accelerated** X (the glamor server on the V3D GPU — now the desktop of
 record, via the
@@ -346,7 +351,7 @@ auto-starts the GPU daemon and renders the desktop on the GPU:
 
 ```
 startx_gpu          # Window Maker, GPU-accelerated (glamor on V3D 4.2)
-startx_gpu term     # twm + xterm, GPU-accelerated
+startx_gpu term     # Window Maker + xterm, GPU-accelerated
 ```
 
 Drive the desktop with the USB mouse + keyboard. Exit the window manager to tear

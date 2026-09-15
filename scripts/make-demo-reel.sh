@@ -126,11 +126,14 @@ for seg in "${segments[@]}"; do
 drawtext=text='$esc':x=24:y=h-44:fontsize=26:fontcolor=white:enable='lt(t,4)',\
 scale=in_range=pc:out_range=tv,format=yuv420p" \
 		-c:v libx264 -preset veryfast -crf 20 -r 30 -an \
-		-color_range tv -colorspace bt709 -color_primaries bt709 -color_trc bt709 \
+		-color_range tv -colorspace bt709 \
+		-x264-params "colorprim=bt709:transfer=bt709" \
 		"$part" </dev/null
 	printf "file '%s'\n" "$part" >> "$list"
 done
 
+# Colour tags ride in from the segment bitstreams; `-c copy` preserves them, and
+# re-stating them here was measured to change nothing.
 ffmpeg -y -hide_banner -loglevel error -f concat -safe 0 -i "$list" \
 	-c copy -movflags +faststart "$out" </dev/null
 

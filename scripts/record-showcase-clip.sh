@@ -30,8 +30,21 @@ cd "$repo"
 # The cycle needs a window at least as long as the recording, or it powers the Pi
 # off mid-clip. idle-secs is an IDLE detector, so it must also exceed any quiet
 # stretch inside the app.
-idle=$(( secs + 30 ))
-cmax=$(( secs + 60 ))
+#
+# ⚠ Those defaults are for ONE long-running app. idle-secs is how long the cycle
+# waits for quiet AFTER EACH COMMAND before sending the next, so with several
+# commands the first one alone can outlast the whole recording -- a multi-command
+# capture then records the boot, command 1, and nothing else, which reads exactly
+# like a frozen console. (It cost me a wrongly-filed `fbcon-freeze` bug: the
+# screen was static because nothing more had been SENT.) For a sequence of short
+# commands, override with REC_IDLE_SECS=12 or so.
+idle="${REC_IDLE_SECS:-$(( secs + 30 ))}"
+cmax="${REC_MAX_CMD_SECS:-$(( secs + 60 ))}"
+echo "=== pacing: idle-secs=$idle max-cmd-secs=$cmax for $# command(s) ==="
+if [ $# -gt 1 ] && [ "$idle" -gt $(( secs / $# )) ]; then
+	echo "!! WARNING: idle-secs $idle x $# commands exceeds the ${secs}s recording;" >&2
+	echo "!! later commands will run AFTER the clip ends. Set REC_IDLE_SECS lower." >&2
+fi
 
 echo "=== recording '$label' for ${secs}s: $* ==="
 "$repo/scripts/record-hdmi.sh" --label "$label" --secs "$secs" \

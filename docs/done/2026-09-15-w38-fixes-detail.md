@@ -153,3 +153,45 @@ normally.
 known per-session GPU/X residue, now measured at demo length instead of 150 s. On a 4 GB board it is
 fine for the one or two desktop starts a presentation does; it is not fine for dozens, and it stays on
 the post-demo list.
+
+---
+
+# Hardening and publication debt, later on 09-15
+
+## 3d. ✅ `#64` closed — and it had one real, unapplied fix inside it
+
+`#64` was a one-line row ("SD-side filesystem stack pressure"). Its SD/ext2 half was **already fixed
+and is the reference fix** (`#120`: storage pool → 64 KB). But the 2026-06-08 pool-thread audit that
+re-checked every Pi 4 server left **one RISK row that was never applied**: the **USB msg and status
+threads on 2 KB stacks**, running msgRecv/status → device enumeration → in-process class drivers
+(usbkbd/usbmouse) → DMA pool, on adjacent `.bss` with **no guard page** — so an overflow does not
+fault, it silently clobbers the neighbour. That is this port's own history: `#120` was misdiagnosed as
+an ext2 bug for exactly that reason.
+
+🔧 usb `f9f5723`: **2 KB → 32 KB** (top of the audit's 16–32 KB range, ~60 KB of `.bss`).
+**Verified on hardware:** `usbkbd` **and** `usbmouse` both enumerate (`/dev/kbd0`, `/dev/mouse0`),
+0 faults, unix-socket **38/0**, quakespasm `Host_Init` **2.228 s**, every non-debug boot-stage row
+green. Manifest `manifests/2026-09-15-usb-stack-32k.md`.
+⚠ **Not in the `16ad56f9` demo image** — that was cut before this. The image's USB works (it is what
+every gate ran on); this removes a silent-corruption margin, it does not fix an observed failure.
+
+## 3e. ✅ Publication debt from the 07-06 review — swept, two items were still live
+
+Re-checked the pre-publication review's open findings against today's source. **Already fixed:** B4's
+cross-arch link break (the SMP block is now `#if (NUM_CPUS != 1) && defined(__aarch64__)`), B10 (a53
+GIC base), the stale genet header comment, the leftover `pcie.c` debug include. The sdcard `#154`
+sweep is documented dead-but-useful, which is fine.
+
+**Two were still live, both "port debt that changes behaviour for every Phoenix board":**
+- 🔧 kernel `bb05353f` — six unconditional `hal_consolePrint(ATTR_USER, "hi: ...")` bring-up markers in
+  the **shared** `main.c`. Kept as a capability, not deleted: back with
+  `KERNEL_DIAG='-DKERNEL_BOOT_TRACE'`. Verified **both ways** so the flag cannot be dead: stock
+  `loader.disk` has **0** `hi: ` strings, the flag build has all **6**.
+- 🔧 kernel `53cd40d6` + project `871b4fa` — the klog→console mirror was `#if !RPI4_LOG_TO_FILE`, i.e.
+  **on by default for every board**. Now opt-in (`KLOG_CONSOLE_MIRROR`, default 0); both RPi4 targets
+  opt in from `board_config.h`. `RPI4_LOG_TO_FILE` still suppresses it on top; the panic path stays
+  ungated.
+
+**Verified on hardware after each:** kernel messages still reach the console, unix-socket **38/0**,
+quakespasm `Host_Init` **2.25 s**, 0 faults, every non-debug boot-stage row green.
+Manifest `manifests/2026-09-15-publication-debt.md`.

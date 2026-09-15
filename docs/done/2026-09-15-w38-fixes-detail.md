@@ -195,3 +195,159 @@ sweep is documented dead-but-useful, which is fine.
 **Verified on hardware after each:** kernel messages still reach the console, unix-socket **38/0**,
 quakespasm `Host_Init` **2.25 s**, 0 faults, every non-debug boot-stage row green.
 Manifest `manifests/2026-09-15-publication-debt.md`.
+
+---
+
+# The W38 bug work in full (moved out of the weekly log 2026-09-15)
+
+## 3. ✅✅✅ `premain-hang` — ROOT-CAUSED AND FIXED (2026-09-15)
+
+**`socket()` deadlocked the process that owns `/`.** The kernel (`posix/inet.c`) and libphoenix
+(`sys/socket.c`, via `getaddrinfo`) resolved `/dev/netsocket` with a **path lookup on every call** —
+and a path lookup is answered by the filesystem that owns `/`, which single-threaded `nfs-fs` **is**.
+libnfs opens a fresh socket whenever it must reconnect, so a dropped server stopped the whole
+filesystem and every process blocked on its first request. A launch hung while opening its own binary.
+⇒ It was never crt0, libc, exec, `vfork` or the scheduler — each was eliminated correctly; the
+launched process was a victim.
+
+Fixes: kernel `7c021702` (cache the oid) + `4e473590` (same for `/dev/posix/pipes`, which `open()`
+also paid for on the hot path) · libphoenix `47dde32` · ports `a44623a` (libnfs sync-call deadline,
+defence in depth) · filesystems `427aabd`, `d5db203`.
+**Gate: `./scripts/test-nfs-recovery.sh`** — restarts the host nfsd under a running Pi and requires
+the reclaim to complete AND a fresh process to launch. **PASS** on the clean build; the same scenario
+wedged **2/2** before. Manifests `2026-09-15-premain-hang-fixed.md`, `2026-09-15-pipesrv-cache.md`.
+**Regression question:** the per-call lookup is **old** — not from the recent merges. Our own NFS-root
+takeover (2026-06-28) made it reachable and the NFSv4 lease keepalive (2026-08-03) made it periodic.
+ⓘ **Netboot-only** — an SD root has no `nfs-fs`, so the demo image cannot hit this.
+ⓘ Post-fix six-app gate: **6/6 content-graded, 0 faults, 6/6 launched**; torches **16/16 LIT**.
+Full hunt: [`docs/done/2026-09-15-premain-hang-hunt.md`](../done/2026-09-15-premain-hang-hunt.md).
+
+## 3b. Closed this week — verdict per item (evidence in [`docs/done/2026-09-15-w38-fixes-detail.md`](../done/2026-09-15-w38-fixes-detail.md))
+
+| item | verdict |
+|---|---|
+| ★★★ **allocator corruption** (`freebin-corruption` / `stk-highbits-pointer`) | Cause is a BO CPU mapping with **two live owners**; fixed by devices `7a1e3db` + mesa `274ee5abea9` (2026-09-12 20:51 — four hours *after* the archive's last such fault). **Measured, not inferred: 0 overlapping reuses in 2880 BO events** via `V3D_BO_TRACE=1` + new `scripts/analyze-bo-trace.py`. 23 clean STK runs attach to **this** fix, not to font patch 0019. ⚠ Raw "addresses reused by >1 handle" is **117 and healthy** — only *temporal* overlap is a defect; the historical "56" was measured with unmapping off. Believed fixed, watching. |
+| ⛔ **STK font path** | Cleared as the origin. The faulting `ldrb` is in the collect loop (`font_with_face.cpp:787`); 0019 patches loops from 834, and its own guard `STK-FONT-OOB` fired **0 times in 28 logs**. No out-of-bounds 4-byte store exists in `render()`; the `m_cached_gls` dangling-reference theory has no invalidation path. Probes `0020`/`0021` shipped so the next occurrence is decisive. |
+| ✅ **`#66` stale X lock** | Fixed (coord `ce5f50873`). Not a broken liveness probe — new `test-libc-signal -g liveness` proves `kill(pid,0)` is correct, **5/5**. It is **pid reuse** (kernel hands out the lowest free pid). `xlaunch` now drops a leftover lock; verified both with and without one. |
+| ✅ **`fbcon up` row was lying** | The HDMI console was always fine; `pl011_writeRaw` raced the kernel console and lost the marker ~2 boots in 3. Fixed (devices `3174143`): **3/3** now. Follow-on: 9 of 19 boot-stage rows were false negatives — two stale patterns fixed, seven debug-only rows now render `[ - ]`. |
+| ✅ **`#67` vkQuake torches** | **Closed — 6/6 by rate, twice.** `torch67`: 6 of 6 gradeable trials PRESENT, 0 absent, 0 inconclusive, 16–19 at-viewpoint frames each, **599/553 lit px vs a threshold of 8**, 0 faults. Repeats the 09-14 6/6 on a different build ⇒ **12 trials, two builds, no absence**. No intermittency survives a correct measurement; the historical reports were scored without a controlled viewpoint. The check runs inside the showcase gate, so a regression is caught automatically. |
+| ★ **`libc-uninit-main` narrowed from the ELF** | The two globals that read back zero — psh's applet list and `stderr` — share **one 4 KiB page** of `.bss` (`0x438198` and `0x4383c8`, page `0x438000`), and the fault's own registers were on it (`x24` = `psh_common` exactly, `x25` = the page base). ⇒ **one page reading back zero explains both**, which is much smaller than "libc init never ran": those writes *do* happen, so they are not there. Same shape as `atexit-null-head` (".data did not reach the process intact"). Both surviving readings are **mapping** bugs, not startup bugs. 🔧 A recurrence now arrives labelled: psh's unknown-command path reports via `write(2)` (it used to die on the error itself) and names an empty applet list as lost `.bss`. |
+| ⓘ **`libc-uninit-main`** | New row, **one** sighting, no demo impact. `far=0x30` is `FILE.lock` — `fwrite()` on a NULL stream. Two readings (libc init never ran / the page lost its writes) point at different subsystems, so the row picks neither. libphoenix `c996bec` hardens `_file_init()`'s unchecked `calloc()`s. |
+
+🔧 Also shipped: libphoenix `c5a4251` — the bin-corruption report that actually fires in the field (the
+large-bin lookup one) printed only `chunk/want/hbase?=`, so every real occurrence came back unable to
+tell a stale pointer into a released heap from a live heap base from a look-alike payload. It now
+prints the same discriminators as the long report. Containment unchanged.
+
+**Verification of the above, all green:** libc `stdio` 82/0/1 · `posixsrv` 16/0 · `unix-socket` 38/0 ·
+`signal -g liveness` 5/0 · `stdlib` 93/0 · quakespasm `Host_Init` **2.23–2.28 s** · STK **0 faults, 2014 frames** ·
+six-app gate **6/6 content-graded, 0 faults**. Manifests `2026-09-15-*`.
+
+## 3c. Measured this week, nothing to change
+
+| measurement | result |
+|---|---|
+| **Full libc sweep** (all 21 suites) | **1171 tests, 0 failures**, 28 ignored, 0 faults. Found and closed one real gap: `inet-socket` had 2 cases and `socket()` — the call whose kernel path changed this week — had none; now 7, aimed at what the `/dev/netsocket` oid cache can get wrong (tests `4e0da18`). |
+| **`V3D-binner-wedge`** | 6 more q3dm7 runs, **0 wedges, 58 123 frames** → **9 runs, ~85 700 frames, 0 wedges**; last sighting 2026-08-22. The row's "named next step" (diff our binner setup vs Mesa/Linux) **had already been done on 08-22**; re-verified, and 3 of its 4 arms are *structurally* impossible — we emit no `TILE_BINNING_MODE_CFG` field at all, tile_alloc is Mesa's own formula that saturates by ~16 draws (so q3dm1 and q3dm7 get the same ~570 KiB), and no unflushed CPU→GPU write exists. ⓵ One real divergence found: we write `CTL_MISCCFG` at init, **Linux never does on 4.2**, and the silicon default differs in two fields. **Deliberately not changed** — the bug has not reproduced, so an A/B now destroys the only signal. Next step is an *observation*: read `CL@ct0ca` at the next recurrence. |
+| **Demo-length X soak** | `startx_gpu --quit-after 600 action` — the full 6-client desktop for **10 minutes**, clean shutdown: **0 faults, 0 GPU wedges, 0 allocator events, 0 lock warnings**. Longest previously verified run was ~5 min, shorter than a presentation. ⓘ Per-lifecycle residue at demo length: 91 204 → 246 336 KB — fine for the one or two desktop starts a talk needs, still on the post-demo list. |
+
+Detail: [`docs/done/2026-09-15-w38-fixes-detail.md`](../done/2026-09-15-w38-fixes-detail.md).
+
+## 3d. Hardening + publication debt (2026-09-15) — detail in [`docs/done/2026-09-15-w38-fixes-detail.md`](../done/2026-09-15-w38-fixes-detail.md)
+
+| change | why |
+|---|---|
+| **`#64` closed** — USB msg/status thread stacks **2 KB → 32 KB** (usb `f9f5723`) | Its SD/ext2 half was already the reference fix (`#120`), but the 2026-06-08 pool-thread audit left **one RISK row unapplied**: those two threads ran enumeration → in-process class drivers → DMA pool on 2 KB of adjacent `.bss` with **no guard page**, so an overflow silently clobbers the neighbour. That is exactly how `#120` got misdiagnosed as an ext2 bug. Verified: `usbkbd` **and** `usbmouse` enumerate, 0 faults. |
+| **`main.c` bring-up markers gated** (kernel `bb05353f`) | Six unconditional `hal_consolePrint(ATTR_USER, "hi: …")` in the **shared** `main.c` printed on every Phoenix board. Kept as a capability — `KERNEL_DIAG='-DKERNEL_BOOT_TRACE'`. Verified **both ways** so the flag cannot be dead: stock loader has **0** `hi: ` strings, flag build has **6**. |
+| **`usb/mem` #121 archaeology retired** (usb `e8e1092`, −94 lines) | #121 was root-caused and fixed (stale dirty cache lines evicted over the pool; the `dc civac` in `usb_allocBuffer`, usb `12c4fe8`) — and the instrumentation said so itself: *"Remove once the writer is pinned and fixed."* Gone: the alloc/free rings, the two record helpers called on **every** `usb_alloc()`/`usb_free()`, and the caller-PC walk. **Kept: detection, not investigation** — `usb_chunkSane()` still refuses a wild free-list pointer and leaks rather than crashes, and a hit still dumps the corrupt node's bytes. Silence is not evidence. |
+| **klog console mirror made opt-in** (kernel `53cd40d6` + project `871b4fa`) | It was `#if !RPI4_LOG_TO_FILE`, i.e. **on by default for every board**. Now `KLOG_CONSOLE_MIRROR`, default 0, with both RPi4 targets opting in from `board_config.h`. Panic path still ungated. |
+
+Also swept and found **already fixed**: B4's cross-arch link break, B10 (a53 GIC base), the stale genet
+header comment, the leftover `pcie.c` debug include, and both "moderate correctness" items the review
+left catalogued (vcmbox `MBOX_WRFULL`, the un-gated `SDREADDIAG` printf). TD-21 (syscall-table divergence) is **RESOLVED and
+HW-verified since 2026-09-04** — not a pending owner action.
+**Verified on hardware after each:** unix-socket **38/0**, quakespasm `Host_Init` **2.23–2.26 s**,
+0 faults, every non-debug boot-stage row green. Manifests `2026-09-15-usb-stack-32k`,
+`2026-09-15-publication-debt`.
+
+## 3e. ⓘ Netboot's mirror-image guard: exists, and it discriminates
+
+The SD gate I added covers "an SD image carrying a netboot loader". The opposite footgun — a
+`--variant sd` build overwriting the **TFTP** loader, so every netboot cycle silently tests nothing —
+is already guarded by `scripts/check-netboot-blob.sh`, wired into both netboot cycle scripts.
+Checked rather than assumed: against the live blob it prints `rootfs: nfsroot` and exits 0; pointed at
+the SD image's loader it prints `rootfs: sd`, refuses with rc=3 and names the rebuild command.
+⇒ Nothing to add here. Recorded so the next sweep does not re-implement it.
+
+## 3f. 🐞 HEAP-CANARY fired for the FIRST TIME — a zeroed page in the AF_UNIX fork path
+
+`test-libc-unix-socket` aborted at `dgram_sock_msg_fork` (2026-09-15 15:32, `w38-resync`):
+
+```
+HEAP-CANARY at child-after-recv: off=0 (page off 0) got=0x00 want=0xa5 run=187 zeros=1 base=0x5020
+```
+
+This is **pre-existing instrumentation in the test suite**, whose own comment says what the shape
+means: *"a zeroed PAGE is the COW signature, a single flipped byte is something else entirely."*
+**It has never fired before — 1 occurrence in the entire archive.**
+
+Decoded: `run=187` is not a short run. The canary is `0xa5 ^ (i*31)`, which equals `0x00` at exactly
+`i=187` (187·31 mod 256 = 0xa5), so the comparison stops there **because the pattern itself is zero**.
+⇒ the region is **all zeros from the buffer base**, i.e. the COW signature, not a stray byte.
+
+⚠ **Regression-first, per the standing rule:** the unix-socket suite passed **38/0** twice earlier the
+same afternoon, and the only source change between those runs and this one is a **comment** in
+`rc.psh`. So this is far more likely a rare intermittent that the canary has simply never caught than
+a regression from today's work — but that is a claim, and a 6-trial bench is running to test it.
+ⓘ It lands in the exact path a previously-fixed bug lived in — `map_pageFault` dropping `PROT_USER`
+on EL1 user-copy faults, which produced a **COW storm on AF_UNIX recv into a forked buffer**. Same
+scenario, same signature class as `libc-uninit-main`/`atexit-null-head` ("a page not holding the
+writes made to it").
+**Bench result: 6/6 clean, 38/0 each — so it is INTERMITTENT, not a regression.** Roughly 1 in 7 runs
+today, and 0 in the whole prior archive. It stays open as the first *live, in-a-test* capture of the
+"page reads back zero" family — far more tractable than the one-off process faults, because a test can
+be re-run.
+
+⛔ **And the companion source review came back a CLEAN NEGATIVE on the mapping story** — worth as much
+as a positive would have been:
+- `libc-uninit-main` and `atexit-null-head` are **not the same bug**. psh's RW `PT_LOAD` splits into a
+  file-backed COW page (`.data`, where `atexit_common` lives) and a 3-page anonymous demand-zero
+  mapping (where `psh_common`/`stderr` live). Different populate paths.
+- **No kernel path loses a write to that anon page**: `process->lazy` is 0 on MMU builds so exec
+  eagerly forces every page; `pmap_switch` precedes `process_load`; faults serialize on `map->lock`
+  and a populated amap slot returns early; there is no pageout to drop a filled slot; and
+  `_pmap_cacheOpAfterChange`'s flush-by-VA never fires for a cached RW data page.
+  ⇒ **"those writes definitely execute" is an assumption to TEST, not inherit** — crt0 / `_libc_init`
+  ordering is back on the table.
+- `atexit-null-head` is already attributed in-tree and the attribution holds (`vm/object.c:285-309`:
+  `object_fetchCluster` silently zero-filled on a short/EOF NFS read).
+🔧 kernel `0c22f8f7`: the `.bss` comment in `process_load` claimed the anon mapping is demand-paged.
+It is not — that is what sent this review looking at fault paths at all.
+ⓘ Incidental VM defects found and recorded, not fixed blind: `amap_putanons` discards
+`amap_putanon`'s return (dangling `anon_t*`), `amap_clear` drops anons without putting them (page
+leak), `_vm_mmap` discards `page_map`'s rc, `_pmap_remove` passes a stale entry/lvl to the cache op.
+
+## 4. `unlock on not locked lock` — narrowed a long way (2026-09-15)
+
+⚠ First, scope: this message is emitted only by `LIB_ASSERT_THREADS`, which is behind
+`KERNEL_DIAG=-DDEBUG_THREADS`. **It does not exist in the shipped build** and the failed unlock just
+returns `-EPERM`. No demo impact.
+
+**What the 52 archived occurrences actually say:** the lock is **always** `user.mutex` and the pid is
+**always the same one** (25) — the launched application, and the message lands **immediately after
+`quakespasm: LOAD-TIME main->Host_Init`**, right behind SDL audio init. So it is one call site in one
+program at one moment, not a scattered defect.
+
+★ **A code path that provably produces exactly this** (not yet tied to this occurrence — labelled a
+candidate): `semaphoreDown()` (libphoenix `sys/semaphore.c:52-66`) does
+`mutexLock` → `condWait(...)` → `mutexUnlock`, i.e. it assumes `condWait` always returns with the
+mutex held. **The kernel explicitly does not:** `proc_lockWait()` (kernel `proc/threads.c:2273-2281`)
+re-acquires only when `err != -EINTR`, so on `-EINTR` — and when `_proc_lockClear()` itself fails —
+the caller comes back **without** the mutex. `semaphoreDown` then reads `s->v` unlocked and finally
+unlocks a mutex it does not hold. POSIX requires `pthread_cond_wait` to return with the mutex locked
+in every case, so the kernel side is the one out of contract.
+⏭ Deliberately **not** patched blind: the right fix is in `proc_lockWait`'s interruptible path, and the
+`-EINTR` skip looks intentional. Needs a decision and a test that a thread still owns the mutex after
+an interrupted `condWait`, not a speculative edit to a benign warning.
+ⓘ The `STRAY-UNLOCK` probe's `user pc`/`lr` remain useless — they are kernel addresses, confirming
+again that `thread->context` is the scheduler's last save, not the syscall frame.

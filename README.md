@@ -299,6 +299,18 @@ Beyond the base system, a substantial ports ecosystem runs on the hardware
 Boot the image and log in to the `(psh)%` prompt, with an **HDMI display** and a
 **USB keyboard** attached (plus a **USB mouse** for the X11 desktop). Then:
 
+> **If you are demoing this live, two things are worth knowing.**
+>
+> **Start each GPU app once before the audience arrives, then start it again.**
+> The first run of a GPU app on a cold shader cache can spend minutes compiling
+> shaders before it draws anything — measured at roughly 1 run in 12 taking the
+> whole window. The second run is fast, and stays fast.
+>
+> **If an app prints nothing and just sits there, relaunch it.** A cold start
+> occasionally fails to get going; a relaunch has never failed. The netboot cause
+> of this was root-caused and fixed in September 2026, so on the SD image it
+> should not happen at all — but the relaunch is free.
+
 ### GLQuake (Quake 1)
 
 ```
@@ -338,8 +350,9 @@ startx_gpu term     # twm + xterm, GPU-accelerated
 ```
 
 Drive the desktop with the USB mouse + keyboard. Exit the window manager to tear
-down X and return to `(psh)%`. If a crash ever leaves a stale lock, `rm -f
-/tmp/.X0-lock` and relaunch.
+down X and return to `(psh)%`. A session that ended uncleanly used to leave a
+stale `/tmp/.X0-lock` that blocked the next `startx`; the launcher now clears it
+itself, so an immediate relaunch just works.
 
 `startx_gpu deskapps` was verified on the clean image — Window Maker with an
 xterm running a live shell, plus `xclock` and `xcalc`

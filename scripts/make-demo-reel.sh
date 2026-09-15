@@ -64,7 +64,7 @@ out="${1:-$vid_dir/$(date -u +%Y%m%d-%H%M%S)-phoenix-rtos-rpi4-showcase.mp4}"
 # reporting itself rather than a claim in a caption.
 segments=(
 	"20260915-161533-shell|48|17|Boot — kernel -> drivers -> lwIP -> NFS root -> psh, on real hardware"
-	"20260915-185349-shell3|183|26|Shell — uname, Lua 5.4.7 / jq 1.7.1 / SQLite 3.53.4, and the ported /usr/bin userland"
+	"20260915-185349-shell3|179|23|Shell — uname, Lua 5.4.7 / jq 1.7.1 / SQLite 3.53.4, and the ported /usr/bin userland"
 	"20260915-175343-life2|75|22|Python 3.14 + ncurses — Conway's Game of Life, 239x66 on the HDMI console"
 	"20260915-160020-x|139|26|X11 desktop — Window Maker on glamor GPU-accelerated X: live OpenGL window, Python 3.14 + ncurses Game of Life, top, xbill and xclock"
 	"20260915-174539-browse|84|13|Dillo web browser — page fetched over TCP/IP from the dev host, rendered under glamor X"

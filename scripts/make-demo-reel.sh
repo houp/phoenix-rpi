@@ -70,7 +70,7 @@ segments=(
 	"20260908-191446-qs-fps2|95|22|QuakeSpasm — OpenGL on Mesa v3d, id1 demo1 playback, 35 FPS on screen"
 	"20260915-164244-q2demo|97|22|Quake II — yQuake2 on OpenGL ES, q2demo1 playback, ~35 fps on screen"
 	"20260915-171943-vkq-demo2|112|22|vkQuake — Vulkan via V3DV, id1 demo2 playback on the current build"
-	"20260908-211352-q3-smooth2|216|24|Quake III Arena — 5-bot deathmatch on q3dm1, orbiting camera, 46 fps on screen"
+	"20260915-172704-q3orbit|122|24|Quake III Arena — 5-bot deathmatch on q3dm1, orbiting third-person camera, 36 fps on screen"
 	"20260908-182836-stk-fps3|196|24|SuperTuxKart 1.4 — OpenGL ES 3.1, 4-kart AI race"
 )
 

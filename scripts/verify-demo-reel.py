@@ -41,6 +41,31 @@ def segments(script):
             out.append((label.split("—")[0].strip(), int(ln)))
     return out
 
+def label_report(reel, segs, fps=2):
+    """Per segment: (white text pixels, rightmost text column, frame width).
+
+    Sampled 1 s in, while the label is still up. Catches a label that failed to
+    draw at all, and one that runs off the right edge -- the long X11 caption
+    reaches x=1717 of 1920, so the margin is real but not large.
+    """
+    out, t = {}, 0
+    for name, L in segs:
+        b = subprocess.run(["ffmpeg", "-loglevel", "error", "-i", reel, "-ss", str(t + 1),
+                            "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "gray", "-"],
+                           capture_output=True).stdout
+        t += L
+        if not b:
+            continue
+        for w, h in ((1920, 1080),):
+            if len(b) == w * h:
+                f = np.frombuffer(b, np.uint8).reshape(h, w).astype(np.float32)
+                bar = f[h - 64:h]
+                cols = (bar > 170).sum(axis=0)
+                nz = np.nonzero(cols)[0]
+                out[name] = (int((bar > 170).sum()), int(nz.max()) if len(nz) else 0, w)
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("reel")
@@ -51,6 +76,11 @@ def main():
     vid, fps = frames(a.reel)
     g = vid.mean(axis=3)
     mot = np.zeros(len(g)); mot[1:] = np.abs(np.diff(g, axis=0)).mean(axis=(1, 2))
+
+    # Label overlay: make-demo-reel draws a dark bar + white text over the bottom
+    # 64 px for the first 4 s of each segment. A missing or clipped label is a
+    # publication defect that none of the content checks above would notice.
+    labels = label_report(a.reel, segs)
 
     print(f"{'segment':14s} {'window':>12s} {'lum':>6s} {'colours':>8s} {'motion':>7s} {'still%':>7s}  verdict")
     t, bad = 0, 0
@@ -66,6 +96,11 @@ def main():
         if flat < 1.5 and lum < 12: v.append("DEAD SIGNAL")
         elif lum < 6:               v.append("DARK")
         if still > 60 and not name.startswith(STATIC_OK): v.append("FROZEN")
+        lab = labels.get(name)
+        if lab is None or lab[0] < 300:
+            v.append("NO LABEL")
+        elif lab[1] > lab[2] - 40:
+            v.append("LABEL CLIPPED")
         bad += len(v)
         print(f"{name:14s} {t:4.0f}-{t+L:4.0f}s {lum:6.1f} {cols:8d} "
               f"{mo.mean():7.2f} {still:6.0f}%  {'; '.join(v) if v else 'ok'}")

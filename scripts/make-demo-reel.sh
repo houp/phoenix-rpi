@@ -112,6 +112,14 @@ for seg in "${segments[@]}"; do
 	# way: a permanent bottom banner clipped real HUD (Quake III's health/armour
 	# digits, Quake II's ammo strip, SuperTuxKart's speedometer all live in the
 	# bottom 64 px), which is exactly the detail a showcase is meant to show.
+	# NOTE on `-ss` BEFORE `-i`: that is ffmpeg's FAST (keyframe) seek, which in
+	# general lands on the nearest preceding keyframe rather than the requested
+	# time -- and every offset in the table above was derived with ACCURATE seeks.
+	# Verified 2026-09-15 for all 11 segments: fast and accurate seek return the
+	# SAME frame, MAD 0.000, because record-hdmi.sh's captures are effectively
+	# all-keyframe. Keep it, but if the capture encoder ever grows a longer GOP,
+	# every cut silently shifts -- re-check with that comparison before trusting
+	# the offsets again.
 	ffmpeg -y -hide_banner -loglevel error \
 		-ss "$start" -t "$len" -i "$src" \
 		-vf "drawbox=x=0:y=ih-64:w=iw:h=64:color=black@0.62:t=fill:enable='lt(t,4)',\

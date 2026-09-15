@@ -35,7 +35,7 @@ set -u
 set -o pipefail
 
 if [ $# -lt 2 ]; then
-    echo "usage: test-cycle-bench.sh <N> <label> [--capture-secs <s>] [--idle-secs <s>]" >&2
+    echo "usage: test-cycle-bench.sh <N> <label> [--capture-secs <s>] [--idle-secs <s>] [--wait-secs <s>]" >&2
     echo "       [--max-cmd-secs <s>] [--ready-line <ERE>] [--ready-extra-secs <s>] [--stamp]" >&2
     echo "       [-- <cmd>...]" >&2
     exit 1
@@ -52,6 +52,11 @@ shift 2
 # max-cmd-secs the deadline for REACHING readiness rather than the whole budget.
 idle_secs=60
 max_cmd_secs=150
+# Deadline for REACHING the psh prompt. test-cycle-psh-interact.sh defaults to 150,
+# which the first cycle of a session can miss -- it boots slower, and the trial then
+# scores "A (no shell)", indistinguishable from a real boot failure. The showcase
+# gate raised its own copy to 220 for exactly this reason.
+wait_secs_arg=()
 ready_args=()
 stamp_arg=()
 capture_secs_arg=()
@@ -61,6 +66,7 @@ while [ $# -ge 2 ]; do
     case "$1" in
     --capture-secs)     capture_secs_arg=( --capture-secs "$2" ); shift 2 ;;
     --idle-secs)        idle_secs="$2"; shift 2 ;;
+    --wait-secs)        wait_secs_arg=( --wait-secs "$2" ); shift 2 ;;
     --max-cmd-secs)     max_cmd_secs="$2"; shift 2 ;;
     --ready-line)       ready_args+=( --ready-line "$2" ); shift 2 ;;
     --ready-extra-secs) ready_args+=( --ready-extra-secs "$2" ); shift 2 ;;
@@ -78,7 +84,7 @@ while [ $# -ge 2 ]; do
     # (a test-cycle-psh-interact.sh option, not one of ours) was passed here.
     --*)
         printf 'test-cycle-bench.sh: unknown option %s\n' "$1" >&2
-        printf '  known: --capture-secs --idle-secs --max-cmd-secs --ready-line --ready-extra-secs --stamp\n' >&2
+        printf '  known: --capture-secs --idle-secs --wait-secs --max-cmd-secs --ready-line --ready-extra-secs --stamp\n' >&2
         printf '  NOTE: --inter-cmd-secs belongs to test-cycle-psh-interact.sh and is not forwarded.\n' >&2
         exit 2
         ;;
@@ -117,6 +123,7 @@ for i in $(seq 1 "$N"); do
     if [ "${#cmds[@]}" -gt 0 ]; then
         "${repo_root}/scripts/test-cycle-psh-interact.sh" --label "$trial_label" \
             --inter-cmd-secs 8 --idle-secs "$idle_secs" --max-cmd-secs "$max_cmd_secs" \
+            "${wait_secs_arg[@]}" \
             "${ready_args[@]}" "${stamp_arg[@]}" -- "${cmds[@]}" || true
     else
         "${repo_root}/scripts/test-cycle-netboot.sh" --label "$trial_label" "${capture_secs_arg[@]}" || true

@@ -37,15 +37,20 @@ spend a cycle rediscovering this.
 `sd` mounts a local ext2 root; `nfsroot` mounts the NFS export as `/`; `netboot`
 uses a RAM root.
 
-ⓘ **"Card-in forces SD boot" is NOT true of this Pi.** Its EEPROM was written on
-2026-05-21 with `BOOT_ORDER=0xf12` — **network first, SD second**
-(`scripts/prepare-pi-eeprom-netboot.sh:16`,
-`docs/misc/2026-09-02-pi-firmware-pin-revisit.md:489`), so a card present should not
-prevent netboot; SD boot is what you get when the netboot server is **down**. That
-is also what makes unattended self-flash possible in principle (netboot Linux, `dd`
-to `/dev/mmcblk0`, bring the server down, power-cycle). ⚠ Not re-verified
-empirically — there has been no card to test with. If netboot ever fails with a
-card inserted, check this assumption first.
+⛔ **A card in the slot stops this Pi booting AT ALL — keep the slot empty for
+netboot.** Measured 2026-09-16 with a **blank** microSD inserted: four power-ons
+produced **zero DHCP requests, zero UART bytes and a black HDMI frame**, where the
+same bench had netbooted 10/10 an hour earlier with the slot empty. It does not
+fall back to network; it simply does not come up.
+
+⚠ **Retraction:** an earlier edit of this file claimed the opposite — that the
+EEPROM's `BOOT_ORDER=0xf12` (network first, SD second, written 2026-05-21) meant a
+card could not block netboot. The config is real and documented
+(`docs/misc/2026-09-02-pi-firmware-pin-revisit.md:489`), but the hardware disagrees,
+and hardware wins. Whatever the bootloader does with a non-bootable card, it is not
+an orderly fall-through. Untested: a card holding a **bootable** image may well
+behave differently (that is the SD-boot path itself) — only the blank-card case is
+measured.
 
 ## A — Run commands over SD boot (most common)
 

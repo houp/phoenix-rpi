@@ -111,7 +111,16 @@ check_stage "psh prompt          " "\\(psh\\)%"
 # and surfaces the late-boot subsystems the test-cycle banner doesn't.
 check_stage "lwip started        " "lwip: genet|/sbin/lwip "
 check_stage "genet link up       " "lwip: genet.*link up"
-check_stage "netif has IP        " "static IP 10.42.0|dhcp_start: 0|netif waits for OFFER"
+# ⚠ These two were ONE stage called "netif has IP" whose pattern was
+# "static IP 10.42.0|dhcp_start: 0|netif waits for OFFER" — i.e. it passed on
+# `dhcp_start: 0` ("the dhcp_start CALL returned ok") and even on the literal
+# "netif waits for OFFER". So the stage reported an IP precisely when the netif
+# did NOT have one. Caught 2026-09-17 on an SD boot with dnsmasq down: link up,
+# no DHCP server, no address — and the table still said "netif has IP". Split so
+# each stage means what it is called; requiring a real dotted address is what
+# makes the second one falsifiable.
+check_stage "dhcp requested      " "dhcp_start: 0|netif waits for OFFER"
+check_stage "netif has IP        " "static IP 10\.42\.0|ip=10\.42\.0\.[0-9]"
 
 # Section 3: children.
 echo

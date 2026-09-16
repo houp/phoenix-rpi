@@ -115,6 +115,20 @@ mkdir -p "${buildroot}"
 # excluded files without --delete-excluded), which is what preserves the staged
 # rootfs. The include rules must precede the exclude that would otherwise swallow
 # them -- rsync applies the first matching filter rule.
+#
+# .mesa-shader-cache.driver-id is HOST BOOKKEEPING that lives at the buildroot
+# root, written by sync-netboot-tree.sh to remember which GPU driver build the
+# Pi's shader-cache blobs were produced by. The project source has no such file,
+# so --delete removed it on EVERY prepare; the next sync then saw no fingerprint,
+# took its "(or first run)" branch and wiped the shader cache even though the GPU
+# driver had not changed. That silently defeated the 2026-09-08 conditional-keep
+# optimisation and made a cold cache the norm after any rebuild -- which matters,
+# because a cold cache is ~67 s of black screen for vkQuake and has twice been
+# misread as a hang (2026-09-09, 2026-09-13).
+# Demonstrated 2026-09-16 with both controls in one session: a cycle after a
+# prepare-running rebuild logged "cleared ... (or first run)" with an UNCHANGED
+# driver, while the next cycle -- after build-port.sh, which does not prepare --
+# logged "KEPT ... (127 entries)".
 rsync_args=(
 	-a
 	--delete
@@ -124,6 +138,8 @@ rsync_args=(
 	_build
 	--exclude
 	_boot
+	--exclude
+	/.mesa-shader-cache.driver-id
 	--include
 	/_fs/
 	--include

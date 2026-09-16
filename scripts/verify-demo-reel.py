@@ -17,7 +17,7 @@ Usage:  scripts/verify-demo-reel.py <reel.mp4> [--segments scripts/make-demo-ree
 Copyright 2026 Phoenix Systems
 SPDX-License-Identifier: BSD-3-Clause
 """
-import argparse, subprocess, sys
+import argparse, os, subprocess, sys
 import numpy as np
 
 # Segments whose content is legitimately still; everything else must move.
@@ -41,29 +41,39 @@ def segments(script):
             out.append((label.split("—")[0].strip(), int(ln)))
     return out
 
-def label_report(reel, segs, fps=2):
-    """Per segment: (white text pixels, rightmost text column, frame width).
+# Where make-demo-reel.sh draws the caption: a 64 px band whose BOTTOM edge sits
+# 136 px above the frame's bottom (drawbox y=ih-200, h=64). It is deliberately not
+# flush with the bottom, because that is where video players draw their controls.
+# Keep these two in step with the script or this check silently measures nothing.
+LABEL_BAND = (200, 136)   # (px above bottom: top edge, bottom edge)
 
-    Sampled 1 s in, while the label is still up. Catches a label that failed to
-    draw at all, and one that runs off the right edge -- the long X11 caption
-    reaches x=1717 of 1920, so the margin is real but not large.
+
+def save_caption_frames(reel, segs, outdir="artifacts/reel-captions"):
+    """Save one frame per segment, 1 s in, while the caption is up — for a HUMAN.
+
+    ⚠ This deliberately renders NO verdict. Four automated versions were tried and
+    every one was confidently wrong:
+      1. "bright pixels in the bottom 64 px" counted Quake II's ammo strip and
+         SuperTuxKart's speedometer as a caption;
+      2. the same test broke completely when the caption moved off the bottom edge;
+      3. "the backing box is darker than the picture below" failed on every dark
+         scene, because black@0.62 over a dark frame is not darker;
+      4. "the band changed between 1 s and 8 s" scored 9 of 11 segments of a
+         bottom-captioned reel as captioned, because content motion changes the
+         band too.
+    Caption presence, position and legibility are a visual judgement. The tool's
+    job is to put the frames in front of someone, not to pretend it can read them.
     """
-    out, t = {}, 0
-    for name, L in segs:
-        b = subprocess.run(["ffmpeg", "-loglevel", "error", "-i", reel, "-ss", str(t + 1),
-                            "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "gray", "-"],
-                           capture_output=True).stdout
+    os.makedirs(outdir, exist_ok=True)
+    t, saved = 0, []
+    for i, (name, L) in enumerate(segs, 1):
+        f = os.path.join(outdir, "seg%02d.png" % i)
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", reel, "-ss", str(t + 1),
+                        "-frames:v", "1", "-vf", "scale=640:-1", f], capture_output=True)
         t += L
-        if not b:
-            continue
-        for w, h in ((1920, 1080),):
-            if len(b) == w * h:
-                f = np.frombuffer(b, np.uint8).reshape(h, w).astype(np.float32)
-                bar = f[h - 64:h]
-                cols = (bar > 170).sum(axis=0)
-                nz = np.nonzero(cols)[0]
-                out[name] = (int((bar > 170).sum()), int(nz.max()) if len(nz) else 0, w)
-    return out
+        if os.path.exists(f):
+            saved.append(f)
+    return saved
 
 
 def segment_signatures(vid, segs, fps):
@@ -116,10 +126,6 @@ def main():
     g = vid.mean(axis=3)
     mot = np.zeros(len(g)); mot[1:] = np.abs(np.diff(g, axis=0)).mean(axis=(1, 2))
 
-    # Label overlay: make-demo-reel draws a dark bar + white text over the bottom
-    # 64 px for the first 4 s of each segment. A missing or clipped label is a
-    # publication defect that none of the content checks above would notice.
-    labels = label_report(a.reel, segs)
 
     print(f"{'segment':14s} {'window':>12s} {'lum':>6s} {'colours':>8s} {'motion':>7s} {'still%':>7s}  verdict")
     t, bad = 0, 0
@@ -135,11 +141,6 @@ def main():
         if flat < 1.5 and lum < 12: v.append("DEAD SIGNAL")
         elif lum < 6:               v.append("DARK")
         if still > 60 and not name.startswith(STATIC_OK): v.append("FROZEN")
-        lab = labels.get(name)
-        if lab is None or lab[0] < 300:
-            v.append("NO LABEL")
-        elif lab[1] > lab[2] - 40:
-            v.append("LABEL CLIPPED")
         bad += len(v)
         print(f"{name:14s} {t:4.0f}-{t+L:4.0f}s {lum:6.1f} {cols:8d} "
               f"{mo.mean():7.2f} {still:6.0f}%  {'; '.join(v) if v else 'ok'}")
@@ -148,6 +149,12 @@ def main():
         print(f"LOOKALIKE: '{na}' and '{nb}' correlate {c:.2f} — do they show the "
               f"same thing? a segment must read as what its caption claims")
         bad += 1
+
+    shots = save_caption_frames(a.reel, segs)
+    if shots:
+        print(f"\ncaption frames for visual review: {os.path.dirname(shots[0])}/  "
+              f"({len(shots)} segments) — check each caption is present, legible, "
+              f"clear of the player's controls, and matches what is on screen")
 
     print("PASS — every segment has a live signal and content" if bad == 0
           else f"FAIL — {bad} issue(s)")

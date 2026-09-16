@@ -112,6 +112,12 @@ for seg in "${segments[@]}"; do
 	# way: a permanent bottom banner clipped real HUD (Quake III's health/armour
 	# digits, Quake II's ammo strip, SuperTuxKart's speedometer all live in the
 	# bottom 64 px), which is exactly the detail a showcase is meant to show.
+	#
+	# It sits 136-200 px ABOVE the bottom edge, not flush with it. Flush is where
+	# every video player draws its scrub bar and controls, so the caption -- the
+	# part that says what you are looking at -- was routinely hidden behind them
+	# (owner, 2026-09-16). This band clears typical controls with margin while
+	# still staying out of the games' bottom-edge HUDs.
 	# NOTE on `-ss` BEFORE `-i`: that is ffmpeg's FAST (keyframe) seek, which in
 	# general lands on the nearest preceding keyframe rather than the requested
 	# time -- and every offset in the table above was derived with ACCURATE seeks.
@@ -122,8 +128,8 @@ for seg in "${segments[@]}"; do
 	# the offsets again.
 	ffmpeg -y -hide_banner -loglevel error \
 		-ss "$start" -t "$len" -i "$src" \
-		-vf "drawbox=x=0:y=ih-64:w=iw:h=64:color=black@0.62:t=fill:enable='lt(t,4)',\
-drawtext=text='$esc':x=24:y=h-44:fontsize=26:fontcolor=white:enable='lt(t,4)',\
+		-vf "drawbox=x=0:y=ih-200:w=iw:h=64:color=black@0.62:t=fill:enable='lt(t,4)',\
+drawtext=text='$esc':x=24:y=h-181:fontsize=26:fontcolor=white:enable='lt(t,4)',\
 scale=in_range=pc:out_range=tv,format=yuv420p" \
 		-c:v libx264 -preset veryfast -crf 20 -r 30 -an \
 		-color_range tv -colorspace bt709 \

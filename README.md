@@ -310,6 +310,17 @@ Boot the image and log in to the `(psh)%` prompt, with an **HDMI display** and a
 > occasionally fails to get going; a relaunch has never failed. The netboot cause
 > of this was root-caused and fixed in September 2026, so on the SD image it
 > should not happen at all — but the relaunch is free.
+>
+> **vkQuake plays ONE demo and then drops to the console — roughly a minute.**
+> QuakeSpasm loops (demo1 → demo2 → demo3 → demo1 …), vkQuake does not: the port
+> glue issues a single `playdemo`, so it stops when that demo ends. Plan the
+> vkQuake segment of a live demo around ~60 seconds, or relaunch it.
+> ⛔ Do **not** read the `N demo(s) in loop` line as proof the loop is running —
+> `Host_Startdemos_f` prints it unconditionally, before the test that decides.
+> The `Playing demo from <name>` lines are the ones that mean something.
+>
+> **The desktop is fine for a whole talk.** `startx_gpu action` ran 31.7 minutes
+> with 0 faults and was still animating at the end, so it can be left up.
 
 ### GLQuake (Quake 1)
 

@@ -83,10 +83,17 @@ printf '  src: %s\n  dst: %s\n' "$src" "$export_dir"
 #
 # Clearing it UNCONDITIONALLY (the behaviour until 2026-09-08) threw the cache away on
 # every cycle, so the first GL app after each boot recompiled every shader from source.
-# Measured on SuperTuxKart: 77 shader compiles and 55.5 s to finish a profile lap on the
-# first run of a boot, against 20.0 s for the same run once the cache was warm -- ~35 s
-# of pure recompilation before every first race. So clear it only when the GPU driver
-# actually changed, keyed on a fingerprint of the archives the blobs were produced by.
+# So clear it only when the GPU driver actually changed, keyed on a fingerprint of the
+# archives the blobs were produced by.
+#
+# ⚠ Do NOT repeat the old justification here ("SuperTuxKart: 55.5 s cold vs 20.0 s warm,
+# so ~35 s of pure recompilation per first race"). That attribution is WRONG and was
+# refuted by a controlled probe (docs/misc/2026-09-08-stk-time-to-race.md:84-102): across
+# one first-run-of-boot the cache went 200 entries -> 200 while 50 shaders "compiled" --
+# every one a HIT -- and the run still took 49.8 s. For STK the cache is worth only the
+# ~5.5 s it already saves; ~27 s of its first-run cost is something else (leading
+# hypothesis: contiguous-BO allocator warm-up). The app the cache really rescues is
+# vkQuake: 67 shader modules, ~67 s of black screen that reads as a hang.
 # That keeps the safety property (a driver rebuild still invalidates the cache) without
 # paying the recompile on every boot.
 shader_cache="$export_dir/.mesa-shader-cache"

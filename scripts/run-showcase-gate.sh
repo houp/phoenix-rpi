@@ -123,13 +123,21 @@ Usage: $(basename "$0") [options]
                    keys: $(printf '%s ' "${apps_default[@]%%:*}")
   --wait-secs N    seconds to wait for the psh prompt (default $wait_secs)
   --idle-secs N    capture window after the launch command (default $idle_secs)
+  --sd-boot        grade the SD CARD image instead of the netboot tree: every
+                   cycle runs with --skip-server-up, and dnsmasq must already be
+                   DOWN (scripts/netboot-server-down.sh) so the firmware boots
+                   from the card. Restore it afterwards -- netboot is the only
+                   other lane. Requires a card holding a bootable image; a BLANK
+                   card stops the Pi booting entirely (measured 2026-09-16).
   -h, --help       this
 EOF
 }
 
+sd_boot=0
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--label)        label="$2"; shift 2 ;;
+		--sd-boot)      sd_boot=1; shift ;;
 		--only)         only="$2"; shift 2 ;;
 		--wait-secs)    wait_secs="$2"; shift 2 ;;
 		--idle-secs)    idle_secs="$2"; shift 2 ;;
@@ -151,9 +159,15 @@ done
 [ "${#apps[@]}" -gt 0 ] || { echo "no apps selected (--only '${only}')" >&2; exit 2; }
 
 echo "=== showcase gate: ${#apps[@]} app(s), one Pi cycle each, sequential ==="
+if [ "${sd_boot}" = 1 ]; then
+	echo "    lane         : SD CARD (dnsmasq must be DOWN; --skip-server-up per cycle)"
+fi
 echo "    label prefix : ${label}"
 echo "    per-app budget: wait ${wait_secs}s + idle ${idle_secs}s"
 echo
+
+sd_flag=""
+[ "${sd_boot}" = 1 ] && sd_flag="--skip-server-up"
 
 declare -a rows=()
 rc_all=0
@@ -164,7 +178,7 @@ for entry in "${apps[@]}"; do
 	lbl="${label}-${key}"
 
 	echo "--- [${key}] ${cmd}"
-	./scripts/test-cycle-psh-interact.sh \
+	./scripts/test-cycle-psh-interact.sh ${sd_flag} \
 		--label "${lbl}" \
 		--wait-secs "${wait_secs}" \
 		--idle-secs "${idle_secs}" \

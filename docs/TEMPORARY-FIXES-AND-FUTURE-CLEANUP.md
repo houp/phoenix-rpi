@@ -186,17 +186,29 @@ authoritative current state.
 ## TD-19: AArch64 runtime PTE/TLBI hardening
 
 - **Status:** VALIDATED, needs upstream review.
-- **⚠️ OPEN RECONCILIATION (flagged 2026-06-25, NOT yet acted on — touches a
-  correctness-sensitive TLB path, left for attended review):** the
-  "What was done" line below claims the TLBI helpers "now end with `dsb; isb`,
-  not just `dsb`." In current source the generic `hal_tlbInval*` helpers
-  (`aarch64.h:201-241`) end with `hal_cpuDataSyncBarrier()` = `dsb ish` only —
-  no trailing `isb`. Either the doc overstates what landed, or the `isb` lives
-  only on the `_pmap_writeTtl3` path (`pmap.c:435+`). Confirm whether the ISB
-  is genuinely required on the generic helper paths or only on
-  `_pmap_writeTtl3`, then correct whichever of doc/code is wrong before
-  claiming the ARMv8 break-before-make sequence is complete in the generic
-  helpers. Do NOT edit the TLB helpers without that confirmation.
+- **⚠️ RECONCILED 2026-09-17 — the DOC was wrong; the code is unchanged and the
+  decision is still yours.** The question this entry posed ("does the doc
+  overstate what landed, or does the `isb` live only on `_pmap_writeTtl3`?") is
+  now answered: **neither path has an `isb`.**
+  - All five generic helpers (`aarch64.h:198-239`: `hal_tlbInvalASID`,
+    `_ASID_IS`, `_VA_IS`, `_VAASID_IS`, `_All_IS`) end with
+    `hal_cpuDataSyncBarrier()` = `dsb ish`, nothing after.
+  - `_pmap_writeTtl3` (`pmap.c:454+`) ends `dsb` → `_pmap_cacheOpAfterChange`.
+    No `isb`.
+  - `pmap.c` contains exactly **two** `hal_cpuInstrBarrier()` calls, at
+    **:428 and :430**, and they bracket `hal_cpuSetTranslationBase()` — the
+    TTBR/ASID switch. Correct where they are, and unrelated to TLBI.
+  So the "What was done" claim below is **retracted**: the `; isb` half never
+  landed. ⓘ Per ARM ARM D8.16.1 the break-before-make sequence is completed by
+  `dsb` *then* `isb` before the PE may rely on the new translation, so the
+  helpers are arguably incomplete — but this is a latent correctness question,
+  not a known live failure: the tree passes the six-app gate, a 10-run STK soak
+  and 1050 libc tests as it stands.
+  ⛔ **Still do NOT edit the TLB helpers unattended.** Adding a barrier to every
+  TLBI is a global change to a correctness-sensitive path whose only honest
+  validation is a full gate plus a soak, and it should be made with the owner
+  watching, not overnight. Recommendation when attended: add `hal_cpuInstrBarrier()`
+  after the `dsb ish` in the five helpers, then re-gate.
 - **Stage:** 1 (cache enable).
 - **First observed:** 2026-05-14 cache-policy cleanup.
 - **Where:** `sources/phoenix-rtos-kernel/hal/aarch64/aarch64.h`
@@ -1890,14 +1902,20 @@ implementation step is governed by the roadmap.
 
 Tracked separately from the numeric TD-NN series because they all sit in
 `sources/phoenix-rtos-lwip/drivers/bcm-genet.c` (and one neighbouring
-lwip-port concern). Each marker has a `TODO(TD-Eth-…)` comment in source.
+lwip-port concern).
+⚠ **Not true any more:** this group used to claim "each marker has a
+`TODO(TD-Eth-…)` comment in source". Exactly **one** does — `TD-Eth-LinkIRQ` at
+`bcm-genet.c:25`. The others were removed when they resolved, which is the
+correct outcome; the sentence was not updated (checked 2026-09-17).
 
-- **TD-Eth-DHCP** — autonomous DHCP exchange. On this lwip-port,
-  `dhcp_start` resets the netif IP to 0.0.0.0 before the DISCOVER
-  reaches the wire. Tier 4/5 workaround: static IP `10.42.0.99/24`
-  assigned in `genet_dhcpStartCb`. Resolve by walking the lwip-port
-  side (tcpip-thread context, DHCP timer setup) rather than the
-  driver.
+- **TD-Eth-DHCP** — ✅ RESOLVED 2026-05-28 (lwip `7f0b495`); autonomous DHCP
+  works end to end.
+  ↩ **Stale narrative removed 2026-09-17.** This bullet still described the
+  Tier 4/5 workaround — a static `10.42.0.99/24` assigned in
+  `genet_dhcpStartCb` — as if it were current. That workaround is **gone**:
+  `bcm-genet.c:1383-1398` now does `netif_set_default()` → `dhcp_start(netif)`
+  → `etharp_gratuitous()`, with no static IP anywhere in the file. The
+  checklist row had said RESOLVED since 05-28; only this paragraph lagged.
 - **TD-Eth-MAC** — RESOLVED 2026-05-25 in lwip `79bd607`. Mailbox
   `GET_BOARD_MAC` (tag `0x10003`) is now called from `bcm-genet.c`'s
   `genet_mboxGetMac()`. Validated on hardware: ARP table reports
@@ -1998,7 +2016,7 @@ longer needed.
 | TD-14-deferred-fbcon | likely RESOLVED via TD-12 speed bundle | re-verify in devices `3899d38` neighborhood |
 | TD-14-tty0-nonfatal | LIKELY STILL ACTIVE (acceptable risk per TD-12 baseline) | re-verify |
 | TD-14-pl011-retry | superseded by TD-12 retry tuning (utils `18aed2a`: 50 × 10 ms) | n/a |
-| TD-14-psh-retry | superseded by TD-12 retry tuning (utils `18aed2a`: 50 × 10 ms) | n/a |
+| TD-14-psh-retry | **STILL ACTIVE** (row corrected 2026-09-17 — it said "superseded … n/a") | The ID was retired but the debt was not: the marker is live at `pshapp.c:70` and `PSH_TTYOPEN_RETRIES 50` / `PSH_TTYOPEN_RETRY_US 10000` (`:73,:79`) still deviate from the upstream default (20 × 100 ms). TD-12's tuning *set* this value, it did not remove the deviation. Close it by restoring the upstream default once devfs registration is fast, then drop the marker. |
 | TD-14-ttyopen-nonfatal | LIKELY STILL ACTIVE | re-verify against utils `18aed2a` |
 | TD-14-devfs-direct | STILL ACTIVE (fast-path predicate); kernel `c8a81d5e` restored it | works as designed |
 | TD-14-console-alias | LIKELY STILL ACTIVE | re-verify |
@@ -2013,8 +2031,11 @@ longer needed.
 | TD-16-1 | RESOLVED (probe served its purpose, stripped in plo `c988e6a` + kernel `5a2d3a77`) | |
 | TD-16-cache-enable | RESOLVED 2026-05-17 (project `dde9bb5` armstub L2CTLR + 1319367 encoding fix; kernel `72242a05` single-shot M\|C\|I in `el1_entry`; helper scaffolding deleted in kernel `dccd0aee`) | `SCTLR_EL1.M\|C\|I` enabled inline in `el1_entry` |
 | TD-17 | ✅ RESOLVED 2026-05-29 | amap/ELF cacheable (MAP_NONE) in code; boots to psh; armstub fix dde9bb5 removed the corruption |
-| TD-18 | ✅ RESOLVED 2026-05-29 | zone backing cacheable (MAP_NONE, zone.c:45) in code; boots to psh; 2026-05-14 fails predate armstub fix |
-| TD-19 | LIKELY STILL APPLIES (TLBI hardening is generally correct) | upstreamable as-is. ⚠️ OPEN: doc claims helpers end `dsb; isb` but source `hal_tlbInval*` end `dsb ish` only — reconcile before publishing (see TD-19 entry; do NOT edit TLB helpers unattended) |
+| TD-18 | ✅ RESOLVED 2026-05-29 | zone backing cacheable (MAP_NONE, `zone.c:182` — the old `zone.c:45` citation pointed at `ZONE_POISON_BYTE`) in code; boots to psh; 2026-05-14 fails predate armstub fix |
+| TD-19 | LIKELY STILL APPLIES (TLBI hardening is generally correct) | ✅ doc reconciled 2026-09-17: **neither** the generic helpers nor `_pmap_writeTtl3` has an `isb` — the doc's `dsb; isb` claim is retracted. Code deliberately unchanged; adding the `isb` is an attended decision (see TD-19 entry) |
+| TD-13-mtxbypass | ✅ RESOLVED/REMOVED | row added 2026-09-17 (entry existed, checklist did not). Verified: `grep -c TD-13-mtxbypass syscalls.c` → 0, exactly as the entry predicts. |
+| TD-14-startup-settle | NOT TAKEN | row added 2026-09-17 (entry existed, checklist did not). No marker, no code — the option was considered and declined. |
+| TD-21 | ✅ RESOLVED 2026-09-04 (HW-verified) | row added 2026-09-17 — the register's newest and most detailed item had **no checklist row at all**, while the header calls the checklist authoritative. Syscall-table divergence closed; upstream order confirmed in `include/syscalls.h:39-41` (`mutexUnlock, mutexConsistent, mutexPrioCeiling`). ⛔ Do not re-raise as pending. |
 | TD-20 | KNOWN LIMITATION (HW-gated) | A72 `dc zva` disabled in `hal_memset` pending EL2 DC-ZVA trap proof (HW-only); perf-only, correctness-safe, A72-scoped |
 | TD-Eth-DHCP | ✅ RESOLVED 2026-05-28 (lwip `7f0b495`) | autonomous DHCP verified end-to-end via test-cycle-netboot.sh --probe q + scripts/get-pi-ip.sh; probe captured `netif: en1 ip=10.42.0.12 gw=10.42.0.1 flags=0x1f UP LINK DHCP` (artifact 2026-05-28-...-dhcp-clean-probe.txt) |
 | TD-Eth-MAC | RESOLVED 2026-05-25 (lwip `79bd607`) | mailbox `GET_BOARD_MAC` plumbed in `genet_mboxGetMac()` |
@@ -2022,7 +2043,7 @@ longer needed.
 | TD-Eth-LinkIRQ | RESOLVED (accept poll) | PHY INT_B not GIC-routed + GENET internal LINK_UP left masked; Linux/U-Boot both poll; 1 Hz genet_linkPollThread is the portable answer (2026-08-21) |
 | TD-Eth-Stats | RESOLVED 2026-05-25 (lwip `b261265`) | surfaced via lwip-port diag UDP responder (port 9999) + per-driver `stats` callback |
 | TD-Pi4-FalseSharingPenalty | RESOLVED 2026-05-25 (lwip `ea936d3`) | classic false sharing on a 64B cache line; per-slot `_Alignas(64)` padding restored plain `volatile ++` to ALU-speed. No kernel work needed. |
-| TD-Git-Branches | PENDING (deferred per user 2026-06-01) | Sibling repos sit on inconsistent branches: `codex/upstream-sync-20260516` (libphoenix, build, devices, filesystems, project, utils, plo), `master` (corelibs, doc, hostutils, ports, posixsrv, tests, usb), `agent/rpi4-program-reloc` (kernel), `agent/rpi4-genet` (lwip). All commits are on each repo's checked-out branch (nothing lost). Single-contributor local-only project → consolidate to one consistent scheme (per-repo `master`, or a shared `rpi4`), merge everything, update rollback tooling (`manifests/*.md` + `scripts/{snapshot,restore}-integration-state.sh` record per-repo branch). Tracked as task #128. Not urgent. |
+| TD-Git-Branches | PARTLY DONE — **symptom is stale, cleanup is not** (re-checked 2026-09-17) | The described state is gone: **all 16 sibling repos are on `master`** (coord on `main`), not the mixed `codex/upstream-sync-20260516` / `agent/rpi4-program-reloc` / `agent/rpi4-genet` set this row used to list. What remains is only stale-branch housekeeping — the old branches still exist locally (kernel: `agent/rpi4-program-reloc`, `agent/afunix-upstream-report`; lwip: `agent/rpi4-genet`, `rebase-clean`, `rpi4-port-clean`, `wifi-wip`, `full-history-backup`; libphoenix: `codex/upstream-sync-20260516`). Nothing is lost and nothing blocks; delete them when convenient. Task #128. |
 
 When resolving an item:
 

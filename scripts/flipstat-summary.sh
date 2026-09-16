@@ -26,11 +26,29 @@
 #   * the glamor X server, which presents by GPU readback into /dev/fb0 and never
 #     reaches the winsys flip path. Its rate has to come from its own
 #     `gl-x11: frame ... fps` line instead.
-#   vkQuake is a third case: it presents through its own shim, so --gc-sections
-#   prunes the counter out of that binary entirely.
+#   vkQuake USED TO BE a third case -- it presents through its own shim and
+#   --gc-sections pruned the counter out of that binary. No longer: since the
+#   vkq-tile-flicker fix (ports 7ed2949) it opts into the winsys page flip and
+#   its runs do carry flipstat lines.
+#
+# ⚠⚠ THE MEAN BELOW SPANS THE WHOLE RUN, INCLUDING EVERY IDLE WINDOW. That is the
+# trap that produced a wrong caption in the demo reel (2026-09-16). An app that
+# renders a workload briefly and then sits on a menu, a console or a finished
+# scoreboard spends most of the capture on a MOTIONLESS screen, and those windows
+# are the ones that dominate this average. Measured: vkQuake plays one demo for
+# ~50 s and then drops to a static console that renders at a dead-flat 42.2 fps
+# for the remaining ~275 s -- 55 identical windows. A whole-run median of that log
+# reports the CONSOLE. (It sat within 1 fps of the demo's real 42.7, which is
+# exactly why nobody questioned it.)
+#
+# So: run --seq first and look at the SHAPE. A long block of near-identical values
+# is an idle screen, not a workload. Average only the windows that are the thing
+# you are describing, frame-weighted (sum frames / sum ms), not by averaging the
+# per-window rates.
 #
 # Usage: ./scripts/flipstat-summary.sh <label> [<label> ...]
 #        ./scripts/flipstat-summary.sh --all-of <gate-label>   # every app of a gate run
+#        ./scripts/flipstat-summary.sh --seq <label>           # per-window sequence
 #
 # Copyright 2026 Phoenix Systems
 # SPDX-License-Identifier: BSD-3-Clause
@@ -43,6 +61,20 @@ log_dir="${repo_root}/artifacts/rpi4b-uart"
 if [ "$#" -eq 0 ]; then
 	echo "usage: $0 <label> [...]   |   $0 --all-of <gate-label>" >&2
 	exit 2
+fi
+
+# --seq prints the per-window sequence so the run's SHAPE is visible: which
+# windows are the workload and which are an idle screen. See the header.
+if [ "${1}" = "--seq" ]; then
+	lbl="${2:?--seq needs a label}"
+	f="$(ls -t "${log_dir}"/rpi4b-uart-*"${lbl}".log 2>/dev/null | head -1)"
+	[ -n "${f}" ] || { echo "no log for ${lbl}" >&2; exit 1; }
+	echo "${f}"
+	grep -ao 'flipstat [0-9]* frames in [0-9]* ms = [0-9.]* fps (total [0-9]*)' "${f}" \
+		| awk '{ gsub(/[()]/,"",$11); f+=$2; m+=$5;
+		         printf "%3d  elapsed~%4.0fs  %6s fps  (%s frames in %s ms)\n", NR, m/1000, $8, $2, $5 }
+		       END { if (NR) printf "\nwhole run: %d frames in %d ms = %.2f fps  -- NOT a per-workload figure, see the header\n", f, m, f*1000/m }'
+	exit 0
 fi
 
 labels=()

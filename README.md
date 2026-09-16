@@ -307,9 +307,12 @@ Boot the image and log in to the `(psh)%` prompt, with an **HDMI display** and a
 > black screen** while it builds 67 shader modules, which reads exactly like a
 > hang. It announces itself on the console —
 > `v3d: shader cache COLD (./.mesa-shader-cache/v1)` — so if a GPU app is ever
-> unexpectedly slow, look for that line before assuming it has crashed. The SD
-> root is persistent, so this is paid **once per card, per app**: later runs, and
-> later boots, reuse the cache.
+> unexpectedly slow, look for that line before assuming it has crashed.
+> ✅ **Measured on the card (2026-09-17), not assumed:** the cache is written to
+> `/.mesa-shader-cache/v1` on the persistent ext2 root and **survives a power
+> cycle** — a second boot that ran no GPU app at all still listed 27 shader blobs.
+> So the cold start is paid **once per card, per app**; later runs and later boots
+> reuse it.
 >
 > **If an app prints nothing and just sits there, relaunch it.** A cold start
 > occasionally fails to get going; a relaunch has never failed. The netboot cause

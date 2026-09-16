@@ -311,13 +311,21 @@ Boot the image and log in to the `(psh)%` prompt, with an **HDMI display** and a
 > of this was root-caused and fixed in September 2026, so on the SD image it
 > should not happen at all — but the relaunch is free.
 >
-> **vkQuake plays ONE demo and then drops to the console — roughly a minute.**
-> QuakeSpasm loops (demo1 → demo2 → demo3 → demo1 …), vkQuake does not: the port
-> glue issues a single `playdemo`, so it stops when that demo ends. Plan the
-> vkQuake segment of a live demo around ~60 seconds, or relaunch it.
+> **Both Quakes now loop their demos indefinitely.** vkQuake used to play ONE
+> demo (~50 s) and drop to the console; fixed 2026-09-16. The cause was one line
+> in `Host_Startdemos_f`: a bring-up patch set `cls.demonum = -1`, which
+> permanently disarms Quake's demo loop, so when the port's `playdemo` ended
+> `Host_EndGame` disconnected instead of calling `CL_NextDemo`. It now leaves the
+> loop armed. HW-verified: `demo2 → demo1 → demo2 → demo3 → demo1`, four
+> self-driven transitions including the wrap. A vkQuake segment no longer needs
+> to be planned around ~60 seconds.
+> ⓘ This only applies when `id1/phoenix-demo.cfg` is staged. The shipped image has
+> none, so vkQuake boots `map start` — and `map` disarms the loop by itself.
 > ⛔ Do **not** read the `N demo(s) in loop` line as proof the loop is running —
-> `Host_Startdemos_f` prints it unconditionally, before the test that decides.
-> The `Playing demo from <name>` lines are the ones that mean something.
+> `Host_Startdemos_f` prints it unconditionally, before the test that decides, and
+> it printed just as loudly while the loop was broken. The
+> `Playing demo from <name>` lines are the ones that mean something; grade by
+> **two or more, in order** (`scripts/test-vkq-demo-loop.sh`).
 >
 > **The desktop is fine for a whole talk.** `startx_gpu action` ran 31.7 minutes
 > with 0 faults and was still animating at the end, so it can be left up.

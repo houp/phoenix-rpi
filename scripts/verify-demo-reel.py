@@ -66,6 +66,45 @@ def label_report(reel, segs, fps=2):
     return out
 
 
+def segment_signatures(vid, segs, fps):
+    """One normalised appearance signature per segment (mean frame, mean-removed).
+
+    Catches a segment that LOOKS like another one. That is not a cosmetic concern:
+    the 2026-09-16 "non-personal" variant sourced its H.265 segment from a video of
+    the showcase itself, so the hardware-decode segment showed Quake II gameplay --
+    complete with a burned-in fps counter contradicting its own caption -- and was
+    indistinguishable from a game segment once the caption faded. Every other check
+    here passed it. The owner spotted it by watching.
+    """
+    sigs, t = [], 0
+    for name, L in segs:
+        i0, i1 = int((t + 2) * fps), int((t + L - 2) * fps)
+        seg = vid[i0:i1]
+        t += L
+        if len(seg) == 0:
+            sigs.append((name, None)); continue
+        m = seg.mean(axis=0).mean(axis=2)          # mean frame, grayscale
+        m = m - m.mean()
+        n = float(np.sqrt((m * m).sum())) or 1.0
+        sigs.append((name, m / n))
+    return sigs
+
+
+def lookalike_report(vid, segs, fps, thresh=0.80):
+    """Pairs of DIFFERENT segments whose appearance correlates above `thresh`."""
+    sigs = segment_signatures(vid, segs, fps)
+    out = []
+    for i in range(len(sigs)):
+        for j in range(i + 1, len(sigs)):
+            (na, a), (nb, b) = sigs[i], sigs[j]
+            if a is None or b is None:
+                continue
+            c = float((a * b).sum())
+            if c >= thresh:
+                out.append((na, nb, c))
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("reel")
@@ -105,6 +144,11 @@ def main():
         print(f"{name:14s} {t:4.0f}-{t+L:4.0f}s {lum:6.1f} {cols:8d} "
               f"{mo.mean():7.2f} {still:6.0f}%  {'; '.join(v) if v else 'ok'}")
         t += L
+    for na, nb, c in lookalike_report(vid, segs, fps):
+        print(f"LOOKALIKE: '{na}' and '{nb}' correlate {c:.2f} — do they show the "
+              f"same thing? a segment must read as what its caption claims")
+        bad += 1
+
     print("PASS — every segment has a live signal and content" if bad == 0
           else f"FAIL — {bad} issue(s)")
     return 1 if bad else 0

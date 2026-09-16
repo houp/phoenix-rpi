@@ -24,10 +24,15 @@ ext2 root, 0 faults, and the games run off it. Drive it with
 `scripts/test-sd-boot.sh`, or grade the whole showcase on the card with
 `scripts/run-showcase-gate.sh --sd-boot`.
 
-⚠ **The card and netboot are EITHER/OR — this is the thing to plan around.**
-* With a **bootable** card in, bring dnsmasq **down** (`netboot-server-down.sh`)
-  and the firmware boots the card; bring it back up afterwards, because netboot is
-  the only other lane.
+✅ **With a BOOTABLE card you get BOTH lanes, selected by dnsmasq — leave the card
+in.** Measured 2026-09-17: card in + dnsmasq **up** → the Pi **netboots** (syspage
+`'nfs;/;10.42.0.1;/;v4;takeover'`, `nfs-fs: start`, psh, 0 faults); card in +
+dnsmasq **down** → it **SD-boots** (`'bcm2711-emmc;-r;/dev/mmcblk0p2:ext2'`). The
+EEPROM's network-first `BOOT_ORDER=0xf12` does exactly what it says, so switching
+lanes costs one `netboot-server-{up,down}.sh` and a power cycle — no card swap.
+ⓘ `bcm2711-emmc` appears in the netboot syspage too, as a plain driver; grade the
+lane by the **root** argument or `nfs-fs: start`, not by that string.
+* So: `netboot-server-down.sh` → SD boot; `netboot-server-up.sh` → netboot.
 * With a **BLANK** card in, the Pi **does not boot at all** — measured over 4
   power-ons: 0 DHCP, 0 UART, black HDMI. It does not fall back to the network. So
   you cannot netboot Linux to flash a blank card in the slot; write the card on the

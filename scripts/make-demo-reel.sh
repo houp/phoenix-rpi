@@ -72,6 +72,11 @@ out="${1:-$vid_dir/$(date -u +%Y%m%d-%H%M%S)-phoenix-rtos-rpi4-showcase.mp4}"
 #                               swings far wider (vkQuake's reads 23-65 across
 #                               the 22 s shown here).
 #
+# NOTE: the vkQuake clip was captured 2026-09-15, BEFORE the demo-loop fix (fork c55d7d8), so that
+# capture plays demo2 once and then sits on the console. The window cut here (112-134 s) is inside
+# demo2 and is unaffected -- but do not read that clip as evidence of current behaviour, which loops
+# demo1/demo2/demo3 indefinitely. Not worth a re-record for a caption that is already accurate.
+#
 # ⚠ A flipstat figure must be averaged over the GAMEPLAY windows ONLY. Taking a
 # median over the whole run measures whatever the app sat on longest, which is
 # usually a motionless screen. vkQuake plays one demo and then drops to the

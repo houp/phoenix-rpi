@@ -6,7 +6,7 @@
 # QuakeSpasm looped. Root cause was one line in Host_Startdemos_f: the bring-up
 # patch set `cls.demonum = -1`, which permanently disarms Quake's demo loop, so
 # when the port's own post-Host_Init `playdemo` ended, Host_EndGame disconnected
-# instead of calling CL_NextDemo. Fixed in the fork (external/vkquake abd06c4).
+# instead of calling CL_NextDemo. Fixed in the fork (external/vkquake c55d7d8).
 #
 # WHY THIS NEEDS A SCRIPT RATHER THAN A BARE CYCLE
 # ------------------------------------------------
@@ -29,6 +29,11 @@
 # Cross-check, independent of the log text: `flipstat-summary.sh --seq` over this
 # run must NOT show the long flat ~42.2 fps block that means "sitting on the
 # static console". A looping run stays in the variable gameplay band.
+#
+# ⓘ The observed order is demo2 -> demo1 -> demo2 -> demo3 -> demo1..., i.e. demo2
+# plays twice per cycle. That is correct, not a bug: phoenix-demo.cfg names the
+# FIRST demo while the loop's own list is quake.rc's demo1/demo2/demo3. Stage
+# "demo1" instead if you want the canonical order.
 #
 # Usage: ./scripts/test-vkq-demo-loop.sh [label] [secs]
 #

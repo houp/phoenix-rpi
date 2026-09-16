@@ -1990,6 +1990,45 @@ longer needed.
 
 **No kernel work needed** — this was a userspace-side fix.
 
+## Debt that lives OUTSIDE the TD-NN series (added 2026-09-17)
+
+An audit of every `TODO(TD-…)` marker in `sources/` found three ID namespaces in
+active use that this register never mentioned. They are listed here so the
+register stops under-reporting; none is urgent, all are pre-publication
+visibility items.
+
+⚠ **Method note for anyone repeating this audit:** `grep` in this environment is
+ugrep with `--ignore-files`, so it honours `.gitignore` — which lists `sources/`
+and `external/`. A recursive grep from the repo root silently finds **nothing**.
+Scope every search (`grep -rn TD- sources/`) or you will conclude the tree is clean.
+
+- **`TD-USB` / `TD-USB-pmap`** — 4 sites in `sources/phoenix-rtos-devices/usb/xhci/`
+  (`bcm2711-pcie.c:112,948`, `bcm2711-pcie.h:71`, `xhci.c:756`). A real workaround:
+  the VL805 firmware load is asynchronous after the mailbox reset returns, so
+  config-space/BAR0 access races the boot ROM and the bridge returns the
+  `0xdead…` pattern; the code waits, capped at 300 ms. Plus a pmap workaround
+  pre-creating the xhci MMIO mapping because a late `mmap` "empirically reads
+  0xdead".
+- **`TD-STK-SWPRINTF`** — 1 site,
+  `sources/phoenix-rtos-ports/supertuxkart/patches/0006-…patch:17`, "drop when
+  libphoenix gains swprintf/vswprintf". ⓘ **Condition still unmet**: libphoenix
+  has no `swprintf` implementation (checked 2026-09-17 — the only hits are MISRA
+  lint config). So this is live debt, not a stale note.
+- **`TODO(vkquake-port)`** — 6 sites across
+  `sources/phoenix-rtos-ports/vkquake/glue/{pl_phoenix_main.c,pl_phoenix_vk_vid.c}`,
+  plus a stubbed Vulkan entry point in `vk_trampolines.c:215`
+  (`vkCmdSetDepthBias` resolves to a bring-up no-op). Tracked in `docs/done/`
+  vkQuake plans, but a stubbed Vulkan entry point is exactly the class of thing
+  this register exists to surface.
+- **`TD-diag`** — live debug scaffolding in the bootloader
+  (`sources/plo/hal/aarch64/generic/_init.S:479`): a vector table where every slot
+  prints a tag char and halts, self-described as temporary. Closest owner is
+  TD-05 (LARGELY RESOLVED); either give it an entry or remove it.
+
+ⓘ For completeness: `sources/phoenix-rtos-devices/gpu/rpi4-v3d/` — the largest
+body of Pi-4-specific code — carries **zero** `TODO`/`FIXME`/`XXX`/`HACK`
+markers. Its debt idiom is `BRING-UP` prose instead.
+
 ## Tracking Checklist
 
 | ID | Status | Blocker? |

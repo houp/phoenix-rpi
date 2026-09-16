@@ -308,6 +308,14 @@ Boot the image and log in to the `(psh)%` prompt, with an **HDMI display** and a
 > hang. It announces itself on the console —
 > `v3d: shader cache COLD (./.mesa-shader-cache/v1)` — so if a GPU app is ever
 > unexpectedly slow, look for that line before assuming it has crashed.
+> ⚠ **But that line appears only ONCE per card, for the very first GL app you
+> ever run** — it is triggered by the cache *directory* being absent, not by
+> *your* app's shaders being uncached (`v3d_phoenix_stubs.c:128`). Measured: a
+> six-app gate on a freshly flashed card printed it **zero** times, because one
+> earlier QuakeSpasm run had already created the directory — while Quake II,
+> Quake III, vkQuake and SuperTuxKart each still compiled their own shaders for
+> the first time. **So warm every app you plan to show, individually. Warming one
+> does not warm the others, and the system will not tell you.**
 > ✅ **Measured on the card (2026-09-17), not assumed:** the cache is written to
 > `/.mesa-shader-cache/v1` on the persistent ext2 root and **survives a power
 > cycle** — a second boot that ran no GPU app at all still listed 27 shader blobs.

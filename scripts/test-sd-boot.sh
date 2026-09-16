@@ -58,29 +58,33 @@ trap restore_netboot EXIT INT TERM
 echo "=== bringing the netboot server DOWN so the firmware falls back to the card ==="
 "$repo/scripts/netboot-server-down.sh" 2>&1 | tail -3
 
+# idle-secs is per COMMAND. Boot 1 runs a GL app on a COLD cache, which on this
+# board means a real shader compile before the first frame (vkQuake ~67 s; see
+# docs/misc/2026-09-16-shader-cache-map.md), so it needs a generous window or the
+# run is cut off mid-compile and scores as "drew nothing". Boot 2 only lists
+# directories and can be short.
 run_cycle() {
-	local lbl="$1"; shift
-	if [ "$#" -gt 0 ]; then
-		"$repo/scripts/test-cycle-psh-interact.sh" --skip-server-up \
-			--label "$lbl" --wait-secs 200 --idle-secs 90 --max-cmd-secs 120 -- "$@"
-	else
-		"$repo/scripts/test-cycle-netboot.sh" --sd-boot --label "$lbl" --capture-secs 200
-	fi
+	local lbl="$1" idle="$2"; shift 2
+	"$repo/scripts/test-cycle-psh-interact.sh" --skip-server-up \
+		--label "$lbl" --wait-secs 200 --idle-secs "$idle" \
+		--max-cmd-secs "$(( idle + 40 ))" -- "$@"
 }
 
 # ---- boot 1: does it come up at all, and does a GL app populate the cache? ----
+# ⚠ The listing commands after the game are unreliable in THIS boot: quakespasm
+# holds the console, so they are typed while it still runs and their output is
+# interleaved with flipstat spam or lost. Boot 1 exists to POPULATE the cache;
+# boot 2 is the one that reads it. Do not grade boot 1's blob count.
 echo ""
 echo "=== boot 1/2: SD boot + populate the shader cache ==="
-run_cycle "${label}-b1" \
+run_cycle "${label}-b1" 150 \
 	"uname -a" \
-	"quakespasm" \
-	"ls -la /" \
-	"ls /.mesa-shader-cache/v1"
+	"quakespasm"
 
 # ---- boot 2: is the cache still there WITHOUT running the app? ----
 echo ""
 echo "=== boot 2/2: SD reboot, list the cache without repopulating it ==="
-run_cycle "${label}-b2" \
+run_cycle "${label}-b2" 45 \
 	"ls -la /" \
 	"ls /.mesa-shader-cache/v1"
 
@@ -94,7 +98,11 @@ for b in b1 b2; do
 		| grep -aE "psh prompt|fault_pattern_matches|ends_mid_line" || true
 	# grep -a: the logs carry binary bytes.
 	cold=$(grep -ac "shader cache COLD" "${log}")
-	blobs=$(grep -aoE "^[0-9a-f]{64}$" "${log}" | wc -l | tr -d ' ')
+	# Count hex TOKENS, not whole lines: `ls` prints the 64-char blob names in
+	# COLUMNS (3 per line here) and the UART log carries CR + ANSI colour, so an
+	# anchored ^...$ match scores a populated cache as empty. That mis-graded the
+	# first real SD run as "cache never lands" when 27 blobs were sitting there.
+	blobs=$(tr -d '\r' < "${log}" | grep -aoE "\b[0-9a-f]{64}\b" | sort -u | wc -l | tr -d ' ')
 	echo "    shader cache: COLD reports=${cold}  blob filenames listed=${blobs}"
 done
 

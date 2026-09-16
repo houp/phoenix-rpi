@@ -198,6 +198,17 @@ for entry in "${apps[@]}"; do
 		# The command echo proves the launch was issued; the app's own output
 		# proves it started. Both matter -- a log that stops AT the echo is the
 		# signature of a target that took the command and died.
+		# ⚠ This is "the command string appears in the log", and psh ECHOES every
+		# command it is given — so it cannot fail once the command was sent, and it
+		# says nothing about the app starting. Proven twice: this file's own header
+		# records a bare `quake2` that was echoed and then "produced NOT ONE BYTE",
+		# and on 2026-09-17 it scored yes for a Quake II that hung in SDL_OpenAudio
+		# and rendered zero frames (KNOWN-ISSUES q2-sdl-openaudio-hang). Column
+		# renamed to say what it measures; the real evidence for a GPU app is the
+		# `frames` column (flipstat), which is 0 for a hung app.
+		# Not tightened to "appears more than once": Quake II never echoes its own
+		# absolute path, so that test false-negatives on a perfectly good run
+		# (measured: 1 occurrence, 8229 frames, correct HDMI).
 		grep -qaF "${cmd%% *}" "${log}" && launched="yes" || launched="NO"
 	else
 		log="(no log)"
@@ -213,7 +224,7 @@ for entry in "${apps[@]}"; do
 done
 
 echo "=== showcase gate summary ==="
-printf '%-8s %-4s %-7s %-7s %-9s %-7s %s\n' app rc prompt faults launched frames log
+printf '%-8s %-4s %-7s %-7s %-9s %-7s %s\n' app rc prompt faults cmd-echo frames log
 for r in "${rows[@]}"; do
 	IFS='|' read -r a rc p f l fr lg <<<"${r}"
 	printf '%-8s %-4s %-7s %-7s %-9s %-7s %s\n' "$a" "$rc" "$p" "$f" "$l" "$fr" "$lg"

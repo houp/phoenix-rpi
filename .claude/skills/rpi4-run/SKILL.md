@@ -15,9 +15,15 @@ optional HDMI capture card. **Only one Pi cycle at a time** — the UART is
 exclusive; a second concurrent cycle gets an empty log. Builds are parallelizable;
 the boot/UART step is not.
 
-Host facts (this machine): `/dev/sda` is **always** the SD card (safe to `dd`, no
-identity check); `/dev/nvme0` is the system SSD. Toolchain + buildroot are under
-the repo (`.toolchain/`, `.buildroot/`).
+Host facts (this machine): `/dev/nvme0` is the system SSD. Toolchain + buildroot are
+under the repo (`.toolchain/`, `.buildroot/`).
+
+⚠ **There is currently NO SD card anywhere in this lab** (checked 2026-09-16).
+`/dev/sda` does not exist on the host, and a Linux netboot of the Pi shows **no
+`/dev/mmcblk*` at all** — no card in the Pi either. So recipe D's flash step and
+every SD-boot scenario are **not executable here**; SD images can be built and
+inspected (`debugfs`, `verify-sd-image-contents.sh`) but never booted. Do not
+spend a cycle rediscovering this.
 
 ## Pick the scenario
 
@@ -29,8 +35,17 @@ the repo (`.toolchain/`, `.buildroot/`).
 | Build a fresh image + get it onto the card | — | in host | D (then A) |
 
 `sd` mounts a local ext2 root; `nfsroot` mounts the NFS export as `/`; `netboot`
-uses a RAM root. **Card-in forces SD boot** (VideoCore firmware won't fall through
-to network with a card present), so netboot/nfsroot need the card **removed**.
+uses a RAM root.
+
+ⓘ **"Card-in forces SD boot" is NOT true of this Pi.** Its EEPROM was written on
+2026-05-21 with `BOOT_ORDER=0xf12` — **network first, SD second**
+(`scripts/prepare-pi-eeprom-netboot.sh:16`,
+`docs/misc/2026-09-02-pi-firmware-pin-revisit.md:489`), so a card present should not
+prevent netboot; SD boot is what you get when the netboot server is **down**. That
+is also what makes unattended self-flash possible in principle (netboot Linux, `dd`
+to `/dev/mmcblk0`, bring the server down, power-cycle). ⚠ Not re-verified
+empirically — there has been no card to test with. If netboot ever fails with a
+card inserted, check this assumption first.
 
 ## A — Run commands over SD boot (most common)
 
@@ -130,7 +145,9 @@ Build the variant you need (add `--with-tests` to include `/bin/test-libc-*`,
 ./scripts/rebuild-rpi4b-fast.sh --variant sd --with-tests     # -> artifacts/rpi4b/rpi4b-sd-2part.img
 ```
 
-Flash to the card (in the host reader). No device check needed — `/dev/sda` is the card:
+Flash to the card — ⛔ **not possible on this bench** (no card, no reader; see the
+top of this file). Kept for when a card is available; `/dev/sda` was the reader's
+node historically, so re-confirm the device before trusting it:
 
 ```
 udisksctl unmount -b /dev/sda1 2>/dev/null || true

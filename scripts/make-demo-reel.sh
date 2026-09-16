@@ -59,9 +59,27 @@ out="${1:-$vid_dir/$(date -u +%Y%m%d-%H%M%S)-phoenix-rtos-rpi4-showcase.mp4}"
 # described the 2026-09-09 clip and is not true of this one, so do not grade a
 # future X capture against it.
 #
-# The four Quake segments and SuperTuxKart all carry the engine's OWN on-screen
-# frame-rate readout, so the performance figures in this reel are the system
-# reporting itself rather than a claim in a caption.
+# WHERE THE FRAME-RATE FIGURES COME FROM, and the trap in measuring them.
+#
+# Two different instruments appear below, and the captions say which:
+#
+#   "N fps on screen"        -- the engine's OWN readout, burned into the frame.
+#                               A viewer can read it off the video and check us.
+#   "N fps at the page flip" -- the winsys `flipstat` counter from the UART log,
+#                               which counts frames actually PRESENTED. This is
+#                               the trustworthy number; an engine's on-screen
+#                               counter is a ~1 s instantaneous estimate and
+#                               swings far wider (vkQuake's reads 23-65 across
+#                               the 22 s shown here).
+#
+# ⚠ A flipstat figure must be averaged over the GAMEPLAY windows ONLY. Taking a
+# median over the whole run measures whatever the app sat on longest, which is
+# usually a motionless screen. vkQuake plays one demo and then drops to the
+# console, and that static console renders at a dead-flat 42.2 fps for the rest
+# of the capture -- so the whole-run median IS the console, not the demo. (It
+# landed within 1 fps of the real answer here purely by chance, which is exactly
+# why it went unnoticed.) The figures below are frame-weighted means over the
+# gameplay windows: vkQuake 2140 frames / 50.1 s = 42.7, STK 2248 / 282.9 = 7.95.
 segments=(
 	"20260915-161533-shell|48|17|Boot — kernel -> drivers -> lwIP -> NFS root -> psh, on real hardware"
 	"20260915-185349-shell3|179|23|Shell — uname, Lua 5.4.7 / jq 1.7.1 / SQLite 3.53.4, and the ported /usr/bin userland"
@@ -71,7 +89,7 @@ segments=(
 	"20260915-160828-video|85|24|Hardware H.265 decode — BCM2711 rpivid decoding a 1080p phone recording, full-screen at 21.7 fps"
 	"20260915-152409-qs|116|22|QuakeSpasm — OpenGL on Mesa v3d, id1 demo1 playback, ~37 fps on screen"
 	"20260915-164244-q2demo|97|22|Quake II — yQuake2 on OpenGL ES, q2demo1 playback, ~35 fps on screen"
-	"20260915-193527-vkq-flip|112|22|vkQuake — Vulkan via V3DV, id1 demo2 playback, page-flipped present, 42 fps at the page flip"
+	"20260915-193527-vkq-flip|112|22|vkQuake — Vulkan via V3DV, id1 demo2 playback, page-flipped present, 43 fps average at the page flip"
 	"20260915-172704-q3orbit|122|24|Quake III Arena — 5-bot deathmatch on q3dm1, orbiting third-person camera, 36 fps on screen"
 	"20260915-155315-stk|161|24|SuperTuxKart 1.4 — OpenGL ES 3.1, 4-kart AI race, 7-8 fps at the page flip"
 )

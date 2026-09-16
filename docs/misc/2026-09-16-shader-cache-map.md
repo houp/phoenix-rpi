@@ -1,6 +1,6 @@
 # The V3D shader disk cache: what it is, what it is worth, and the bug that made it useless
 
-*2026-09-17. Written after a defect hunt that started from a line in the weekly log telling the owner
+*2026-09-16. Written after a defect hunt that started from a line in the weekly log telling the owner
 to "warm each GPU app twice before presenting". The advice was a ritual with no mechanism behind it;
 the mechanism turned out to be broken. Companion to
 [`2026-09-08-stk-time-to-race.md`](2026-09-08-stk-time-to-race.md) and the `shader-cache-speckle` row
@@ -76,7 +76,7 @@ Two controls guard it, and both are real:
 only update path for a card is a reflash, which wipes the root anyway. Updating binaries in place on a
 mounted card would leave stale blobs completely unguarded.
 
-## 4. 🐞 The fingerprint was deleted on every rebuild (fixed 2026-09-17)
+## 4. 🐞 The fingerprint was deleted on every rebuild (fixed 2026-09-16)
 
 `prepare-buildroot.sh` rsyncs the project source into the buildroot with `--delete`. The fingerprint
 file lives at the buildroot *root* and does not exist in the source, so **every prepare deleted it** —

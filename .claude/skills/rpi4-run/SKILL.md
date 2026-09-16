@@ -18,12 +18,22 @@ the boot/UART step is not.
 Host facts (this machine): `/dev/nvme0` is the system SSD. Toolchain + buildroot are
 under the repo (`.toolchain/`, `.buildroot/`).
 
-⚠ **There is currently NO SD card anywhere in this lab** (checked 2026-09-16).
-`/dev/sda` does not exist on the host, and a Linux netboot of the Pi shows **no
-`/dev/mmcblk*` at all** — no card in the Pi either. So recipe D's flash step and
-every SD-boot scenario are **not executable here**; SD images can be built and
-inspected (`debugfs`, `verify-sd-image-contents.sh`) but never booted. Do not
-spend a cycle rediscovering this.
+✅ **SD boot WORKS and is verified (2026-09-16/17).** A card written with a Phoenix
+2-part image boots the Pi: plo → kernel → fbcon → pcie → xhci → psh, `mmcblk0p2`
+ext2 root, 0 faults, and the games run off it. Drive it with
+`scripts/test-sd-boot.sh`, or grade the whole showcase on the card with
+`scripts/run-showcase-gate.sh --sd-boot`.
+
+⚠ **The card and netboot are EITHER/OR — this is the thing to plan around.**
+* With a **bootable** card in, bring dnsmasq **down** (`netboot-server-down.sh`)
+  and the firmware boots the card; bring it back up afterwards, because netboot is
+  the only other lane.
+* With a **BLANK** card in, the Pi **does not boot at all** — measured over 4
+  power-ons: 0 DHCP, 0 UART, black HDMI. It does not fall back to the network. So
+  you cannot netboot Linux to flash a blank card in the slot; write the card on the
+  host first (it appears as a USB reader — **check the device, never assume
+  `/dev/sda`**) or have it written elsewhere.
+* Card **out** ⇒ netboot as usual.
 
 ## Pick the scenario
 

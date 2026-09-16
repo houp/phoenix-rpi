@@ -2017,9 +2017,17 @@ Scope every search (`grep -rn TD- sources/`) or you will conclude the tree is cl
 - **`TODO(vkquake-port)`** — 6 sites across
   `sources/phoenix-rtos-ports/vkquake/glue/{pl_phoenix_main.c,pl_phoenix_vk_vid.c}`,
   plus a stubbed Vulkan entry point in `vk_trampolines.c:215`
-  (`vkCmdSetDepthBias` resolves to a bring-up no-op). Tracked in `docs/done/`
-  vkQuake plans, but a stubbed Vulkan entry point is exactly the class of thing
-  this register exists to surface.
+  (`vkCmdSetDepthBias` is a no-op). ✅ **Reviewed 2026-09-17 — sound, not a
+  landmine.** It is a deliberate guard, not laziness: `vkGetDeviceProcAddr`
+  resolves that name to Mesa's `vk_common_CmdSetDepthBias`, which forwards
+  through `dispatch_table.CmdSetDepthBias2EXT` — an entry V3DV's generated device
+  dispatch table leaves **unpopulated** (it does not advertise
+  `VK_EXT_depth_bias_control`), so the indirect call jumped to garbage (observed
+  PC = ASCII `_emit_li`) and PC-alignment-faulted on the first world brush-draw
+  frame. The functional cost of skipping it is polygon-offset z-fighting
+  cosmetics, and vkQuake renders correctly in the gate and the reel. Proper fix
+  is named in the comment: populate `CmdSetDepthBias2EXT` in V3DV's dispatch, or
+  fix the dispatch-table generation.
 - **`TD-diag`** — live debug scaffolding in the bootloader
   (`sources/plo/hal/aarch64/generic/_init.S:479`): a vector table where every slot
   prints a tag char and halts, self-described as temporary. Closest owner is

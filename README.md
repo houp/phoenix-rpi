@@ -301,10 +301,15 @@ Boot the image and log in to the `(psh)%` prompt, with an **HDMI display** and a
 
 > **If you are demoing this live, two things are worth knowing.**
 >
-> **Start each GPU app once before the audience arrives, then start it again.**
-> The first run of a GPU app on a cold shader cache can spend minutes compiling
-> shaders before it draws anything — measured at roughly 1 run in 12 taking the
-> whole window. The second run is fast, and stays fast.
+> **Start each GPU app once before the audience arrives.** On a freshly flashed
+> card the shader cache is empty, so the first run of each GPU app compiles its
+> shaders before it draws anything. vkQuake is the one that bites: **~67 s of
+> black screen** while it builds 67 shader modules, which reads exactly like a
+> hang. It announces itself on the console —
+> `v3d: shader cache COLD (./.mesa-shader-cache/v1)` — so if a GPU app is ever
+> unexpectedly slow, look for that line before assuming it has crashed. The SD
+> root is persistent, so this is paid **once per card, per app**: later runs, and
+> later boots, reuse the cache.
 >
 > **If an app prints nothing and just sits there, relaunch it.** A cold start
 > occasionally fails to get going; a relaunch has never failed. The netboot cause

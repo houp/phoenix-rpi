@@ -32,3 +32,32 @@ Archived from the weekly log once the work closed. Analysis of the ABI break its
     `manifests/2026-09-16-w38-abifix-gate.md`. All siblings pushed.
   - ⏸ **Your call:** the merged tree is now gated and could produce an image. `da752ac1` (pre-merge,
     gated 12/12) remains the recommendation until you want otherwise — say the word and I cut one.
+
+
+## Closing state (appended)
+
+- **2026-09-16 sweep (9th) — 17 commits merged; all 16 siblings 0 behind.** It broke the tree twice and
+  both are fixed: a **syscall ABI break** (`phMutexLock`/`phCondWait` went 1 → 3 stack args, so every
+  binary built against the old libphoenix got EINVAL from `pthread_mutex_lock` — **nondeterministically**,
+  since the extra args came from uninitialised stack; fix = rebuild every userspace binary), and the
+  **default cond clock** flipping to `CLOCK_REALTIME`, unusable on a board whose wall clock jumps
+  mid-boot (reverted locally, libphoenix `c283f2d`).
+  ✅ **Verified: 6/6 app gate + 1050 libc tests across all 17 suites, 0 failures, 0 faults, 0 heap-canary
+  hits.** Manifest `manifests/2026-09-16-w38-abifix-gate.md`.
+  ⚠ Stale binaries that "pass" are passing on **luck** — grade a post-merge tree with
+  `test-libc-pthread`, never with apps alone. 🔁 Those hard-won rules are now baked into the **Monday
+  upstream-sweep cron prompt itself**, so the next sweep starts with them instead of rediscovering them.
+  Detail: [`docs/done/2026-09-16-upstream-merge-detail.md`](../done/2026-09-16-upstream-merge-detail.md) ·
+  [`docs/misc/2026-09-16-upstream-mutex-abi-break.md`](../misc/2026-09-16-upstream-mutex-abi-break.md).
+  🐞 ↩ **CORRECTION — the merged tree is NOT shippable, and my earlier "verified" was over-claimed.**
+  The 6/6 gate and 1050 libc tests covered only the binaries I had rebuilt. **189 of 333 binaries on
+  the export still predate the merge** (coreutils, dropbear, xz, python3, hevc-play, …) and therefore
+  still carry the old syscall ABI. Caught because `hevc-play` (last built **09-09**) fails every decode
+  with `rc=-5`, after I first suspected my own transcode. ⏳ Full rebuild running — that was always the
+  stated remedy ("rebuild EVERY userspace binary"); I applied it to the showcase ports and tests only.
+  ⚠ **Do not cut an image from the merged tree until this completes.** `da752ac1` is **pre-merge** and
+  unaffected — it remains the recommendation, and nothing about it changes.
+  🔧 **`scripts/check-stale-binaries.sh`** (new) makes this mechanical: it compares every binary on the
+  export against `libphoenix.a` and fails if any predate it. Run it after **any** merge touching
+  libphoenix or a syscall signature, **before** believing a gate — it is the check that would have
+  caught my over-claim, and it costs a second.

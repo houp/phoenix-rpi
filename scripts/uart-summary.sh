@@ -104,7 +104,15 @@ check_stage "init thread spawn   " "main: Starting syspage programs|main: spawn 
 check_stage "spawn loop done     " "main: spawn loop done|entering proc_reap" dbg
 check_stage "fbcon up            " "fbcon: ok"
 check_stage "pcie running        " "pcie: [0-9a-f]{2}:[0-9a-f]{2}\\.[0-9] ven|pcie: enter main|pcie: linkUp"
-check_stage "xhci running        " "xhci: capProbe|xhci: pre reset"
+# Renamed 2026-09-17: both markers are PRE-initialisation. `xhci_capProbe`
+# (xhci.c:783) reads the capability registers and "pre reset" precedes the
+# controller reset, so this fires when the driver has begun probing — it says
+# nothing about the controller coming up or a device enumerating. Same class of
+# defect as the old "netif has IP" below: a stage whose name claims more than
+# its pattern can show. Left deliberately broad rather than tightened to
+# "interrupt-IN pipe ready", which would false-NEGATIVE on a bench with no USB
+# device attached; the honest fix here is the label.
+check_stage "xhci probe started  " "xhci: capProbe|xhci: pre reset"
 check_stage "psh tty open        " "psh: tty open|psh: ready" dbg
 check_stage "psh prompt          " "\\(psh\\)%"
 # Network stages — matches test-cycle-netboot.sh's own boot-health probes

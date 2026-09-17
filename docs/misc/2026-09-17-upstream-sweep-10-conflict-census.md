@@ -68,3 +68,28 @@ change was made for). The work is a focused signal-handling reconciliation, not 
 
 Rollback is `scripts/restore-integration-state.sh manifests/2026-09-17-w38-malloc-heap-provenance.md`.
 The demo card is not affected either way: it boots `b95e983a` from its own rootfs.
+
+
+## Resolved on branches (2026-09-17, same day) — NOT built yet
+
+`agent/upstream-sweep-10` exists in all five repos and is pushed to `publish`; **every master is
+untouched** (`changes=0`, still `behind`). SHAs: libphoenix `434f6de` · kernel `00dd500a` ·
+utils `ce472cb` · tests `c7ccfc8` · project `fe60daf`.
+
+How each conflict went — the ones that were judgement calls, not mechanics:
+
+| conflict | resolution |
+|---|---|
+| `libphoenix/signal/signal.c` | Took **upstream's file** (signal handling now lives in the kernel) and re-added the two pieces that are ours: the `_dbg_signal_ctx` / `_dbg_signal_pc` globals (read by `phoenix-rtos-corelibs/libdbg`) and `siginterrupt()`, which upstream **declares but does not implement** and which `phoenix-rtos-tests libc/signal/handler.c` asserts. |
+| `libphoenix/arch/aarch64/signal.S` | Upstream restructured the trampoline (the kernel now pushes the handler address and the trampoline `blr`s it). Our libdbg stash was re-derived against the **new** stack layout, read off `hal_cpuPushSignal()`: `[sp+24]` = signalCtx, `[sp+32]` = interrupted pc. |
+| `libphoenix` umask (`sys/stat.c`, `unistd/file.c`, `include/sys/stat.h`) | Took upstream's atomic `umask`/`__getumask()` and **deleted our `_libc_applyUmask`** helper and its three call sites — less divergence, and upstream's is thread-safe. ⓘ Behaviour change: upstream's `_stat_init()` starts the mask at **0**, not 022. The libc stat tests read the mask back rather than assuming it, so they are unaffected. |
+| `libphoenix/misc/init.c` | Kept our `LIBC_TRACE` instrumentation, dropped `_signals_init()` (gone upstream), added upstream's `_stat_init()`, and fixed the trace comment that referred to the now-deleted "signals" stage. |
+| `kernel/vm/map.c` | Kept our three-way fault path (a USER thread whose `process_t` is gone retires instead of asserting — the bug that turned one corrupt pointer into a **dead Pi** on an X11 exit) and adopted upstream's `SIGSEGV` numbering plus its new trailing `proc_threadEnd()`, which now expresses our "retire this thread" more cleanly than the `hal_cpuReschedule()` we used. |
+| `kernel/proc/msg.c` | Took upstream's `proc_sendEx(..., interruptible)` split and kept our `MSG_SEND_WATCHDOG` timeout inside it (`WD_TIMEOUT` is 0 when the watchdog is compiled out, i.e. identical to upstream then). |
+| `kernel/proc/process.c` | Kept both sides: our `p->magic = 0U` invalidation **and** upstream's `vm_kfree(p->sigactions)`; kept our exec-failure diagnostic print and took upstream's `SIGKILL` as the termination mechanism. |
+| `kernel/proc/threads.c` (threadsinfo) | Took **upstream's** rewrite wholesale — our side carried only a commented-out `ppid` line and a TODO. |
+| `kernel/proc/threads.c` (vfork kstack) | ⚠ **The one hunk that needs a second pair of eyes.** Upstream added `execdata` / `proc_vforkedDied()` bookkeeping; our guard leaks a *lent* kernel stack rather than freeing it (the `/dev/vcmbox`-written-across-a-thread_t corruption). Both are applied — upstream's restructure first, then our guard. It can only leak, never free something it should not, but if upstream's new path already covers the window our guard is now dead code. |
+
+**Still to do, in order:** `--scope full-clean` → `check-stale-binaries.sh` → `test-libc-pthread`
+→ full libc suites → six-app gate → only then fast-forward master + manifest. Nothing has been
+compiled yet: the branches are a *resolution*, not a verification.

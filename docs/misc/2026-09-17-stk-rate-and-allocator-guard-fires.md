@@ -126,11 +126,24 @@ seed 0x…  ops 300411  check-every 500  -> OK      (8/8 seeds OK)
 No orphaned bin link, no `freesz` drift, no unmerged neighbours, no chunk pointing into a released
 heap. The checker is known to be able to fire — its own self-test forges each violation first.
 
-⇒ the defect is **not** in the single-threaded path, which is the only thing that harness can see.
-The untested axis it leaves is **concurrency**, and both apps that fired (SuperTuxKart, vkQuake) are
-heavily multithreaded. `tools/malloc-mt-stress` (new, staged as `bin/mtstress`) drives the same
-allocator from N threads with a size mix that keeps heaps being created and released under each
-other, tagging every block so user-data corruption is caught in the act.
+⇒ the defect is **not** in the single-threaded path.
+
+**Then the concurrent path, host-side, with a real lock.** The harness's `<sys/threads.h>` stub used
+to make the allocator's mutex a no-op — so an MT run over it would have proved nothing. It is now a
+real pthread mutex (which immediately caught a harness bug: the new why-selftest allocated before
+`_malloc_init`), and `--threads N --mt-ops M` drives the same allocator from N threads, every block
+tagged in its first and last 64 bytes and verified before each realloc and free.
+
+| run | ops | result |
+|---|---|---|
+| 8 threads × 400 000 | 1 408 576 allocs/frees, 383 218 reallocs | **0 tag mismatches, invariants OK after join** |
+| 6 threads × 120 000 under **ASan** | 317 027 allocs/frees | **0 ASan reports, 0 mismatches** |
+
+⇒ the allocator's logic survives ~3.2 M concurrent operations with correct mutual exclusion. What
+that does NOT cover is everything Phoenix-specific about the lock and the mappings: the kernel mutex
+under 4-core SMP, `mmap`/`munmap` semantics for a released heap, and any writer outside the
+allocator. That is what `tools/malloc-mt-stress` (staged as `bin/mtstress`) is for — the same shape,
+run on the target.
 
 ## Next step that would make the next occurrence decisive
 

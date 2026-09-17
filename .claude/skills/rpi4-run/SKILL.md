@@ -186,6 +186,23 @@ Notes:
   after a committed kernel/devices/usb/lwip/libphoenix change (stale-core hazard),
   `full-clean` from cold.
 
+## Long runs: detach with `setsid`, or the tool timeout kills them
+
+A gate (~45 min) or a multi-trial bench (~20 min) outlives any single Bash tool
+call. `nohup … &` is **not** enough on its own — when the tool call that spawned
+it is torn down, the child goes with it. Measured 2026-09-17: a 6-trial bench died
+after trial 1, twice, with `rc=143` (SIGTERM) and no summary line, which reads
+exactly like a script bug.
+
+```
+setsid nohup ./scripts/run-showcase-gate.sh --label mygate > gate.log 2>&1 < /dev/null & disown
+```
+
+Then poll the log from later calls (`grep -aE '^--- \[' gate.log`) or wait on a
+condition. ⚠ A truncated run is easy to misread as a failure of the thing under
+test: check for the script's own final summary before concluding anything, and
+`rc=143` means killed, not failed.
+
 ## Reading results
 
 ```

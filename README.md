@@ -176,11 +176,17 @@ capture under `artifacts/hdmi/`:
 - **GPU-accelerated X11 desktop** (`startx_gpu deskapps`) — Window Maker plus an
   xterm with a live shell, `xclock` and `xcalc`
   (`20260903-053119-final-xgpu-tick.png`).
-- **SuperTuxKart** — **races in-game** on the shipped image at `FPS: 7/7/9`–`8/9/9` (6-trial bench,
-  mostly 7/7/9; the earlier `8/9/9` was 7 trials on the *previous* image) (its
-  own on-screen counter), with `scale_rtts_factor=0.75` as the shipped default,
-  up from 5/6/6 at full resolution. It still faults intermittently in its own
-  code — see [docs/KNOWN-ISSUES.md](docs/KNOWN-ISSUES.md).
+- **SuperTuxKart** — **races in-game** on the shipped image at **~8 fps measured at the page flip**
+  (the winsys `flipstat` counter; its own on-screen number is a *tick* rate and reads differently),
+  with `scale_rtts_factor=0.75` as the shipped default, up from ~5–6 fps at full resolution.
+  Not fill-rate bound: half the pixels render at the same rate
+  ([docs/misc/2026-09-16-stk-fps-not-fill-bound.md](docs/misc/2026-09-16-stk-fps-not-fill-bound.md)).
+  ⚠ *Corrected 2026-09-17:* this entry used to say "it still faults intermittently in its own code".
+  That was true when written and is no longer: **0 crashes in 131 STK engine starts** since the
+  2026-09-12 allocator-ownership fix, against **30 in the 242 runs before it**, same detector both
+  sides ([docs/misc/2026-09-17-stk-rate-and-allocator-guard-fires.md](docs/misc/2026-09-17-stk-rate-and-allocator-guard-fires.md)).
+  A contained heap guard still fires rarely without faulting — see
+  [docs/KNOWN-ISSUES.md](docs/KNOWN-ISSUES.md).
 - **Hardware H.265 decode** — the BCM2711 `rpivid` block decodes a real 1080p
   phone clip and plays it on `/dev/fb0` at **21.7 fps, 0 faults** (~90% of each
   frame is the framebuffer blit; the decode itself is ~4.5 ms).
@@ -189,8 +195,11 @@ capture under `artifacts/hdmi/`:
 `pak0.pk3` it needs two more files, both staged by `scripts/stage-game-data.sh`
 from `assets/quake3-qvm/`: a `pak1.pk3` holding three QVMs we built from
 **ioquake3** (the demo's 1999 QVMs report UI API 3, while quake3e requires 6), and
-a `q3key` file whose **format alone** is checked. Honest caveat: the QVM build
-recipe is not yet in this repo, so that pak is *staged* rather than rebuilt from
+a `q3key` file whose **format alone** is checked. ✅ *Updated 2026-09-17 — the old caveat here
+("the QVM build recipe is not yet in this repo") is out of date:* `tools/quake3-vm/build-quake3-vms.sh`
+builds all three QVMs from ioquake3 at a pinned commit, and the output was verified byte-wise against
+the shipped pak (two identical, the third differing only in its embedded `__DATE__`). The pak is
+still *staged* at image-build time rather than rebuilt on every build, but it is reproducible from
 source — see [`assets/quake3-qvm/README.md`](assets/quake3-qvm/README.md).
 
 Game data for all five engines is staged into the rootfs overlay by

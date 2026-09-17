@@ -1547,6 +1547,111 @@ static int hz_selftest(void)
 }
 
 /* ------------------------------------------------------------------ */
+/* malloc_chunkValidWhy() code coverage.
+ *
+ * The corrupt-header report prints a code 1-8 saying WHICH test rejected the
+ * header, because those tests answer different questions: 2 means a pointer
+ * into a heap we already released (a use-after-free of a whole heap), 7 means a
+ * smashed size in a live one, 4 means a header fabricated out of unrelated
+ * memory. Three contained field fires in SuperTuxKart (2026-09-15/16/17) could
+ * not be told apart without it.
+ *
+ * Those fires are rare, so the codes have to be right the FIRST time one is
+ * read. Each case below is built to fail exactly one test, with every other
+ * test passing, and asserts the code -- the same "can the detector actually
+ * fire?" discipline as hz_selftest() above. Everything is restored afterwards
+ * so the allocator stays usable for the stress run. */
+static int hz_whyExpect(int got, int want, const char *label)
+{
+	int ok = (got == want);
+
+	printf("selftest why %-24s -> %d (want %d)%s\n", label, got, want,
+			ok ? "" : "   <== WRONG CODE");
+	return ok ? 0 : 1;
+}
+
+
+static int hz_whySelftest(void)
+{
+	void *p;
+	chunk_t *c;
+	heap_t *h;
+	size_t savedChunkSize, savedHeapSize;
+	int bad = 0;
+
+	p = phx_malloc(64);
+	if (p == NULL) {
+		printf("selftest why: malloc failed\n");
+		return 1;
+	}
+	c = (chunk_t *)((uintptr_t)p - CHUNK_OVERHEAD);
+	h = c->heap;
+
+	/* 0: the unmodified block must be accepted, or every case below is vacuous. */
+	bad += hz_whyExpect(malloc_chunkValidWhy(c, h), 0, "a real live block");
+
+	/* 1: chunk pointer that cannot be an address. */
+	bad += hz_whyExpect(malloc_chunkValidWhy(NULL, h), 1, "chunk NULL");
+	bad += hz_whyExpect(malloc_chunkValidWhy((chunk_t *)((uintptr_t)1 << 47), h), 1,
+			"chunk non-canonical");
+	bad += hz_whyExpect(malloc_chunkValidWhy((chunk_t *)((uintptr_t)c + 1), h), 1,
+			"chunk misaligned");
+
+	/* 2: a pointer into a heap we have already released. Note it by hand rather
+	 * than racing a real munmap, then clear the entry again. */
+	{
+		unsigned int slot = malloc_common.relIdx % 8u;
+		malloc_common.released[slot].base = (uintptr_t)h;
+		malloc_common.released[slot].size = h->size;
+		bad += hz_whyExpect(malloc_chunkValidWhy(c, h), 2, "chunk in a released heap");
+		malloc_common.released[slot].base = 0;
+		malloc_common.released[slot].size = 0;
+	}
+
+	/* 3: heap pointer NULL or not page-aligned. */
+	bad += hz_whyExpect(malloc_chunkValidWhy(c, NULL), 3, "heap NULL");
+	bad += hz_whyExpect(malloc_chunkValidWhy(c, (heap_t *)((uintptr_t)h + 8)), 3,
+			"heap unaligned");
+
+	/* 4: page-aligned heap outside the window we have actually mmap'd. Never
+	 * dereferenced, because the window test rejects it first. */
+	if (malloc_common.heapHi != 0u) {
+		bad += hz_whyExpect(malloc_chunkValidWhy(c, (heap_t *)(uintptr_t)0x1000), 4,
+				"heap outside [lo,hi)");
+	}
+
+	/* 5: the heap's own size is not sane for its base. */
+	savedHeapSize = h->size;
+	h->size = 1u;
+	bad += hz_whyExpect(malloc_chunkValidWhy(c, h), 5, "heap->size insane");
+	h->size = savedHeapSize;
+
+	/* 6: chunk outside its heap's range -- just past the end, still canonical
+	 * and aligned, and not dereferenced before the range test. */
+	bad += hz_whyExpect(malloc_chunkValidWhy(
+			(chunk_t *)((uintptr_t)h + h->size + 8u), h), 6, "chunk past heap end");
+
+	/* 7: chunk size below the minimum (flag bits preserved). */
+	savedChunkSize = c->size;
+	c->size = (savedChunkSize & (CHUNK_CUSED | CHUNK_PUSED)) | 8u;
+	bad += hz_whyExpect(malloc_chunkValidWhy(c, h), 7, "chunk size too small");
+	c->size = savedChunkSize;
+
+	/* 8: a size that passes the minimum and alignment tests but runs off the end. */
+	c->size = (savedChunkSize & (CHUNK_CUSED | CHUNK_PUSED)) | (h->size + 0x1000u);
+	bad += hz_whyExpect(malloc_chunkValidWhy(c, h), 8, "chunk runs past heap end");
+	c->size = savedChunkSize;
+
+	/* and the block must still be intact -- every case above restored its field. */
+	bad += hz_whyExpect(malloc_chunkValidWhy(c, h), 0, "block restored");
+	phx_free(p);
+
+	printf("selftest why: %d wrong code(s)\n", bad);
+	return bad;
+}
+
+
+/* ------------------------------------------------------------------ */
 /* Fault-injection experiments: does corrupting a chunk header/footer
  * reproduce the STK crash signature (fault in the :346 forward-join loop at a
  * page-aligned address)?  This discriminates "allocator bug" from "caller heap
@@ -1785,6 +1890,12 @@ int main(int argc, char **argv)
 	}
 
 	if (doSelf != 0) {
+		printf("\n--- malloc_chunkValidWhy() code coverage ---\n");
+		if (hz_whySelftest() != 0) {
+			fprintf(stderr, "harness: the corrupt-header report would name the wrong "
+					"check; a field fire is read through those codes\n");
+			return 2;
+		}
 		printf("\n--- detector self-test ---\n");
 		if (hz_selftest() != 0) {
 			fprintf(stderr, "harness: the checker cannot see the bug it is hunting; "

@@ -264,7 +264,11 @@ int main(int argc, char **argv)
 		printf("mtstress: FAIL — %lu tag mismatch(es): a live block's own bytes changed\n", mism);
 		return 1;
 	}
+	/* Deliberately does NOT contain the string a reader would grep for
+	 * ("malloc:"), because this line appears three times in a healthy run and
+	 * would then show up in every census of allocator reports -- measured on its
+	 * own first outing, 2026-09-17. */
 	printf("mtstress: PASS — no tag mismatch. ⚠ this says nothing about the "
-		"allocator's own headers: read the log for malloc: lines (why=N).\n");
+		"allocator's own headers: grep the log for guard reports (why=N).\n");
 	return 0;
 }

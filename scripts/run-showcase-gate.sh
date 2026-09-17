@@ -171,6 +171,9 @@ sd_flag=""
 
 declare -a rows=()
 rc_all=0
+# Timestamp reference for "was this log written by the cycle I just ran?".
+marker="$(mktemp)"
+trap 'rm -f "${marker}"' EXIT
 
 for entry in "${apps[@]}"; do
 	key="${entry%%:*}"
@@ -178,6 +181,7 @@ for entry in "${apps[@]}"; do
 	lbl="${label}-${key}"
 
 	echo "--- [${key}] ${cmd}"
+	touch "${marker}"
 	./scripts/test-cycle-psh-interact.sh ${sd_flag} \
 		--label "${lbl}" \
 		--wait-secs "${wait_secs}" \
@@ -187,14 +191,27 @@ for entry in "${apps[@]}"; do
 		-- "${cmd}"
 	cycle_rc=$?
 
-	# Newest log carrying this label.
-	log="$(./scripts/uart-list.sh 40 "${lbl}" 2>/dev/null | head -1)"
-	[ -n "${log}" ] && log="artifacts/rpi4b-uart/${log##*/}"
+	# Newest log carrying this label AND written by THIS cycle. Without the
+	# time bound (the state before 2026-09-17), a cycle that produced no log --
+	# which this file's own header records happening -- graded the PREVIOUS run's
+	# log for the same label and reported prompt=yes faults=0.
+	log="$(find artifacts/rpi4b-uart -maxdepth 1 -name "*${lbl}*.log" -newer "${marker}" \
+		-printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)"
 
 	prompt="?" faults="?" launched="?"
 	if [ -n "${log}" ] && [ -s "${log}" ]; then
 		grep -qa 'psh)%' "${log}" && prompt="yes" || prompt="NO"
-		faults=$(grep -acE 'Exception|Data Abort|panic|ESR=|ELR=|FAR=|LIB_ASSERT|assertion' "${log}")
+		# ⚠ This used to carry its OWN copy of the fault regex, frozen at the
+		# 2026-09-10 shape: no allocator patterns (Double free detected, corrupt
+		# chunk header, handed out twice, stopping coalesce, not a plausible
+		# chunk), no truncated-kernel-message class, and no ends_mid_line. A run
+		# uart-summary.sh flagged could be certified "faults 0" here. Ask the
+		# script that OWNS the fault set instead of re-implementing it.
+		summary="$(./scripts/uart-summary.sh "${log}" 2>/dev/null)"
+		faults="$(printf '%s\n' "${summary}" | sed -n 's/^fault_pattern_matches: //p' | head -1)"
+		[ -n "${faults}" ] || faults="?"
+		midline="$(printf '%s\n' "${summary}" | sed -n 's/^ends_mid_line: //p' | head -1)"
+		case "${midline}" in SUSPECT*) faults="${faults}+mid" ;; esac
 		# The command echo proves the launch was issued; the app's own output
 		# proves it started. Both matter -- a log that stops AT the echo is the
 		# signature of a target that took the command and died.
@@ -205,7 +222,8 @@ for entry in "${apps[@]}"; do
 		# and on 2026-09-17 it scored yes for a Quake II that hung in SDL_OpenAudio
 		# and rendered zero frames (KNOWN-ISSUES q2-sdl-openaudio-hang). Column
 		# renamed to say what it measures; the real evidence for a GPU app is the
-		# `frames` column (flipstat), which is 0 for a hung app.
+		# `frames` column, which since 2026-09-17 really is the flipstat counter
+		# (it counted HDMI snapshots when this comment was written).
 		# Not tightened to "appears more than once": Quake II never echoes its own
 		# absolute path, so that test false-negatives on a perfectly good run
 		# (measured: 1 occurrence, 8229 frames, correct HDMI).
@@ -214,20 +232,38 @@ for entry in "${apps[@]}"; do
 		log="(no log)"
 	fi
 
-	frames=$(ls -1 artifacts/hdmi/*"${lbl}"* 2>/dev/null | wc -l | tr -d ' ')
+	# ⚠ The column named `frames` counted HDMI SNAPSHOTS until 2026-09-17 -- the
+	# capture card grabs one every ~25 s whether or not the Pi drew anything, so
+	# the one column this file's own comment calls "the real evidence for a GPU
+	# app, 0 for a hung app" could never be 0. Two columns now: `snaps` for the
+	# grabs, `frames` for the winsys page-flip counter, which IS the evidence.
+	snaps=$(ls -1 artifacts/hdmi/*"${lbl}"* 2>/dev/null | wc -l | tr -d ' ')
+	frames="-"
+	if [ -n "${log}" ] && [ -s "${log}" ]; then
+		frames="$(grep -a 'flipstat' "${log}" | sed -n 's/.*(total \([0-9]*\)).*/\1/p' \
+			| sort -n | tail -1)"
+		[ -n "${frames}" ] || frames="-"
+	fi
 
-	rows+=("${key}|${cycle_rc}|${prompt}|${faults}|${launched}|${frames}|${log}")
+	rows+=("${key}|${cycle_rc}|${prompt}|${faults}|${launched}|${frames}|${snaps}|${log}")
 	[ "${cycle_rc}" = 0 ] || rc_all=1
 	[ "${prompt}" = "yes" ] || rc_all=1
 	[ "${faults}" = "0" ] || rc_all=1
+	# The GPU apps must have flipped at least one frame. `x` is exempt: the
+	# glamor X server does not drive the winsys flipstat counter, so it has no
+	# frames figure to gate on -- judge it from the HDMI snapshots.
+	if [ "${key}" != "x" ] && { [ "${frames}" = "-" ] || [ "${frames}" = "0" ]; }; then
+		echo "    ⚠ ${key}: ZERO flipstat frames — nothing was drawn."
+		rc_all=1
+	fi
 	echo
 done
 
 echo "=== showcase gate summary ==="
-printf '%-8s %-4s %-7s %-7s %-9s %-7s %s\n' app rc prompt faults cmd-echo frames log
+printf '%-8s %-4s %-7s %-7s %-9s %-8s %-6s %s\n' app rc prompt faults cmd-echo frames snaps log
 for r in "${rows[@]}"; do
-	IFS='|' read -r a rc p f l fr lg <<<"${r}"
-	printf '%-8s %-4s %-7s %-7s %-9s %-7s %s\n' "$a" "$rc" "$p" "$f" "$l" "$fr" "$lg"
+	IFS='|' read -r a rc p f l fr sn lg <<<"${r}"
+	printf '%-8s %-4s %-7s %-7s %-9s %-8s %-6s %s\n' "$a" "$rc" "$p" "$f" "$l" "$fr" "$sn" "$lg"
 done
 echo
 
@@ -242,6 +278,9 @@ if [ -x "${repo_root}/scripts/check-torch-rois.py" ]; then
 	if "${repo_root}/scripts/check-torch-rois.py" --label "${label}-vkq"; then
 		printf 'torches: PRESENT\n'
 	else
+		# Folded into the exit status 2026-09-17: it printed NOT CONFIRMED and
+		# still exited 0, so anything gating on this script's rc saw a pass.
+		rc_all=1
 		printf 'torches: NOT CONFIRMED -- see the ROI output above.\n'
 		printf '  A single dark frame is not a failure (the flame animates); this needs\n'
 		printf '  >=2 frames with both ROIs lit. If it says 0 at-viewpoint frames, vkQuake\n'

@@ -20,7 +20,8 @@
 #
 #   scripts/check-stale-binaries.sh [root]      # default: the live fsid=0 export
 #
-# Exit 0 = every binary is at least as new as libphoenix.a; 1 = stale ones exist.
+# Exit 0 = every binary is at least as new as libphoenix.a; 1 = stale ones exist;
+# 2 = the census could not run (no libphoenix.a, no root, no binaries found).
 #
 # Copyright 2026 Phoenix Systems
 # SPDX-License-Identifier: BSD-3-Clause
@@ -54,6 +55,21 @@ is_probe() {
 	case " $DIAGNOSTIC_PROBES " in *" $1 "*) return 0 ;; *) return 1 ;; esac
 }
 
+# Coverage: every directory on the image that holds an executable, depth 1.
+# /sbin and /usr/sbin were NOT scanned before 2026-09-17 although the banner
+# said "every binary" — that silently exempted init, getty, syslogd, hwclock,
+# nfs, dropbear and lighttpd from the one check that catches an ABI break.
+scan_dirs=()
+for d in bin usr/bin sbin usr/sbin; do
+	[ -d "$root/$d" ] && scan_dirs+=("$root/$d")
+done
+scan_desc="$(printf '%s ' "${scan_dirs[@]#"$root/"}")"
+if [ "${#scan_dirs[@]}" -eq 0 ]; then
+	echo "check-stale-binaries: none of bin/ usr/bin/ sbin/ usr/sbin/ exist under $root" >&2
+	exit 2
+fi
+echo "scanning : $scan_desc(depth 1)"
+
 total=0; stale=0; stale_list=""; probes=0; probe_list=""
 while IFS= read -r f; do
 	total=$((total + 1))
@@ -65,7 +81,17 @@ while IFS= read -r f; do
 			stale=$((stale + 1)); stale_list="$stale_list $b"
 		fi
 	fi
-done < <(find "$root/bin" "$root/usr/bin" -maxdepth 1 -type f 2>/dev/null)
+done < <(find "${scan_dirs[@]}" -maxdepth 1 -type f 2>/dev/null)
+
+# ⚠ A census that scanned nothing is not a clean census. Before 2026-09-17 only
+# $root/bin and $root/usr/bin were scanned, and neither was checked for
+# existence: a root with a different layout produced total=0, stale=0 and
+# "RESULT: PASS -- every binary is at least as new as libphoenix.a".
+if [ "$total" -eq 0 ]; then
+	echo "RESULT: FAIL — scanned $scan_desc and found NO binaries at all." >&2
+	echo "That is a broken census, not a clean tree. Check the root layout." >&2
+	exit 2
+fi
 
 echo "binaries : $total"
 echo "stale    : $stale  (shipping surface)"
@@ -80,14 +106,19 @@ if [ "$stale" -gt 0 ]; then
 	printf '  %s\n' $stale_list | head -30
 	[ "$stale" -gt 30 ] && echo "  … and $((stale - 30)) more"
 	echo
-	echo "RESULT: FAIL — $stale binary(ies) predate libphoenix.a."
-	echo "They still carry the OLD syscall ABI and can fail nondeterministically."
-	echo "Do NOT trust a showcase gate or cut an image until these are rebuilt."
+	echo "RESULT: FAIL — $stale of $total binaries predate libphoenix.a."
+	echo "A timestamp proves only that they were NOT relinked against it. If that"
+	echo "rebuild changed a syscall signature they carry the OLD ABI and can fail"
+	echo "nondeterministically; if it changed nothing they are merely older. The"
+	echo "census cannot tell the two apart — so after a merge touching libphoenix"
+	echo "or a syscall signature, do NOT trust a showcase gate or cut an image"
+	echo "until these are rebuilt. (A plain core rebuild bumps libphoenix.a's"
+	echo "mtime too, so this list reads long on a perfectly healthy tree.)"
 	exit 1
 fi
 if [ "$probes" -gt 0 ]; then
-	echo "RESULT: PASS — the shipping surface is fully rebuilt (the $probes probe(s) above are not)."
+	echo "RESULT: PASS — the shipping surface ($total binaries in $scan_desc) is fully rebuilt (the $probes probe(s) above are not)."
 else
-	echo "RESULT: PASS — every binary is at least as new as libphoenix.a."
+	echo "RESULT: PASS — all $total binaries in $scan_desc are at least as new as libphoenix.a."
 fi
 exit 0

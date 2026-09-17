@@ -3,7 +3,16 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
-image_path="${RPI4B_SDIMG_PATH:-$repo_root/artifacts/rpi4b/rpi4b-sd.img}"
+
+# ⚠ Until 2026-09-17 this script took NO positional argument: `$1` was silently
+# ignored and it always verified $RPI4B_SDIMG_PATH. Anyone who passed an image
+# path got a PASS for a DIFFERENT image than the one they named. Accept the
+# argument, and refuse anything past it rather than ignore that too.
+if [ "$#" -gt 1 ]; then
+	printf 'usage: verify-rpi4b-sdimg.sh [image]\n' >&2
+	exit 2
+fi
+image_path="${1:-${RPI4B_SDIMG_PATH:-$repo_root/artifacts/rpi4b/rpi4b-sd.img}}"
 meta_path="${RPI4B_SDIMG_META:-${image_path}.meta.txt}"
 expected_sha256="${RPI4B_SDIMG_SHA256:-}"
 expected_size="${RPI4B_SDIMG_SIZE:-}"

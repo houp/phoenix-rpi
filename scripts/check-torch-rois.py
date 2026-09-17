@@ -126,6 +126,26 @@ def classify(frames, args, spec, basis_w, required, thresh, ref_small):
     return ("ABSENT", at_vp, best)
 
 
+# A capture gap longer than this starts a new run. Frames inside one run land
+# every ~15-25 s (capture-rpi4b-uart.sh's tick), and two runs are separated by a
+# power cycle, so anything above a couple of minutes is a different run.
+RUN_GAP_S = 120
+
+
+def newest_run(paths):
+    """Return (frames of the most recent run, count of older frames dropped)."""
+    if not paths:
+        return [], 0
+    by_time = sorted(paths, key=lambda p: os.path.getmtime(p))
+    group = [by_time[0]]
+    for prev, cur in zip(by_time, by_time[1:]):
+        if os.path.getmtime(cur) - os.path.getmtime(prev) > RUN_GAP_S:
+            group = [cur]
+        else:
+            group.append(cur)
+    return sorted(group), len(by_time) - len(group)
+
+
 def rate_mode(args, spec, basis_w, required, ignored, thresh):
     """Score every trial of a test-cycle-bench run and report a pass RATE.
 
@@ -155,6 +175,16 @@ def rate_mode(args, spec, basis_w, required, ignored, thresh):
         m = re.search(r"-%s-(T\d+)-" % re.escape(args.rate), os.path.basename(f))
         if m:
             trials.setdefault(m.group(1), []).append(f)
+
+    # Same hazard as --label: a re-used bench label mixes an earlier bench's
+    # frames into the same T<i> bucket. Score only each trial's newest run.
+    stale = 0
+    for t in trials:
+        trials[t], dropped = newest_run(trials[t])
+        stale += dropped
+    if stale:
+        print("note: %d frame(s) from earlier runs of this bench label were NOT "
+              "scored." % stale)
 
     print("bench label: %s   trials: %d   threshold: %d lit px   min-pass: %d frames"
           % (args.rate, len(trials), thresh, args.min_pass))
@@ -220,7 +250,19 @@ def main():
     frames = list(args.frames)
     if args.label:
         pat = os.path.join(REPO, "artifacts", "hdmi", "*-%s-*.png" % args.label)
-        frames += sorted(glob.glob(pat))
+        labelled = sorted(glob.glob(pat))
+        # ⚠ Until 2026-09-17 this took EVERY frame ever captured under the label,
+        # with no lower time bound. artifacts/hdmi/ is cumulative and the gate
+        # reuses one label per app, so frames from an earlier passing run could
+        # satisfy --min-pass while THIS run's vkQuake never started. Keep only
+        # the newest run, split on a capture gap the way check-hdmi-content.py
+        # already does (frames inside a run are ~15-25 s apart).
+        newest, dropped = newest_run(labelled)
+        if dropped:
+            print("note: %d older frame(s) under this label belong to earlier "
+                  "runs and were NOT scored; scoring the newest %d."
+                  % (dropped, len(newest)))
+        frames += newest
     if not frames:
         sys.exit("check-torch-rois: no frames given (use --label or list PNGs)")
 

@@ -42,6 +42,7 @@ ffmpeg -v error -ss "$t1" -i "$vid" -frames:v 1 -y "$tmp/a.png" || exit 1
 ffmpeg -v error -ss "$t2" -i "$vid" -frames:v 1 -y "$tmp/b.png" || exit 1
 
 "$repo/.venv/bin/python" - "$tmp" "$lbl" "$faults" <<'PY'
+import re
 import sys
 import numpy as np
 from PIL import Image
@@ -53,7 +54,13 @@ b = np.asarray(Image.open(tmp + "/b.png").convert("L")).astype(np.int16)
 motion = float(np.abs(a - b).mean())
 ok_frame = a.std() > 8.0          # blank or flat-colour screens sit well below this
 ok_motion = motion > 1.0          # a frozen frame gives ~0
-ok_faults = faults.strip().endswith("0")
+# ⚠ This was `faults.endswith("0")` until 2026-09-17, which read 10, 20, 30 and
+# 100 faults as clean — and a single Data Abort prints ESR=/ELR=/FAR=/Exception
+# on separate lines, so double-digit counts are the ordinary case. Parse the
+# integer, and treat an unparsable line as NOT clean (the summary shape changed
+# or the log is missing — either way this grader has no evidence).
+m = re.search(r"(\d+)\s*$", faults.strip())
+ok_faults = m is not None and int(m.group(1)) == 0
 
 why = []
 if not ok_frame:

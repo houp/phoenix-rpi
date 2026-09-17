@@ -342,7 +342,9 @@ Boot the image and log in to the `(psh)%` prompt, with an **HDMI display** and a
 > up to **~350 s**, so `/dev/audio0` is unopenable for that whole window and the
 > next launch hangs identically. **Reboot** (instant), or wait ~6 minutes. On a
 > current build the same stall is bounded to ~10 s and a relaunch does work.
-> Rate is about 1 run in 70. See `q2-sdl-openaudio-hang` in
+> Rate is about 1 run in 70 by one census (2 of 136 runs reaching driver selection) and
+> **1 in 41** by an independent one (zero-frame runs since 2026-09-13); quote the wider figure when
+> it matters. See `q2-sdl-openaudio-hang` in
 > [docs/KNOWN-ISSUES.md](docs/KNOWN-ISSUES.md).
 >
 > **Both Quakes now loop their demos indefinitely.** vkQuake used to play ONE
@@ -377,9 +379,10 @@ Boot the image and log in to the `(psh)%` prompt, with an **HDMI display** and a
 quakespasm
 ```
 
-Renders the shareware episode in textured 3D on the V3D GPU (**48 FPS** read off the on-screen counter on
-the current shipped image; 37 was read on the previous one — it is a single reading and the counter
-varies with the scene, so treat it as indicative);
+Renders the shareware episode in textured 3D on the V3D GPU (**37–42 fps measured at the page flip**
+— the winsys `flipstat` counter over 11 419 frames off the SD card. ⚠ *Corrected 2026-09-17:* this
+used to quote "48 FPS read off the on-screen counter"; a HUD number is not the frame rate this
+project measures, and it read high);
 verified full-screen in-game on the clean image
 (`artifacts/hdmi/20260903-032501-final-qs-tick.png`). The shareware `pak0` is
 baked into the image at `/usr/share/quake/id1/`, together with a `config.cfg`
@@ -477,12 +480,19 @@ image** (`/usr/bin/supertuxkart`, launched via `stk`); its two asset roots
 (`data/` plus `stk-assets/`, 194 MB together) are staged into the rootfs by
 `scripts/stage-game-data.sh`.
 
-On the shipped image STK **races in-game** at `FPS: 7/7/9`–`8/9/9` over netboot/NFS — the
-old ~5-minute asset-loading window is no longer a blocker. `scale_rtts_factor=0.75`
-is the shipped default: it renders the deferred pipeline at 0.75 scale and upscales,
-which took it from 5/6/6 to 8/9/9 while leaving the 1080p HUD crisp. STK is
-fill-rate/bandwidth bound, not per-submit bound. It does still fault intermittently
-in its own code — see [docs/KNOWN-ISSUES.md](docs/KNOWN-ISSUES.md).
+On the shipped image STK **races in-game** over netboot/NFS at **~8.5 fps measured at the page
+flip** — the old ~5-minute asset-loading window is no longer a blocker. `scale_rtts_factor=0.75` is
+the shipped default: it renders the deferred pipeline at 0.75 scale and upscales, roughly +50% on
+the frame rate while leaving the 1080p HUD crisp.
+⚠ *Corrected 2026-09-17 — this paragraph carried three claims that later measurements overturned,
+and the SuperTuxKart bullet earlier in this file has the current versions:* the `FPS: 7/7/9`–`8/9/9`
+figures were read off **the game's own counter**, which is a physics-tick rate, not frames;
+"fill-rate/bandwidth bound" is the **inverse** of what was measured (720p renders at the same rate
+as 1080p — [docs/misc/2026-09-16-stk-fps-not-fill-bound.md](docs/misc/2026-09-16-stk-fps-not-fill-bound.md));
+and "it does still fault intermittently in its own code" is retracted — **0 crashes in 131 engine
+starts** since 2026-09-12, against 30 in the 242 before
+([docs/misc/2026-09-17-stk-rate-and-allocator-guard-fires.md](docs/misc/2026-09-17-stk-rate-and-allocator-guard-fires.md)).
+See [docs/KNOWN-ISSUES.md](docs/KNOWN-ISSUES.md) for what is still open.
 
 Earlier, on the hand-staged export (2026-08-27), `stk` was HW-verified booting to
 a clean main menu and driving a **fully-lit in-game 3D race** — kart, opponents,

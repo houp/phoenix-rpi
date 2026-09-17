@@ -186,6 +186,28 @@ Notes:
   after a committed kernel/devices/usb/lwip/libphoenix change (stale-core hazard),
   `full-clean` from cold.
 
+## ⚠ Give the Pi a real power-off settle between cycles
+
+Back-to-back cycles with no gap can corrupt the next boot into a **runaway kernel
+print loop**. Measured 2026-09-17 after firing three SD cycles in a `for` loop with
+no pause: a 60 MB UART log, **2 057 279 lines before the psh prompt**, only *3
+unique lines* among the first 20 000 —
+
+```
+vm: [36864.][32768x][770048.]
+map: enter
+```
+
+A healthy boot has **exactly one** `map: enter` and a ~7 KB log, so that count is
+the cheap discriminator. ⓘ It is NOT the "stale buffer while the Pi is off" host
+artefact — these are real kernel prints, and the boot still reached psh with 0
+faults, just after two million lines.
+
+`test-cycle-*.sh` always powers off on exit, but the *next* power-on can still be
+too soon. A `pi_power_off.sh` + `sleep 45` before the next cycle cleared it
+immediately. Prefer the bench/gate scripts, which pace themselves, over hand-rolled
+`for` loops.
+
 ## Long runs: detach with `setsid`, or the tool timeout kills them
 
 A gate (~45 min) or a multi-trial bench (~20 min) outlives any single Bash tool

@@ -129,6 +129,14 @@ helpers=(
 	# a presentation may run a game for tens of minutes, and throttling would show
 	# up on stage as the frame rate quietly degrading rather than as a crash.
 	"tools/thermal-soak/thermal-soak.c|bin/thermal-soak"
+	# Diagnostic: multithreaded malloc/realloc/free churn. The heap containment
+	# guards fired in four field runs (09-15..09-17) while the host harness --
+	# which compiles the real malloc_dl.c -- stayed clean over ~2.4M
+	# single-threaded ops. Concurrency is the axis that harness cannot reach, and
+	# both apps that fired are heavily multithreaded, so this drives the same
+	# allocator from several threads with a size mix that keeps heaps being
+	# created and released under each other.
+	"tools/malloc-mt-stress/mtstress.c|bin/mtstress"
 )
 
 # Data files copied verbatim (not compiled): "<source>|<install path>|<mode>".

@@ -22,6 +22,7 @@
 /* Every host header the allocator (or the real sys/rb.h) needs must be pulled in
  * BEFORE the rename block below, otherwise the macros would mangle their
  * declarations. */
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1547,6 +1548,230 @@ static int hz_selftest(void)
 }
 
 /* ------------------------------------------------------------------ */
+/* Multithreaded stress -- the axis the loop above cannot reach.
+ *
+ * The randomized stress is single-threaded, and on 2026-09-17 it ran 8 seeds x
+ * 300k ops with zero violations while the on-target guards were firing in two
+ * heavily multithreaded apps. So drive the SAME allocator from several threads
+ * with a real lock underneath (stubs/sys/threads.h is a pthread mutex since the
+ * same date -- with the old no-op stub an MT run would have proved nothing).
+ *
+ * The invariant checker walks global allocator state and is not itself
+ * thread-safe, so it runs once after the join rather than during. What runs
+ * DURING is a tag check: every block's first and last 64 bytes carry its own
+ * byte, verified before every realloc and free, so another thread writing into
+ * a live block is caught in the act instead of being inferred from a later
+ * crash. Under --asan the same run also catches every out-of-bounds touch.
+ */
+typedef struct {
+	unsigned int id;
+	unsigned long ops;
+	uint64_t rng;
+	unsigned long allocs;
+	unsigned long frees;
+	unsigned long reallocs;
+	unsigned long mism;
+	unsigned long oom;
+} hz_mt_t;
+
+#define HZ_MT_LIVE 48u
+
+static uint64_t hz_mtRnd(uint64_t *s)
+{
+	uint64_t x = *s;
+
+	x ^= x >> 12;
+	x ^= x << 25;
+	x ^= x >> 27;
+	*s = x;
+	return x * 0x2545f4914f6cdd1dULL;
+}
+
+
+static size_t hz_mtSize(uint64_t *s)
+{
+	uint64_t r = hz_mtRnd(s);
+
+	/* One draw in 64 is big enough that freeing it can empty a heap and hand it
+	 * back while other threads are still allocating -- the window worth hunting. */
+	if ((r & 63u) == 0u) {
+		return (size_t)(64u * 1024u + (r >> 6) % (192u * 1024u));
+	}
+	if ((r & 15u) == 0u) {
+		return (size_t)(4096u + (r >> 4) % (28u * 1024u));
+	}
+	return (size_t)(16u + (r >> 4) % 1008u);
+}
+
+
+static void hz_mtFill(void *p, size_t sz, unsigned char tag)
+{
+	size_t n = (sz < 64u) ? sz : 64u;
+
+	memset(p, (int)tag, n);
+	if (sz > 128u) {
+		memset((char *)p + sz - 64u, (int)tag, 64u);
+	}
+}
+
+
+static int hz_mtCheck(const void *p, size_t sz, unsigned char tag)
+{
+	const unsigned char *b = (const unsigned char *)p;
+	size_t n = (sz < 64u) ? sz : 64u;
+	size_t i;
+
+	for (i = 0; i < n; i++) {
+		if (b[i] != tag) {
+			return 0;
+		}
+	}
+	if (sz > 128u) {
+		b = (const unsigned char *)p + sz - 64u;
+		for (i = 0; i < 64u; i++) {
+			if (b[i] != tag) {
+				return 0;
+			}
+		}
+	}
+	return 1;
+}
+
+
+static void *hz_mtWorker(void *arg)
+{
+	hz_mt_t *w = (hz_mt_t *)arg;
+	void *ptr[HZ_MT_LIVE];
+	size_t sz[HZ_MT_LIVE];
+	unsigned char tag[HZ_MT_LIVE];
+	unsigned int n = 0;
+	unsigned long i;
+
+	memset(ptr, 0, sizeof(ptr));
+	memset(sz, 0, sizeof(sz));
+	memset(tag, 0, sizeof(tag));
+
+	for (i = 0; i < w->ops; i++) {
+		uint64_t r = hz_mtRnd(&w->rng);
+		unsigned int op = (unsigned int)(r % 100u);
+		unsigned int k;
+
+		if ((n == HZ_MT_LIVE) || ((op < 30u) && (n > 0u))) {
+			k = (unsigned int)((r >> 8) % n);
+			if (hz_mtCheck(ptr[k], sz[k], tag[k]) == 0) {
+				w->mism++;
+				printf("mt[%u]: TAG MISMATCH before free, %p size %zu tag 0x%02x\n",
+						w->id, ptr[k], sz[k], tag[k]);
+			}
+			phx_free(ptr[k]);
+			w->frees++;
+			ptr[k] = ptr[n - 1u];
+			sz[k] = sz[n - 1u];
+			tag[k] = tag[n - 1u];
+			n--;
+		}
+		else if ((op < 45u) && (n > 0u)) {
+			size_t ns = hz_mtSize(&w->rng);
+			void *np;
+
+			k = (unsigned int)((r >> 8) % n);
+			if (hz_mtCheck(ptr[k], sz[k], tag[k]) == 0) {
+				w->mism++;
+				printf("mt[%u]: TAG MISMATCH before realloc, %p size %zu\n",
+						w->id, ptr[k], sz[k]);
+			}
+			np = phx_realloc(ptr[k], ns);
+			if (np == NULL) {
+				w->oom++;
+				continue;
+			}
+			ptr[k] = np;
+			sz[k] = ns;
+			tag[k] = (unsigned char)((r >> 16) | 1u);
+			hz_mtFill(ptr[k], sz[k], tag[k]);
+			w->reallocs++;
+		}
+		else {
+			size_t ns = hz_mtSize(&w->rng);
+			void *p = ((r & 7u) == 0u) ? phx_calloc(1u, ns) : phx_malloc(ns);
+
+			if (p == NULL) {
+				w->oom++;
+				continue;
+			}
+			ptr[n] = p;
+			sz[n] = ns;
+			tag[n] = (unsigned char)((r >> 16) | 1u);
+			hz_mtFill(ptr[n], sz[n], tag[n]);
+			n++;
+			w->allocs++;
+		}
+	}
+
+	while (n > 0u) {
+		n--;
+		if (hz_mtCheck(ptr[n], sz[n], tag[n]) == 0) {
+			w->mism++;
+			printf("mt[%u]: TAG MISMATCH at drain, %p size %zu\n", w->id, ptr[n], sz[n]);
+		}
+		phx_free(ptr[n]);
+		w->frees++;
+	}
+	return NULL;
+}
+
+
+static int hz_mtStress(unsigned int threads, unsigned long ops)
+{
+	pthread_t tid[32];
+	hz_mt_t w[32];
+	unsigned int i;
+	unsigned long allocs = 0, frees = 0, reallocs = 0, mism = 0, oom = 0;
+	int bad = 0;
+
+	if (threads > 32u) {
+		threads = 32u;
+	}
+	hz_reset();
+	memset(w, 0, sizeof(w));
+
+	for (i = 0; i < threads; i++) {
+		w[i].id = i;
+		w[i].ops = ops;
+		w[i].rng = 0x9e3779b97f4a7c15ULL ^ ((uint64_t)(i + 1u) * 0x100000001b3ULL);
+		if (pthread_create(&tid[i], NULL, hz_mtWorker, &w[i]) != 0) {
+			printf("mt: pthread_create(%u) failed\n", i);
+			return 1;
+		}
+	}
+	for (i = 0; i < threads; i++) {
+		pthread_join(tid[i], NULL);
+		allocs += w[i].allocs;
+		frees += w[i].frees;
+		reallocs += w[i].reallocs;
+		mism += w[i].mism;
+		oom += w[i].oom;
+	}
+
+	/* Single-threaded again: now the structural checker can run. */
+	hz_violation = HZ_OK;
+	hz_vdetail[0] = '\0';
+	hz_checkAll();
+	printf("mt: threads=%u ops/thread=%lu  allocs=%lu frees=%lu reallocs=%lu oom=%lu\n",
+			threads, ops, allocs, frees, reallocs, oom);
+	printf("mt: tag mismatches=%lu   post-join invariants: %s (%s)\n", mism,
+			hz_vname[hz_violation], (hz_vdetail[0] != '\0') ? hz_vdetail : "-");
+	if (mism != 0u) {
+		bad = 1;
+	}
+	if (hz_violation != HZ_OK) {
+		bad = 1;
+	}
+	return bad;
+}
+
+
+/* ------------------------------------------------------------------ */
 /* malloc_chunkValidWhy() code coverage.
  *
  * The corrupt-header report prints a code 1-8 saying WHICH test rejected the
@@ -1578,6 +1803,12 @@ static int hz_whySelftest(void)
 	heap_t *h;
 	size_t savedChunkSize, savedHeapSize;
 	int bad = 0;
+
+	/* Must run AFTER the allocator is initialised -- this is the first thing in
+	 * main() that allocates, and with the old no-op mutex stub calling it first
+	 * was silently fine. A real lock turns that into an abort, which is the
+	 * correct behaviour: on target _malloc_init() runs in libc init before main. */
+	hz_reset();
 
 	p = phx_malloc(64);
 	if (p == NULL) {
@@ -1828,6 +2059,8 @@ int main(int argc, char **argv)
 	int doSelf = 1;
 	int rawSegv = 0;
 	const char *onlyExp = NULL;
+	unsigned int mtThreads = 0;
+	unsigned long mtOps = 50000ul;
 	int i, s, rc = 0;
 
 	for (i = 1; i < argc; i++) {
@@ -1854,6 +2087,12 @@ int main(int argc, char **argv)
 		}
 		else if (strcmp(argv[i], "--raw-segv") == 0) {
 			rawSegv = 1;
+		}
+		else if ((strcmp(argv[i], "--threads") == 0) && (i + 1 < argc)) {
+			mtThreads = (unsigned int)atoi(argv[++i]);
+		}
+		else if ((strcmp(argv[i], "--mt-ops") == 0) && (i + 1 < argc)) {
+			mtOps = strtoul(argv[++i], NULL, 0);
 		}
 		else if ((strcmp(argv[i], "--exp") == 0) && (i + 1 < argc)) {
 			onlyExp = argv[++i];
@@ -1901,6 +2140,14 @@ int main(int argc, char **argv)
 			fprintf(stderr, "harness: the checker cannot see the bug it is hunting; "
 					"a clean stress run would be meaningless\n");
 			return 2;
+		}
+	}
+
+	if (mtThreads > 1u) {
+		printf("\n--- multithreaded stress (%u threads) ---\n", mtThreads);
+		if (hz_mtStress(mtThreads, mtOps) != 0) {
+			fprintf(stderr, "harness: MULTITHREADED stress found a problem\n");
+			return 3;
 		}
 	}
 

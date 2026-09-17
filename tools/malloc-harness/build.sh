@@ -19,7 +19,7 @@ done
 # forwarders for <sys/rb.h>/<sys/list.h>/<sys/minmax.h> resolve to stubs/.  The
 # libphoenix include tree is deliberately NOT on the -I path (its stdio.h,
 # stdlib.h, ... would shadow the host's).
-cflags=(-std=gnu11 -g -O0 -Wall -Wextra
+cflags=(-std=gnu11 -g -O0 -Wall -Wextra -pthread
 	-Wno-unused-parameter -Wno-unused-function -Wno-sign-compare
 	-I"$here/stubs")
 
@@ -27,7 +27,7 @@ set -x
 gcc "${cflags[@]}" $san -c -o "$here/rb.o"      "$lp/sys/rb.c"
 gcc "${cflags[@]}" $san -c -o "$here/list.o"    "$lp/sys/list.c"
 gcc "${cflags[@]}" $san -c -o "$here/harness.o" "$here/harness.c"
-gcc $san -o "$out" "$here/harness.o" "$here/rb.o" "$here/list.o"
+gcc $san -pthread -o "$out" "$here/harness.o" "$here/rb.o" "$here/list.o"
 set +x
 
 echo "built $out"

@@ -85,7 +85,9 @@ about a coin flip's worth of evidence. The family stays open and livable (§4).
 
 ## 3i. 🐞 Two graders that could not fail — and the bug one of them was hiding
 
-Running the SD showcase **twice** (12/12, 0 faults, torches present both times) turned up better
+Running the SD showcase **twice** (reported 12/12 at the time; **re-graded 2026-09-17 as 11/12** —
+`sdgate2`'s Quake II hung in `SDL_OpenAudio` and drew nothing, which the gate could not see because
+its `frames` column counted HDMI snapshots) turned up better
 evidence than the timing I was after:
 
 - ✅ **`q2-sdl-openaudio-hang` — ROOT-CAUSED AND FIXED** (devices `efac488`, manifest
@@ -172,7 +174,8 @@ long runs; never hand-roll cycle loops — the bench/gate scripts pace themselve
 ## 3b. ✅ This week's fixes — detail in [`docs/done/2026-09-17-w38-sd-lane-and-fixes.md`](../done/2026-09-17-w38-sd-lane-and-fixes.md)
 
 ★ **SD boot works, first time ever on this bench** — you flashed the card via me and it boots: psh,
-`mmcblk0p2` ext2 root, 0 faults. The **whole showcase passes on the card, twice: 12/12, 0 faults,
+`mmcblk0p2` ext2 root, 0 faults. The **showcase passes on the card: 17 of 18 app-runs over three
+passes** (one Quake II hit `q2-sdl-openaudio-hang`), **0 faults,
 torches present.** The shader cache lands on the SD root and **survives a reboot** (27 blobs after a
 boot that ran no GPU app), so a cold start is paid once per card per app.
 ✅ **Both lanes stay available with the card in** — dnsmasq up ⇒ netboot, down ⇒ SD boot.

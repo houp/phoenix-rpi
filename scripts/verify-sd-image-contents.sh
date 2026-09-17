@@ -45,6 +45,17 @@ IMG="${1:?usage: verify-sd-image-contents.sh [--expect base|showcase] <image.img
 [ -f "$IMG" ] || { echo "no such image: $IMG" >&2; exit 2; }
 command -v debugfs >/dev/null || { echo "need e2fsprogs (debugfs)" >&2; exit 2; }
 
+# ⚠ Until 2026-09-17 a SKIP left rc untouched, so a host missing mtools or
+# e2fsck — or an image whose loader.disk could not be read — still ended in
+# "RESULT: image PASSES — safe to flash" while the FAT boot partition, the
+# filesystem check, or the SD-vs-netboot boot target had never been looked at.
+# A check that did not run is not a check that passed.
+skipped=0
+skip() {
+	printf '  SKIP %s\n' "$1"
+	skipped=$((skipped + 1))
+}
+
 start=$(partx -g -o START -n 2 "$IMG" 2>/dev/null | tr -d ' ')
 [ -n "$start" ] || { echo "cannot read partition 2 start" >&2; exit 2; }
 E2="$IMG?offset=$((start * 512))"
@@ -107,7 +118,7 @@ fi
 
 if [ "${expect}" != showcase ]; then
 	echo "== showcase markers =="
-	echo "  SKIP --expect base: no games/X in this image, so their markers do not apply"
+	echo "  N/A  --expect base: no games/X in this image, so their markers do not apply"
 fi
 if [ "${expect}" = showcase ]; then
 echo "== positive markers (fixes that must be present) =="
@@ -180,7 +191,7 @@ PYEOF
 if [ -z "$fat_off" ] || [ "$fat_off" = "0" ]; then
 	echo "  FAIL cannot locate the FAT partition from the MBR"; rc=1
 elif ! command -v mdir >/dev/null 2>&1; then
-	echo "  SKIP mtools not installed — cannot inspect the FAT partition"
+	skip "mtools not installed — the ENTIRE FAT boot partition went unchecked (kernel8.img, config.txt, arm_64bit=1)"
 else
 	fat_ls="$(mdir -i "${IMG}@@${fat_off}" :: 2>/dev/null)"
 	# mdir prints a valid 8.3 name as two space-separated COLUMNS with no dot
@@ -251,7 +262,7 @@ if command -v e2fsck >/dev/null 2>&1; then
 		rc=1
 	fi
 else
-	echo "  SKIP e2fsck not installed (e2fsprogs)"
+	skip "e2fsck not installed (e2fsprogs) — the ext2 root was not checked for consistency"
 fi
 
 if [ -n "${fat_off:-}" ] && [ "${fat_off:-0}" != "0" ] && 		mtype -i "${IMG}@@${fat_off}" ::loader.disk >"$TMP/loader" 2>/dev/null && [ -s "$TMP/loader" ]; then
@@ -280,9 +291,17 @@ if [ -n "${fat_off:-}" ] && [ "${fat_off:-0}" != "0" ] && 		mtype -i "${IMG}@@${
 		fi
 	done
 else
-	echo "  SKIP loader.disk not readable from the FAT partition"
+	skip "loader.disk not readable — the SD-vs-netboot boot target and the plo usb/lwip checks were ALL skipped"
 fi
 
 echo
-[ "$rc" -eq 0 ] && echo "RESULT: image PASSES — safe to flash" || echo "RESULT: image FAILS — do not flash"
+if [ "$rc" -ne 0 ]; then
+	echo "RESULT: image FAILS — do not flash"
+elif [ "$skipped" -gt 0 ]; then
+	echo "RESULT: image UNVERIFIED — every check that RAN passed, but $skipped were skipped."
+	echo "        Install the missing tool (mtools / e2fsprogs) and re-run before flashing."
+	rc=3
+else
+	echo "RESULT: image PASSES — safe to flash"
+fi
 exit "$rc"

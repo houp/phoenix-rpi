@@ -142,8 +142,29 @@ tagged in its first and last 64 bytes and verified before each realloc and free.
 ⇒ the allocator's logic survives ~3.2 M concurrent operations with correct mutual exclusion. What
 that does NOT cover is everything Phoenix-specific about the lock and the mappings: the kernel mutex
 under 4-core SMP, `mmap`/`munmap` semantics for a released heap, and any writer outside the
-allocator. That is what `tools/malloc-mt-stress` (staged as `bin/mtstress`) is for — the same shape,
-run on the target.
+allocator.
+
+## On target: the mutex DOES exclude, and the same stress passes
+
+Two new libc tests (`phoenix-rtos-tests` `f8e0a39`) close the first of those. The suite had a
+mutual-exclusion test for **spinlocks only**; nothing asserted that a mutex serializes a non-atomic
+read-modify-write across the Pi's four cores. Both primitives, 4 threads × 20 000 increments each,
+on hardware 2026-09-17:
+
+```
+TEST(test_pthread_newlocks, mutex_mutual_exclusion) PASS
+TEST(test_pthread_newlocks, phoenix_mutex_mutual_exclusion) PASS      <- the primitive malloc uses
+8 Tests 0 Failures 0 Ignored / OK
+```
+
+⇒ **the kernel mutex is not the explanation.** `bin/mtstress` in the same boot: 4 threads × 5 000 ops
+(8 927 allocs/frees) and 8 × 5 000 (17 851) — both PASS, no tag mismatch, **0 fault-pattern lines in
+the whole log**.
+
+What is left, in order of what the evidence now favours: a writer **outside** the allocator (the app,
+or a driver mapping), or something specific to `munmap` of a released heap on Phoenix that neither
+the host harness nor a pure malloc/free workload reproduces. Note the field fires all came from runs
+doing heavy **GPU** work, which mtstress does not touch at all.
 
 ## Next step that would make the next occurrence decisive
 

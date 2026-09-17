@@ -56,10 +56,21 @@ ffmpeg -v trace -hide_banner -i dflt.265 -f null - 2> dflt.trace.txt
 
 ## Generated demo assets are NOT committed
 
-The small `.265` files here are conformance vectors (~12 kB each) and are tracked. A
-transcoded *demo* clip is not: `IMG_8331-phoenix.265` is 19.7 MB, about 1600x the size of
-everything else in this directory, and it is reproducible in one command from the source
-the owner supplied:
+⚠ **Corrected 2026-09-17 — that is no longer the whole picture.** 35 `.265` files are tracked,
+totalling **13.3 MB**, and two of them are *not* small conformance vectors:
+
+| file | size | what it is |
+|---|---|---|
+| `showcase1080.265` | 6.8 MB | 1080p demo clip, deliberately **non-personal** content — made as the alternative to the owner's phone footage for the showcase reel |
+| `reel-motion720.265` | 5.8 MB | 720p high-motion clip used to exercise the decoder's inter path |
+
+Everything else is genuinely small (next largest 286 kB, most ~12 kB). Both large clips are
+**generated**, by `gen-clip-header.py` / `transcode-for-phoenix.sh` from sources outside this
+repo; if repo size ever matters they are the two to drop, not the vectors.
+
+The owner's **personal** footage stays untracked, which is the line that matters:
+`IMG_8331-phoenix.265` is 19.7 MB and is **not committed** — reproducible in one command from
+the source the owner supplied:
 
 ```
 ./tools/hevc-decode/transcode-for-phoenix.sh ~/Downloads/IMG_8331.MOV

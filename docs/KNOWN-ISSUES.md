@@ -11,8 +11,11 @@ the user-facing summary; the exhaustive engineering registries are:
 
 **This file is the single source of truth for open issues in this port.** Nothing else should carry
 its own list — [docs/PHOENIX-RTOS-RPI4-CHANGES.md](PHOENIX-RTOS-RPI4-CHANGES.md) links here rather
-than duplicating, because the two had already drifted. Resolved items are **removed** from this file
-as soon as they stop being issues, so it shrinks over time; the git history keeps the record of what
+than duplicating, because the two had already drifted. Resolved items are **struck through and kept**,
+not deleted (corrected 2026-09-17 — the six `~~struck~~` rows below contradicted the old "removed as
+soon as they stop being issues" wording). A closed row is what stops a fixed bug being re-litigated,
+and several here were declared fixed more than once before they actually were; the git history keeps
+the fuller record of what
 was fixed, and `docs/done/` keeps the analyses.
 
 > **Editing note.** Each row below must be **one line with exactly three `|`

@@ -423,3 +423,35 @@ byte-wise · tech-debt register reconciled (6 stale entries, incl. TD-19's retra
 · `KNOWN-ISSUES` audited · hevc testdata README understated 13.3 MB of tracked video — **your personal
 footage is still not committed**.
 
+
+
+## Weekly-log §1 as it stood 2026-09-17 23:00 (the overnight SD-lane table)
+
+## 1. OVERNIGHT (2026-09-16 → 17) — nothing blocking, two calls are yours
+
+You flashed the card via me and left it in the Pi. **The SD lane — the one thing this project had never
+exercised — is now verified on every axis I can measure without you:**
+
+| check | result |
+|---|---|
+| SD boot reliability | **6/6**, 0 faults |
+| Six-app showcase **on the card** | **17/18** across THREE passes. ⚠ *Corrected 2026-09-17:* I reported 12/12 for the first two — one Quake II run (`sdgate2`) hit `q2-sdl-openaudio-hang` and drew **nothing** (26 black frames, 0 flipstat), and the gate's columns could not see it. The third pass is 6/6 with frames on every app. |
+| #67 vkQuake torches **on the card** | **8/8** (6-trial rate + 2 gate runs) |
+| Shader cache across an SD reboot | **persists** — 27 blobs after a boot that ran no GPU app |
+| X desktop endurance **on the card** | **~33 min**, 0 faults, Life still ticking at the end |
+| vkQuake endurance **on the card** | **30 min, 51 778 frames, 0 faults** — 26.1 fps at the start, **28.2 at the end** (no decay), torches still lit in the final frame |
+| SuperTuxKart endurance **on the card** | **~24 min racing, 11 262 frames, 0 faults and 0 allocator/guard events** — 8.9 → 8.7 fps. The app with the crash-family history, sustained. ⓘ Cut by my window, not finished: a 15-lap profile, so no lap summary |
+| Netboot tree (carries tonight's fixes) | gated **6/6**, 0 faults |
+| libc suites after the core rebuild | **ALL 20 suites, 1 131 tests, 0 failures**, 0 faults (`libcverify` + `libcA` + `libcB`) |
+
+⏸ **Your two calls, neither urgent:**
+1. **Re-flash the card?** It carries `b95e983a`, which predates the vkQuake loop fix and the audio bound.
+   Neither is needed for the demo as configured, so I left your verified card alone.
+2. **TD-19 — add the `isb` to the TLBI helpers?** The doc's `dsb; isb` claim was false and is retracted;
+   per ARM ARM the sequence is arguably incomplete. I deliberately did **not** touch it: a barrier on
+   every TLBI is a global change to a correctness-sensitive path and wants you watching.
+
+ⓘ **Leave the card in.** Bench is on the **netboot** default; both lanes are one command apart
+(`netboot-server-down.sh` ⇒ SD boot, `-up` ⇒ netboot). The SD-lane facts and harness are in durable
+memory, so the next session starts knowing them.
+

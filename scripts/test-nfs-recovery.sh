@@ -49,7 +49,16 @@ for _ in $(seq 1 26); do
 	sleep 10
 done
 sleep "$delay"
-printf 'test-nfs-recovery: restarting host nfsd at %s\n' "$(date +%H:%M:%S)"
+# Where the UART log stood WHEN the rug was pulled. Without this, criterion 3
+# below ("a fresh process still launches after the restart") counted Host_Init
+# anywhere in the log — including the launch that happened BEFORE the restart,
+# which proves nothing about recovery. Nothing writes a restart marker into the
+# UART stream, so the line count is the only available boundary.
+uart_live=$(ls -t "${repo}/artifacts/rpi4b-uart/"*"${label}".log 2>/dev/null | head -1)
+mark_line=0
+[ -n "$uart_live" ] && mark_line=$(wc -l < "$uart_live" | tr -d ' ')
+printf 'test-nfs-recovery: restarting host nfsd at %s (UART log at line %s)\n' \
+	"$(date +%H:%M:%S)" "$mark_line"
 sudo systemctl restart nfs-server
 
 wait "$cycle" 2>/dev/null || true
@@ -64,11 +73,15 @@ fi
 # `grep -c` prints 0 and EXITS 1 with no match, so `|| true`, never `|| echo 0`.
 noticed=$(grep -ac 'reclaiming client state' "$uart" || true)
 reclaimed=$(grep -ac 'reclaimed NFSv4 client state' "$uart" || true)
-launched=$(grep -ac 'Host_Init' "$uart" || true)
+launched=$(tail -n "+$((mark_line + 1))" "$uart" | grep -ac 'Host_Init' || true)
 wedged=$(grep -ac 'nfs-fs: WEDGE,' "$uart" || true)
-faults=$(grep -acE 'Data Abort|Prefetch Abort|Exception|Fatal' "$uart" || true)
+# Ask the script that owns the fault set rather than carrying a narrower copy
+# (this one had no allocator patterns and no truncated-message class).
+faults=$("${repo}/scripts/uart-summary.sh" "$uart" 2>/dev/null \
+	| sed -n 's/^fault_pattern_matches: //p' | head -1)
+[ -n "$faults" ] || faults=0
 
-printf '  noticed=%s reclaimed=%s launched=%s wedged=%s faults=%s\n' \
+printf '  noticed=%s reclaimed=%s launched(after restart)=%s wedged=%s faults=%s\n' \
 	"$noticed" "$reclaimed" "$launched" "$wedged" "$faults"
 
 rc=0

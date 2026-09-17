@@ -195,6 +195,32 @@ if [ "$fault_count" -gt 0 ]; then
     grep -nE "$fault_re" "$target" | tail -n 3
 fi
 
+# Section 4a: NON-FATAL warnings that explain an odd-looking run.
+#
+# Deliberately NOT folded into fault_re above. These are not faults — a run that
+# hits one is still "clean" by the fault detector, and merging them would make
+# every such cycle read as fault-bearing, which is exactly the kind of
+# false-positive the comments above spent three iterations removing. But they are
+# the difference between "this run was slow / silent for no reason" and a named
+# cause, and both were previously findable only by knowing to grep for them.
+#
+#   * `self-test ABORTED` — rpi4-audio's boot self-test gave up on a non-draining
+#     DMA (devices efac488). Before that fix the driver simply stalled for up to
+#     ~350 s with /dev/audio0 unopenable, which is how it hung a Quake II startup
+#     past a 300 s window (KNOWN-ISSUES q2-sdl-openaudio-hang). The whole point of
+#     bounding it was that somebody notices, so surface it here.
+#   * `shader cache COLD` — this run compiles shaders before its first frame
+#     (vkQuake ~67 s), which otherwise reads as a hang. ⚠ Absence means nothing:
+#     that line is a cache-DIRECTORY check, so only the first GL app ever run on a
+#     fresh root prints it.
+warn_re="self-test ABORTED|shader cache COLD"
+warn_count=$(grep -cE "$warn_re" "$target")
+if [ "$warn_count" -gt 0 ]; then
+    echo
+    echo "=== WARNINGS (non-fatal, but they explain the run) ==="
+    grep -oE "$warn_re[^\r]*" "$target" | sed 's/^/  /' | head -n 5
+fi
+
 # Section 4b: the silent wedge.
 #
 # Independent of any keyword: if the last byte of the log is not a newline, the

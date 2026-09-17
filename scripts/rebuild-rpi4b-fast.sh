@@ -770,13 +770,21 @@ verify_libc_trace_state() {
 	[ -f "${lib}" ] || return 0
 	found=$(strings "${lib}" 2>/dev/null | grep -c 'libc-init' || true)
 
+	# ⚠ Both branches were WARNINGs until 2026-09-17: the build printed
+	# "DO NOT SHIP THIS BUILD" and then went on to cut the image and exit 0.
+	# A check that can only warn cannot fail, and this one guards what the
+	# artifact actually contains. Both conditions mean the same thing -- the
+	# knob did not take -- so both now stop the build.
 	if [ "${libc_trace_want}" = "y" ] && [ "${found}" = "0" ]; then
-		printf '\n*** WARNING: LIBC_STARTUP_TRACE=y but libphoenix.a carries NO trace markers.\n'
-		printf '***          The knob did not take. Delete _build/%s/libphoenix/misc/init.o and rebuild.\n\n' "${target}"
+		printf '\n*** FAIL: LIBC_STARTUP_TRACE=y but libphoenix.a carries NO trace markers.\n'
+		printf '***       The knob did not take, so the trace you asked for is not in this\n'
+		printf '***       build. Delete _build/%s/libphoenix/misc/init.o and rebuild.\n\n' "${target}"
+		exit 1
 	elif [ "${libc_trace_want}" != "y" ] && [ "${found}" != "0" ]; then
-		printf '\n*** WARNING: the pre-main startup trace is STILL COMPILED IN (%s markers) with the\n' "${found}"
-		printf '***          knob OFF. DO NOT SHIP THIS BUILD. Delete _build/%s/libphoenix/misc/init.o\n' "${target}"
-		printf '***          and rebuild --scope core, then re-check.\n\n'
+		printf '\n*** FAIL: the pre-main startup trace is STILL COMPILED IN (%s markers) with the\n' "${found}"
+		printf '***       knob OFF. DO NOT SHIP THIS BUILD. Delete _build/%s/libphoenix/misc/init.o\n' "${target}"
+		printf '***       and rebuild --scope core, then re-check.\n\n'
+		exit 1
 	fi
 }
 

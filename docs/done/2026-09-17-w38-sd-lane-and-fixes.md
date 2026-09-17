@@ -364,3 +364,62 @@ byte-wise (2 of 3 QVMs identical, the third differs only in `__DATE__`) · tech-
 two rows weren't rendering, three over-claims in the binner-wedge cell) · hevc testdata README
 understated 13.3 MB of tracked video — **your personal footage is still not committed**.
 
+
+
+## Weekly-log §3 as it stood 2026-09-17 18:00 (moved here to keep the log short)
+
+## 3. ✅ This week — fixes, verification, publication hygiene
+
+Full detail: [`docs/done/2026-09-17-w38-sd-lane-and-fixes.md`](../done/2026-09-17-w38-sd-lane-and-fixes.md)
+· [`2026-09-16-w38-verification-detail.md`](../done/2026-09-16-w38-verification-detail.md)
+
+**Fixed:** `vkq-tile-flicker` · vkQuake **loops its demos** · **every rebuild silently wiped the shader
+cache** · **`q2-sdl-openaudio-hang`** bounded ~350 s → ~10 s and now announces itself with `DMA_CS` +
+ring cursors (devices `d13778d`) · upstream merge adopted (17 commits, two regressions caught).
+
+**Verified on the current build:** libc **20 suites / 1 131 tests / 0 failures** · six-app gate **6/6**,
+0 faults, torches present, real flipstat frames on every game · X desktop **31.7 min** netboot and
+**~33 min** on the card · STK soak 10/10. ⚠ The GL window is bounded at 20 000 frames (~27–33 min) and
+exits normally — relaunch it.
+
+**★ HEAP GUARD NOW NAMES THE FAILING TEST** (libphoenix `8659311`; manifest
+`2026-09-17-w38-malloc-why-gate.md`). "corrupt chunk header" never said **which** of eight checks
+rejected the block — a pointer into a RELEASED heap and a smashed size want opposite hunts. Now
+`why=1..8`, every code covered host-side (13/13). Re-gated **6/6 rc 0**, libc **383/0**, stale census
+**0 of 354**.
+🔎 **Not** the allocator's own logic, single- or multi-threaded: the host harness (the real
+`malloc_dl.c`) ran **2.4 M single-threaded ops / 75 k heap cycles** and then — after its mutex stub
+was made a **real** pthread lock — **3.2 M concurrent ops across 8 threads** plus an ASan run, all
+with **0 violations and 0 tag mismatches**. What that leaves is Phoenix-specific: the kernel mutex
+under SMP, `munmap` of a released heap, or a writer outside the allocator. ⊕ **On target now:** two new libc tests (`tests f8e0a39`) — the suite had a mutual-exclusion test for
+**spinlocks only** — show the pthread mutex **and** the raw kernel mutex the allocator uses both
+serialize 4×20 000 non-atomic increments: **PASS, 8 tests 0 failures**. `bin/mtstress` passed in the
+same boot and then under load: **8×200 k, 16×150 k and 4×400 k ops on hardware — 2.5 M allocs/frees,
+671 k reallocs, 0 tag mismatches, 0 fault lines**. ⇒ **the mutex is not the explanation.**
+What is left: a writer **outside** the allocator, or something Phoenix-specific about `munmap` of a
+released heap. ⓘ Every field fire came from a run doing heavy **GPU** work, which mtstress does not
+touch — and in the 71-fire run **no traced BO mapping landed anywhere near the affected heap**.
+🔧 So the next fire is made self-diagnosing instead: the report now also prints **`lheap?` / `freed?`**
+(libphoenix `e4f7c65`), which separates "a block outlived its heap" from "stale pointer, address
+reused" from "smashed `->heap`". Verified on HW: stdlib **93/0**, pthread newlocks **8/0**, mtstress
+8×100 k clean, quakespasm 4 269 frames, 0 fault lines; manifest
+`2026-09-17-w38-malloc-heap-provenance.md`; six-app gate running.
+🔧 Both test-cycle scripts now **grade their own log** — nothing ever ran `uart-summary.sh` on the four
+runs whose guards fired, which is the actual reason they sat unnoticed for two days.
+⏳ Running: 6 boots × 3 STK races (`whyhunt`), trying to catch a `why=` in the act.
+
+**★ GRADER AUDIT (2026-09-17)** — **13 graders that could not fail**, all fixed, each with a negative
+control where one exists. Worst was the six-app gate itself: its `frames` column counted HDMI
+*snapshots* (the capture card grabs one every ~25 s regardless), so the one column meant to catch a
+hung app could never be 0; its fault regex was a private copy frozen before the allocator patterns
+existed; its log pickup had no lower time bound. Now `frames` = winsys page flips, `snaps` = grabs,
+the fault set comes from `uart-summary.sh`, a GPU app that flips no frame FAILS, and the #67 torch
+verdict is folded into the exit status — re-validated on hardware on both lanes.
+✅ **No published claim changes:** all **83 archived gate logs** re-graded with the full fault set; the
+narrower regex had missed nothing. Full list of the thirteen: the done file above.
+
+**Publication hygiene:** `q3-qvm-recipe` **closed** — the QVM pak rebuilds from source, verified
+byte-wise · tech-debt register reconciled (6 stale entries, incl. TD-19's retracted `dsb; isb` claim)
+· `KNOWN-ISSUES` audited · hevc testdata README understated 13.3 MB of tracked video — **your personal
+footage is still not committed**.
+

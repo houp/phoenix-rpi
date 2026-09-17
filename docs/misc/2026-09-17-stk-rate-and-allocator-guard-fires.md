@@ -92,8 +92,13 @@ extent**, not the chunk's own size — which is the opposite of what "corrupt ch
 ## Landed: the report now says which check failed
 
 libphoenix `8659311` (2026-09-17) splits `malloc_chunkValid()` into `malloc_chunkValidWhy()`
-returning 1-8 and prints `why=` from both `free()` and `realloc()`; a follow-up adds `hsize=` when
-the heap pointer itself passed (codes ≥ 5), which is exactly the number the paragraph above wants.
+returning 1-8 and prints `why=` from both `free()` and `realloc()`. That alone separates the four
+live candidates: **2** = the heap was released, **5** = `heap->size` is not sane, **6** = the chunk
+is outside the extent the heap claims, **8** = it runs off the end. Every code is covered host-side
+by `tools/malloc-harness` (13/13, each case failing exactly one check).
+⏭ Optional refinement, deliberately NOT taken today to avoid a second rebuild+gate cycle for a small
+gain: also print `hsize = heap->size` when the heap pointer itself passed (codes ≥ 5), which would
+turn a code 6 or 8 into an arithmetic anyone can check by eye.
 No behaviour change — the same chunks are accepted and rejected as before; verified by rebuild
 (core + ports), libc string/stdlib/stdio 383 tests / 0 failures, stale census 0 of 354.
 

@@ -241,3 +241,57 @@ date**. Committed asset untouched (no `--install`).
 - **`freebin` signature B census on the current build: 0 in 31 GPU runs.** ⚠ A bound, not a cure — the
   honest denominator is GPU runs (31), not every run reaching psh (47).
 
+
+
+## Weekly-log §2/§2b as it stood 2026-09-17 (moved here to keep the log short)
+
+## 2. ✅ CARD FLASHED, IN THE PI, AND TESTED — nothing left for you here
+
+You put the card on `/dev/sda`, I wrote `b95e983a` (read-back sha256 **byte-identical**, `e2fsck`
+clean, full boot set + all showcase binaries; device checked before writing — USB `SDDR-409`,
+removable, root on `nvme0n1p2`). You then put it in the Pi, and it has since been exercised hard:
+**SD boot works, the showcase passes on it 17 of 18 app-runs across three passes** (the miss is one
+Quake II hitting the known audio hang, §4), **0 faults, torches present**, and the
+shader cache survives a reboot (§3b).
+
+**Leave the card in.** Both lanes stay available: `netboot-server-up.sh` ⇒ netboot,
+`netboot-server-down.sh` ⇒ SD boot. Nothing to unplug.
+↩ **Two of my earlier claims here were wrong and are retracted:** a *blank* card does stop the Pi
+booting entirely (0 DHCP, 0 UART, black HDMI over 4 power-ons) — but a *written* one does not, so the
+"card vs netboot is either/or" line I wrote is false for the card you now have. The EEPROM's
+network-first `BOOT_ORDER=0xf12` behaves exactly as documented.
+
+ⓘ The card carries `b95e983a`, which **predates** tonight's two fixes (vkQuake demo loop, the
+`rpi4-audio` self-test bound). Neither is needed for the demo as configured — the image ships no
+`phoenix-demo.cfg`, and the audio stall is ~1.5% — so I have **not** re-flashed
+it. Say the word and I will cut and write a fresh image.
+⚠ **If Quake II ever hangs on the card, REBOOT — do not just relaunch.** Corrected 2026-09-17: I said
+"cured by a relaunch", which is wrong for the card. The unfixed driver's boot self-test blocks its own
+message loop for up to **~350 s**, so `/dev/audio0` is unopenable for that whole time and an immediate
+relaunch hangs exactly the same way. It clears by itself after ~6 minutes, or instantly on a reboot.
+(On the netboot build this is already bounded to ~10 s.) Symptom: the app stops right after
+`SDL audio driver is "phoenix"`.
+↩ **If the card ever misbehaves, the fallbacks are real:** `da752ac1` (pre-merge) and `16ad56f9` in
+`artifacts/rpi4b/` both **verified intact 2026-09-17** — sha256 matches the name each is filed under, so
+they are usable, not merely listed.
+🧹 Housekeeping, your call: that directory holds **20 GB across 13 images**, 9 of them superseded. Disk
+is not tight (137 GB free) and they are your build artifacts, so I have deleted nothing.
+
+## 2b. ✅ REEL — settled per your notes (2026-09-16)
+
+`artifacts/hdmi-video/20260916-160506-phoenix-rtos-rpi4-showcase.mp4` — 239 s, 11 segments, 11/11 on
+`verify-demo-reel.py`, bt709-tagged.
+✅ **Checked 2026-09-17 — upload it as-is, no remux needed:** H.264 **High @ L4.0**, 1920×1080p30, `yuv420p`, 4.9 Mbit/s, bt709 primaries+transfer, and **faststart is already set** (`moov` at byte 36, ahead of `mdat`) — so it starts playing before the whole 147 MB has downloaded. That is the property that usually needs a remux before a video is worth putting on a web page.
+
+- **Caption raised** off the bottom edge (136–200 px), clear of the player's scrub bar and the games' HUDs.
+- **Order unchanged**, **H.265 kept with your phone footage**, **vkQuake included** — your calls. The
+  self-referential H.265 "alternative" I had built is deleted; it read as a game segment.
+- **Every caption now carries a frame rate**, measured at the page flip with the winsys counter rather
+  than read off a HUD — vkQuake **43 fps average**, SuperTuxKart **7–8**.
+- ⚠ **vkQuake's number was re-derived after it disagreed with the screen.** The first "42" was a median
+  over the whole capture, but vkQuake plays one demo then sits on a static console at a dead-flat
+  42.2 fps — so that median measured the *console*. It was within 1 fps of right by luck. The demo
+  itself is 2140 frames / 50.1 s = **42.7**; the caption says "average" because the engine's own counter
+  is a ~1 s estimate swinging 23–65. STK checked the same way and is clean (race 7.95). Method is now
+  documented above the segment table in `make-demo-reel.sh`.
+

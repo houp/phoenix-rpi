@@ -74,6 +74,13 @@ while [ $# -ge 2 ]; do
     # sweep below -- the loop above only runs while two args remain, so a trailing
     # `--stamp --` would otherwise fall through to the command list.
     --stamp)            stamp_arg=( --stamp ); shift ;;
+    # Bench the SD CARD instead of the netboot tree. dnsmasq must already be DOWN
+    # (scripts/netboot-server-down.sh) so the firmware falls back to the card, and
+    # must be brought back up afterwards. A command-less trial then uses
+    # test-cycle-netboot.sh --sd-boot, which also zeroes the DHCP watchdog --
+    # without that the watchdog's bridge recovery restarts dnsmasq mid-bench and
+    # later trials quietly netboot instead, which would not show up in the table.
+    --sd-boot)          sd_boot=1; shift ;;
     # The bare `--` separator ends option parsing -- it must be matched BEFORE the
     # --* catch-all below, or the catch-all rejects the separator itself.
     --)                 break ;;
@@ -116,17 +123,25 @@ fi
 
 printf '=== bench start: %d trials, label="%s" ===\n' "$N" "$label"
 
+sd_flag=""
+sd_boot_flag=""
+if [ "${sd_boot:-0}" = 1 ]; then
+    sd_flag="--skip-server-up"
+    sd_boot_flag="--sd-boot"
+    printf 'lane: SD CARD (dnsmasq must be DOWN; restore it afterwards)\n'
+fi
+
 logs=()
 for i in $(seq 1 "$N"); do
     trial_label="${label}-T${i}"
     printf '\n=== trial %d/%d (%s) ===\n' "$i" "$N" "$trial_label"
     if [ "${#cmds[@]}" -gt 0 ]; then
-        "${repo_root}/scripts/test-cycle-psh-interact.sh" --label "$trial_label" \
+        "${repo_root}/scripts/test-cycle-psh-interact.sh" ${sd_flag} --label "$trial_label" \
             --inter-cmd-secs 8 --idle-secs "$idle_secs" --max-cmd-secs "$max_cmd_secs" \
             "${wait_secs_arg[@]}" \
             "${ready_args[@]}" "${stamp_arg[@]}" -- "${cmds[@]}" || true
     else
-        "${repo_root}/scripts/test-cycle-netboot.sh" --label "$trial_label" "${capture_secs_arg[@]}" || true
+        "${repo_root}/scripts/test-cycle-netboot.sh" ${sd_boot_flag} --label "$trial_label" "${capture_secs_arg[@]}" || true
     fi
     log=$(ls -t "${repo_root}/artifacts/rpi4b-uart"/rpi4b-uart-*-"$trial_label".log 2>/dev/null | head -n 1 || true)
     if [ -n "$log" ]; then

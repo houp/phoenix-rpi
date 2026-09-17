@@ -44,8 +44,16 @@ excluded, since those are deliberate):
 
 **0** logs carry the fatal double-free report (`Double free detected` / exit 70) — so
 `allocator-double-free`'s "no field occurrence since 2026-09-09" holds for *its* signature. What
-these four show is the **contained** half: the guard leaks the block and the process survives, which
-is why every one of these runs otherwise graded clean.
+these four show is the **contained** half: the guard leaks the block, the process survives, and the
+run keeps rendering to the end of its window (checked: flipstat continues past the last fire in all
+three STK runs), so nothing about the run *looks* wrong.
+
+↩ **Correction — the tool was not blind, I was.** `uart-summary.sh` has carried these patterns in
+its fault set since 2026-09-10, and re-grading the four logs with it now reports **23 / 1 / 5 / 71**
+fault matches. They went unnoticed because none of these four runs was ever put through it: three
+were ad-hoc verification runs and the fourth was graded only by `analyze-bo-trace.py`, whose PASS I
+reported the same morning without checking the log for faults. The showcase gate's own narrower
+regex genuinely could not have seen them — that is a separate defect, fixed today.
 
 ### The callers, symbolised
 

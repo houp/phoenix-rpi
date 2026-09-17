@@ -323,9 +323,18 @@ Boot the image and log in to the `(psh)%` prompt, with an **HDMI display** and a
 > reuse it.
 >
 > **If an app prints nothing and just sits there, relaunch it.** A cold start
-> occasionally fails to get going; a relaunch has never failed. The netboot cause
-> of this was root-caused and fixed in September 2026, so on the SD image it
-> should not happen at all — but the relaunch is free.
+> occasionally fails to get going. The netboot cause of this was root-caused and
+> fixed in September 2026, so on the SD image it should not happen at all — and
+> the relaunch is free.
+> ⚠ **One exception, and it is worth knowing before you are on stage.** If the app
+> is **Quake II** and its last line is `SDL audio driver is "phoenix"`, a relaunch
+> will **not** help on a build older than `rpi4-audio`'s self-test bound
+> (2026-09-17): the audio driver's boot self-test blocks its own message loop for
+> up to **~350 s**, so `/dev/audio0` is unopenable for that whole window and the
+> next launch hangs identically. **Reboot** (instant), or wait ~6 minutes. On a
+> current build the same stall is bounded to ~10 s and a relaunch does work.
+> Rate is about 1 run in 70. See `q2-sdl-openaudio-hang` in
+> [docs/KNOWN-ISSUES.md](docs/KNOWN-ISSUES.md).
 >
 > **Both Quakes now loop their demos indefinitely.** vkQuake used to play ONE
 > demo (~50 s) and drop to the console; fixed 2026-09-16. The cause was one line

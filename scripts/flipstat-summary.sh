@@ -93,7 +93,14 @@ fi
 
 printf '%-16s %7s %8s %8s %8s   %s\n' app samples mean min max log
 for lbl in "${labels[@]}"; do
-	f="$(ls -t "${log_dir}"/rpi4b-uart-*"${lbl}".log 2>/dev/null | head -1)"
+	# Accept a PATH as well as a label. Passing the log this script just told you
+	# about is the obvious thing to try, and it used to answer "NO LOG" for a file
+	# that plainly exists -- a wrong answer, not a usage error (2026-09-17).
+	if [ -f "${lbl}" ]; then
+		f="${lbl}"
+	else
+		f="$(ls -t "${log_dir}"/rpi4b-uart-*"${lbl}".log 2>/dev/null | head -1)"
+	fi
 	if [ -z "${f}" ]; then
 		printf '%-16s %7s\n' "${lbl}" "NO LOG"
 		continue

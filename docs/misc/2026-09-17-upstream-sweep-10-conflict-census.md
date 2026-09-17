@@ -95,3 +95,29 @@ How each conflict went — the ones that were judgement calls, not mechanics:
 **Still to do, in order:** `--scope full-clean` → `check-stale-binaries.sh` → `test-libc-pthread`
 → full libc suites → six-app gate → only then fast-forward master + manifest. Nothing has been
 compiled yet: the branches are a *resolution*, not a verification.
+
+
+## What the tests cannot prove absent: four semantic changes that came with the sweep
+
+Everything below **passed** every gate (1 088 libc tests, six-app gate, three endurance runs, 6/6
+desktop exits). These are recorded because a green suite does not mean "nothing changed" — it means
+nothing changed that the suite looks at. If an intermittent shows up later, start here.
+
+1. **An interruptible wait now checks for a pending signal BEFORE sleeping**
+   (`957a1695 proc/threads: interruptible wait signal delivery`). It used to test only
+   `thread->exit`; it now calls `_threads_checkSignal()` and returns **-EINTR** if a signal is
+   pending. ⇒ blocking operations can return `EINTR` in windows where they previously blocked. Our
+   libphoenix retry loops (`while ((err = sys_…) == -EINTR)`) absorb it; anything that forgot one is
+   newly exposed. Watch for: a rare "operation failed" where the errno is EINTR.
+2. **`proc_close` is now uninterruptible** (`62cf68ef`), via the new `proc_sendUninterruptible()` —
+   upstream's own fix for a `posix_fileDeref` deadlock when a signal is pending during close. This is
+   the other half of (1): they had to exempt close from the new interruptibility.
+3. **Pending signals are inherited across `exec`** (`a7767afe`). A signal posted to a process that is
+   mid-`exec` is no longer dropped. Affects the vfork/exec path this port has its own fixes in.
+4. **Signals that cannot be ignored are no longer masked** (`256e764f`), and `sys_exit` now ignores
+   bits above the 8th (`19000dae`) — an exit status of 0x100 no longer reads as 0.
+
+ⓘ The thing to hold on to: the sweep's risk was never the merge conflicts (18 hunks, all mechanical
+once read). It is that signal delivery is now a **kernel** concern with slightly different timing,
+and timing changes are exactly what a pass/fail suite is blind to. The three endurance runs and the
+20-start Quake II hunt exist for that reason.

@@ -1073,10 +1073,10 @@ Five 3D engines, all folded into a **single static ELF each** (Phoenix has no dy
 | engine | version (pin) | renderer path | state |
 |---|---|---|---|
 | **★ quakespasm** (GLQuake) | 0.97.0 (`f5fe178`) | desktop GL → Mesa/V3D → `/dev/fb0` | Flagship. Textured real levels at ~1080p/~40 fps on HDMI, audio wired. Cleanest HW evidence of the five. Also the only *networked* demonstration: the multiplayer client joins a real dedicated server, loads the map and runs in-game at 26 fps over Phoenix's own TCP/IP stack (the two enabling lwIP defects — the `getnameinfo` out-of-bounds write and `FIONBIO` — are in the drivers section, §3) |
-| **★ supertuxkart** | 1.4 | GLES3 (STK "SP" renderer) | Boot → fully-lit in-game 3D race, 0 crashes, host-comparison SSIM 0.991, **8/9/9 fps** on the shipped image (`scale_rtts_factor=0.75`; it was 5.84 fps / ~171 ms per frame at full resolution). It ran at *exactly* 1 fps until a libstdc++ toolchain defect was root-caused — see §3. 11 patches, 12 port dependencies |
+| **★ supertuxkart** | 1.4 | GLES3 (STK "SP" renderer) | Boot → fully-lit in-game 3D race, 0 crashes, host-comparison SSIM 0.991, **~8.5 fps at the page flip** (winsys `flipstat`; the 8/9/9 this row used to quote is the game's own tick counter) on the shipped image (`scale_rtts_factor=0.75`; it was 5.84 fps / ~171 ms per frame at full resolution). It ran at *exactly* 1 fps until a libstdc++ toolchain defect was root-caused — see §3. 11 patches, 12 port dependencies |
 | yquake2 (Quake II) | 8.71 (`a9e88f6`) | `ref_gl3` / GLES3 default, `ref_gl1` selectable | Renders full 3D. Client + integrated server + baseq2 game + one renderer in one ELF. Asset load is slow over NFS, mitigated by RAM-staging to `/tmp` — **per application, not in general**: measured 5.49× for quake3e (`CL_InitCGame` 63.77 s → 11.61 s) and 3.6× for quakespasm, but a net *loss* for SuperTuxKart, where 73 s of copying saved 2.7 s. RAM-staging is also the real justification for the `DUMMYFS_SIZE_MAX` 32 → 256 MiB bump reported in §4 |
 | quake3e (Quake III) | 1.32 (in-tree "Q3 1.32e", `f694bbb`) | desktop GL → Mesa/V3D | Runs; QVM bytecode modules need no `dlopen`, but its aarch64 JIT does need the code buffer `mmap`'d RWX up front, because `mprotect` cannot add `PROT_EXEC` later (see *Platform gaps*). Known open defect `V3D-binner-wedge` (a lightmap-black bug on the same map was root-caused and fixed — see the V3D tiling rule in the drivers section); status and evidence in [KNOWN-ISSUES.md](KNOWN-ISSUES.md) |
-| vkquake | 1.34 (`1aa13a5`) | **Vulkan** via the ported V3DV ICD (SPIR-V→NIR→QPU) | Runs — the only user-shader Vulkan consumer. No SDL dependency at all: SDL is *entirely* shimmed (`glue/sdl-shim/SDL.h` + `pl_phoenix_sdlcompat.c`). Known open defect `#67`, torch sprites intermittently missing; status and the pass-rate protocol in [KNOWN-ISSUES.md](KNOWN-ISSUES.md) |
+| vkquake | 1.34 (`1aa13a5`) | **Vulkan** via the ported V3DV ICD (SPIR-V→NIR→QPU) | Runs — the only user-shader Vulkan consumer. No SDL dependency at all: SDL is *entirely* shimmed (`glue/sdl-shim/SDL.h` + `pl_phoenix_sdlcompat.c`). ⊕ **`#67` (torch sprites intermittently missing) was CLOSED 2026-09-15** — 6/6 by rate, twice, across two builds, then 8/8 on the SD card; status and the pass-rate protocol in [KNOWN-ISSUES.md](KNOWN-ISSUES.md) |
 
 Per engine the recipe carries a `glue/pl_phoenix_*.c` Phoenix backend plus one generated single-ELF patch (`quakespasm` 857 lines, `vkquake` 557, `yquake2` 476, `quake3` 331). vkQuake additionally vendors pre-compiled shaders (`vkquake_shaders.c`, 30 506 lines) and Vulkan entry trampolines (`vk_trampolines.c`, 648 lines).
 
@@ -1508,8 +1508,10 @@ sending damage — a mini-DRI3 for this port. Affects only GL-in-a-window; the d
 
 **Open defects — see [docs/KNOWN-ISSUES.md](KNOWN-ISSUES.md).**
 
-That file is the **single source of truth** for what is currently broken, and an item is *removed*
-from it the moment it stops being an issue. Duplicating the list here would guarantee the two drift,
+That file is the **single source of truth** for what is currently broken. A resolved item is
+**struck through and kept** there, not deleted (corrected 2026-09-17 — this text used to say
+"removed the moment it stops being an issue", which the six `~~struck~~` rows in that file
+contradicted). Duplicating the list here would guarantee the two drift,
 and they already had: this section still described defects that were fixed weeks ago. Everything that
 used to be listed here — the vkQuake torches, the `q3dm7` binner wedge (including the evidence that it
 is **not** an MMU fault, and the named next step), SuperTuxKart's intermittent fault, the shader-cache
@@ -1560,7 +1562,7 @@ three real hangs are all fixed** (shortlist rows 15 and 16).
 ⚠ Scope the window when re-running: over *every* log on disk the same script reports 88.2% and 50%
 fault-bearing, because the archive reaches back to bring-up when the board frequently did not boot and
 faults were being reproduced on purpose. `--since` is therefore mandatory. **The caveat travels with the
-number: all 132 are netboot.** SD boot is unverified (no card in the host reader).
+number: all 132 are netboot.** ⊕ SD boot is separately verified since 2026-09-17: 6/6 clean boots on `b95e983a` and 17 of 18 showcase app-runs across three passes on the card.
 `docs/misc/2026-09-08-boot-stability-tally.md`.
 
 **Licensing.** The five game engines are GPL (GPL-2.0+, SuperTuxKart GPL-3.0+) and live only in
@@ -1586,7 +1588,7 @@ reason some of the visual claims are trustworthy and one earlier claim was not:
   the Mesa commit that fixed it.
 - **An intermittent visual defect must be judged by a pass rate over trials, never a screenshot.**
   Five premature closures of the vkQuake torch bug came from doing the latter, which is why
-  `scripts/check-torch-rois.py` has a `--rate` mode and why the torch caveat above quotes 9/9
+  `scripts/check-torch-rois.py` has a `--rate` mode and why the torch caveat above quoted 9/9 at the time
   rather than "fixed".
 - **Historical failure rates are bounded by a host-side artefact.** A class of apparent target
   defects — "Firmware not found" netboot loops, `exec … err=-34` — was the *host's* USB NIC

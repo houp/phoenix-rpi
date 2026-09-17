@@ -70,6 +70,33 @@ in the font path (cleared 2026-09-15) and not in the drive-graph (fixed).
 the header guard **71 times**. So the residue is **not** explained by the BO double-ownership
 mechanism: that one is fixed and instrumented, and the corruption happened anyway.
 
+## What the printed fields already rule out
+
+Pairing each event's fields correctly (the `ptr`/`heap` columns must be read per event, not as two
+independent lists — reading them as lists produced one bogus "the chunk is below its heap base"
+inference, retracted here), every fire looks like this:
+
+| log | ptr | heap | offset into heap | size |
+|---|---|---|---|---|
+| 09-15 | `0x0c9a4810` | `0x0c99c000` | 0x8810 | 0x293 |
+| 09-15 (last) | `0x0c896898` | `0x0c88b000` | 0xb898 | 0x153 |
+| 09-17 | `0x0b80d5f8` | `0x0b805000` | 0x85f8 | 0x073 |
+
+So in every case the **chunk header is plausible**: canonical, 8-aligned, a sane small size with sane
+flag bits, at a 32–52 KiB offset inside a page-aligned heap that sits inside the `[heapLo, heapHi)`
+window the process reports. That leaves only the checks that depend on the **heap** the chunk points
+back to: code 2 (the heap was already released), 5 (`heap->size` is not sane), or 6/8 (the chunk is
+outside the extent `heap->size` claims). ⇒ the open question is the **heap back-pointer / heap
+extent**, not the chunk's own size — which is the opposite of what "corrupt chunk header" suggests.
+
+## Landed: the report now says which check failed
+
+libphoenix `8659311` (2026-09-17) splits `malloc_chunkValid()` into `malloc_chunkValidWhy()`
+returning 1-8 and prints `why=` from both `free()` and `realloc()`; a follow-up adds `hsize=` when
+the heap pointer itself passed (codes ≥ 5), which is exactly the number the paragraph above wants.
+No behaviour change — the same chunks are accepted and rejected as before; verified by rebuild
+(core + ports), libc string/stdlib/stdio 383 tests / 0 failures, stale census 0 of 354.
+
 ## Next step that would make the next occurrence decisive
 
 The guard prints `caller=` only. Record one more return address (the caller of `operator delete`)

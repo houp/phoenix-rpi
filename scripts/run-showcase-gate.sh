@@ -273,7 +273,14 @@ echo
 # vkQuake now boots `map start` (its boot map comes from id1/phoenix-map.cfg --
 # this port has no argv path), so every gate cycle lands on the SAME viewpoint and
 # the torch ROIs are scoreable without any extra Pi time.
-if [ -x "${repo_root}/scripts/check-torch-rois.py" ]; then
+# Only when vkQuake actually ran: with --only qspasm there are no vkq frames, and
+# scoring a label that has none would fail a gate that never asked for it. (It
+# did exactly that on the first run after the verdict was folded into rc_all.)
+ran_vkq=0
+for entry in "${apps[@]}"; do
+	[ "${entry%%:*}" = "vkq" ] && ran_vkq=1
+done
+if [ "${ran_vkq}" = 1 ] && [ -x "${repo_root}/scripts/check-torch-rois.py" ]; then
 	printf -- '--- #67 vkQuake wall torches (ROI score, %s-vkq) ---\n' "${label}"
 	if "${repo_root}/scripts/check-torch-rois.py" --label "${label}-vkq"; then
 		printf 'torches: PRESENT\n'

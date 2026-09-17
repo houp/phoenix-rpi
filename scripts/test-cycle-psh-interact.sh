@@ -254,4 +254,26 @@ rc=$?
 # leaving a short log to be interpreted later.
 "$repo/scripts/check-capture-complete.py" "$log_path" --commands "${commands[@]}" || true
 
+# ...and was it CLEAN? Nothing here used to grade the log, so every ad-hoc cycle
+# left that to whoever remembered to run uart-summary.sh afterwards. Measured
+# cost, 2026-09-17: four runs between 09-15 and 09-17 carried 23, 1, 5 and 71
+# allocator-guard fault lines and nobody noticed for two days -- including a run
+# whose BO-trace PASS was reported the same morning. The detector had those
+# patterns all along; the runs were simply never put through it. One line at the
+# end of every cycle is cheaper than remembering.
+#
+# Advisory only: it must not change this script's exit status, which reports
+# whether the CYCLE ran, not whether the target behaved.
+cycle_faults="$("$repo/scripts/uart-summary.sh" "$log_path" 2>/dev/null \
+	| sed -n 's/^fault_pattern_matches: //p' | head -1)"
+cycle_mid="$("$repo/scripts/uart-summary.sh" "$log_path" 2>/dev/null \
+	| sed -n 's/^ends_mid_line: //p' | head -1)"
+if [ -n "${cycle_faults:-}" ] && [ "${cycle_faults}" != "0" ]; then
+	printf '[test-cycle] ⚠ uart-summary: %s fault pattern line(s) in this log -- grade it before quoting the run:\n' "$cycle_faults"
+	printf '[test-cycle]   ./scripts/uart-summary.sh %s\n' "${log_path##*/}"
+else
+	printf '[test-cycle] uart-summary: %s fault pattern line(s), ends_mid_line=%s\n' \
+		"${cycle_faults:-?}" "${cycle_mid:-?}"
+fi
+
 exit "$rc"

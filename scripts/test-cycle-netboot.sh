@@ -434,6 +434,21 @@ if [ -s "$log_path" ]; then
 	printf '  [%s] psh prompt    ((psh)%% )\n' "$(checkmark $have_psh_prompt)"
 	printf '  [%s] lwip started  (lwip: genet ...)\n' "$(checkmark $have_lwip_line)"
 
+	# ...and whether the log is CLEAN. The three stages above say the boot got
+	# where it should; they say nothing about faults, so a run could reach psh
+	# with 71 allocator-guard lines in it and still print three ticks. That
+	# happened four times between 2026-09-15 and 09-17 and went unnoticed for two
+	# days, because grading was left to whoever remembered to run uart-summary.sh
+	# afterwards. Advisory: it does not change this script's exit status.
+	cycle_faults="$("$repo/scripts/uart-summary.sh" "$log_path" 2>/dev/null \
+		| sed -n 's/^fault_pattern_matches: //p' | head -1)"
+	if [ -n "${cycle_faults:-}" ] && [ "${cycle_faults}" != "0" ]; then
+		printf '  [⚠] %s fault pattern line(s) -- ./scripts/uart-summary.sh %s\n' \
+			"$cycle_faults" "${log_path##*/}"
+	else
+		printf '  [%s] no fault patterns\n' "$(checkmark 1)"
+	fi
+
 	if [ "$have_phx_banner" = 1 ] && [ "$have_psh_prompt" = 0 ]; then
 		cat <<'WARN' >&2
 

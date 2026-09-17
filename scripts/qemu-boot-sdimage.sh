@@ -42,24 +42,42 @@ mcopy -i "${img}@@${fat_offset}" ::loader.disk "$tmp/loader.disk" \
 nfs_n="$(strings "$tmp/loader.disk" | grep -c 'nfs;/' || true)"
 emmc_n="$(strings "$tmp/loader.disk" | grep -c 'bcm2711-emmc' || true)"
 printf 'qemu-boot-sdimage: syspage: nfs;/ refs=%s  bcm2711-emmc refs=%s' "$nfs_n" "$emmc_n"
+# ⚠ This was advisory-only until 2026-09-17: it printed the warning and then
+# still exited 0 on "plo reached kernel entry", so an SD image carrying a
+# NETBOOT loader passed the one automated check that inspects it — and that
+# image hangs at first boot with no network (see verify-sd-image-contents.sh).
+# A wrong variant is a failure, not a note.
+variant_bad=0
 if [ "$nfs_n" = "0" ] && [ "$emmc_n" != "0" ]; then
 	printf '  -> SD variant, as expected\n'
 else
 	printf '  -> ⚠️ NOT the SD variant (an sd image must have no nfs;/ and must have bcm2711-emmc)\n'
+	variant_bad=1
 fi
 
 log_label="sdimage-$(basename "$img" .img)"
+# Time bound for the log pickup below: "newest log matching this label" with no
+# lower bound silently grades a PREVIOUS run of the same image when this run
+# produces nothing.
+touch "$tmp/started"
 QEMU_LOADER="$tmp/loader.disk" "$repo/scripts/qemu-debug.sh" \
 	--timeout "${RPI4B_QEMU_TIMEOUT:-45}" --label "$log_label" >/dev/null 2>&1 || true
 
-log="$(ls -t "$repo"/artifacts/qemu/*"$log_label"*.uart.log 2>/dev/null | head -1 || true)"
+log="$(find "$repo/artifacts/qemu" -maxdepth 1 -name "*${log_label}*.uart.log" \
+	-newer "$tmp/started" -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)"
 if [ -z "$log" ]; then
-	echo "qemu-boot-sdimage: FAIL — no QEMU UART log produced" >&2
+	echo "qemu-boot-sdimage: FAIL — no QEMU UART log produced by THIS run" >&2
 	exit 1
 fi
 
 printf 'qemu-boot-sdimage: uart log %s\n' "$log"
 if grep -q 'kernel entry' "$log"; then
+	if [ "$variant_bad" = 1 ]; then
+		echo "qemu-boot-sdimage: FAIL — plo reached kernel entry, but this is NOT an SD" >&2
+		echo "  variant (nfs;/ refs=$nfs_n, bcm2711-emmc refs=$emmc_n). Flashed to a card" >&2
+		echo "  it would hang at first boot looking for a network root." >&2
+		exit 1
+	fi
 	printf 'qemu-boot-sdimage: PASS — plo parsed the image loader and reached kernel entry\n'
 	exit 0
 fi

@@ -110,6 +110,28 @@ turn a code 6 or 8 into an arithmetic anyone can check by eye.
 No behaviour change — the same chunks are accepted and rejected as before; verified by rebuild
 (core + ports), libc string/stdlib/stdio 383 tests / 0 failures, stale census 0 of 354.
 
+## Where the fault is NOT: the allocator's single-threaded bookkeeping
+
+`tools/malloc-harness` compiles the **real** `malloc_dl.c` for the host (file-statics visible, its
+own invariant checker walking every heap). Run 2026-09-17 at **8 seeds × 300 000 ops** — ~2.4 M
+operations, **~75 000 heap mmap/munmap cycles**, up to 217 live heaps at once — with the checker
+firing every 500 ops:
+
+```
+seed 0x…  ops 300411  check-every 500  -> OK      (8/8 seeds OK)
+    coverage: mmap=9528 munmap=9528 chunksWalked=106327 freeChunks=39361
+              realloc shrink-split=1184 grow-in-place=2967 | join back=14334 fwd=13727
+```
+
+No orphaned bin link, no `freesz` drift, no unmerged neighbours, no chunk pointing into a released
+heap. The checker is known to be able to fire — its own self-test forges each violation first.
+
+⇒ the defect is **not** in the single-threaded path, which is the only thing that harness can see.
+The untested axis it leaves is **concurrency**, and both apps that fired (SuperTuxKart, vkQuake) are
+heavily multithreaded. `tools/malloc-mt-stress` (new, staged as `bin/mtstress`) drives the same
+allocator from N threads with a size mix that keeps heaps being created and released under each
+other, tagging every block so user-data corruption is caught in the act.
+
 ## Next step that would make the next occurrence decisive
 
 The guard prints `caller=` only. Record one more return address (the caller of `operator delete`)

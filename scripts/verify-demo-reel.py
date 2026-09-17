@@ -122,6 +122,14 @@ def main():
     a = ap.parse_args()
 
     segs = segments(a.segments)
+    # ⚠ Zero segments graded as PASS until 2026-09-17: an empty list runs no
+    # loop, leaves bad == 0 and prints "every segment has a live signal". The
+    # parser keys off make-demo-reel.sh's line format, so a format change made
+    # this checker certify a reel it had not looked at.
+    if not segs:
+        print(f"FAIL — parsed NO segments out of {a.segments}; this check "
+              f"measured nothing. Has the segment-table line format changed?")
+        return 1
     vid, fps = frames(a.reel)
     g = vid.mean(axis=3)
     mot = np.zeros(len(g)); mot[1:] = np.abs(np.diff(g, axis=0)).mean(axis=(1, 2))
@@ -132,6 +140,17 @@ def main():
     for name, L in segs:
         i0, i1 = int(t*fps) + 2, int((t+L)*fps) - 2      # trim the label/crossfade edges
         seg, mo = vid[i0:i1], mot[i0+1:i1]
+        # ⚠ An empty window used to grade "ok": seg.mean() is nan, every
+        # threshold test against nan is False, and the segment passed without a
+        # single frame behind it. It happens whenever the reel is SHORTER than
+        # the declared segment table — exactly the case this check exists for.
+        if len(seg) < 4 or len(mo) < 2:
+            print(f"{name:14s} {t:4.0f}-{t+L:4.0f}s {'':6s} {'':8s} "
+                  f"{'':7s} {'':6s}   NO FRAMES ({len(seg)} in window; reel is "
+                  f"{len(vid)/fps:.0f}s, table declares {sum(x[1] for x in segs)}s)")
+            bad += 1
+            t += L
+            continue
         lum = seg.mean()
         cols = len(np.unique((seg // 16).astype(np.uint8).reshape(-1, 3), axis=0))
         still = 100.0 * (mo < 0.3).mean()

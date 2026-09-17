@@ -345,6 +345,13 @@ Boot the image and log in to the `(psh)%` prompt, with an **HDMI display** and a
 >
 > **The desktop is fine for a whole talk.** `startx_gpu action` ran 31.7 minutes
 > with 0 faults and was still animating at the end, so it can be left up.
+> ✅ Re-verified **on the SD card** (2026-09-17, ~33 min): 0 faults, and at the end
+> Conway's Life was still ticking (gen 31 722, 17.6 gen/s) with `xclock`, `xbill`
+> and `top` all live.
+> ⚠ One thing to expect: the spinning **GL window is bounded at 20 000 frames**,
+> not perpetual. It ran 24.7 fps at frame 30 down to 12.3 fps at 19 980 and then
+> exited normally — roughly **27–33 minutes** at those rates. Nothing else stops;
+> relaunch it if your talk runs longer.
 
 ### GLQuake (Quake 1)
 

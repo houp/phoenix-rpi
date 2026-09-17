@@ -18,6 +18,19 @@ die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
 slug="${1:-}"
 [ -n "$slug" ] || die "usage: $0 <slug> [--note \"description\"]"
+# ...and a flag is not a slug. Without this, `--help` wrote
+# manifests/<date>---help.md and reported success, which is the same
+# accepted-then-misused-argument class the 2026-09-17 grader audit cleaned out
+# of the checkers.
+case "$slug" in
+	-h | --help)
+		printf 'usage: %s <slug> [--note "description"]\n' "$0"
+		exit 0
+		;;
+	-*)
+		die "first argument is the manifest slug, not a flag: $slug"
+		;;
+esac
 shift
 
 note=""

@@ -128,7 +128,17 @@ case "$sub" in
             s=$(git -C "$r" status --short 2>/dev/null | wc -l | tr -d ' ')
             ahead=$(git -C "$r" rev-list --count "@{upstream}..HEAD" 2>/dev/null || echo "?")
             behind=$(git -C "$r" rev-list --count "HEAD..@{upstream}" 2>/dev/null || echo "?")
-            printf '%-40s br=%-40s changes=%s ahead=%s behind=%s\n' "$short" "$br" "$s" "$ahead" "$behind"
+            # ⚠ A "?" here means the branch has NO UPSTREAM, so this repo is invisible
+            # to every sweep -- "all siblings 0 behind" would be a lie that leaves it
+            # out. Say so loudly instead of printing a quiet placeholder: found
+            # 2026-09-18 on phoenix-rtos-usb, which had been reporting "?" through ten
+            # sweeps (it happened to be 0 behind, but nothing was checking).
+            if [ "$ahead" = "?" ] || [ "$behind" = "?" ]; then
+                printf '%-40s br=%-40s changes=%s ⚠ NO UPSTREAM — SWEEPS SKIP THIS REPO (git branch --set-upstream-to=origin/%s %s)\n' \
+                    "$short" "$br" "$s" "$br" "$br"
+            else
+                printf '%-40s br=%-40s changes=%s ahead=%s behind=%s\n' "$short" "$br" "$s" "$ahead" "$behind"
+            fi
         done
         ;;
     log)

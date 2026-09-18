@@ -260,3 +260,34 @@ contention. That is the only remaining way to sample the exact failing path thou
 boot. ⚠ It needs a boot-config edit, so verify the boot immediately after (a duplicate program in
 `*.plo.yaml` bricks it).
 
+## ★★ The instance gap closed: 4 000 arms of PWM1 / DREQ 1 / channel 5, 0 parked
+
+`RPI4AUDIO_ARMTRIALS` (devices `2e9286d`) makes **the driver itself** repeat `audio_pwmInit()` +
+`audio_dmaArm()` up to 5 000 times on demand — the real instance, the real DREQ, the real channel —
+driven from psh by `bin/armtrials N`. Two runs of 2 000 on one boot:
+
+```
+rpi4-audio: arm-trials: 2000 run, 0 parked, advance 1784..1792 words
+rpi4-audio: arm-trials: 2000 run, 0 parked, advance 1784..1792 words
+```
+
+**Running total across three probes: ~14 000 trials, 0 failures** — 7 000 PIO PWM starts, 1 000 DMA
+arms and 2 000 clock-cycled arms on PWM0/DREQ 5/ch 6, plus **4 000 complete arms of the real
+PWM1/DREQ 1/ch 5 path**. The advance is not merely above threshold, it is *tight*: 1 784-1 792 words
+on all 4 000.
+
+⇒ **The stall is not per-arm. It is per-BOOT.** The arm sequence is reliable on both instances, on a
+settled clock and on a freshly cycled one. What is left is the state the driver arms *in*, and only
+two things are true exactly once per boot:
+1. **The generator has never run since reset.** Firmware leaves `CM_PWMCTL=0x200` (MASH set, ENAB
+   clear, never enabled), so the driver's first enable is the generator's first start ever. Every
+   probe trial — including `--cycle-clock` — restarts a generator that has already been running.
+2. **Boot-time contention.** The driver arms while lwip, USB, NFS and the other drivers are coming
+   up; every probe runs at an idle psh prompt.
+
+⏭ **The cheap candidate fix that follows from (1):** an explicit settle between "the generator reports
+BUSY" and the PWM enable. `BUSY` says the generator's state machine started, not that its output is
+stable, and a first-ever start is exactly where a transient would live. It costs ~100 µs once per
+boot. ⚠ Landing it can only be *bounded*, never proven: the rate is ~7% and moves with timing, so the
+measurement is a long rate run on a frozen build — the discipline this whole file is about.
+

@@ -335,17 +335,23 @@ Boot the image and log in to the `(psh)%` prompt, with an **HDMI display** and a
 > occasionally fails to get going. The netboot cause of this was root-caused and
 > fixed in September 2026, so on the SD image it should not happen at all — and
 > the relaunch is free.
-> ⚠ **One exception, and it is worth knowing before you are on stage.** If the app
-> is **Quake II** and its last line is `SDL audio driver is "phoenix"`, a relaunch
-> will **not** help on a build older than `rpi4-audio`'s self-test bound
-> (2026-09-17): the audio driver's boot self-test blocks its own message loop for
-> up to **~350 s**, so `/dev/audio0` is unopenable for that whole window and the
-> next launch hangs identically. **Reboot** (instant), or wait ~6 minutes. On a
-> current build the same stall is bounded to ~10 s and a relaunch does work.
-> Rate is about 1 run in 70 by one census (2 of 136 runs reaching driver selection) and
-> **1 in 41** by an independent one (zero-frame runs since 2026-09-13); quote the wider figure when
-> it matters. See `q2-sdl-openaudio-hang` in
-> [docs/KNOWN-ISSUES.md](docs/KNOWN-ISSUES.md).
+> ⚠ **One exception, and which build you are on decides how much it matters.** If
+> the app is **Quake II** and its last line is `SDL audio driver is "phoenix"`,
+> you have hit `q2-sdl-openaudio-hang`: on some boots the PWM audio engine comes
+> up parked, and `open("/dev/audio0")` waits on it.
+> - **On a build from 2026-09-18 or later it no longer blocks at all.** The driver
+>   now grades its DMA channel by *progress* rather than by a status bit, re-arms
+>   the PWM if it is parked, and otherwise serves `/dev/audio0` as a paced null
+>   sink — so the app starts and runs normally, silently. Nothing to do on stage.
+> - **On 2026-09-17 builds** the same stall is bounded to ~10 s and a relaunch works.
+> - **On anything older — including the `b95e983a` SD card** — a relaunch will *not*
+>   help: the driver's boot self-test blocks its own message loop for up to **~350 s**,
+>   so `/dev/audio0` stays unopenable and the next launch hangs identically.
+>   **Reboot** (instant), or wait ~6 minutes.
+>
+> The underlying stall is not fixed, only contained; it fires on roughly 1 boot in
+> 41-70 by two independent censuses (quote the wider figure when it matters). See
+> `q2-sdl-openaudio-hang` in [docs/KNOWN-ISSUES.md](docs/KNOWN-ISSUES.md).
 >
 > **Both Quakes now loop their demos indefinitely.** vkQuake used to play ONE
 > demo (~50 s) and drop to the console; fixed 2026-09-16. The cause was one line

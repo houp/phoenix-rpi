@@ -438,7 +438,15 @@ elif [ "$tool" = "picocom" ] && [ "$timestamp" -eq 1 ]; then
 	# watchdog kills the pipeline (the old "drops post-fbcon content" bug).
 	(stdbuf -oL "${cmd[@]}" <"$stdin_fifo" 2>&1 | stdbuf -oL ts '[%Y-%m-%d %H:%M:%.S]' > "$log_path") &
 else
-	"${cmd[@]}" <"$stdin_fifo" &
+	# ⚠ setsid, not a bare launch (2026-09-18). picocom signals its PROCESS GROUP
+	# when it is terminated ("Terminating..."), and with a bare launch that group
+	# is ours: the watchdog's kill took down this script (exit 15), its caller
+	# test-cycle-netboot.sh (which then skipped its whole stage table) and
+	# test-cycle-bench.sh, which is why a boot-only bench never got past trial 1
+	# while the psh-interact path — pyserial, no picocom — looped fine.
+	# Its own session contains that. $! stays valid: setsid execs when the caller
+	# is not already a group leader, which a background child of a script is not.
+	setsid "${cmd[@]}" <"$stdin_fifo" &
 fi
 capture_pid=$!
 

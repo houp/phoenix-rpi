@@ -201,7 +201,14 @@ ensure_powered_off() {
 		printf 'WARNING: pi_power_off.sh failed on exit cleanup\n' >&2
 	return "$rc"
 }
-trap ensure_powered_off EXIT INT TERM HUP
+# ⚠ HUP is IGNORED, not trapped (2026-09-18). picocom hangs up the serial tty when
+# the capture watchdog kills it, and that SIGHUP reaches every process in the
+# group: this script died mid-`wait`, skipped its whole stage table, and took
+# test-cycle-bench.sh down with it — which is why a boot-only bench never got
+# past trial 1 while the psh-interact path (pyserial, no tty hangup) looped fine.
+# The EXIT trap still powers the Pi off, so ignoring HUP cannot leave it running.
+trap '' HUP
+trap ensure_powered_off EXIT INT TERM
 
 # 1. Server up.
 if [ "$skip_server_up" = 0 ]; then

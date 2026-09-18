@@ -54,6 +54,25 @@ that is **not** a candidate root cause for that row: TFU output is sampled later
 not fetched by CT0, and the recorded signature is a CT0 front-end stall with `ct0ca` parked inside a
 *valid* BCL BO. Do not let the correction read as a match.
 
-⚠ **All five fixes are reasoning, not measurement.** None is attributed to an observed defect; they
-are landed because the port's own standard says an incidental barrier is a latent defect. They ship
-together and are gated together.
+## ★ MEASURED 2026-09-18 — the race is real on this hardware
+
+`pwmdma --cb-race`, 5000 trials per arm on the Pi 4, one process per arm:
+
+| arm | correct | **stale** | torn | unclassified | not fetched |
+|---|---|---|---|---|---|
+| `--barrier` (control, `dsb sy`) | 5000 | **0** | 0 | 0 | 0 |
+| no barrier (test) | 4854 | **146** | 0 | 0 | 0 |
+
+A *stale* fetch is the engine reading the control block's **previous** contents — bytes the CPU had
+already overwritten. 146 in 5000 (2.9 %) without the barrier, **0 in 5000** with it. The first one
+landed on trial 0.
+
+So the Normal-NC → Device store-ordering hazard these five fixes were landed against is not a
+deduction from the architecture manual: it is observable on this board, at a rate high enough to hit
+in seconds. ⚠ Scope, from the probe's own verdict: the null in the control arm **bounds** the rate,
+it does not prove the ordering is architecturally guaranteed — and neither arm covers the first-ever
+fetch of freshly `mmap`'d memory, because the probe reuses one control block.
+
+⚠ The five fixes are still **not** attributed to any observed defect in the drivers themselves; what
+is now measured is the *mechanism*, not any particular field failure. They ship and are gated
+together.

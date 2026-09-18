@@ -197,3 +197,28 @@ is 1), which samples the actual failing path thousands of times per boot instead
 only the reordered `audio_clockInit()` (devices `65e8623`) and a long rate run on a frozen build can
 speak to it.
 
+## ⊖ Sixth hypothesis retired: the DMA→DREQ→FIFO handshake is not it either
+
+`bin/pwmdma` (`tools/pwm-dma-probe/`) repeats **the driver's exact arm sequence** — paced
+`audio_pwmInit()`, `PWM_DMAC = ENAB|PANIC(8)|DREQ(4)`, `CS=RESET` → W1C `DMA_DEBUG` → `CONBLK_AD` →
+`CS=ACTIVE`, then the same progress check — on hardware the driver does not own: **PWM0**
+(`0xfe20c000`; the driver owns PWM1 at `+0x800`) fed by **DMA channel 6** (`brcm,dma-channel-mask =
+<0x07f5>`, `bcm2711.dtsi:106`; the driver owns 5) over **DREQ 5**, the legacy PWM0 slot.
+
+| shape | trials | parked | advance |
+|---|---|---|---|
+| arm immediately | **500** | **0** | 256-511 words per 5 ms, all 500 |
+| PWM enabled, **20 ms** gap, then arm | **500** | **0** | 256-511 words per 5 ms, all 500 |
+
+**1 000 complete arms of the failing path, 0 failures.** Combined with the 7 000 PIO starts, both
+halves of the driver's init start reliably **given a settled clock** — and a settled clock is the one
+thing the probes cannot avoid, because they refuse to reconfigure a generator `rpi4-audio` owns.
+
+⇒ **One named survivor: the clock-start → PWM-enable proximity.** On a real boot the CPRMAN PWM
+generator is started microseconds before `PWEN`; in 8 000 probe trials it had been running for
+minutes. That is the only structural difference left between a probe trial that never fails and a
+boot that fails ~7% of the time — and it is exactly what the upstream-shaped `audio_clockInit()`
+reorder (devices `65e8623`) addresses. ⏭ The decisive experiment is now obvious: **cycle the clock
+inside the probe** (stop → restart → immediately enable + arm), thousands of times. If the parked
+rate jumps to ~7%, the mechanism is settled rather than inferred.
+

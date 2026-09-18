@@ -1300,10 +1300,14 @@ static int runCbRace(unsigned long trials)
 		dma[DMA_CONBLK_AD] = bus;
 		dma[DMA_CS] = DMA_CS_ACTIVE;
 
+		/* Poll on TXFR_LEN alone. SOURCE_AD survives abort+RESET on BCM2711, so an
+		 * `s.src == 0` term is false on entry and the loop exits before the engine has
+		 * fetched anything -- which is not a timeout but a poll that never ran, and it
+		 * scores as "not fetched". Measured: 4969 of 5000 trials, i.e. the run could
+		 * not be graded at all. */
 		s.len = dma[DMA_TXFR_LEN_R];
 		s.src = dma[DMA_SOURCE_AD];
-		for (s.spins = 0u; (s.spins < CB_RACE_POLL) && (s.len == 0u) && (s.src == 0u);
-				s.spins++) {
+		for (s.spins = 0u; (s.spins < CB_RACE_POLL) && (s.len == 0u); s.spins++) {
 			s.len = dma[DMA_TXFR_LEN_R];
 			s.src = dma[DMA_SOURCE_AD];
 		}

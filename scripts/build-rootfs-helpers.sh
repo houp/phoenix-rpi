@@ -152,7 +152,10 @@ helpers=(
 	# shape -- PWM init, PWM_DMAC, channel RESET, CONBLK_AD, ACTIVE, measure
 	# SOURCE_AD progress -- on the UNUSED PWM0 instance driven by a spare legacy DMA
 	# channel (6; 5 is the driver's), hundreds of times per boot instead of ~7 times
-	# in 100 boots.
+	# in 100 boots. `--cycle-clock [--clock-gap-us N]` adds the one surviving
+	# hypothesis: stop + restart the SHARED CPRMAN PWM generator before every trial,
+	# so the clock-start -> PWEN proximity a real boot has is reproduced rather than
+	# assumed. That mode DISTURBS rpi4-audio's stream -- dedicated probe boot only.
 	"tools/pwm-dma-probe/pwmdma.c|bin/pwmdma"
 )
 

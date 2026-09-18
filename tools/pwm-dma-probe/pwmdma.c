@@ -27,20 +27,51 @@
  * discrimination the driver's re-arm print was built for, answered thousands of times
  * faster than a boot hunt can answer it.
  *
- * Verdicts (grep-able, one line, and the exit status matches):
+ * ── The `--cycle-clock` mode (2026-09-18, the last surviving hypothesis) ───────────
+ *
+ * That default mode, and pwmwrite's, both ran 8 000 trials with ZERO failures — and
+ * every one of those trials ran on a CPRMAN PWM generator that had been running for
+ * MINUTES, because both probes refuse to reconfigure a generator `rpi4-audio` owns.
+ * On a real boot the generator is started MICROSECONDS before PWEN. That proximity is
+ * the only structural difference left between a probe trial that never fails and a
+ * boot that fails ~7% of the time (capture record, "Sixth hypothesis retired").
+ *
+ * `--cycle-clock` tests exactly that and nothing else: each trial STOPS and RESTARTS
+ * the CPRMAN PWM generator with the identical sequence `audio_clockInit()` uses
+ * (rpi4-audio.c:245-271) — stop → wait !BUSY → SRC while disabled, MASH masked → DIV
+ * → ENAB|GATE → wait BUSY — and then immediately runs the same per-trial work. The
+ * `--clock-gap-us` knob inserts a delay between "the generator reports BUSY" and the
+ * PWM init that ends in PWEN, so the proximity can be SWEPT rather than assumed:
+ *
+ *   pwmdma 500 5000 0 --cycle-clock --clock-gap-us 0
+ *   pwmdma 500 5000 0 --cycle-clock --clock-gap-us 10
+ *   pwmdma 500 5000 0 --cycle-clock --clock-gap-us 100
+ *   pwmdma 500 5000 0 --cycle-clock --clock-gap-us 1000
+ *
+ * (Four command lines rather than a built-in sweep loop, because psh cannot chain
+ * commands and a per-invocation verdict line is what a boot log can be grepped for.)
+ *
+ * ⚠⚠ `--cycle-clock` IS INTRUSIVE AND MUST BE ASKED FOR. The CPRMAN PWM generator is
+ * SHARED between PWM0 and PWM1, and `rpi4-audio` streams silence over PWM1 + DMA
+ * channel 5 forever. Stopping that generator WILL disturb the audio driver's stream
+ * and it may not recover — the driver is not told, and nothing re-arms it. Run this
+ * mode only on a dedicated probe boot with nothing playing audio. The mode is
+ * unreachable by default and unreachable from a bare trial count: only the explicit
+ * flag turns it on, and `--clock-gap-us` without it is REFUSED rather than ignored.
+ * The probe never writes the PWM1 half of the page and never writes channel 5; it
+ * only READS them, before and after, and reports what the collateral looks like.
+ *
+ * Verdicts (grep-able, one line, and the exit status matches; the text names the mode
+ * and the clock gap so a log says which experiment produced it):
  *   REPRODUCED      k/n trials parked. The DMA→DREQ→FIFO handshake can fail with the
  *                   PWM configured correctly — reproducible in seconds, and the
  *                   re-arm result says whether the driver's containment can clear it.
- *   NOT REPRODUCED  every trial streamed. With the PWM half already retired, the
- *                   stall then needs something neither probe can reach from
- *                   userspace on a settled machine — the clock-start → PWM-enable
- *                   proximity (branch (ii) of the capture record) being the one
- *                   named survivor.
+ *   NOT REPRODUCED  every trial streamed.
  *   REFUSED         a precondition is not met (clock, DMA channel enable, buffer
- *                   placement). Says so loudly rather than producing failures that
- *                   are not the defect.
+ *                   placement, an inert knob). Says so loudly rather than producing
+ *                   failures that are not the defect.
  *
- * Usage: pwmdma [trials] [settle_us] [gap_us]
+ * Usage: pwmdma [trials] [settle_us] [gap_us] [--cycle-clock] [--clock-gap-us N]
  *        trials     default 500
  *        settle_us  default 5000 — at ~44.1 kHz a healthy channel advances ~440 ring
  *                   words in 5 ms; a parked one moves at most the 16-word FIFO depth
@@ -49,6 +80,10 @@
  *                   create_dev and two printfs run between audio_pwmInit() and
  *                   audio_dmaStart()), and pwmwrite's start-test had to grow exactly
  *                   this knob before its second row meant anything.
+ *        --cycle-clock      stop + restart the SHARED CPRMAN PWM generator before
+ *                           every trial (see the warning above). Off by default.
+ *        --clock-gap-us N   microseconds between "generator reports BUSY" and the PWM
+ *                           init that ends in PWEN. Default 0. Requires --cycle-clock.
  *
  * Copyright 2026 Phoenix Systems
  * SPDX-License-Identifier: BSD-3-Clause
@@ -58,6 +93,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <time.h>
 #include <unistd.h>
 
 /* ---------------------------------------------------------------------------
@@ -70,6 +106,12 @@
  * `reg = <0x7e20c000 0x28>`; bcm2711.dtsi:275-277 gives PWM1 at 0x7e20c800, which
  * is rpi4-audio's. Bus 0x7e... maps to ARM low-peripheral 0xfe... */
 #define PWM0_PAGE 0xfe20c000u
+
+/* PWM1 lives at +0x800, i.e. INSIDE the same 4 kB page this probe maps for PWM0.
+ * That is convenient and dangerous in equal measure: it is how the collateral report
+ * can read rpi4-audio's own channel, and it is why every write in this file indexes
+ * PWM0's half only. Nothing below ever writes through PWM1_OFF. */
+#define PWM1_OFF (0x800u / 4u)
 
 /* PWM register offsets (word index) — rpi4-audio.c:63-72. */
 #define PWM_CTL  (0x00u / 4u)
@@ -137,8 +179,9 @@
  * channels the firmware leaves to the OS. 6 is in that set, and 5 — which is
  * rpi4-audio's (rpi4-audio.c:143) — is the one channel this probe must not touch.
  * ------------------------------------------------------------------------- */
-#define DMA_BASE 0xfe007000u
-#define DMA_CHAN 6u
+#define DMA_BASE  0xfe007000u
+#define DMA_CHAN  6u
+#define DMA_AUDIO 5u                   /* rpi4-audio.c:143 — READ-ONLY here, never armed */
 #define DMA_CHANNEL_MASK_DTS 0x07f5u   /* bcm2711.dtsi:106, for the entry print */
 
 #define DMA_CS         (0x00u / 4u)
@@ -215,6 +258,12 @@
  * covers in the default 5 ms settle. */
 #define HIST_BUCKETS 10u
 
+/* How long the collateral report watches rpi4-audio's channel before deciding
+ * whether it is still moving. A healthy ch5 covers ~1 800 ring words per 20 ms
+ * (rpi4-audio.c:552-553), so 20 ms is far more than enough to tell moving from
+ * parked. */
+#define AUDIO_WATCH_US 20000u
+
 
 /* DMA control block (32 bytes, 256-bit aligned) — rpi4-audio.c:190-198. */
 typedef struct {
@@ -228,38 +277,73 @@ typedef struct {
 } dma_cb_t;
 
 
-static volatile uint32_t *pwm;      /* PWM0 */
+/* A read-only look at the hardware rpi4-audio owns: PWM1's half of the PWM page and
+ * legacy DMA channel 5. Never written, only sampled. */
+typedef struct {
+	uint32_t cs;
+	uint32_t debug;
+	uint32_t source_ad;
+	uint32_t ctl;
+	uint32_t sta;
+} audio_snap_t;
+
+
+static volatile uint32_t *pwm;       /* PWM0 (and, at PWM1_OFF, the audio driver's — read-only) */
 static volatile uint32_t *cprman;
-static volatile uint32_t *dmapage;  /* whole DMA page, for the shared ENABLE word */
-static volatile uint32_t *dma;      /* our channel's register block */
+static volatile uint32_t *dmapage;   /* whole DMA page, for the shared ENABLE word */
+static volatile uint32_t *dma;       /* our channel's register block */
+static volatile uint32_t *dmaAudio;  /* channel 5's register block — read-only */
 static volatile uint32_t *ring;
 static uintptr_t ring_pa;
 static uintptr_t cb_pa;
 static unsigned long gapUs;
 
+/* --cycle-clock state. `cycleClock` is the ONLY way into the intrusive path. */
+static int cycleClock;
+static unsigned long clockGapUs;
+static unsigned long clkStillBusy;   /* generator did not stop before reprogramming */
+static uint32_t postClkCtl, postClkDiv;  /* CM_PWMCTL/DIV right after the restart */
 
-/* Bring up the shared CPRMAN PWM clock, EXACTLY as audio_clockInit() does today
+/* Gap calibration, trial 0 only: usleep()'s real floor is not documented for this
+ * port, and a sweep whose 10 us and 100 us points collapse onto the same achieved
+ * delay is a null nobody can read. Only trial 0 is timestamped, so trials 1..N-1 are
+ * not perturbed by the two clock_gettime() syscalls. */
+static int gapMeasure;
+static struct timespec tsBusy, tsPwen;
+
+
+static long usSince(const struct timespec *a, const struct timespec *b)
+{
+	return (long)(b->tv_sec - a->tv_sec) * 1000000l + (b->tv_nsec - a->tv_nsec) / 1000l;
+}
+
+
+/* The CPRMAN PWM generator bring-up, EXACTLY as audio_clockInit() does it today
  * (rpi4-audio.c:245-271): stop the generator, then SRC while disabled, then DIV,
  * then ENAB — three separate writes, MASH masked — which is Linux's order and not
  * the obvious one. (pwmwrite.c still carries the older single-write shape; it is
  * deliberately not copied.)
  *
- * Policy is pwmwrite's, and it matters: rpi4-audio OWNS this generator. Returns 1 if
- * it was already running (left strictly untouched), 0 if started here, -1 if it will
- * not come up. Never reconfigures a running clock. */
-static int clockEnsure(void)
+ * This is the ONE copy of that sequence in this file: clockEnsure() guards it and
+ * --cycle-clock calls it directly, so "the driver's real shape" stays a single
+ * audited body rather than two that can drift apart.
+ *
+ * Returns 0 if the generator reports BUSY afterwards, -1 if it will not come up. */
+static int clockProgram(void)
 {
 	uint32_t spin, ctl;
 
-	if ((cprman[CM_PWMCTL] & CM_CTL_BUSY) != 0u) {
-		return 1;
-	}
-
+	/* Stop the generator before touching SRC or DIV (keep KILL low), wait for !BUSY. */
 	ctl = cprman[CM_PWMCTL] & ~(CM_PASSWD | CM_CTL_ENAB);
 	cprman[CM_PWMCTL] = CM_PASSWD | ctl;
 	for (spin = SPIN_MAX; (spin != 0u) && ((cprman[CM_PWMCTL] & CM_CTL_BUSY) != 0u); spin--) {
 	}
+	if ((cprman[CM_PWMCTL] & CM_CTL_BUSY) != 0u) {
+		/* The driver prints here; a probe doing this thousands of times counts instead. */
+		clkStillBusy++;
+	}
 
+	/* Source while disabled, then the divider, then enable — three separate writes. */
 	ctl = (cprman[CM_PWMCTL] & ~(CM_PASSWD | CM_CTL_ENAB | CM_CTL_MASH | CM_SRC_MASK)) | CM_SRC_OSC;
 	cprman[CM_PWMCTL] = CM_PASSWD | ctl;
 	cprman[CM_PWMDIV] = CM_PASSWD | (PWM_CLK_DIVI << 12);
@@ -271,9 +355,56 @@ static int clockEnsure(void)
 }
 
 
+/* Default-mode policy, pwmwrite's, and it matters: rpi4-audio OWNS this generator.
+ * Returns 1 if it was already running (left strictly untouched), 0 if started here,
+ * -1 if it will not come up. Never reconfigures a running clock. */
+static int clockEnsure(void)
+{
+	if ((cprman[CM_PWMCTL] & CM_CTL_BUSY) != 0u) {
+		return 1;
+	}
+	return clockProgram();
+}
+
+
+/* One --cycle-clock restart: the driver's sequence, plus the snapshot the first
+ * parked trial prints and the trial-0 timestamp the gap calibration needs. */
+static int clockCycle(void)
+{
+	int rc = clockProgram();
+
+	if (gapMeasure != 0) {
+		(void)clock_gettime(CLOCK_MONOTONIC, &tsBusy);
+	}
+	postClkCtl = cprman[CM_PWMCTL];
+	postClkDiv = cprman[CM_PWMDIV];
+	return rc;
+}
+
+
+/* Leave the shared generator RUNNING, always. A probe that exits with the PWM clock
+ * stopped would take rpi4-audio down for the rest of the boot with no way back. */
+static void clockLeaveRunning(void)
+{
+	if ((cprman[CM_PWMCTL] & CM_CTL_BUSY) == 0u) {
+		printf("pwmdma: shared PWM clock is STOPPED at exit — restarting it so rpi4-audio's "
+			"generator is left running.\n");
+		if (clockProgram() != 0) {
+			printf("pwmdma: ⚠ the shared PWM clock will NOT report BUSY again. PWM1 cannot "
+				"transmit until something reprograms CM_PWMCTL; reboot before trusting audio.\n");
+		}
+	}
+}
+
+
 /* audio_pwmInit() (rpi4-audio.c:275-325) on PWM0, pacing and BERR clear included.
  * The pacing is not cosmetic: unpaced back-to-back writes to PWM_CTL latch a bus
- * error, which is the one defect the 2026-09-18 night actually fixed. */
+ * error, which is the one defect the 2026-09-18 night actually fixed.
+ *
+ * ⓘ That pacing means PWEN lands ~30 us after this function is entered — in the
+ * DRIVER too, which runs the identical body — so --clock-gap-us 0 is the driver's
+ * own clock→PWEN distance, and the knob adds to it rather than defining it. The
+ * trial-0 calibration print reports the distance actually achieved. */
 static void pwmInit0(void)
 {
 	pwm[PWM_CTL] = 0u;
@@ -290,6 +421,9 @@ static void pwmInit0(void)
 	(void)pwm[PWM_CTL];
 	usleep(10);
 
+	if (gapMeasure != 0) {
+		(void)clock_gettime(CLOCK_MONOTONIC, &tsPwen);
+	}
 	pwm[PWM_CTL] = CTL_AUDIO_ENABLE;
 	(void)pwm[PWM_CTL];
 	usleep(10);
@@ -355,6 +489,16 @@ static void dumpState(const char *what, unsigned long trial, uint32_t advance)
 		cprman[CM_PWMCTL], cprman[CM_PWMDIV],
 		dma[DMA_CS], dma[DMA_DEBUG], dma[DMA_CONBLK_AD], dma[DMA_SOURCE_AD],
 		dma[DMA_DEST_AD], dma[DMA_TXFR_LEN_R], dma[DMA_NEXTCONBK]);
+
+	if (cycleClock != 0) {
+		/* The state the generator was in when THIS trial's PWM init started, as opposed
+		 * to the live values above, which are read after the settle. */
+		printf("pwmdma:   post-restart CM_PWMCTL=0x%08x CM_PWMDIV=0x%08x (sampled immediately "
+			"after this trial's restart reported BUSY). 0x91 = SRC(1)|ENAB|BUSY and is the "
+			"EXPECTED reading: CM_GATE (bit 6) is written but does NOT read back on this "
+			"block (rpi4-audio.c:99-108), so a clear bit 6 is not a lost GATE.\n",
+			postClkCtl, postClkDiv);
+	}
 }
 
 
@@ -409,6 +553,39 @@ static const char *histLabel(unsigned int b)
 }
 
 
+/* READ-ONLY sample of the hardware rpi4-audio owns. Not one write anywhere in here. */
+static void audioSnap(audio_snap_t *s)
+{
+	s->cs = dmaAudio[DMA_CS];
+	s->debug = dmaAudio[DMA_DEBUG];
+	s->source_ad = dmaAudio[DMA_SOURCE_AD];
+	s->ctl = pwm[PWM1_OFF + PWM_CTL];
+	s->sta = pwm[PWM1_OFF + PWM_STA];
+}
+
+
+/* Two samples AUDIO_WATCH_US apart, because a single CS reading cannot answer the
+ * question: DMA_CS=0x21 is ACTIVE|ISHELD, the HEALTHY steady state of a DREQ-paced
+ * channel (bcm2835-dma.c:134-136), and it is also what a parked channel reads. Only
+ * the read cursor moving distinguishes them. A plain != is enough here — unlike the
+ * probe's own re-armed channel, ch5 has been streaming since boot and is never
+ * re-armed by us, so there is no pre-ACTIVE cursor hazard. */
+static void audioWatch(const char *when)
+{
+	audio_snap_t a, b;
+
+	audioSnap(&a);
+	usleep(AUDIO_WATCH_US);
+	audioSnap(&b);
+
+	printf("pwmdma: [audio-side, read-only] %s: DMA ch%u CS=0x%08x DEBUG=0x%08x SRC 0x%08x->0x%08x "
+		"(%s over %u us); PWM1 CTL=0x%08x STA=0x%08x\n",
+		when, DMA_AUDIO, b.cs, b.debug, a.source_ad, b.source_ad,
+		(a.source_ad != b.source_ad) ? "MOVING" : "did NOT move", AUDIO_WATCH_US,
+		b.ctl, b.sta);
+}
+
+
 /* Park the hardware: channel stopped, PWM0 no longer requesting, PWM0 disabled. */
 static void parkHardware(void)
 {
@@ -430,16 +607,31 @@ static int refuse(const char *reason)
 }
 
 
+/* One string that names the experiment, so a boot log's verdict line says which of
+ * the sweep points produced it. */
+static void modeTag(char *buf, size_t n)
+{
+	if (cycleClock != 0) {
+		snprintf(buf, n, "mode=cycle-clock clock-gap=%lu us", clockGapUs);
+	}
+	else {
+		snprintf(buf, n, "mode=settled-clock (generator untouched)");
+	}
+}
+
+
 static int run(unsigned long trials, unsigned long settleUs)
 {
-	unsigned long i, parked = 0ul, step;
+	unsigned long i, parked = 0ul, clkFail = 0ul, step;
 	unsigned long hist[HIST_BUCKETS];
 	unsigned int b;
 	uint32_t advance, reArm;
-	int firstDumped = 0, reArmOk = -1;
+	int firstDumped = 0, reArmOk = -1, calibrated = 0;
+	char tag[80];
 	dma_cb_t *cb;
 
 	memset(hist, 0, sizeof(hist));
+	modeTag(tag, sizeof(tag));
 
 	/* The ring and the control block are allocated ONCE, outside the trial loop: the
 	 * thing under test is the arm, not the allocator, and a fresh mapping per trial
@@ -482,9 +674,9 @@ static int run(unsigned long trials, unsigned long settleUs)
 		"(PWM0 FIF1) permap=%u\n",
 		(uint32_t)ring_pa, RING_WORDS, (uint32_t)cb_pa, cb->ti, cb->dest_ad, DREQ_PWM0);
 	printf("pwmdma: %lu trials, settle %lu us, enable->arm gap %lu us, threshold %u words "
-		"(a healthy channel covers ~%lu at %u Hz; a parked one <= the 16-word FIFO)\n",
+		"(a healthy channel covers ~%lu at %u Hz; a parked one <= the 16-word FIFO) [%s]\n",
 		trials, settleUs, gapUs, DMA_START_MIN_WORDS,
-		((unsigned long)AUDIO_RATE * settleUs) / 1000000ul, AUDIO_RATE);
+		((unsigned long)AUDIO_RATE * settleUs) / 1000000ul, AUDIO_RATE, tag);
 
 	/* The threshold is the driver's fixed 64 words, so a settle too short to cover
 	 * comfortably more than that parks 100%% of trials for a reason that is the CLI,
@@ -497,13 +689,61 @@ static int run(unsigned long trials, unsigned long settleUs)
 		return refuse("settle too short for the progress threshold — use >= 3000 us");
 	}
 
+	if (cycleClock != 0) {
+		audioWatch("BEFORE any clock cycling");
+	}
+
 	step = trials / 10ul;
 	if (step == 0ul) {
 		step = 1ul;
 	}
 
 	for (i = 0ul; i < trials; i++) {
+		if (cycleClock != 0) {
+			/* Calibrate on the first SUCCESSFUL cycle, not on trial 0: if trial 0 is the
+			 * one clock failure, a sweep point would come back with no calibration line
+			 * and its achieved gap would be unknown. */
+			gapMeasure = (calibrated == 0) ? 1 : 0;
+
+			/* Disable PWM0 BEFORE stopping the generator, so every trial cycles the clock
+			 * from the same PWM state a real boot does: on a boot the generator is
+			 * (re)programmed with the PWM block in the firmware's idle state, not with a
+			 * channel this probe left enabled by the previous trial. This write is outside
+			 * the clock sequence and before it, so the "clock BUSY -> PWEN" distance the
+			 * knob sweeps is unaffected. */
+			pwm[PWM_CTL] = 0u;
+			(void)pwm[PWM_CTL];
+			usleep(10);
+
+			if (clockCycle() != 0) {
+				/* Its own bucket, never folded into `parked`: a trial that never had a
+				 * running clock did not test the handshake, and counting it as the defect
+				 * would manufacture a REPRODUCED verdict nobody can trust. */
+				clkFail++;
+				if (clkFail == 1ul) {
+					printf("pwmdma: trial %lu — the generator did NOT report BUSY after the "
+						"restart (CM_PWMCTL=0x%08x CM_PWMDIV=0x%08x). Not armed, not counted "
+						"as parked.\n", i, cprman[CM_PWMCTL], cprman[CM_PWMDIV]);
+				}
+				continue;
+			}
+			if (clockGapUs != 0ul) {
+				usleep((unsigned int)clockGapUs);
+			}
+		}
+
 		pwmInit0();
+		if (gapMeasure != 0) {
+			gapMeasure = 0;
+			calibrated = 1;
+			printf("pwmdma: gap calibration (trial 0 only, so later trials stay unperturbed): "
+				"clock BUSY -> PWEN measured %ld us at --clock-gap-us %lu. The figure includes "
+				"pwmInit0()'s own 3 x usleep(10) pacing — which the DRIVER also has — and two "
+				"clock_gettime() syscalls, so read it as an upper bound. If two sweep points "
+				"report the same figure, usleep()'s floor collapsed them and the difference "
+				"between them is not evidence.\n",
+				usSince(&tsBusy, &tsPwen), clockGapUs);
+		}
 		if (gapUs != 0ul) {
 			usleep((unsigned int)gapUs);
 		}
@@ -541,11 +781,15 @@ static int run(unsigned long trials, unsigned long settleUs)
 		pwm[PWM_DMAC] = 0u;
 
 		if (((i + 1ul) % step) == 0ul) {
-			printf("pwmdma: %lu/%lu trials, %lu parked\n", i + 1ul, trials, parked);
+			printf("pwmdma: %lu/%lu trials, %lu parked, %lu clock restarts failed\n",
+				i + 1ul, trials, parked, clkFail);
 		}
 	}
 
 	parkHardware();
+	if (cycleClock != 0) {
+		clockLeaveRunning();
+	}
 
 	printf("pwmdma: advance histogram (ring words covered in the %lu us settle)\n", settleUs);
 	for (b = 0u; b < HIST_BUCKETS; b++) {
@@ -553,29 +797,79 @@ static int run(unsigned long trials, unsigned long settleUs)
 			printf("pwmdma:   %-30s %lu\n", histLabel(b), hist[b]);
 		}
 	}
-	printf("pwmdma: trials=%lu parked=%lu threshold=%u words\n",
-		trials, parked, DMA_START_MIN_WORDS);
+	printf("pwmdma: trials=%lu parked=%lu clock-restart-failures=%lu threshold=%u words [%s]\n",
+		trials, parked, clkFail, DMA_START_MIN_WORDS, tag);
+	if (cycleClock != 0) {
+		printf("pwmdma: clock restarts: %lu attempted, %lu failed, %lu found the generator still "
+			"BUSY after the disable write (the case audio_clockInit() warns about)\n",
+			trials, clkFail, clkStillBusy);
+
+		/* Collateral, reported as an OBSERVATION and never as this probe's verdict: the
+		 * question asked here is "did the audio stall reproduce on PWM0", not "is the
+		 * audio driver still alive". A parked ch5 is a consequence of the mode, expected
+		 * and warned about up front — worth printing because it is evidence about what
+		 * losing the shared clock does to a streaming channel, not because it grades the
+		 * run. */
+		audioWatch("AFTER the run (collateral observation, NOT the verdict)");
+		printf("pwmdma: ⓘ if ch%u stopped moving, THIS PROBE did that by stopping the shared "
+			"generator under a driver that was told nothing — the expected cost of the mode, "
+			"and evidence that losing the clock mid-stream parks a DREQ-paced channel. It is "
+			"NOT a reproduction of the boot-time stall and must not be reported as one.\n",
+			DMA_AUDIO);
+	}
+
+	/* ⚠ A generator that never came back would otherwise produce the worst verdict this
+	 * tool can emit: every trial takes the `continue` path, parked stays 0, and the run
+	 * prints "NOT REPRODUCED — 0/N trials streamed" and exits 0 having armed NOTHING.
+	 * That is a cannot-fail check, the exact class of bug this project keeps paying for.
+	 * Refuse instead, loudly and with the refusal's exit status. */
+	if ((cycleClock != 0) && (clkFail == trials)) {
+		return refuse("the shared PWM generator did not report BUSY on ANY trial — nothing was "
+			"armed and nothing was tested, so this run says nothing about the defect");
+	}
 
 	if (parked == 0ul) {
-		printf("pwmdma: VERDICT: NOT REPRODUCED — all %lu trials streamed (>= %u ring words "
-			"each in %lu us). The DMA->DREQ->FIFO handshake starts reliably on a settled "
-			"clock, so with the PWM half already retired by pwmwrite --start-test the audio "
-			"stall needs something neither probe reaches: the clock-start -> PWM-enable "
-			"proximity is the named survivor.\n",
-			trials, DMA_START_MIN_WORDS, settleUs);
+		if (cycleClock != 0) {
+			printf("pwmdma: VERDICT: NOT REPRODUCED — %lu/%lu trials streamed (>= %u ring words "
+				"each in %lu us) across %lu stop->restart->PWEN->arm cycles of the SHARED PWM "
+				"generator at [%s]. At this clock->enable distance the proximity does NOT park "
+				"PWM0 / channel %u / DREQ %u. ⚠ Scope: this says nothing about a mechanism "
+				"specific to PWM1 or to DREQ 1, and nothing about gaps other than this one — "
+				"sweep 0/10/100/1000 us before calling the hypothesis dead.\n",
+				trials - clkFail, trials, DMA_START_MIN_WORDS, settleUs, trials - clkFail,
+				tag, DMA_CHAN, DREQ_PWM0);
+		}
+		else {
+			printf("pwmdma: VERDICT: NOT REPRODUCED — all %lu trials streamed (>= %u ring words "
+				"each in %lu us) [%s]. The DMA->DREQ->FIFO handshake starts reliably on a "
+				"settled clock, so with the PWM half already retired by pwmwrite --start-test "
+				"the audio stall needs something this mode does not reach: the clock-start -> "
+				"PWM-enable proximity is the named survivor, and --cycle-clock is the mode that "
+				"tests it.\n",
+				trials, DMA_START_MIN_WORDS, settleUs, tag);
+		}
 		return 0;
 	}
 
 	printf("pwmdma: VERDICT: REPRODUCED — %lu/%lu trials parked (advanced < %u ring words in "
-		"%lu us with the PWM enabled, clocked and DMA-requesting). This is the audio stall's "
-		"own handshake, sampled thousands of times per boot instead of ~7 times in 100; the "
-		"re-arm line above says whether the driver's containment clears it.\n",
-		parked, trials, DMA_START_MIN_WORDS, settleUs);
+		"%lu us with the PWM enabled, clocked and DMA-requesting) [%s]. This is the audio "
+		"stall's own handshake, sampled thousands of times per boot instead of ~7 times in "
+		"100; the re-arm line above says whether the driver's containment clears it.\n",
+		parked, trials, DMA_START_MIN_WORDS, settleUs, tag);
+	if (cycleClock != 0) {
+		printf("pwmdma: ⚠ how to read this in cycle-clock mode: the discriminating signature of "
+			"the PROXIMITY hypothesis is a parked rate that is HIGH at --clock-gap-us 0 and "
+			"FALLS as the gap grows. A rate that is the same at every gap is the clock RESTART "
+			"itself (or this probe's wiring), not the proximity — sweep before concluding.\n");
+	}
 	if (parked == trials) {
 		printf("pwmdma: ⚠ ALL trials parked, which is far likelier to be a WIRING mistake in "
 			"this probe than a ~7%% defect — check PERMAP=%u (PWM0's DREQ, inferred not cited), "
 			"the shared DMA ENABLE bit %u, and dest=0x%08x before believing this is the "
-			"defect.\n", DREQ_PWM0, DMA_CHAN, PWM0_FIF1_BUS);
+			"defect.%s\n", DREQ_PWM0, DMA_CHAN, PWM0_FIF1_BUS,
+			(cycleClock != 0) ?
+				" In this mode, also check that the generator is coming back at all: the "
+				"clock-restart-failure count above must be 0." : "");
 	}
 	if (reArmOk == 0) {
 		printf("pwmdma: the parked channel did NOT re-arm — same conclusion the driver draws "
@@ -585,24 +879,82 @@ static int run(unsigned long trials, unsigned long settleUs)
 }
 
 
+/* The banner is printed before ANY mapping or register write, so a log that shows it
+ * also shows that the operator asked for it before anything was disturbed. */
+static void cycleClockBanner(void)
+{
+	printf("pwmdma: "
+		"================================================================\n"
+		"pwmdma: ⚠⚠ --cycle-clock: THIS RUN STOPS AND RESTARTS THE SHARED PWM CLOCK ⚠⚠\n"
+		"pwmdma:   The CPRMAN PWM generator (CM_PWMCTL @ 0xfe101000+0xa0) feeds BOTH PWM0\n"
+		"pwmdma:   (this probe's) and PWM1 (rpi4-audio's). rpi4-audio is streaming silence\n"
+		"pwmdma:   over PWM1 + legacy DMA channel %u right now, and it will NOT be told.\n"
+		"pwmdma:   Stopping the generator WILL disturb that stream and it may never recover\n"
+		"pwmdma:   for the rest of this boot. Acceptable ONLY on a dedicated probe boot with\n"
+		"pwmdma:   nothing playing audio.\n"
+		"pwmdma:   What this probe will NOT do: write the PWM1 half of the page, write any\n"
+		"pwmdma:   channel-%u register, or exit with the generator stopped (it is always left\n"
+		"pwmdma:   running). PWM1/ch%u are READ at entry and exit and reported as collateral.\n"
+		"pwmdma: "
+		"================================================================\n",
+		DMA_AUDIO, DMA_AUDIO, DMA_AUDIO);
+}
+
+
 int main(int argc, char **argv)
 {
 	unsigned long trials = 500ul, settleUs = 5000ul;
 	volatile uint32_t *page;
 	uint32_t enable;
-	int clk;
+	int i, positional = 0, clockGapGiven = 0, clk;
 
-	if (argc > 1) {
-		trials = strtoul(argv[1], NULL, 0);
-	}
-	if (argc > 2) {
-		settleUs = strtoul(argv[2], NULL, 0);
-	}
-	if (argc > 3) {
-		gapUs = strtoul(argv[3], NULL, 0);
+	/* Positionals first, flags after — the shape the sibling probe already uses
+	 * (`pwmwrite --start-test N`), so both tools read the same way from psh. */
+	for (i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "--cycle-clock") == 0) {
+			cycleClock = 1;
+		}
+		else if (strcmp(argv[i], "--clock-gap-us") == 0) {
+			if ((i + 1) >= argc) {
+				return refuse("--clock-gap-us needs a microsecond value");
+			}
+			i++;
+			clockGapUs = strtoul(argv[i], NULL, 0);
+			clockGapGiven = 1;
+		}
+		else if (argv[i][0] == '-') {
+			return refuse("unknown option (see the header comment for the usage line)");
+		}
+		else if (positional == 0) {
+			trials = strtoul(argv[i], NULL, 0);
+			positional++;
+		}
+		else if (positional == 1) {
+			settleUs = strtoul(argv[i], NULL, 0);
+			positional++;
+		}
+		else if (positional == 2) {
+			gapUs = strtoul(argv[i], NULL, 0);
+			positional++;
+		}
+		else {
+			return refuse("too many positional arguments: [trials] [settle_us] [gap_us]");
+		}
 	}
 	if ((trials == 0ul) || (settleUs == 0ul)) {
 		return refuse("trial count and settle must both be non-zero");
+	}
+
+	/* An inert knob is the cannot-fail trap this project has already been bitten by:
+	 * a sweep of --clock-gap-us values that silently never cycled the clock would
+	 * produce four identical nulls and read as four experiments. Refuse instead. */
+	if ((clockGapGiven != 0) && (cycleClock == 0)) {
+		return refuse("--clock-gap-us has no meaning without --cycle-clock, and would silently "
+			"do nothing — pass --cycle-clock or drop the knob");
+	}
+
+	if (cycleClock != 0) {
+		cycleClockBanner();
 	}
 
 	page = mmap(NULL, _PAGE_SIZE, PROT_READ | PROT_WRITE,
@@ -626,10 +978,12 @@ int main(int argc, char **argv)
 	}
 	dmapage = page;
 	dma = page + (DMA_CHAN * 0x100u) / 4u;
+	dmaAudio = page + (DMA_AUDIO * 0x100u) / 4u;
 
-	printf("pwmdma: PWM0 @ 0x%08x (audio owns PWM1 @ 0x%08x — untouched), DMA channel %u "
-		"@ 0x%08x (audio owns 5), DREQ/PERMAP %u\n",
-		PWM0_PAGE, PWM0_PAGE + 0x800u, DMA_CHAN, DMA_BASE + DMA_CHAN * 0x100u, DREQ_PWM0);
+	printf("pwmdma: PWM0 @ 0x%08x (audio owns PWM1 @ 0x%08x — never written), DMA channel %u "
+		"@ 0x%08x (audio owns %u — never written), DREQ/PERMAP %u\n",
+		PWM0_PAGE, PWM0_PAGE + 0x800u, DMA_CHAN, DMA_BASE + DMA_CHAN * 0x100u, DMA_AUDIO,
+		DREQ_PWM0);
 	printf("pwmdma: entry PWM0 CTL=0x%08x STA=0x%08x DMAC=0x%08x RNG1=%u; "
 		"CM_PWMCTL=0x%08x CM_PWMDIV=0x%08x (before any write of ours)\n",
 		pwm[PWM_CTL], pwm[PWM_STA], pwm[PWM_DMAC], pwm[PWM_RNG1],
@@ -659,8 +1013,11 @@ int main(int argc, char **argv)
 			"and every trial would fail for a reason that is not the defect");
 	}
 	if (clk == 1) {
-		printf("pwmdma: PWM clock was ALREADY running — using it as-is, NOT reconfigured "
-			"(rpi4-audio owns it).\n");
+		printf("pwmdma: PWM clock was ALREADY running — %s\n",
+			(cycleClock != 0) ?
+				"and --cycle-clock WILL stop and restart it before every trial (see the "
+				"banner); rpi4-audio owns it" :
+				"using it as-is, NOT reconfigured (rpi4-audio owns it).");
 	}
 	else {
 		printf("pwmdma: PWM clock was NOT running — started it here exactly as "

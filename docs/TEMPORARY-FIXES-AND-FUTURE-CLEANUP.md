@@ -344,10 +344,10 @@ authoritative current state.
 
 ## TD-22: `_map_find()` can return a hinted address with less room than requested
 
-- **Status:** OPEN, latent — no reachable caller today, found 2026-09-18 while
-  refuting an allocator hypothesis. Not attempted unattended: it is the kernel's
-  address allocator, and it deserves its own build + gate rather than riding
-  along with unrelated commits.
+- **Status:** FIX WRITTEN 2026-09-19, **unbuilt and ungated** — a 100-boot rate
+  bench is holding the Pi until ~07:00 and a rebuild would overwrite the TFTP
+  loader under it. Gate before believing it: every process start maps through
+  this path.
 - **Where:** `sources/phoenix-rtos-kernel/vm/map.c:204` — the guard
   `/*&& (vaddr + size) <= (e->vaddr + e->size + e->rmaxgap)*/` is commented out.
 - **What:** on the right-hand branch the leaf return at `:208` is

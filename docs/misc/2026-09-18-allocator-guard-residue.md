@@ -138,6 +138,46 @@ heaps on a single 100k-op seed**, so a wrapped ring is realistic on a real workl
 ring also invalidates the `lheap?` verdict. `lovfl` is now printed in the corrupt-header branch too,
 so a reader can tell. A wrapped ring can only *miss* an overlap, never invent one.
 
+## Kernel side: the overlap cannot come from `mmap` — H2 is effectively dead
+
+Source trace of `_map_find` (`vm/map.c:175`), the gap search behind every anonymous
+`mmap(NULL, …)`:
+
+- It returns only from a node whose relevant child is `NULL` (`:198`, `:208`, `:236`), where
+  `lmaxgap`/`rmaxgap` are the **exact** gap to the in-order neighbour, not a subtree maximum.
+- Every writer of those fields was traced — insertion, entry growth, removal/shrink, rotations.
+  Where augmentation is skipped (a leaf `rb_transplant`, `lib/rb.c:239`), the stale value is **too
+  small**. Stale bookkeeping loses free space; it cannot invent room that is not there.
+- `malloc` passes `NULL`, which `_map_find:188-190` clamps to `map->start`, so the `max()` at `:208`
+  is the identity — the one shape that *can* overlap needs a non-`MAP_FIXED` **hint** (now TD-22).
+
+And fresh anonymous pages are **eagerly zeroed** on this target: `process->lazy = 0` on MMU builds
+(`proc/process.c:226-230`), so `_vm_mmap` forces every page at mmap time (`:623-628`) and
+`amap_page` memsets it (`vm/amap.c:297`). That cuts against H2 directly — a smaller heap mapped over
+a live one would *replace* the PTEs below its new end, destroying the grid there rather than
+shadowing it.
+
+⚠ Two honest limits on that: it is "no path found by tracing", not a proof, and the zeroing argument
+is not testable from the archive — the guard only prints **failing** frees, and blocks below the
+reported extent free successfully and silently. So "no events below `0x8000`" is not evidence that
+no chunks live there.
+
+★ **A third mechanism needs no kernel bug at all.** `_map_find` is lowest-fit from `map->start` and
+same-flag anonymous neighbours **merge** into one map entry (`vm/map.c:265-266`), so heaps pack
+back-to-back. A chunk at `base + 0x8088` whose `->heap` names the *preceding* heap reads identically
+to "this heap claims too small an extent" — intact header, no overlap, no kernel involvement. The
+`hend?` field already separates it: **`hend?=1` is exactly that adjacency.**
+
+### Landed alongside (both unbuilt)
+
+- **kernel** — `_map_map()` discarded `_map_add()`'s result, and that is `-EEXIST` precisely when
+  the new entry overlaps one already in the tree: an overlap left the entry outside the tree while
+  the address went back to the caller. Now reported (bounded to 8).
+- **libphoenix** — the release path discarded `munmap()`'s result. A failure there would leave the
+  region mapped while `released[]` said it was gone.
+- **TD-22** — the one place in `_map_find` where a returned range really can overlap, with the
+  leaf-only fix written out. Unreachable today; held for its own gate.
+
 ## Separate, and not enough data
 
 `w38-upstream-vkq`'s single `chunk handed out twice` (`:1153-1171`) has a fully consistent header

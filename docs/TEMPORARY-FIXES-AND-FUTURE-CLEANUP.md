@@ -262,6 +262,35 @@ authoritative current state.
   (HW-only — does not repro in QEMU). If ZVA is safe, drop the
   `MEMSET_WITHOUT_ZVA` gate and the `TODO(TD-20)` marker.
 
+## TD-22: `_map_find()` can return a hinted address with less room than requested
+
+- **Status:** OPEN, latent — no reachable caller today, found 2026-09-18 while
+  refuting an allocator hypothesis. Not attempted unattended: it is the kernel's
+  address allocator, and it deserves its own build + gate rather than riding
+  along with unrelated commits.
+- **Where:** `sources/phoenix-rtos-kernel/vm/map.c:204` — the guard
+  `/*&& (vaddr + size) <= (e->vaddr + e->size + e->rmaxgap)*/` is commented out.
+- **What:** on the right-hand branch the leaf return at `:208` is
+  `max(vaddr, e->vaddr + e->size)`. When a non-`MAP_FIXED` hint sits *inside*
+  that gap but nearer its end than `size`, `max()` yields the hint itself and
+  the room left before the next entry can be less than `size`, so the returned
+  range overlaps the following mapping. The left-hand branch (`:198`) is safe:
+  its own condition already proves `vaddr + size <= e->vaddr`.
+- **Why it is unreachable today:** libphoenix's `mmap` hint callers are
+  `dl/dl.c:352` and `:364`, both `MAP_FIXED` inside a region reserved with
+  `mmap(NULL, …)`, and `MAP_FIXED` unmaps the exact range first
+  (`vm/map.c:583-587`). `malloc` passes `NULL`, which `_map_find` clamps to
+  `map->start`, making the `max()` an identity.
+- **Why the guard cannot simply be uncommented:** as written it also gates the
+  *descend* decision, where `rmaxgap` is a subtree maximum rather than this
+  node's gap — so restoring it verbatim would refuse to search subtrees that do
+  have room. The fix belongs at the leaf return only: keep the descend
+  condition, and at `e->linkage.right == NULL` accept the candidate only if
+  `max(vaddr, gapStart) <= (gapStart + e->rmaxgap - size)`, otherwise fall
+  through to the parent walk.
+- **Resolution requirements:** implement the leaf-only check, then a full boot +
+  six-app gate (every process start maps through this path).
+
 ## TD-21: syscall table diverges from upstream (mutex syscalls kept append-only)
 
 - **Status:** **RESOLVED 2026-09-04** (kernel `d9048511`; verified on hardware — see below). Superseded detail: — syscalls.h reverted (kernel `d9048511`); the table is now upstream-identical except our own appended `sys_fdpath`. Remaining: the full-clean rebuild of everything + the boot verification below. **Not RESOLVED until step 3 passes.** **Binary-level check already PASSED 2026-09-04:** the freshly built `sysroot/lib/libphoenix.a` stub for `mutexConsistent` disassembles to `svc #0x14` (= 20), exactly its index in the reverted table, and the downstream shift is coherent — `mutexUnlock` `svc #0x13` (19), `schedSet` `svc #0x6b` (107), `sys_fdpath` `svc #0x6c` (108). Kernel and libphoenix cannot disagree here by construction: the dispatch array (`syscalls.c:2124`) and the stubs (`libphoenix/arch/aarch64/syscalls.S:58`) both expand `SYSCALLS()` from this one header. So what step 3 still has to prove is only that no STALE binary survives — not that the renumber itself is right.

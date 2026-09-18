@@ -112,6 +112,32 @@ heap pointer has passed its gates by then, so no new dereference).
 Either way `hsize` turns the events into arithmetic anyone can check by eye, and confirms or kills
 the `0xd000`-class claim directly.
 
+## ★ The unchecked store that would produce exactly this
+
+`_malloc_heapAlloc()` (`malloc_dl.c:1065`) tests the address `mmap` returned against `released[]`
+and **nothing else** — then calls `malloc_heapInit(heap, heapSize)`, whose whole body is
+`heap->size = size; heap->freesz = size - sizeof(heap_t);`.
+
+So if the kernel ever hands back a region overlapping a heap that is **still live**, that one store
+shrinks the live heap's recorded extent in place. Its chunks above the new end stay mapped, stay in
+use, and still name that base in `->heap` — and every one of their frees then reports code 6/8.
+That is the residue signature exactly, including why the grid is intact: nobody wrote over the
+chunks, only over the heap header in front of them.
+
+This is H1 with a named mechanism, and it is Phoenix-specific (the kernel's anonymous-mmap address
+selection), which is where the standing rule says to look.
+
+**Landed 2026-09-18 (libphoenix, unbuilt):** `_malloc_heapAlloc()` now walks `live[]` and reports
+`new`/`nsize`/`live`/`lsize` if the new mapping overlaps a live heap. It reports and carries on — a
+`NULL` return here would turn a contained corruption into an immediate crash, and if the print never
+fires the hypothesis is dead. Host harness: 12/12 `why` codes, 0 detector failures, randomized
+stress OK on every seed, **no false positive** over ~3 000 mmap/munmap cycles per seed.
+
+⚠ **The check can go blind.** `live[]` holds 256 entries and the host harness reaches **226 live
+heaps on a single 100k-op seed**, so a wrapped ring is realistic on a real workload — and a wrapped
+ring also invalidates the `lheap?` verdict. `lovfl` is now printed in the corrupt-header branch too,
+so a reader can tell. A wrapped ring can only *miss* an overlap, never invent one.
+
 ## Separate, and not enough data
 
 `w38-upstream-vkq`'s single `chunk handed out twice` (`:1153-1171`) has a fully consistent header

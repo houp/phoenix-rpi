@@ -112,3 +112,54 @@ never exits, so three launches per boot only ever produced **one** start (the re
 still-running game) — 8 starts, not 24. Re-running as **20 boots × 1 start**, ~110 s each, which is
 all it takes to see `SDL audio initialized` or the hang. ~40% chance of a catch; a miss still
 tightens the bound. 3 starts so far, all healthy.
+
+---
+
+## ↩ The correction the fix produced on its first healthy boot
+
+**`DMA_CS = 0x21` is NOT a stall signature. It is the HEALTHY steady state.** Every capture above
+leads with it, and this document called it "the channel is parked waiting for a DREQ that never
+comes". Measured 2026-09-18 on 10 consecutive healthy netboot boots with the new progress print:
+**9 of 10 read `CS=0x00000021` while streaming at ~1 800 ring words per 20 ms**, and the tenth read
+`0x00000001`. Of course they do — the channel is DREQ-paced, so between DREQs it is *always* held.
+Linux names the bits and says so: `BCM2835_DMA_ISHELD` (bit 5) is "Is held by DREQ flow control" and
+bit 3 is the live DREQ state (`external/linux/drivers/dma/bcm2835-dma.c:131-137`), and its abort path
+comments that a peripheral failing to complete "is expected when dreqs are enabled but not asserted"
+(`:732-738`).
+
+So of the register set in the three captures, only **`0 samples` and the full ring** ever carried
+information. The one value that discriminates is **progress**, which nothing was measuring — and
+upstream says exactly that about the check this driver used to make: *"A zero control block address
+means the channel is idle. (The ACTIVE flag in the CS register is not a reliable indicator.)"*
+(`bcm2835-dma.c:682-683`, repeated at `:711-712`).
+
+**Negative control for the new code, 10/10 boots:** streaming on arm 1, **1 784-2 352 words** in the
+20 ms settle against a **64-word** threshold (a ~28× margin, and the parked channel moves ≤ 16), 0
+re-arms, 0 null sinks, `self-test fed 8960 samples` every boot, stage table 10/10 on all six stages.
+The containment cannot fire on a healthy boot.
+
+## What upstream says about the rest of our sequence
+
+A read-only sweep of `external/` (Linux 6.18 RPi fork, u-boot, barebox) for a comparator:
+
+- **There is no upstream PWM-FIFO/DMA audio driver anywhere.** No `PWM_DMAC` or `PWM_FIF1` writer in
+  the whole Linux tree, no `dmas` property on any PWM DT node, and no bcm283x PWM driver at all in
+  u-boot or barebox. The analogue jack is driven by VideoCore firmware over VCHI. So there are **no
+  known-good DREQ/PANIC thresholds to compare ours (`DREQ=4, PANIC=8`) against** — the only sources
+  are the datasheet and our own measurements.
+- **Our DMA side already matches upstream.** Transfer info `WAIT_RESP | PER_MAP | DEST_DREQ | SRC_INC`
+  is byte-for-byte what `bcm2835_dma_prep_dma_cyclic` builds (`bcm2835-dma.c:1064,1098,1113`), and the
+  arm order (RESET → `CONBLK_AD` → `ACTIVE`) is `bcm2835_dma_start_desc` (`:768-773`). **Channel 5 is
+  legitimately ours**: `brcm,dma-channel-mask = <0x07f5>` (`bcm2711.dtsi:106`) reserves 1 and 3, not
+  0-4 — which retires the "the firmware owns our channel" hypothesis and the TODO that carried it.
+- **The clock side did NOT match, and now does** (see the commit): SRC and ENAB were changing on one
+  bus cycle and DIV was written before CTL, where `clk-bcm2835.c:1147-1172` splits them deliberately
+  ("we have to pause clock generation while updating the control and div regs"); and `CM_GATE` (bit 6)
+  was never set although `bcm2835_clock_on` sets it on every enable (`:1115-1120`). Ranked #1 of the
+  surviving candidates precisely because it is a race by construction and leaves every register
+  reading back correct — which is what the failing boots look like.
+- ⏭ Still unsampled, now printed: whether the **firmware leaves the PWM clock enabled** before we
+  touch it. If it does, the old single-write SRC change was happening on a *running* generator on
+  every boot — the exact case upstream's comment guards. The entry line now carries `CM_PWMCTL` and
+  `CM_PWMDIV`.
+

@@ -51,3 +51,11 @@ phoenix-rtos-usb	e8e10929ab2494ee9709e17510e9f2c0a7f1255c	master
 phoenix-rtos-utils	ce472cb9050260310c57bc466eb1e682561dcad9	master
 plo	3e22b52515ce705233ee97f48ee579bd05406ca6	master
 ```
+
+## Note on the devices SHA
+
+The six-app gate (`fracgate`, 2026-09-18 16:00, 6/6, 0 faults) ran on a build of
+`phoenix-rtos-devices` **`e204863`**. The SHA recorded above, `c01afc3`, is one commit later and its
+only change is a **comment** in `audio/rpi4-audio/rpi4-audio.c` recording that `CM_GATE` does not
+read back — the compiled binary is identical. Restoring this manifest therefore restores the gated
+build.

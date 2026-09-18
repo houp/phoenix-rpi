@@ -14,6 +14,12 @@ DRAM. That is the reasoning the V3D CL path has carried all along (`gpu/rpi4-v3d
 The read direction needs the mirror: an MMIO status read says the engine is done, and the payload it
 refers to may only be read after that observation is ordered.
 
+⚠ **The read direction is the exception to "`dsb`, not `dmb`".** Ordering a payload load behind a
+status load is load-load only — nothing has to *complete*, it only has to not be hoisted — so `dmb`
+is sufficient there, and that is why the SDHCI fix reuses the file's `sdio_dataBarrier()` (`dmb sy`)
+rather than upgrading it. The `dsb` rule holds for the write direction, where an external master must
+actually see the descriptor before the kick lands.
+
 ## Fixed this pass
 
 | what | where | why it matters |

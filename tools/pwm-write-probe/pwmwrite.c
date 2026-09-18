@@ -45,7 +45,9 @@
  * CTL=0 + CLRF1 is state a CTL re-init cannot reach.
  *
  * Usage: pwmwrite [iterations]        (default 100000) — the write-drop tests
- *        pwmwrite --start-test [N]    (default 2000)   — the start reproducer
+ *        pwmwrite --start-test [N] [GAP_US]  (default 2000, gap 0) — the start
+ *            reproducer; GAP_US leaves the channel enabled with an empty FIFO for
+ *            that long before feeding it, which is the shape the driver actually has
  *
  * Copyright 2026 Phoenix Systems
  * SPDX-License-Identifier: BSD-3-Clause
@@ -284,6 +286,14 @@ static unsigned long startPeriodUs(void)
 
 /* One trial. Configure PWM0 exactly the way audio_pwmInit() configures PWM1,
  * feed it by PIO, and find out whether it transmitted. */
+/* Microseconds to leave the channel ENABLED with an EMPTY FIFO before feeding it.
+ * 0 reproduces the probe's original back-to-back shape; the driver's real shape is a
+ * gap of milliseconds, because audio_pwmInit() enables the channel and only then does
+ * portCreate/create_dev and two printfs before audio_dmaStart() arms the DMA. If the
+ * dead channel needs that idle-enabled window, a zero-gap probe can never see it. */
+static unsigned long startGapUs = 0ul;
+
+
 static void startTrial(start_result_t *r)
 {
 	unsigned int i;
@@ -321,6 +331,11 @@ static void startTrial(start_result_t *r)
 	pwm[PWM_CTL] = CTL_AUDIO_ENABLE;
 	(void)pwm[PWM_CTL];
 	usleep(10);
+
+	/* 4b. optionally sit enabled with an empty FIFO, the way the driver does. */
+	if (startGapUs != 0ul) {
+		usleep((unsigned int)startGapUs);
+	}
 
 	/* 5. feed mid-scale duty words by PIO. Nothing here involves DMA. */
 	for (i = 0; i < START_WORDS; i++) {
@@ -407,8 +422,8 @@ static int runStartTest(unsigned long trials)
 
 	period_us = startPeriodUs();
 	printf("pwmwrite: start-test: %lu trials on PWM0 @ 0x%08x, RNG=%u, %u duty words per trial, "
-		"one period ~%lu us (from the live divisor)\n",
-		trials, PWM0_PAGE, START_RANGE, START_WORDS, period_us);
+		"enable->feed gap %lu us, one period ~%lu us (from the live divisor)\n",
+		trials, PWM0_PAGE, START_RANGE, START_WORDS, startGapUs, period_us);
 
 	for (i = 0; i < trials; i++) {
 		startTrial(&r);
@@ -501,6 +516,9 @@ int main(int argc, char **argv)
 
 	if (startTest != 0) {
 		iters = (argc > 2) ? strtoul(argv[2], NULL, 0) : START_TRIALS;
+		if (argc > 3) {
+			startGapUs = strtoul(argv[3], NULL, 0);
+		}
 	}
 	else {
 		iters = (argc > 1) ? strtoul(argv[1], NULL, 0) : 100000ul;

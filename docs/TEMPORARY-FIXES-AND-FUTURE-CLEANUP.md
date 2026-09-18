@@ -262,35 +262,6 @@ authoritative current state.
   (HW-only — does not repro in QEMU). If ZVA is safe, drop the
   `MEMSET_WITHOUT_ZVA` gate and the `TODO(TD-20)` marker.
 
-## TD-22: `_map_find()` can return a hinted address with less room than requested
-
-- **Status:** OPEN, latent — no reachable caller today, found 2026-09-18 while
-  refuting an allocator hypothesis. Not attempted unattended: it is the kernel's
-  address allocator, and it deserves its own build + gate rather than riding
-  along with unrelated commits.
-- **Where:** `sources/phoenix-rtos-kernel/vm/map.c:204` — the guard
-  `/*&& (vaddr + size) <= (e->vaddr + e->size + e->rmaxgap)*/` is commented out.
-- **What:** on the right-hand branch the leaf return at `:208` is
-  `max(vaddr, e->vaddr + e->size)`. When a non-`MAP_FIXED` hint sits *inside*
-  that gap but nearer its end than `size`, `max()` yields the hint itself and
-  the room left before the next entry can be less than `size`, so the returned
-  range overlaps the following mapping. The left-hand branch (`:198`) is safe:
-  its own condition already proves `vaddr + size <= e->vaddr`.
-- **Why it is unreachable today:** libphoenix's `mmap` hint callers are
-  `dl/dl.c:352` and `:364`, both `MAP_FIXED` inside a region reserved with
-  `mmap(NULL, …)`, and `MAP_FIXED` unmaps the exact range first
-  (`vm/map.c:583-587`). `malloc` passes `NULL`, which `_map_find` clamps to
-  `map->start`, making the `max()` an identity.
-- **Why the guard cannot simply be uncommented:** as written it also gates the
-  *descend* decision, where `rmaxgap` is a subtree maximum rather than this
-  node's gap — so restoring it verbatim would refuse to search subtrees that do
-  have room. The fix belongs at the leaf return only: keep the descend
-  condition, and at `e->linkage.right == NULL` accept the candidate only if
-  `max(vaddr, gapStart) <= (gapStart + e->rmaxgap - size)`, otherwise fall
-  through to the parent walk.
-- **Resolution requirements:** implement the leaf-only check, then a full boot +
-  six-app gate (every process start maps through this path).
-
 ## TD-21: syscall table diverges from upstream (mutex syscalls kept append-only)
 
 - **Status:** **RESOLVED 2026-09-04** (kernel `d9048511`; verified on hardware — see below). Superseded detail: — syscalls.h reverted (kernel `d9048511`); the table is now upstream-identical except our own appended `sys_fdpath`. Remaining: the full-clean rebuild of everything + the boot verification below. **Not RESOLVED until step 3 passes.** **Binary-level check already PASSED 2026-09-04:** the freshly built `sysroot/lib/libphoenix.a` stub for `mutexConsistent` disassembles to `svc #0x14` (= 20), exactly its index in the reverted table, and the downstream shift is coherent — `mutexUnlock` `svc #0x13` (19), `schedSet` `svc #0x6b` (107), `sys_fdpath` `svc #0x6c` (108). Kernel and libphoenix cannot disagree here by construction: the dispatch array (`syscalls.c:2124`) and the stubs (`libphoenix/arch/aarch64/syscalls.S:58`) both expand `SYSCALLS()` from this one header. So what step 3 still has to prove is only that no STALE binary survives — not that the renumber itself is right.
@@ -370,6 +341,35 @@ authoritative current state.
      to confirm no stale-syscall breakage.
 - **Trigger:** the next scheduled full clean rebuild for any other reason
   (do not schedule a full rebuild solely for this).
+
+## TD-22: `_map_find()` can return a hinted address with less room than requested
+
+- **Status:** OPEN, latent — no reachable caller today, found 2026-09-18 while
+  refuting an allocator hypothesis. Not attempted unattended: it is the kernel's
+  address allocator, and it deserves its own build + gate rather than riding
+  along with unrelated commits.
+- **Where:** `sources/phoenix-rtos-kernel/vm/map.c:204` — the guard
+  `/*&& (vaddr + size) <= (e->vaddr + e->size + e->rmaxgap)*/` is commented out.
+- **What:** on the right-hand branch the leaf return at `:208` is
+  `max(vaddr, e->vaddr + e->size)`. When a non-`MAP_FIXED` hint sits *inside*
+  that gap but nearer its end than `size`, `max()` yields the hint itself and
+  the room left before the next entry can be less than `size`, so the returned
+  range overlaps the following mapping. The left-hand branch (`:198`) is safe:
+  its own condition already proves `vaddr + size <= e->vaddr`.
+- **Why it is unreachable today:** libphoenix's `mmap` hint callers are
+  `dl/dl.c:352` and `:364`, both `MAP_FIXED` inside a region reserved with
+  `mmap(NULL, …)`, and `MAP_FIXED` unmaps the exact range first
+  (`vm/map.c:583-587`). `malloc` passes `NULL`, which `_map_find` clamps to
+  `map->start`, making the `max()` an identity.
+- **Why the guard cannot simply be uncommented:** as written it also gates the
+  *descend* decision, where `rmaxgap` is a subtree maximum rather than this
+  node's gap — so restoring it verbatim would refuse to search subtrees that do
+  have room. The fix belongs at the leaf return only: keep the descend
+  condition, and at `e->linkage.right == NULL` accept the candidate only if
+  `max(vaddr, gapStart) <= (gapStart + e->rmaxgap - size)`, otherwise fall
+  through to the parent walk.
+- **Resolution requirements:** implement the leaf-only check, then a full boot +
+  six-app gate (every process start maps through this path).
 
 ## TD-01: SMP enable disabled on Cortex-A72
 
@@ -2111,6 +2111,7 @@ markers. Its debt idiom is `BRING-UP` prose instead.
 | TD-19 | LIKELY STILL APPLIES (TLBI hardening is generally correct) | ✅ doc reconciled 2026-09-17: **neither** the generic helpers nor `_pmap_writeTtl3` has an `isb` — the doc's `dsb; isb` claim is retracted. Code deliberately unchanged; adding the `isb` is an attended decision (see TD-19 entry) |
 | TD-13-mtxbypass | ✅ RESOLVED/REMOVED | row added 2026-09-17 (entry existed, checklist did not). Verified: `grep -c TD-13-mtxbypass syscalls.c` → 0, exactly as the entry predicts. |
 | TD-14-startup-settle | NOT TAKEN | row added 2026-09-17 (entry existed, checklist did not). No marker, no code — the option was considered and declined. |
+| TD-22 | OPEN (latent, no reachable caller) | `vm/map.c:204` — `_map_find()`'s right-hand leaf return can hand back a non-`MAP_FIXED` **hint** sitting nearer the end of a gap than `size`, overlapping the next entry. Unreachable today (libphoenix's only hinted mmaps are `MAP_FIXED`; `malloc` passes NULL). The commented-out guard cannot simply be restored — it would also gate the descent, where `rmaxgap` is a subtree maximum. Leaf-only fix written out in the section; needs its own boot + six-app gate. |
 | TD-21 | ✅ RESOLVED 2026-09-04 (HW-verified) | row added 2026-09-17 — the register's newest and most detailed item had **no checklist row at all**, while the header calls the checklist authoritative. Syscall-table divergence closed; upstream order confirmed in `include/syscalls.h:39-41` (`mutexUnlock, mutexConsistent, mutexPrioCeiling`). ⛔ Do not re-raise as pending. |
 | TD-20 | KNOWN LIMITATION (HW-gated) | A72 `dc zva` disabled in `hal_memset` pending EL2 DC-ZVA trap proof (HW-only); perf-only, correctness-safe, A72-scoped |
 | TD-Eth-DHCP | ✅ RESOLVED 2026-05-28 (lwip `7f0b495`) | autonomous DHCP verified end-to-end via test-cycle-netboot.sh --probe q + scripts/get-pi-ip.sh; probe captured `netif: en1 ip=10.42.0.12 gw=10.42.0.1 flags=0x1f UP LINK DHCP` (artifact 2026-05-28-...-dhcp-clean-probe.txt) |

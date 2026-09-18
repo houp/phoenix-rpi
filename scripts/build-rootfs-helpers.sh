@@ -146,6 +146,14 @@ helpers=(
 	# stall's actual signature: does the driver's init sequence ever leave a
 	# channel enabled, clocked and FIFO-fed that never transmits (no DMA)?
 	"tools/pwm-write-probe/pwmwrite.c|bin/pwmwrite"
+	# Diagnostic: the other half of the same hunt. pwmwrite retired the PWM side
+	# (7000 PIO starts, 0 failures), which leaves the DMA->DREQ->FIFO handshake as
+	# the branch the audio stall still lives on. This repeats audio_dmaArm()'s exact
+	# shape -- PWM init, PWM_DMAC, channel RESET, CONBLK_AD, ACTIVE, measure
+	# SOURCE_AD progress -- on the UNUSED PWM0 instance driven by a spare legacy DMA
+	# channel (6; 5 is the driver's), hundreds of times per boot instead of ~7 times
+	# in 100 boots.
+	"tools/pwm-dma-probe/pwmdma.c|bin/pwmdma"
 )
 
 # Data files copied verbatim (not compiled): "<source>|<install path>|<mode>".

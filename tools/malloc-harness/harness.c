@@ -1873,6 +1873,48 @@ static int hz_whySelftest(void)
 	bad += hz_whyExpect(malloc_chunkValidWhy(c, h), 8, "chunk runs past heap end");
 	c->size = savedChunkSize;
 
+	/* malloc_liveOverlap(): the check that says mmap handed back a region sitting on
+	 * a live heap. A randomized stress run can only ever show it NOT firing, which is
+	 * exactly the "grader that cannot fail" shape, so prove it reports.
+	 *
+	 * Probe against a REAL live heap rather than a planted one: malloc_heapSizeValid()
+	 * demands a page-aligned base inside [heapLo, heapHi), so a stack buffer is skipped
+	 * as insane and every positive case silently passes. (It did, on the first run.)
+	 *
+	 * Heaps pack back-to-back, so "just after this heap" may legitimately belong to the
+	 * next one -- the negative case therefore probes below heapLo, where no live heap
+	 * can be. */
+	{
+		uintptr_t lbase = 0u;
+		size_t lsize = 0u;
+		unsigned int li;
+
+		for (li = 0; li < 256u; li++) {
+			if ((malloc_common.live[li] != 0u)
+					&& (malloc_heapSizeValid((const heap_t *)malloc_common.live[li]) != 0)) {
+				lbase = malloc_common.live[li];
+				lsize = ((const heap_t *)lbase)->size;
+				break;
+			}
+		}
+
+		if (lbase == 0u) {
+			printf("selftest why overlap: NO LIVE HEAP -- check not exercised\n");
+			bad++;
+		}
+		else {
+			bad += hz_whyExpect(malloc_liveOverlap(lbase + 16u, 256u) == lbase, 1,
+					"overlap: inside a live heap");
+			bad += hz_whyExpect(malloc_liveOverlap(lbase, lsize) == lbase, 1,
+					"overlap: same base (total)");
+			bad += hz_whyExpect(malloc_liveOverlap(lbase + lsize - 16u, 32u) == lbase, 1,
+					"overlap: straddles the end");
+			bad += hz_whyExpect(
+					malloc_liveOverlap(malloc_common.heapLo - 0x2000u, 0x1000u) == 0u, 1,
+					"overlap: below the window");
+		}
+	}
+
 	/* and the block must still be intact -- every case above restored its field. */
 	bad += hz_whyExpect(malloc_chunkValidWhy(c, h), 0, "block restored");
 	phx_free(p);

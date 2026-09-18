@@ -455,3 +455,20 @@ exercised — is now verified on every axis I can measure without you:**
 (`netboot-server-down.sh` ⇒ SD boot, `-up` ⇒ netboot). The SD-lane facts and harness are in durable
 memory, so the next session starts knowing them.
 
+
+
+## Grader + doc audit, full list (moved from the weekly log 2026-09-18)
+
+**★ GRADER + DOC AUDIT (2026-09-17)** — **13 graders that could not fail**, all fixed with negative
+controls. Worst was the six-app gate: its `frames` column counted HDMI *snapshots*, so the column
+meant to catch a hung app could never be 0; its fault regex was a frozen private copy; its log pickup
+had no time bound. Now `frames` = page flips, `snaps` = grabs, fault set from `uart-summary.sh`, a
+no-frame GPU app FAILS, torch verdict in the exit status. ✅ All **83 archived gate logs** re-graded —
+no published claim changed. Then the same sweep over the **public docs** found **14** stale claims
+(README asserting the *opposite* of a measurement in one paragraph and the correction in another; the
+"authoritative" hardware matrix still carrying #67 as open, missing torches, the closed QVM gap and
+"HW-blocked (no card)"; `CHANGES` still calling SD boot unverified) — all fixed.
+
+**Publication hygiene:** `q3-qvm-recipe` **closed** (pak reproducible from source, verified byte-wise)
+· tech-debt register reconciled · hevc testdata README understated 13.3 MB — **your personal footage
+is still not committed**.

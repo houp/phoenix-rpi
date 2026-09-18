@@ -106,6 +106,38 @@ static unsigned long runBerr(const char *name, int (*fn)(uint32_t), unsigned lon
 }
 
 
+/* ★ The case that matters, added after the first run came back clean: the BCM2835
+ * doc says BERR is set "if the bus tries to write successive cycles to the same
+ * set of registers". The first probe wrote CTL then RNG1 -- DIFFERENT registers,
+ * hence 0 bus errors. `audio_pwmInit()` writes **PWM_CTL three times in a row**
+ * (0, CLRF1, enable), which is precisely the documented hazard, and the driver
+ * latches BERR on every single boot (entry STA=0x2, ready STA=0x102).
+ * These two trials reproduce that pattern unpaced and paced. */
+static int trial_sameRegUnpaced(uint32_t want)
+{
+	(void)want;
+	pwm[PWM_CTL] = 0u;
+	pwm[PWM_CTL] = (1u << 6);      /* CLRF1 */
+	pwm[PWM_CTL] = (1u << 0) | (1u << 5) | (1u << 7);  /* PWEN1|USEF1|MSEN1 */
+	return 0;
+}
+
+
+static int trial_sameRegPaced(uint32_t want)
+{
+	(void)want;
+	pwm[PWM_CTL] = 0u;
+	(void)pwm[PWM_CTL];
+	usleep(10);
+	pwm[PWM_CTL] = (1u << 6);
+	(void)pwm[PWM_CTL];
+	usleep(10);
+	pwm[PWM_CTL] = (1u << 0) | (1u << 5) | (1u << 7);
+	(void)pwm[PWM_CTL];
+	return 0;
+}
+
+
 static unsigned long run(const char *name, int (*fn)(uint32_t), unsigned long iters)
 {
 	unsigned long i, bad = 0;
@@ -152,7 +184,16 @@ int main(int argc, char **argv)
 		unsigned long b2 = runBerr("read-barrier", trial_barrier, iters / 10u);
 		unsigned long b3 = runBerr("10us-delay", trial_delay, iters / 100u);
 
-		printf("pwmwrite: BERR summary back-to-back=%lu read-barrier=%lu 10us=%lu\n", b1, b2, b3);
+		unsigned long b4 = runBerr("CTLx3-unpaced", trial_sameRegUnpaced, iters / 10u);
+		unsigned long b5 = runBerr("CTLx3-paced", trial_sameRegPaced, iters / 100u);
+
+		printf("pwmwrite: BERR summary back-to-back=%lu read-barrier=%lu 10us=%lu "
+			"CTLx3-unpaced=%lu CTLx3-paced=%lu\n", b1, b2, b3, b4, b5);
+		if ((b4 > 0u) && (b5 == 0u)) {
+			printf("pwmwrite: ⇒ REPRODUCED: successive writes to the SAME register raise "
+				"bus errors and pacing removes them. audio_pwmInit() writes PWM_CTL 3x "
+				"unpaced.\n");
+		}
 		if ((b1 > 0u) && (b2 == 0u) && (b3 == 0u)) {
 			printf("pwmwrite: ⇒ PACING FIXES IT: unpaced writes raise bus errors, paced ones "
 				"do not. audio_pwmInit() writes five registers unpaced.\n");

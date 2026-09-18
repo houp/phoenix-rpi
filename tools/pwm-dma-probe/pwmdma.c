@@ -187,8 +187,11 @@
  *   e.MMC         = 11    (bcm270x.dtsi:43)
  *   SD HOST       = 13    (bcm2835-common.dtsi:201)
  *   HDMI          = 17    (bcm2835-common.dtsi:133)
- * Those are the same table, and slot 5 of that table is PWM. bcm2711.dtsi reassigns
- * neither 1 nor 5 (no node in it uses either). Independently, rpi4-audio's PERMAP 1
+ * Those are the same table, and slot 5 of that table is PWM. bcm2711.dtsi EXTENDS
+ * that numbering rather than replacing it -- hdmi1's audio-rx keeps the 2835 HDMI
+ * slot 17 (bcm2711.dtsi:398) while the second controller, hdmi0, takes 10
+ * (:357), a slot the 2835 table leaves unused -- and it is SILENT on 1 and 5: no
+ * node in it uses either number. Independently, rpi4-audio's PERMAP 1
  * for the BCM2711 PWM1 instance (rpi4-audio.c:167) is empirically live — it streams
  * 1784-2352 ring words per 20 ms on healthy boots — which is what re-points 1 at
  * PWM1 and leaves 5 as the legacy PWM0 slot. If EVERY trial here parks, suspect this
@@ -360,7 +363,7 @@ static unsigned int histBucket(uint32_t advance)
 	if (advance == 0u) {
 		return 0u;
 	}
-	if (advance < 16u) {
+	if (advance <= 16u) {
 		return 1u;
 	}
 	if (advance < 64u) {
@@ -391,9 +394,9 @@ static unsigned int histBucket(uint32_t advance)
 static const char *histLabel(unsigned int b)
 {
 	static const char *const names[HIST_BUCKETS] = {
-		"0 (never fetched the CB)",
-		"1..15 (<= FIFO depth: parked)",
-		"16..63 (below threshold)",
+		"0 (no progress, or CB never fetched)",
+		"1..16 (<= FIFO depth: PARKED)",
+		"17..63 (below threshold)",
 		"64..127",
 		"128..255",
 		"256..511",
@@ -483,6 +486,17 @@ static int run(unsigned long trials, unsigned long settleUs)
 		trials, settleUs, gapUs, DMA_START_MIN_WORDS,
 		((unsigned long)AUDIO_RATE * settleUs) / 1000000ul, AUDIO_RATE);
 
+	/* The threshold is the driver's fixed 64 words, so a settle too short to cover
+	 * comfortably more than that parks 100%% of trials for a reason that is the CLI,
+	 * not the defect. Refuse rather than print a REPRODUCED verdict nobody can trust. */
+	if ((((unsigned long)AUDIO_RATE * settleUs) / 1000000ul) < (2ul * DMA_START_MIN_WORDS)) {
+		printf("pwmdma: a %lu us settle covers only ~%lu ring words at %u Hz, against a fixed "
+			"%u-word threshold.\n", settleUs,
+			((unsigned long)AUDIO_RATE * settleUs) / 1000000ul, AUDIO_RATE,
+			DMA_START_MIN_WORDS);
+		return refuse("settle too short for the progress threshold — use >= 3000 us");
+	}
+
 	step = trials / 10ul;
 	if (step == 0ul) {
 		step = 1ul;
@@ -520,7 +534,11 @@ static int run(unsigned long trials, unsigned long settleUs)
 			}
 		}
 
-		dma[DMA_CS] = 0u;   /* stop the channel between trials */
+		/* Stop the channel AND drop the PWM's DMA request between trials: on a real
+		 * boot PWM_DMAC is 0 when audio_pwmInit() runs, so leaving ENAB set would make
+		 * trials 2..N a different shape from the one being reproduced. */
+		dma[DMA_CS] = 0u;
+		pwm[PWM_DMAC] = 0u;
 
 		if (((i + 1ul) % step) == 0ul) {
 			printf("pwmdma: %lu/%lu trials, %lu parked\n", i + 1ul, trials, parked);

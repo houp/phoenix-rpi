@@ -307,3 +307,35 @@ stable, and a first-ever start is exactly where a transient would live. It costs
 boot. ⚠ Landing it can only be *bounded*, never proven: the rate is ~7% and moves with timing, so the
 measurement is a long rate run on a frozen build — the discipline this whole file is about.
 
+## ★ A missing barrier — and a pre-registered prediction the next stall will settle
+
+Found by reading rather than hunting (devices `b9414c3`). `rpi4-audio` built its control block and
+ring in **Normal-NC** memory (`MAP_UNCACHED | MAP_CONTIGUOUS`) and kicked the DMA engine through
+**Device** registers with **no barrier anywhere in the driver**. aarch64 does not order Normal-NC
+stores against Device stores, so nothing stopped the engine — a non-coherent external master reading
+DRAM directly — from fetching the control block before those stores landed. And `MAP_CONTIGUOUS`
+memory on this port is **not zeroed** (the same fact behind the V3D binner-overflow-pool bug), so what
+it would follow is whatever the previous owner of that DRAM left.
+
+Why it fits: **a garbage `PERMAP` alone parks the channel waiting for a DREQ that never fires** — the
+captured signature exactly. And the window is **once per boot**: the CB is written in
+`audio_dmaStart()` and a re-arm rewrites nothing, which is precisely why ~14 000 probe arms of an
+already-drained CB never parked.
+
+Why it is **not claimed as the cure**: several syscalls sit between the CB write and the arm
+(`va2pa`, `printf`), and their kernel entry/exit paths may drain the write buffer incidentally on most
+boots. The fix is landed because relying on an incidental barrier is a latent defect either way — the
+V3D driver has carried this exact `dsb sy` and its reasoning all along (`gpu/rpi4-v3d/v3d_gpu.c`
+:1152-1156), and this driver never did.
+
+**⏭ The prediction, registered before the fact so it cannot be fitted afterwards.** The DMA channel
+loads `SOURCE_AD`, `DEST_AD`, `TXFR_LEN` and `NEXTCONBK` **from the control block** when it fetches
+it, and the abort print carries all four as of today. So the next stall decides this directly:
+
+| what the stall prints | what it means |
+|---|---|
+| `DEST=0x7e20c818`, `LEN=65536`, `SRC` inside the ring | the CB was fetched correctly — **barrier theory dead**, look elsewhere |
+| any of those wrong or wild | the engine followed a CB that was not ours yet — **barrier theory alive**, and the values name what it read |
+
+No further instrumentation is needed to settle it; the capture already prints what decides it.
+

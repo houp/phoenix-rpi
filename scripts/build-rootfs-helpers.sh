@@ -142,7 +142,9 @@ helpers=(
 	# correct except the one nothing could print -- the period -- and
 	# audio_pwmInit() writes five PWM registers with no pacing. This samples that
 	# ~100k times in one run on the UNUSED PWM0 instance, instead of one sample
-	# per 2.5-minute boot.
+	# per 2.5-minute boot. `--start-test N` adds the PIO-only reproducer for the
+	# stall's actual signature: does the driver's init sequence ever leave a
+	# channel enabled, clocked and FIFO-fed that never transmits (no DMA)?
 	"tools/pwm-write-probe/pwmwrite.c|bin/pwmwrite"
 )
 

@@ -137,6 +137,13 @@ helpers=(
 	# allocator from several threads with a size mix that keeps heaps being
 	# created and released under each other.
 	"tools/malloc-mt-stress/mtstress.c|bin/mtstress"
+	# Diagnostic: does the PWM block drop a back-to-back register write? The audio
+	# DMA stall (captured 3x on 2026-09-18) leaves every programmed register
+	# correct except the one nothing could print -- the period -- and
+	# audio_pwmInit() writes five PWM registers with no pacing. This samples that
+	# ~100k times in one run on the UNUSED PWM0 instance, instead of one sample
+	# per 2.5-minute boot.
+	"tools/pwm-write-probe/pwmwrite.c|bin/pwmwrite"
 )
 
 # Data files copied verbatim (not compiled): "<source>|<install path>|<mode>".

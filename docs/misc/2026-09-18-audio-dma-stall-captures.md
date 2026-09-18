@@ -222,3 +222,41 @@ reorder (devices `65e8623`) addresses. ⏭ The decisive experiment is now obviou
 inside the probe** (stop → restart → immediately enable + arm), thousands of times. If the parked
 rate jumps to ~7%, the mechanism is settled rather than inferred.
 
+## ⊖ Seventh hypothesis retired: clock-start → PWM-enable proximity is not it either
+
+`pwmdma --cycle-clock` **stops and restarts the shared CPRMAN PWM generator inside every trial**,
+using the exact sequence `audio_clockInit()` now uses, then immediately enables PWM0 and arms the
+DMA. A `--clock-gap-us` knob sets the BUSY→PWEN distance so the proximity can be swept.
+
+| clock→enable gap | trials | parked | clock restarts failed |
+|---|---|---|---|
+| 0 µs | 500 | **0** | 0 |
+| 10 µs | 500 | **0** | 0 |
+| 100 µs | 500 | **0** | 0 |
+| 1 000 µs | 500 | **0** | 0 |
+
+**2 000 stop→restart→enable→arm cycles, 0 parked**, and 0 of 2 000 restarts found the generator still
+BUSY after the disable write. ⇒ the named survivor is dead for PWM0 / channel 6 / DREQ 5.
+
+⊕ **Collateral observation worth more than the verdict:** `rpi4-audio`'s own stream **survived all
+2 000 clock stops**. Channel 5's `SOURCE_AD` was still advancing after every run (read-only sampling,
+20 ms apart) with `PWM1 STA=0x600`, `CTL=0xa1a1`. So yanking the shared generator out from under a
+running PWM+DMA stream does **not** park it — which is a direct strike against every "the clock did
+something to it" story, measured rather than argued.
+
+**What the probes still cannot reach**, stated so the next experiment is not mis-aimed:
+1. **The instance**: everything above is PWM0 / DREQ 5 / channel 6. A mechanism specific to **PWM1,
+   DREQ 1 or channel 5** is untouched.
+2. **A cold generator**: firmware leaves `CM_PWMCTL=0x200` and has never enabled it, so on a real boot
+   the driver's `stop → wait !BUSY` is a no-op. The cycle mode always restarts a generator that has
+   been running.
+3. **Boot-time system state**: the driver arms while lwip, USB, NFS and the other drivers are coming
+   up; the probe runs at an idle psh prompt.
+
+⏭ **The experiment that covers all three at once:** give `rpi4-audio` an optional argv trial count
+(`rpi4-audio;-t;N` in the boot config, default unchanged) so **the driver itself** repeats its own arm
+sequence N times at init — same instance, same DREQ, same channel, same cold clock, same boot-time
+contention. That is the only remaining way to sample the exact failing path thousands of times per
+boot. ⚠ It needs a boot-config edit, so verify the boot immediately after (a duplicate program in
+`*.plo.yaml` bricks it).
+

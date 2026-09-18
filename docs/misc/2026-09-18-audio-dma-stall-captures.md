@@ -76,6 +76,17 @@ a **progress** check (the ring streams silence, so a healthy channel advances `D
 in 20 ms; the stalled one moves nothing) plus one PWM re-arm — drafted, deliberately **not applied
 until the next capture says whether the clock or the DREQ threshold is at fault**. Fixing before
 reading that would be fixing in the dark.
+✅ **APPLIED 2026-09-18 (devices `5cd9cc3` + the re-arm commit).** The gate it was waiting on is
+answered: capture 3's `CM_PWMCTL=0x91` closed the clock branch, and the DREQ branch is now answered
+*by the fix itself* rather than by another capture — the re-arm print says whether a paced
+`CTL=0 + CLRF1 + re-enable` un-sticks the parked channel, which is the same discrimination a fourth
+capture would have bought, except it arrives on the next occurrence instead of the next hunt. The
+driver now (a) prints the **progress figure on every boot** — a continuous sample instead of a
+~7% event — (b) re-arms up to 3 times with the full engine state printed, including `DMA_DEBUG`,
+`CONBLK`, `SRC`, `DEST` and `LEN`, none of which any capture has ever shown, and (c) degrades to a
+**paced null sink** if it still will not stream, so the user-visible symptom (`q2-sdl-openaudio-hang`)
+is gone even when the underlying defect fires. ⚠ That is containment plus instrumentation, **not** a
+root cause: the state itself is still unexplained.
 🔧 **The hunt exposed a harness bug that had been eating boot-only benches: picocom kills its whole
 PROCESS GROUP.** A 30-boot run stopped after trial 1, twice. Mechanism: picocom signals its group
 when terminated, and a bare background launch puts it in *ours* — so the capture watchdog's kill took

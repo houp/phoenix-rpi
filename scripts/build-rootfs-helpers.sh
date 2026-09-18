@@ -157,6 +157,7 @@ helpers=(
 	# so the clock-start -> PWEN proximity a real boot has is reproduced rather than
 	# assumed. That mode DISTURBS rpi4-audio's stream -- dedicated probe boot only.
 	"tools/pwm-dma-probe/pwmdma.c|bin/pwmdma"
+	"tools/audio-armtrials/armtrials.c|bin/armtrials"
 )
 
 # Data files copied verbatim (not compiled): "<source>|<install path>|<mode>".
@@ -178,8 +179,13 @@ for entry in "${helpers[@]}"; do
 	dst="${stage_dir}/${entry##*|}"
 	name="$(basename "$dst")"
 	[ -f "$src" ] || die "helper source missing: $src"
+	# -I the devices sibling so a helper that speaks a DRIVER's ioctl ABI includes the
+	# real header (<audio/rpi4-audio/rpi4-audio.h>) instead of re-declaring the struct
+	# locally, where it would silently drift from the driver the next time either side
+	# changes. Device headers are not installed into the sysroot.
 	"$cc" -O2 -static -Wall -Wextra \
 		--sysroot="${sysroot}/" -B"${sysroot}/lib/" -iprefix "${sysroot}/" \
+		-I"${repo_root}/sources/phoenix-rtos-devices" \
 		-o "${tmp}/${name}" "$src" \
 		|| die "compile failed: $src"
 	# Phoenix has no dynamic loader for ordinary programs, so a PT_INTERP here

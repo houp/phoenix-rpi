@@ -180,9 +180,20 @@ enables the channel and only then runs `portCreate`, `create_dev` and two `print
 `audio_dmaStart()` arms the DMA, so on a real boot the channel sits enabled and empty for
 milliseconds. Both shapes: **7 000 starts, 0 failures, `STA1` seen on every one.**
 
-⇒ **The PWM state machine starts reliably. The stall needs the DMA path** — the DREQ handshake, the
+⚠ **Scope of that null, stated exactly:** the probe *refuses* to reconfigure a running clock (so it
+cannot cut off the driver that owns it), so every one of the 7 000 trials ran on a generator that had
+been stable for minutes. It therefore retires "the init sequence alone" and "the idle-enabled
+window" — and says **nothing** about PWEN being asserted microseconds after the generator starts,
+which is the driver's shape on every boot and exactly the race the clock reorder addresses. Two
+branches survive, not one.
+
+⇒ **The PWM state machine starts reliably given a settled clock. Branch (i), the stall needs the DMA
+path** — the DREQ handshake, the
 threshold, or the first burst arriving while the channel is coming up. That is where the next probe
 goes: drive PWM0 from a spare DMA channel exactly as the driver drives PWM1 (PWM0's DREQ is 5, PWM1's
 is 1), which samples the actual failing path thousands of times per boot instead of ~7 times in 100.
 ⓘ Sampling gain over per-boot hunting: ~4 000×, the same lever that settled the allocator work.
+⇒ **Branch (ii): the clock-start → PWM-enable proximity.** Untestable by this probe by construction;
+only the reordered `audio_clockInit()` (devices `65e8623`) and a long rate run on a frozen build can
+speak to it.
 

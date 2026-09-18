@@ -163,3 +163,26 @@ A read-only sweep of `external/` (Linux 6.18 RPi fork, u-boot, barebox) for a co
   every boot — the exact case upstream's comment guards. The entry line now carries `CM_PWMCTL` and
   `CM_PWMDIV`.
 
+## ⊖ Fifth hypothesis retired: the PWM starts fine — it is the DMA path
+
+`bin/pwmwrite --start-test` runs the driver's exact init (`CTL=0` → `CLRF1` → `RNG1/RNG2=612` →
+`USEF|MSEN|PWEN` on both channels) on the **unused PWM0** and then feeds 8 duty words by **PIO**, no
+DMA anywhere, thousands of times per boot instead of once per 2.5-minute boot. A trial counts as the
+defect only if the channel neither sets `STA1` nor drains the FIFO.
+
+| shape | trials | never transmitted | bus errors |
+|---|---|---|---|
+| back-to-back (enable, then feed immediately) | **5 000** | **0** | 0 |
+| enable, then sit **20 ms** with an EMPTY FIFO, then feed | **2 000** | **0** | 0 |
+
+The second row exists because the first does not test the driver's real shape: `audio_pwmInit()`
+enables the channel and only then runs `portCreate`, `create_dev` and two `printf`s before
+`audio_dmaStart()` arms the DMA, so on a real boot the channel sits enabled and empty for
+milliseconds. Both shapes: **7 000 starts, 0 failures, `STA1` seen on every one.**
+
+⇒ **The PWM state machine starts reliably. The stall needs the DMA path** — the DREQ handshake, the
+threshold, or the first burst arriving while the channel is coming up. That is where the next probe
+goes: drive PWM0 from a spare DMA channel exactly as the driver drives PWM1 (PWM0's DREQ is 5, PWM1's
+is 1), which samples the actual failing path thousands of times per boot instead of ~7 times in 100.
+ⓘ Sampling gain over per-boot hunting: ~4 000×, the same lever that settled the allocator work.
+

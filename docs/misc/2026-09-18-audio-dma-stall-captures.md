@@ -339,3 +339,43 @@ it, and the abort print carries all four as of today. So the next stall decides 
 
 No further instrumentation is needed to settle it; the capture already prints what decides it.
 
+
+
+---
+
+## 2026-09-18 late: does the MEASURED control-block race explain this stall?
+
+`pwmdma --cb-race` measured the Normal-NC → Device store-ordering race directly tonight: **146 stale
+control-block fetches in 5 000 trials without a `dsb sy`, 0 in 5 000 with it**
+([`2026-09-18-dma-barrier-audit.md`](2026-09-18-dma-barrier-audit.md)). A stale fetch means the engine
+followed bytes the CPU had already overwritten.
+
+That is an attractive fit for this stall: `audio_dmaArm()` wrote the control block and kicked the
+engine with **no barrier at all** until devices `b9414c3` (tonight), the arm happens **once per
+boot**, and `MAP_CONTIGUOUS` memory is **not zeroed** — so a first-ever fetch that missed our stores
+would hand the channel a garbage `SRC`/`PERMAP`, which parks it exactly as captured.
+
+**The decisive test is not available in the archive.** The abort print gained `CONBLK`/`SRC`/`DEST`/
+`LEN`/`NEXT` *after* all three captures were taken; none of them carries a CB-loaded field. What
+capture 3 does show — `PWM_DMAC=0x80000804`, `PWM_CTL=0xa1a1`, `CM_PWMCTL=0x91` — matches what the
+driver writes exactly, but those are **CPU-written MMIO registers, not fields the engine loads from
+the control block**, so they say nothing about the fetch.
+
+⚠ **And the 14 000-arm null does NOT argue against this**, which is the part worth getting right.
+`audio_dmaArm()` does not rewrite the control block — it was deliberately split out of
+`audio_dmaStart()` so a re-arm re-maps and re-writes nothing (0 stores to `ad.cb[]` in the whole
+function). So every re-arm fetches **identical bytes**: a stale fetch returns exactly the right
+values and the channel streams normally. **ARMTRIALS is structurally blind to this defect** — only
+the *first* arm, on a freshly mapped page whose previous contents are garbage, can fail. The 4 000
+unbarriered arms of the real PWM1/DREQ 1/ch 5 path could not have seen it.
+
+⚠ **Rates do not transfer.** The 2.9 % is a CB-fetch rate on channel 6 at preload 256 / gap 500 µs;
+the audio arm is a single fetch on a fresh page with a 20 ms sleep in the loop. Same mechanism class,
+not the same number. That it overlaps the observed ~1-boot-in-41-to-70 is **consistent with** the
+hypothesis, not a prediction of it.
+
+**Status: plausible, untested, and it now tests itself.** Both halves are in place on the current
+build — the barrier (`b9414c3`) and the CB-loaded fields in the abort print. So the next stall on a
+post-`b9414c3` build is informative either way: if one fires and the CB fields are *correct*, the
+fetch was never the cause and this is dead; if the rate goes to zero over a run long enough to say so
+(~121 boots for 95 % against the published rate), that is the positive evidence.

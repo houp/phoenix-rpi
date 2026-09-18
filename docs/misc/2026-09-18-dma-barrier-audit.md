@@ -73,6 +73,12 @@ in seconds. ⚠ Scope, from the probe's own verdict: the null in the control arm
 it does not prove the ordering is architecturally guaranteed — and neither arm covers the first-ever
 fetch of freshly `mmap`'d memory, because the probe reuses one control block.
 
+⚠ **The 2.9 % does not transfer to the other four fixes.** It is a *DMA control-block fetch* rate on
+one channel at one preload depth. The V3D TFU reads source texels and page-table entries, not a
+control block; xHCI and SDHCI are read-direction orderings. The **mechanism class** is shared
+(Normal-NC vs Device on this SoC); the number is not. Nobody should read this as "≈3 % of GL blits
+were corrupt".
+
 ⚠ The five fixes are still **not** attributed to any observed defect in the drivers themselves; what
 is now measured is the *mechanism*, not any particular field failure. They ship and are gated
 together.

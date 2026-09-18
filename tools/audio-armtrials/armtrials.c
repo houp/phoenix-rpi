@@ -55,8 +55,12 @@ int main(int argc, char **argv)
 	memset(&at, 0, sizeof(at));
 	at.trials = (uint32_t)trials;
 
+	/* ~20 ms per cycle, all of it inside the driver's message loop, so this ioctl() blocks
+	 * for trials*20 ms — 5000 trials is ~100 s. A test cycle must give --idle-secs MORE
+	 * than that or the harness will cut the run off mid-loop and the count will read low. */
 	printf("armtrials: asking rpi4-audio for %lu arm cycles on PWM1 / DREQ 1 / DMA ch5 "
-		"(~20 ms each, the device is silent meanwhile)\n", trials);
+		"(~20 ms each = ~%lu s; the device is silent and the ioctl blocks meanwhile)\n",
+		trials, (trials * 20ul) / 1000ul);
 
 	if (ioctl(fd, RPI4AUDIO_ARMTRIALS, &at) < 0) {
 		printf("armtrials: RPI4AUDIO_ARMTRIALS failed -- is this a driver build that has it?\n");

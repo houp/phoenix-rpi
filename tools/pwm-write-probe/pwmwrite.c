@@ -36,8 +36,19 @@
 
 #define PWM0_PAGE 0xfe20c000u   /* PWM0: unused by this port (audio is PWM1 @ +0x800) */
 #define PWM_CTL   (0x00u / 4u)
+#define PWM_STA   (0x04u / 4u)
 #define PWM_RNG1  (0x10u / 4u)
 #define PWM_RNG2  (0x20u / 4u)
+
+/* PWM_STA bits, from the BCM2835 peripherals doc. ⚠ Bit 8 is BERR — a BUS ERROR
+ * latched when a register write does not take — and bit 9 is STA1 (channel 1
+ * transmitting). Getting these two the wrong way round cost an hour on
+ * 2026-09-18: `STA=0x100` reads as "transmitting" if you assume bit 8 is STA1,
+ * when it actually says "a write failed and the FIFO is not empty". */
+#define STA_FULL1 (1u << 0)
+#define STA_EMPT1 (1u << 1)
+#define STA_BERR  (1u << 8)
+#define STA_STA1  (1u << 9)
 
 #define PAT_A 612u
 #define PAT_B 613u
@@ -72,6 +83,26 @@ static int trial_delay(uint32_t want)
 	pwm[PWM_RNG1] = want;
 	usleep(10);
 	return (pwm[PWM_RNG1] != want) ? 1 : 0;
+}
+
+
+/* Does the write pattern itself raise a BUS ERROR? The audio driver's ready line
+ * reports STA=0x102 on EVERY boot -- EMPT1|BERR -- so `audio_pwmInit()` latches a
+ * bus error every time it runs, and nothing in the driver decodes bit 8 to say so.
+ * BERR is write-1-to-clear, so each trial starts from a clean slate. */
+static unsigned long runBerr(const char *name, int (*fn)(uint32_t), unsigned long iters)
+{
+	unsigned long i, berr = 0;
+
+	for (i = 0; i < iters; i++) {
+		pwm[PWM_STA] = STA_BERR;            /* W1C */
+		(void)fn(((i & 1u) != 0u) ? PAT_A : PAT_B);
+		if ((pwm[PWM_STA] & STA_BERR) != 0u) {
+			berr++;
+		}
+	}
+	printf("pwmwrite: BERR %-12s %lu/%lu writes raised a bus error\n", name, berr, iters);
+	return berr;
 }
 
 
@@ -114,6 +145,19 @@ int main(int argc, char **argv)
 	bad = run("back-to-back", trial_backToBack, iters);
 	bad += run("read-barrier", trial_barrier, iters);
 	bad += run("10us-delay", trial_delay, iters / 20u);  /* 20x slower per trial */
+
+	printf("pwmwrite: --- bus errors per spacing (the driver latches one every boot) ---\n");
+	{
+		unsigned long b1 = runBerr("back-to-back", trial_backToBack, iters / 10u);
+		unsigned long b2 = runBerr("read-barrier", trial_barrier, iters / 10u);
+		unsigned long b3 = runBerr("10us-delay", trial_delay, iters / 100u);
+
+		printf("pwmwrite: BERR summary back-to-back=%lu read-barrier=%lu 10us=%lu\n", b1, b2, b3);
+		if ((b1 > 0u) && (b2 == 0u) && (b3 == 0u)) {
+			printf("pwmwrite: ⇒ PACING FIXES IT: unpaced writes raise bus errors, paced ones "
+				"do not. audio_pwmInit() writes five registers unpaced.\n");
+		}
+	}
 
 	if (bad == 0u) {
 		printf("pwmwrite: PASS — no dropped write in any spacing. The PWM does not lose "

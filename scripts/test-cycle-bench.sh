@@ -121,6 +121,20 @@ if ! [[ "$N" =~ ^[1-9][0-9]*$ ]]; then
     exit 1
 fi
 
+# A label reused from an earlier bench leaves BOTH runs matching the same
+# `*-<label>-T*.log` glob, so any later `grep artifacts/.../*<label>*` silently
+# mixes trials from different builds -- and the mixture reads as one clean run.
+# (2026-09-18: `stkguard` collided with a 2026-09-10 bench; three stale trials
+# would have been counted as part of a twelve-trial soak.) Warn, do not refuse:
+# re-running a label deliberately is legitimate, the reader just has to know.
+prior=$(ls -1 "${repo_root}/artifacts/rpi4b-uart"/rpi4b-uart-*-"${label}"-T*.log 2>/dev/null | wc -l)
+if [ "$prior" -gt 0 ]; then
+    printf '\n!! LABEL REUSED: %d existing log(s) already match "%s-T*".\n' "$prior" "$label" >&2
+    printf '!! Scope every later grep by date (rpi4b-uart-%s-*-%s-T*.log) or these\n' \
+        "$(date +%Y%m%d)" "$label" >&2
+    printf '!! trials will be mixed with the older run.\n\n' >&2
+fi
+
 printf '=== bench start: %d trials, label="%s" ===\n' "$N" "$label"
 
 sd_flag=""

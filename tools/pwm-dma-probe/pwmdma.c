@@ -118,9 +118,14 @@
  *     another's window. Anything outside every window is counted UNCLASSIFIED, never as
  *     the race, and the run prints the largest drift it actually saw.
  *   - the engine had not fetched the CB yet. `CS=RESET` (bcm2835-dma.c:147) zeroes the
- *     channel's live registers, so "not fetched" reads as 0/0 — its own bucket, and the
- *     readback polls (bounded) for the first non-zero sample. Trial 0 REFUSES outright
- *     if the post-reset registers are not zero, because then the sentinel is worthless.
+ *     channel's live registers, so "not fetched" is its own bucket, and the readback
+ *     polls (bounded) for the first non-zero sample. Trials 0 AND 1 REFUSE outright if
+ *     the post-reset registers are not zero, because then the sentinel is worthless.
+ *     ⚠ MEASURED 2026-09-18 on BCM2711: RESET clears TXFR_LEN and CONBLK_AD but NOT
+ *     SOURCE_AD, which keeps the previous trial's value. So the sentinel and the
+ *     "not fetched" bucket both rest on TXFR_LEN alone — it is loaded from the control
+ *     block, and the three variants have distinct lengths, so it identifies the fetched
+ *     block by itself. SOURCE_AD is corroborating evidence, never the discriminator.
  *   - a self-chain reloaded the CB under us. `nextconbk = 0` here: these CBs are
  *     ONE-SHOT, unlike the streaming CB the other modes use.
  *   - the compiler moved the stores. The CB is `volatile`, as are the MMIO windows, and
@@ -1238,9 +1243,17 @@ static int runCbRace(unsigned long trials)
 
 		/* The sentinel that keeps "the engine has not fetched yet" a DISTINCT reading
 		 * rather than a mismatch: after RESET the channel's live registers read zero, so
-		 * a too-early readback is 0/0 and not some other CB's values. If a reset did not
-		 * take, this trial cannot tell the two apart — skip it instead of classifying it. */
-		if ((dma[DMA_TXFR_LEN_R] | dma[DMA_SOURCE_AD] | dma[DMA_CONBLK_AD]) != 0u) {
+		 * a too-early readback is not some other CB's values. If a reset did not take,
+		 * this trial cannot tell the two apart — skip it instead of classifying it.
+		 *
+		 * ⚠ MEASURED 2026-09-18 on BCM2711: abort+RESET clears TXFR_LEN and CONBLK_AD
+		 * but does NOT clear SOURCE_AD — it keeps the previous trial's value (observed
+		 * `LEN=0 SRC=0xefba0018 CONBLK=0x00000000`). Including SOURCE_AD here refused
+		 * every run on real hardware. TXFR_LEN carries the sentinel on its own: it is
+		 * loaded from the control block, so non-zero means a fetch happened, and the
+		 * three variants have distinct lengths (32768/24576/16384), so it also
+		 * identifies WHICH block was fetched without help from SOURCE_AD. */
+		if ((dma[DMA_TXFR_LEN_R] | dma[DMA_CONBLK_AD]) != 0u) {
 			/* ⚠ Trials 0 AND 1, not just 0. Trial 0 passes this test for free — a channel
 			 * nothing has armed since boot reads zero whether or not RESET clears
 			 * anything — so trial 1, the first one that runs after a real load and a real
@@ -1317,7 +1330,12 @@ static int runCbRace(unsigned long trials)
 			conblkOdd++;
 		}
 
-		if ((s.len == 0u) && (s.src == 0u)) {
+		/* TXFR_LEN alone, deliberately: SOURCE_AD survives abort+RESET on BCM2711 (see
+		 * the sentinel above), so a not-yet-fetched trial reads len=0 with a STALE src.
+		 * Requiring src==0 too would drop that trial into the classifier below, where
+		 * the retained address matches a variant window and scores as a stale fetch —
+		 * manufacturing the very result this probe exists to test for. */
+		if (s.len == 0u) {
 			notFetched++;
 		}
 		else {

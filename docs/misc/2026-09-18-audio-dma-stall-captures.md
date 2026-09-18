@@ -276,14 +276,30 @@ arms and 2 000 clock-cycled arms on PWM0/DREQ 5/ch 6, plus **4 000 complete arms
 PWM1/DREQ 1/ch 5 path**. The advance is not merely above threshold, it is *tight*: 1 784-1 792 words
 on all 4 000.
 
-⇒ **The stall is not per-arm. It is per-BOOT.** The arm sequence is reliable on both instances, on a
-settled clock and on a freshly cycled one. What is left is the state the driver arms *in*, and only
-two things are true exactly once per boot:
+⇒ **The stall is not per-arm on the CURRENT code. It looks per-BOOT.** The arm sequence is reliable on
+both instances, on a settled clock and on a freshly cycled one. What is left is the state the driver
+arms *in* — and the honest list is **four** candidates, not the two I first wrote:
 1. **The generator has never run since reset.** Firmware leaves `CM_PWMCTL=0x200` (MASH set, ENAB
    clear, never enabled), so the driver's first enable is the generator's first start ever. Every
    probe trial — including `--cycle-clock` — restarts a generator that has already been running.
 2. **Boot-time contention.** The driver arms while lwip, USB, NFS and the other drivers are coming
    up; every probe runs at an idle psh prompt.
+3. **The first-ever CB fetch.** `RPI4AUDIO_ARMTRIALS` repeats `audio_dmaArm()`, which **reuses** the
+   control block and ring the first arm allocated. The DMA engine's *first* fetch of a freshly
+   `MAP_CONTIGUOUS|MAP_UNCACHED` control block happens once per boot and no probe repeats it. If the
+   stall is a first-fetch or stale-view race, 14 000 repeats of the *second* fetch say nothing about
+   it.
+4. **⚠ The pre-fix code path itself.** Every probe trial and all 4 000 arm-trials run *after*
+   `audio_dmaStart()` has already completed, with the BERR pacing, the MASH mask and the clock
+   reorder in place. The three captures had **none** of those. So this evidence shows the *current*
+   sequence is reliable in steady state; it does **not** show the original stall was not per-arm on
+   the *old* code. The only evidence there is ~100 post-pacing boots at 0 stalls — a bound at
+   p ≈ 0.015, not a finding.
+
+ⓘ One more unknown worth printing rather than assuming: the DMA controller's shared per-channel
+enable at `DMA_BASE + 0xff0`. `pwmdma` reads it as `0x7fff` at psh time and the driver never touches
+it, so nothing establishes what channel 5's bit reads on a **cold** boot before anything else has run.
+`CS=ACTIVE` reads back regardless. Add `0xff0` to the driver's entry print.
 
 ⏭ **The cheap candidate fix that follows from (1):** an explicit settle between "the generator reports
 BUSY" and the PWM enable. `BUSY` says the generator's state machine started, not that its output is

@@ -73,6 +73,15 @@ clobber. The archive gives only the right edge of that interval.
 **Plainly: a heap that is really `0xd000` reports an extent ≤ `0x8088`, while a live, intact,
 in-use chunk grid carrying that heap's own base sits above the reported end.**
 
+⚠ **That size claim is conditional on `->heap` being correct**, and it is worth stating why it is
+not circular. `->heap` is written only by `malloc_chunkInit` from the heap a chunk is carved from,
+or inherited by `_malloc_chunkSplit` from its parent — and carving only ever happens inside
+`[heap + sizeof(heap_t), heap + heap->size)`. So if these 71 headers are trustworthy, the heap's
+extent *was* larger than `0xcf70` when they were carved, and `0xd000` is the only legal size that
+fits. The competing adjacency reading below denies exactly that premise: it needs `->heap` to be the
+one field that is wrong. The two readings are therefore *"the extent shrank"* vs *"`->heap` names
+the wrong heap"*, and `hend?` separates them — which is what it was added for.
+
 ## Ranked hypotheses
 
 **H1 — the extent shrank in place under a live heap (or the base was re-initialised).** The only

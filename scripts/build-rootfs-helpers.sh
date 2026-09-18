@@ -156,6 +156,11 @@ helpers=(
 	# hypothesis: stop + restart the SHARED CPRMAN PWM generator before every trial,
 	# so the clock-start -> PWEN proximity a real boot has is reproduced rather than
 	# assumed. That mode DISTURBS rpi4-audio's stream -- dedicated probe boot only.
+	# `--cb-race [--barrier]` tests the barrier hypothesis directly: two control
+	# blocks whose SOURCE_AD/TXFR_LEN the channel exposes in registers, rewritten and
+	# armed with no `dsb` between the Normal-NC stores and the Device MMIO writes, so
+	# a fetch of not-yet-landed bytes is caught in the act. `--barrier` is the control
+	# arm. PWM0 / channel 6 only -- it does not touch rpi4-audio.
 	"tools/pwm-dma-probe/pwmdma.c|bin/pwmdma"
 	"tools/audio-armtrials/armtrials.c|bin/armtrials"
 )

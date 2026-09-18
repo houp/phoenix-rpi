@@ -61,6 +61,93 @@
  * The probe never writes the PWM1 half of the page and never writes channel 5; it
  * only READS them, before and after, and reports what the collateral looks like.
  *
+ * ── The `--cb-race` mode (2026-09-18) ─────────────────────────────────────────────
+ *
+ * Everything above measures whether the channel STREAMS. This mode measures something
+ * narrower and much more direct: does the engine ever fetch a control block whose CPU
+ * stores have NOT LANDED YET?
+ *
+ * The hypothesis, stated so it can be wrong. The control block lives in memory this
+ * port maps Normal Inner/Outer Non-cacheable: `MAP_UNCACHED` alone sets `PGHD_NOT_CACHED`
+ * (kernel vm/map.c:539-541), which selects MAIR index 1 (hal/aarch64/pmap.c:64,488-490),
+ * and `MAIR_EL1_VALUE = 0x000444FF` (hal/aarch64/_init.S:137) puts 0x44 in that byte —
+ * Normal, inner and outer non-cacheable. The DMA registers are mapped
+ * `MAP_DEVICE | MAP_UNCACHED`, i.e. both attribute bits, which selects MAIR index 3
+ * (pmap.c:65,482-486) whose byte is 0x00 — Device-nGnRnE. aarch64 orders Device-nGnRnE
+ * accesses against OTHER Device accesses; it does NOT order them against Normal-NC
+ * stores. So a driver that writes a control block and then immediately writes
+ * `CONBLK_AD` + `CS=ACTIVE` with no `dsb` can have the engine — a non-coherent external
+ * master reading DRAM directly — fetch a CB whose stores are still in flight. That is
+ * the reasoning behind the `dsb sy` now in `audio_dmaArm()` (rpi4-audio.c:628-649), and
+ * until this mode existed it was reasoning and not measurement.
+ *
+ * How a fetch of the wrong bytes is made VISIBLE. Two control blocks, A at the top of
+ * the uncached page and B 64 bytes in (far enough apart that no write-buffer merge can
+ * span both), identical except for the two fields the channel loads into registers the
+ * CPU can read back: `SOURCE_AD` (0x0c) and `TXFR_LEN` (0x14) — Linux's
+ * `BCM2835_DMA_SOURCE_AD` / `BCM2835_DMA_LEN` (bcm2835-dma.c:123,125). Each trial picks
+ * the CB the previous trial did not use, writes those two fields FRESH, and then — with
+ * NO barrier unless `--barrier` was passed — writes `CONBLK_AD` and `CS=ACTIVE`
+ * back-to-back and immediately reads the two live registers back.
+ *
+ * The values cycle through THREE variants while the CB alternates between TWO blocks.
+ * 2 and 3 are coprime, so on every trial the three candidate sources of the engine's
+ * bytes are three DIFFERENT variants:
+ *   fresh          = variant i % 3      what we just wrote, what a correct fetch reads
+ *   stale (own CB) = variant (i+1) % 3  what that CB held before this trial's stores
+ *   the other CB   = variant (i+2) % 3  what the block we did NOT name holds right now
+ * so the register readback alone names which one the engine followed. A/B seeded at
+ * setup (CB A as "trial -2", CB B as "trial -1") and drained with a `dsb sy` in BOTH
+ * arms, so trial 0's stale baseline is known-landed rather than assumed.
+ *
+ *   variant  SOURCE offset in the ring   TXFR_LEN
+ *   0        0                           32768
+ *   1        16384                       24576
+ *   2        32768                       16384
+ *
+ * ⚠ Those lengths are deliberately NOT the whole ring. The two fields are two separate
+ * stores and the race can land one without the other, so every CROSS combination has to
+ * be a legal transfer too: max offset (32768) + max length (32768) = 65536 = exactly the
+ * ring. The engine can therefore never be pointed outside the ring, whatever it reads,
+ * and `dest_ad` is PWM0's FIFO in every variant.
+ *
+ * What a mismatch can mean OTHER than the race, and how each is excluded:
+ *   - the engine consumed part of the transfer before the readback. Variants are
+ *     separated by 16384 bytes of source and 8192 of length; a match window is only
+ *     CB_RACE_DRIFT (2048) bytes wide, so consumption cannot carry one variant into
+ *     another's window. Anything outside every window is counted UNCLASSIFIED, never as
+ *     the race, and the run prints the largest drift it actually saw.
+ *   - the engine had not fetched the CB yet. `CS=RESET` (bcm2835-dma.c:147) zeroes the
+ *     channel's live registers, so "not fetched" reads as 0/0 — its own bucket, and the
+ *     readback polls (bounded) for the first non-zero sample. Trial 0 REFUSES outright
+ *     if the post-reset registers are not zero, because then the sentinel is worthless.
+ *   - a self-chain reloaded the CB under us. `nextconbk = 0` here: these CBs are
+ *     ONE-SHOT, unlike the streaming CB the other modes use.
+ *   - the compiler moved the stores. The CB is `volatile`, as are the MMIO windows, and
+ *     a compiler may not reorder volatile accesses against each other. What is under
+ *     test is the ARCHITECTURAL ordering, not the compiler's.
+ *   - a torn fetch (one field fresh, the other stale) is the strongest evidence of all,
+ *     so it is held to a stricter test: both fields must land inside SOME variant's
+ *     window AND the two implied "bytes consumed" figures must agree to within
+ *     CB_RACE_SLACK. Without that, a preemption between ACTIVE and the readback could
+ *     drift one field into a neighbour's window and manufacture a torn reading.
+ *   - the channel was stopped badly by the PREVIOUS trial. This mode halts a channel
+ *     microseconds after ACTIVE, mid-burst, with WAIT_RESP set — so it stops the way
+ *     Linux's `bcm2835_dma_abort()` does (bcm2835-dma.c:709-745): NEXTCONBK=0, then
+ *     `ABORT|ACTIVE`, wait for ABORT to clear, clear ACTIVE, then RESET. A bare RESET
+ *     with a write outstanding can latch DEBUG errors that would read as UNCLASSIFIED.
+ *
+ * `--preload N` writes N silence words into the ring immediately before the CB stores,
+ * in BOTH arms, so the CB stores queue behind a burst of Normal-NC traffic. It widens
+ * the window rather than changing what is being tested; sweep it before believing a null.
+ *
+ * A/B: run it twice, once without `--barrier` and once with. `--barrier` is the control
+ * arm — it is the identical loop with a `dsb sy` before the MMIO writes, so it must come
+ * back with zero mismatches; a REPRODUCED without its control arm is not a finding.
+ * (Two invocations, not one interleaved run: the barrier is a compile-shaped decision in
+ * the tight sequence, and keeping the two loops textually identical matters more here
+ * than sharing a boot. A run-to-run confounder is possible and is the known weakness.)
+ *
  * Verdicts (grep-able, one line, and the exit status matches; the text names the mode
  * and the clock gap so a log says which experiment produced it):
  *   REPRODUCED      k/n trials parked. The DMA→DREQ→FIFO handshake can fail with the
@@ -72,6 +159,7 @@
  *                   failures that are not the defect.
  *
  * Usage: pwmdma [trials] [settle_us] [gap_us] [--cycle-clock] [--clock-gap-us N]
+ *        pwmdma --cb-race [trials] [fifo_gap_us] [--barrier] [--preload N]
  *        trials     default 500
  *        settle_us  default 5000 — at ~44.1 kHz a healthy channel advances ~440 ring
  *                   words in 5 ms; a parked one moves at most the 16-word FIFO depth
@@ -84,6 +172,18 @@
  *                           every trial (see the warning above). Off by default.
  *        --clock-gap-us N   microseconds between "generator reports BUSY" and the PWM
  *                           init that ends in PWEN. Default 0. Requires --cycle-clock.
+ *
+ *        --cb-race          the control-block visibility race described above. In THIS
+ *                           mode the positionals mean [trials] [fifo_gap_us] — a third
+ *                           is refused, because `settle_us` has no meaning here and an
+ *                           inert knob is exactly the trap this project keeps paying for.
+ *                           trials default 5000, fifo_gap_us default 500 (time for the
+ *                           16-word PWM FIFO to drain between trials, so every trial's
+ *                           DREQ is asserted).
+ *        --barrier          --cb-race only: `dsb sy` before the MMIO writes. The CONTROL
+ *                           arm; expected count is zero.
+ *        --preload N        --cb-race only: silence words written to the ring immediately
+ *                           before the CB stores, to widen the window. Default 256.
  *
  * Copyright 2026 Phoenix Systems
  * SPDX-License-Identifier: BSD-3-Clause
@@ -206,7 +306,10 @@
 #define DMA_CS_ACTIVE (1u << 0)
 #define DMA_CS_END    (1u << 1)
 #define DMA_CS_ERROR  (1u << 8)
-#define DMA_CS_RESET  (1u << 31)
+/* BIT(30), "Stop current CB, go to next, WO" — bcm2835-dma.c:146. Used only by the
+ * --cb-race stop path, which mirrors bcm2835_dma_abort() (bcm2835-dma.c:709-745). */
+#define DMA_CS_ABORT  (1u << 30)
+#define DMA_CS_RESET  (1u << 31)   /* "WO, self clearing" — bcm2835-dma.c:147 */
 #define DMA_DBG_LAST_NOT_SET (1u << 0)
 #define DMA_DBG_FIFO_ERR     (1u << 1)
 #define DMA_DBG_READ_ERR     (1u << 2)
@@ -258,6 +361,19 @@
  * covers in the default 5 ms settle. */
 #define HIST_BUCKETS 10u
 
+/* --cb-race geometry. See the header comment for why the lengths stop short of the
+ * ring: every CROSS combination of a source offset with a length must also be a legal
+ * transfer, because a torn fetch can pair any offset with any length. */
+#define CB_RACE_VARIANTS 3u
+#define CB_RACE_B_OFF    64u      /* byte offset of control block B inside the page */
+#define CB_RACE_DRIFT    2048u    /* bytes the engine may consume before the readback */
+#define CB_RACE_SLACK    256u     /* allowed disagreement between the two consumed figures */
+#define CB_RACE_POLL     20000u   /* readback polls before giving up on a fetch */
+#define CB_RACE_SPINS    10000u   /* abort/reset handshake spins */
+#define CB_RACE_TRIALS   5000ul   /* default trial count for the mode */
+#define CB_RACE_FIFO_US  500ul    /* default inter-trial gap: lets the PWM FIFO drain */
+#define CB_RACE_PRELOAD  256ul    /* default window amplifier, in ring words */
+
 /* How long the collateral report watches rpi4-audio's channel before deciding
  * whether it is still moving. A healthy ch5 covers ~1 800 ring words per 20 ms
  * (rpi4-audio.c:552-553), so 20 ms is far more than enough to tell moving from
@@ -297,6 +413,16 @@ static volatile uint32_t *ring;
 static uintptr_t ring_pa;
 static uintptr_t cb_pa;
 static unsigned long gapUs;
+
+/* --cb-race state. `cbRace` is the only way into that mode; `cbBarrier` selects the
+ * control arm. The variant tables are the two fields the engine loads into registers
+ * the CPU can read back — see the header comment for the geometry argument. */
+static int cbRace;
+static int cbBarrier;
+static unsigned long preloadWords = CB_RACE_PRELOAD;
+static unsigned long fifoGapUs = CB_RACE_FIFO_US;
+static const uint32_t cbRaceOff[CB_RACE_VARIANTS] = { 0u, 16384u, 32768u };
+static const uint32_t cbRaceLen[CB_RACE_VARIANTS] = { 32768u, 24576u, 16384u };
 
 /* --cycle-clock state. `cycleClock` is the ONLY way into the intrusive path. */
 static int cycleClock;
@@ -611,7 +737,11 @@ static int refuse(const char *reason)
  * the sweep points produced it. */
 static void modeTag(char *buf, size_t n)
 {
-	if (cycleClock != 0) {
+	if (cbRace != 0) {
+		snprintf(buf, n, "mode=cb-race barrier=%s preload=%lu words fifo-gap=%lu us",
+			(cbBarrier != 0) ? "ON (control arm)" : "OFF (test arm)", preloadWords, fifoGapUs);
+	}
+	else if (cycleClock != 0) {
 		snprintf(buf, n, "mode=cycle-clock clock-gap=%lu us", clockGapUs);
 	}
 	else {
@@ -620,22 +750,15 @@ static void modeTag(char *buf, size_t n)
 }
 
 
-static int run(unsigned long trials, unsigned long settleUs)
+/* The ring and the control-block page every mode shares, allocated ONCE: the thing
+ * under test is never the allocator, and a fresh mapping per trial would also change
+ * the physical address the DMA fetches from every time. Returns 0 on success, or the
+ * refusal's exit status having already printed the refusal line. */
+static int buffersAlloc(dma_cb_t **cbOut)
 {
-	unsigned long i, parked = 0ul, clkFail = 0ul, step;
-	unsigned long hist[HIST_BUCKETS];
-	unsigned int b;
-	uint32_t advance, reArm;
-	int firstDumped = 0, reArmOk = -1, calibrated = 0;
-	char tag[80];
 	dma_cb_t *cb;
+	unsigned long i;
 
-	memset(hist, 0, sizeof(hist));
-	modeTag(tag, sizeof(tag));
-
-	/* The ring and the control block are allocated ONCE, outside the trial loop: the
-	 * thing under test is the arm, not the allocator, and a fresh mapping per trial
-	 * would also change the physical address the DMA fetches from every time. */
 	cb = mmap(NULL, _PAGE_SIZE, PROT_READ | PROT_WRITE,
 		MAP_CONTIGUOUS | MAP_UNCACHED | MAP_ANONYMOUS, -1, 0);
 	ring = mmap(NULL, (RING_BYTES + _PAGE_SIZE - 1u) & ~((uint32_t)_PAGE_SIZE - 1u),
@@ -660,6 +783,29 @@ static int run(unsigned long trials, unsigned long settleUs)
 			"address and the engine would fetch unrelated DRAM.\n",
 			(uint32_t)ring_pa, (uint32_t)cb_pa);
 		return refuse("DMA buffer physical address >= 1GB");
+	}
+
+	*cbOut = cb;
+	return 0;
+}
+
+
+static int run(unsigned long trials, unsigned long settleUs)
+{
+	unsigned long i, parked = 0ul, clkFail = 0ul, step;
+	unsigned long hist[HIST_BUCKETS];
+	unsigned int b;
+	uint32_t advance, reArm;
+	int firstDumped = 0, reArmOk = -1, calibrated = 0, rc;
+	char tag[128];
+	dma_cb_t *cb;
+
+	memset(hist, 0, sizeof(hist));
+	modeTag(tag, sizeof(tag));
+
+	rc = buffersAlloc(&cb);
+	if (rc != 0) {
+		return rc;
 	}
 
 	cb->ti = TI_WAIT_RESP | TI_DEST_DREQ | TI_SRC_INC | TI_PERMAP(DREQ_PWM0);
@@ -879,6 +1025,452 @@ static int run(unsigned long trials, unsigned long settleUs)
 }
 
 
+/* ---------------------------------------------------------------------------
+ * --cb-race: can the engine fetch a control block whose CPU stores have not landed?
+ * ------------------------------------------------------------------------- */
+
+/* What one trial's readback saw, sampled once and then classified, so the classifier
+ * never re-reads a moving register and compares two different instants. */
+typedef struct {
+	uint32_t cs;
+	uint32_t conblk;
+	uint32_t src;
+	uint32_t dest;
+	uint32_t len;
+	uint32_t next;
+	uint32_t debug;
+	uint32_t spins;
+} cb_snap_t;
+
+
+static unsigned long cbAbortTimeouts;
+
+
+/* Stop the channel the way Linux's bcm2835_dma_abort() does (bcm2835-dma.c:709-745):
+ * clear NEXTCONBK, set ABORT|ACTIVE, wait for ABORT to clear, drop ACTIVE, then RESET.
+ *
+ * Why not the bare CS=RESET the other modes use: --cb-race halts a channel a few
+ * microseconds after ACTIVE, mid-burst, with WAIT_RESP set — and a reset issued with a
+ * write still outstanding can latch DEBUG errors, which would land in the UNCLASSIFIED
+ * bucket for a reason that is this probe rather than the race. Upstream also notes the
+ * abort handshake can legitimately fail to complete "when dreqs are enabled but not
+ * asserted" (bcm2835-dma.c:732-738), so a timeout here is COUNTED, not complained about. */
+static void dmaAbortReset(void)
+{
+	uint32_t spins;
+
+	if (dma[DMA_CONBLK_AD] != 0u) {
+		dma[DMA_NEXTCONBK] = 0u;
+		dma[DMA_CS] = dma[DMA_CS] | DMA_CS_ABORT | DMA_CS_ACTIVE;
+		for (spins = CB_RACE_SPINS; (spins != 0u) && ((dma[DMA_CS] & DMA_CS_ABORT) != 0u); spins--) {
+		}
+		if ((dma[DMA_CS] & DMA_CS_ABORT) != 0u) {
+			cbAbortTimeouts++;
+		}
+		dma[DMA_CS] = dma[DMA_CS] & ~DMA_CS_ACTIVE;
+	}
+
+	dma[DMA_CS] = DMA_CS_RESET;
+	for (spins = CB_RACE_SPINS; (spins != 0u) && ((dma[DMA_CS] & DMA_CS_RESET) != 0u); spins--) {
+	}
+}
+
+
+/* The two fields that distinguish the variants. Nothing else in the CB ever changes
+ * after setup, so a trial genuinely depends on exactly these two stores landing. */
+static void cbRaceSet(volatile dma_cb_t *cb, unsigned v)
+{
+	cb->source_ad = DRAM_BUS(ring_pa + cbRaceOff[v]);
+	cb->txfr_len = cbRaceLen[v];
+}
+
+
+/* Which variant's SOURCE_AD window does the live cursor sit in? The engine only ever
+ * advances the source, so the window is [offset, offset + CB_RACE_DRIFT] and the
+ * unsigned subtraction rejects everything below it as well as everything above.
+ * *consumed receives the bytes this reading says have been read. */
+static int srcVariant(uint32_t live, uint32_t *consumed)
+{
+	uint32_t k, base = (uint32_t)ring_pa & 0x3fffffffu, d;
+
+	for (k = 0u; k < CB_RACE_VARIANTS; k++) {
+		d = (live & 0x3fffffffu) - (base + cbRaceOff[k]);
+		if (d <= CB_RACE_DRIFT) {
+			*consumed = d;
+			return (int)k;
+		}
+	}
+	return -1;
+}
+
+
+/* The same for the live remaining length, which only ever falls. */
+static int lenVariant(uint32_t live, uint32_t *consumed)
+{
+	uint32_t k, d;
+
+	for (k = 0u; k < CB_RACE_VARIANTS; k++) {
+		d = cbRaceLen[k] - live;
+		if (d <= CB_RACE_DRIFT) {
+			*consumed = d;
+			return (int)k;
+		}
+	}
+	return -1;
+}
+
+
+/* Everything the first mismatch needs in order to be argued about later: both control
+ * blocks exactly as the CPU reads them back, the channel's own view, and all three
+ * candidate variants spelled out so the reader does not have to recompute them. */
+static void cbRaceDump(const char *what, unsigned long trial, unsigned used, unsigned fresh,
+	unsigned ownStale, unsigned otherVar, const cb_snap_t *s, volatile dma_cb_t *const *cbs,
+	const uint32_t *cbBus, int sv, int lv)
+{
+	unsigned k;
+
+	printf("pwmdma: [cb-race] FIRST %s at trial %lu — armed control block %c (bus 0x%08x)\n"
+		"pwmdma:   expected FRESH variant %u:   SOURCE=0x%08x LEN=%u\n"
+		"pwmdma:   this CB's STALE variant %u:  SOURCE=0x%08x LEN=%u\n"
+		"pwmdma:   the OTHER CB holds variant %u: SOURCE=0x%08x LEN=%u\n"
+		"pwmdma:   channel read back: CONBLK=0x%08x SRC=0x%08x DEST=0x%08x LEN=%u "
+		"NEXT=0x%08x CS=0x%08x DEBUG=0x%08x (after %u readback polls)\n"
+		"pwmdma:   classified: the source field matched variant %d, the length field %d "
+		"(-1 = no variant's window)\n",
+		what, trial, (used == 0u) ? 'A' : 'B', cbBus[used],
+		fresh, DRAM_BUS(ring_pa + cbRaceOff[fresh]), cbRaceLen[fresh],
+		ownStale, DRAM_BUS(ring_pa + cbRaceOff[ownStale]), cbRaceLen[ownStale],
+		otherVar, DRAM_BUS(ring_pa + cbRaceOff[otherVar]), cbRaceLen[otherVar],
+		s->conblk, s->src, s->dest, s->len, s->next, s->cs, s->debug, s->spins,
+		sv, lv);
+
+	for (k = 0u; k < 2u; k++) {
+		printf("pwmdma:   CB %c as the CPU reads it now (bus 0x%08x): ti=0x%08x source=0x%08x "
+			"dest=0x%08x len=%u stride=0x%08x next=0x%08x\n",
+			(k == 0u) ? 'A' : 'B', cbBus[k], cbs[k]->ti, cbs[k]->source_ad,
+			cbs[k]->dest_ad, cbs[k]->txfr_len, cbs[k]->stride, cbs[k]->nextconbk);
+	}
+}
+
+
+static int runCbRace(unsigned long trials)
+{
+	volatile dma_cb_t *cbs[2];
+	volatile dma_cb_t *cb;
+	uint32_t cbBus[2], bus;
+	unsigned long i, j, step;
+	unsigned long okFresh = 0ul, staleOwn = 0ul, staleOther = 0ul, tornCnt = 0ul;
+	unsigned long notFetched = 0ul, unclassified = 0ul, engineErr = 0ul, dirtyReset = 0ul;
+	unsigned long conblkOdd = 0ul;
+	uint32_t maxDrift = 0u, maxSpins = 0u, maxDisagree = 0u, dSrc = 0u, dLen = 0u, dis;
+	unsigned fresh, ownStale, otherVar;
+	int firstDumped = 0, sv = -1, lv = -1, rc;
+	const char *kind;
+	cb_snap_t s;
+	dma_cb_t *page;
+	char tag[128];
+
+	modeTag(tag, sizeof(tag));
+
+	rc = buffersAlloc(&page);
+	if (rc != 0) {
+		return rc;
+	}
+
+	/* B is 64 bytes in, not 32: two adjacent 32-byte blocks could share a write-buffer
+	 * merge window, and this mode's whole argument is about what reaches DRAM when. */
+	cbs[0] = (volatile dma_cb_t *)page;
+	cbs[1] = (volatile dma_cb_t *)((volatile char *)page + CB_RACE_B_OFF);
+	cbBus[0] = DRAM_BUS(cb_pa);
+	cbBus[1] = DRAM_BUS(cb_pa + CB_RACE_B_OFF);
+
+	for (j = 0ul; j < 2ul; j++) {
+		cbs[j]->ti = TI_WAIT_RESP | TI_DEST_DREQ | TI_SRC_INC | TI_PERMAP(DREQ_PWM0);
+		cbs[j]->dest_ad = PWM0_FIF1_BUS;
+		cbs[j]->stride = 0u;
+		cbs[j]->nextconbk = 0u;   /* ONE-SHOT — nothing can reload a CB under the readback */
+		cbs[j]->pad[0] = 0u;
+		cbs[j]->pad[1] = 0u;
+	}
+
+	/* Seed the stale baseline trials 0 and 1 will be compared against: CB A gets what
+	 * "trial -2" would have written and CB B what "trial -1" would have. MAP_CONTIGUOUS
+	 * memory is NOT zeroed on this port, so without this the first two trials would be
+	 * comparing against whatever the previous owner of that DRAM left. The dsb runs in
+	 * BOTH arms: an unknown-landed baseline is not the thing under test. */
+	cbRaceSet(cbs[0], 1u);
+	cbRaceSet(cbs[1], 2u);
+	__asm__ volatile("dsb sy" ::: "memory");
+
+	printf("pwmdma: [cb-race] ring PA=0x%08x (%u words), CB A bus=0x%08x, CB B bus=0x%08x "
+		"(one-shot, nextconbk=0), dest=0x%08x (PWM0 FIF1) permap=%u\n",
+		(uint32_t)ring_pa, RING_WORDS, cbBus[0], cbBus[1], PWM0_FIF1_BUS, DREQ_PWM0);
+	printf("pwmdma: [cb-race] positionals in THIS mode are [trials] [fifo_gap_us]: %lu trials, "
+		"%lu us inter-trial gap so the 16-word PWM FIFO drains and every trial's DREQ is "
+		"asserted, %lu-word preload [%s]\n", trials, fifoGapUs, preloadWords, tag);
+	printf("pwmdma: [cb-race] variants (source offset / txfr_len): 0=%u/%u 1=%u/%u 2=%u/%u. "
+		"Match window %u bytes; the variants are %u bytes apart in source and %u in length, "
+		"so consumption before the readback cannot carry one into another's window. Worst "
+		"CROSS combination (offset %u + length %u) ends exactly at the ring end, so no "
+		"fetch — fresh, stale or torn — can point the engine outside the ring.\n",
+		cbRaceOff[0], cbRaceLen[0], cbRaceOff[1], cbRaceLen[1], cbRaceOff[2], cbRaceLen[2],
+		CB_RACE_DRIFT, cbRaceOff[1] - cbRaceOff[0], cbRaceLen[0] - cbRaceLen[1],
+		cbRaceOff[2], cbRaceLen[0]);
+
+	pwmInit0();
+	pwm[PWM_DMAC] = PWM_DMAC_AUDIO;
+	dmaAbortReset();
+
+	step = trials / 10ul;
+	if (step == 0ul) {
+		step = 1ul;
+	}
+
+	for (i = 0ul; i < trials; i++) {
+		fresh = (unsigned)(i % CB_RACE_VARIANTS);
+		ownStale = (unsigned)((i + 1ul) % CB_RACE_VARIANTS);
+		otherVar = (unsigned)((i + 2ul) % CB_RACE_VARIANTS);
+		cb = cbs[i & 1ul];
+		bus = cbBus[i & 1ul];
+		kind = NULL;
+
+		dma[DMA_DEBUG] = DMA_DBG_ERRORS;   /* W1C anything the previous trial latched */
+
+		/* The sentinel that keeps "the engine has not fetched yet" a DISTINCT reading
+		 * rather than a mismatch: after RESET the channel's live registers read zero, so
+		 * a too-early readback is 0/0 and not some other CB's values. If a reset did not
+		 * take, this trial cannot tell the two apart — skip it instead of classifying it. */
+		if ((dma[DMA_TXFR_LEN_R] | dma[DMA_SOURCE_AD] | dma[DMA_CONBLK_AD]) != 0u) {
+			/* ⚠ Trials 0 AND 1, not just 0. Trial 0 passes this test for free — a channel
+			 * nothing has armed since boot reads zero whether or not RESET clears
+			 * anything — so trial 1, the first one that runs after a real load and a real
+			 * abort+RESET, is where the sentinel is actually proved. Refusing only at
+			 * trial 0 would let a port where RESET does not clear the registers skip
+			 * trials 1..N-1 and still print a null off the single trial that ran. */
+			if (i <= 1ul) {
+				printf("pwmdma: [cb-race] the channel's live registers are NOT zero after "
+					"abort+RESET (LEN=%u SRC=0x%08x CONBLK=0x%08x) at trial %lu. This mode's "
+					"whole discrimination between 'loaded the wrong control block' and 'has "
+					"not loaded one yet' rests on that zero, and trial 1 is the first that "
+					"tests it after a real load, so it cannot run here.\n",
+					dma[DMA_TXFR_LEN_R], dma[DMA_SOURCE_AD], dma[DMA_CONBLK_AD], i);
+				parkHardware();
+				return refuse("cb-race: post-RESET channel registers are not zero, so the "
+					"not-yet-fetched sentinel does not hold on this hardware");
+			}
+			dirtyReset++;
+			dmaAbortReset();
+			continue;
+		}
+
+		/* Window amplifier: a burst of Normal-NC stores for the two stores that matter
+		 * to queue behind. The value is the silence the ring already holds, so the DATA
+		 * does not change — only the depth of write traffic in front of the CB. Present
+		 * in both arms; --preload sweeps it. */
+		for (j = 0ul; j < preloadWords; j++) {
+			ring[j] = PWM_RANGE / 2u;
+		}
+
+		/* ── THE SEQUENCE UNDER TEST ────────────────────────────────────────────────
+		 * Two Normal-NC stores, then — with nothing whatsoever in between unless
+		 * --barrier put a dsb there — the two Device stores that make the engine go and
+		 * fetch them. Every pointer here is volatile, so the compiler may not reorder
+		 * these four accesses against each other; what is being tested is the
+		 * ARCHITECTURAL ordering of Normal-NC against Device, not the compiler's. */
+		cb->source_ad = DRAM_BUS(ring_pa + cbRaceOff[fresh]);
+		cb->txfr_len = cbRaceLen[fresh];
+
+		if (cbBarrier != 0) {
+			__asm__ volatile("dsb sy" ::: "memory");
+		}
+
+		dma[DMA_CONBLK_AD] = bus;
+		dma[DMA_CS] = DMA_CS_ACTIVE;
+
+		s.len = dma[DMA_TXFR_LEN_R];
+		s.src = dma[DMA_SOURCE_AD];
+		for (s.spins = 0u; (s.spins < CB_RACE_POLL) && (s.len == 0u) && (s.src == 0u);
+				s.spins++) {
+			s.len = dma[DMA_TXFR_LEN_R];
+			s.src = dma[DMA_SOURCE_AD];
+		}
+		s.conblk = dma[DMA_CONBLK_AD];
+		s.cs = dma[DMA_CS];
+		s.debug = dma[DMA_DEBUG];
+		s.dest = dma[DMA_DEST_AD];
+		s.next = dma[DMA_NEXTCONBK];
+		/* ── end of the sequence under test ─────────────────────────────────────────*/
+
+		dmaAbortReset();
+
+		if (s.spins > maxSpins) {
+			maxSpins = s.spins;
+		}
+		if (((s.cs & DMA_CS_ERROR) != 0u) || ((s.debug & DMA_DBG_ERRORS) != 0u)) {
+			engineErr++;
+		}
+		/* CONBLK_AD goes to NEXTCONBK (0 here) once the block is consumed, so only a
+		 * NON-ZERO reading that is not the block we named is odd. Reported as an
+		 * observation; classification stays content-based, because a lost Device store
+		 * to CONBLK_AD would be a different defect from a stale CB fetch. */
+		if ((s.conblk != 0u) && (s.conblk != bus)) {
+			conblkOdd++;
+		}
+
+		if ((s.len == 0u) && (s.src == 0u)) {
+			notFetched++;
+		}
+		else {
+			sv = srcVariant(s.src, &dSrc);
+			lv = lenVariant(s.len, &dLen);
+
+			if ((sv >= 0) && (dSrc > maxDrift)) {
+				maxDrift = dSrc;
+			}
+			if ((lv >= 0) && (dLen > maxDrift)) {
+				maxDrift = dLen;
+			}
+			if ((sv >= 0) && (lv >= 0)) {
+				dis = (dSrc > dLen) ? (dSrc - dLen) : (dLen - dSrc);
+				if (dis > maxDisagree) {
+					maxDisagree = dis;
+				}
+			}
+			else {
+				dis = 0u;
+			}
+
+			if ((sv < 0) || (lv < 0)) {
+				unclassified++;
+				kind = "UNCLASSIFIED readback (neither field landed in a variant window)";
+			}
+			else if (sv == lv) {
+				if ((unsigned)sv == fresh) {
+					okFresh++;
+				}
+				else if ((unsigned)sv == ownStale) {
+					staleOwn++;
+					kind = "STALE fetch — the engine read this control block's PREVIOUS "
+						"contents, i.e. our stores had not landed";
+				}
+				else {
+					staleOther++;
+					kind = "OTHER-BLOCK fetch — the engine followed the control block we "
+						"did NOT name (a lost CONBLK_AD write, not the store race)";
+				}
+			}
+			else if (dis <= CB_RACE_SLACK) {
+				/* One field fresh and the other not, with both implied consumption
+				 * figures agreeing: a genuinely TORN fetch, the strongest evidence
+				 * this probe can produce. */
+				tornCnt++;
+				kind = "TORN fetch — the two fields came from DIFFERENT variants, so one "
+					"store had landed and the other had not";
+			}
+			else {
+				/* The fields disagree about how much was consumed, so the reading is
+				 * more likely a long preemption between ACTIVE and the readback than a
+				 * torn fetch. Never counted as the race. */
+				unclassified++;
+				kind = "UNCLASSIFIED readback (fields matched different variants but their "
+					"consumed-byte figures disagree — a stretched readback, not a tear)";
+			}
+		}
+
+		if ((kind != NULL) && (firstDumped == 0)) {
+			firstDumped = 1;
+			cbRaceDump(kind, i, (unsigned)(i & 1ul), fresh, ownStale, otherVar, &s, cbs,
+				cbBus, sv, lv);
+		}
+
+		if (fifoGapUs != 0ul) {
+			usleep((unsigned int)fifoGapUs);
+		}
+
+		if (((i + 1ul) % step) == 0ul) {
+			printf("pwmdma: [cb-race] %lu/%lu trials, %lu correct, %lu stale, %lu torn, "
+				"%lu unclassified, %lu not fetched\n",
+				i + 1ul, trials, okFresh, staleOwn, tornCnt, unclassified, notFetched);
+		}
+	}
+
+	parkHardware();
+
+	printf("pwmdma: [cb-race] trials=%lu correct=%lu STALE-own=%lu stale-other=%lu TORN=%lu "
+		"unclassified=%lu not-fetched=%lu dirty-reset-skipped=%lu engine-error=%lu "
+		"odd-CONBLK=%lu [%s]\n",
+		trials, okFresh, staleOwn, staleOther, tornCnt, unclassified, notFetched,
+		dirtyReset, engineErr, conblkOdd, tag);
+	printf("pwmdma: [cb-race] worst drift %u bytes against a %u-byte match window; worst "
+		"source/length consumed-byte disagreement %u against a %u-byte tear slack; worst "
+		"readback poll %u of %u; abort handshake timed out %lu times (a pause can "
+		"legitimately fail while DREQs are enabled but not asserted — bcm2835-dma.c:732-738 "
+		"— so it is counted, not treated as a fault). If the drift figure ever approaches "
+		"the window, widen the variant separation before trusting this run.\n",
+		maxDrift, CB_RACE_DRIFT, maxDisagree, CB_RACE_SLACK, maxSpins, CB_RACE_POLL,
+		cbAbortTimeouts);
+
+	/* The cannot-fail guard this tool already carries once, and a FRACTION rather than a
+	 * zero test: a run where one trial classified and 4 999 were skipped would otherwise
+	 * print a clean "NOT REPRODUCED" off a single sample. Half the trials have to have
+	 * produced a readback this mode can actually grade. */
+	if (((okFresh + staleOwn + staleOther + tornCnt) * 2ul) < trials) {
+		printf("pwmdma: [cb-race] only %lu of %lu trials produced a classifiable readback "
+			"(%lu not fetched, %lu unclassified, %lu skipped for a dirty reset).\n",
+			okFresh + staleOwn + staleOther + tornCnt, trials, notFetched, unclassified,
+			dirtyReset);
+		return refuse("cb-race: fewer than half the trials produced a classifiable readback, so "
+			"this run cannot grade the race — nothing here is a null");
+	}
+
+	if ((staleOwn + tornCnt) == 0ul) {
+		printf("pwmdma: VERDICT: NOT REPRODUCED — %lu trials read back exactly the control "
+			"block that trial had just written; 0 stale and 0 torn fetches (%lu "
+			"unclassified, %lu not fetched, %lu skipped for a dirty reset) [%s]. At this "
+			"preload depth the Normal-NC control-block stores were always visible to the "
+			"engine by the time it fetched, with %s. ⚠ Scope: a null here bounds the rate, "
+			"it does not prove the ordering is architecturally guaranteed — sweep "
+			"--preload and compare against the --barrier arm before calling the barrier "
+			"hypothesis dead.\n",
+			okFresh + staleOther, unclassified, notFetched, dirtyReset, tag,
+			(cbBarrier != 0) ? "the dsb sy in place (this IS the control arm)" :
+				"NO barrier at all");
+		if ((cbBarrier == 0) && ((unclassified + staleOther + conblkOdd) != 0ul)) {
+			printf("pwmdma: ⓘ this run had %lu unclassified, %lu other-block and %lu odd-CONBLK "
+				"readings. None of them is the race, but a large count means the readback "
+				"window is not as tight as the classification assumes — read the first dump "
+				"above before quoting the null.\n", unclassified, staleOther, conblkOdd);
+		}
+		return 0;
+	}
+
+	printf("pwmdma: VERDICT: REPRODUCED — %lu stale and %lu torn control-block fetches in %lu "
+		"trials [%s]. The engine followed bytes the CPU had already overwritten, which is "
+		"the Normal-NC -> Device store-ordering race rpi4-audio's dsb sy "
+		"(rpi4-audio.c:628-649) was added against — measured here rather than argued.\n",
+		staleOwn, tornCnt, trials, tag);
+	if (cbBarrier != 0) {
+		printf("pwmdma: ⚠⚠ this is the --barrier CONTROL arm, whose expected count is ZERO. A "
+			"mismatch WITH a dsb sy before the MMIO writes is far likelier to be a defect in "
+			"this probe than a broken barrier — do not report it as the race until the "
+			"first dump above has been read and explained.\n");
+	}
+	else {
+		printf("pwmdma: ⓘ this is the no-barrier TEST arm. It is not a finding until the "
+			"control arm has been run on the same build and came back with zero: "
+			"`pwmdma --cb-race %lu %lu --barrier --preload %lu`\n",
+			trials, fifoGapUs, preloadWords);
+	}
+	if (staleOther != 0ul) {
+		printf("pwmdma: ⚠ %lu trials read the control block this probe did NOT name. That needs "
+			"a Device store to CONBLK_AD to have been lost, which the architecture does not "
+			"allow — suspect this probe's wiring (the CB addresses, the 64-byte spacing) "
+			"before suspecting the hardware.\n", staleOther);
+	}
+	return 1;
+}
+
+
 /* The banner is printed before ANY mapping or register write, so a log that shows it
  * also shows that the operator asked for it before anything was disturbed. */
 static void cycleClockBanner(void)
@@ -903,16 +1495,24 @@ static void cycleClockBanner(void)
 
 int main(int argc, char **argv)
 {
-	unsigned long trials = 500ul, settleUs = 5000ul;
+	unsigned long trials = 500ul, settleUs = 5000ul, pos[3] = { 0ul, 0ul, 0ul };
 	volatile uint32_t *page;
 	uint32_t enable;
-	int i, positional = 0, clockGapGiven = 0, clk;
+	int i, positional = 0, clockGapGiven = 0, preloadGiven = 0, clk;
 
 	/* Positionals first, flags after — the shape the sibling probe already uses
-	 * (`pwmwrite --start-test N`), so both tools read the same way from psh. */
+	 * (`pwmwrite --start-test N`), so both tools read the same way from psh. The
+	 * positionals are collected rather than assigned here, because --cb-race gives the
+	 * second one a DIFFERENT meaning and the flag may appear after them. */
 	for (i = 1; i < argc; i++) {
 		if (strcmp(argv[i], "--cycle-clock") == 0) {
 			cycleClock = 1;
+		}
+		else if (strcmp(argv[i], "--cb-race") == 0) {
+			cbRace = 1;
+		}
+		else if (strcmp(argv[i], "--barrier") == 0) {
+			cbBarrier = 1;
 		}
 		else if (strcmp(argv[i], "--clock-gap-us") == 0) {
 			if ((i + 1) >= argc) {
@@ -922,35 +1522,73 @@ int main(int argc, char **argv)
 			clockGapUs = strtoul(argv[i], NULL, 0);
 			clockGapGiven = 1;
 		}
+		else if (strcmp(argv[i], "--preload") == 0) {
+			if ((i + 1) >= argc) {
+				return refuse("--preload needs a ring-word count");
+			}
+			i++;
+			preloadWords = strtoul(argv[i], NULL, 0);
+			preloadGiven = 1;
+		}
 		else if (argv[i][0] == '-') {
 			return refuse("unknown option (see the header comment for the usage line)");
 		}
-		else if (positional == 0) {
-			trials = strtoul(argv[i], NULL, 0);
-			positional++;
-		}
-		else if (positional == 1) {
-			settleUs = strtoul(argv[i], NULL, 0);
-			positional++;
-		}
-		else if (positional == 2) {
-			gapUs = strtoul(argv[i], NULL, 0);
+		else if (positional < 3) {
+			pos[positional] = strtoul(argv[i], NULL, 0);
 			positional++;
 		}
 		else {
-			return refuse("too many positional arguments: [trials] [settle_us] [gap_us]");
+			return refuse("too many positional arguments: [trials] [settle_us] [gap_us], or "
+				"[trials] [fifo_gap_us] under --cb-race");
 		}
 	}
-	if ((trials == 0ul) || (settleUs == 0ul)) {
-		return refuse("trial count and settle must both be non-zero");
-	}
 
-	/* An inert knob is the cannot-fail trap this project has already been bitten by:
-	 * a sweep of --clock-gap-us values that silently never cycled the clock would
-	 * produce four identical nulls and read as four experiments. Refuse instead. */
+	/* An inert knob is the cannot-fail trap this project has already been bitten by: a
+	 * sweep of values that silently never reached the code they name would produce a row
+	 * of identical nulls and read as a row of experiments. Every knob below is refused
+	 * rather than ignored when its mode is absent. */
 	if ((clockGapGiven != 0) && (cycleClock == 0)) {
 		return refuse("--clock-gap-us has no meaning without --cycle-clock, and would silently "
 			"do nothing — pass --cycle-clock or drop the knob");
+	}
+	if ((cbRace != 0) && (cycleClock != 0)) {
+		return refuse("--cb-race and --cycle-clock are different experiments and cannot share a "
+			"run — pick one");
+	}
+	if ((cbRace == 0) && ((cbBarrier != 0) || (preloadGiven != 0))) {
+		return refuse("--barrier and --preload have no meaning without --cb-race, and would "
+			"silently do nothing — pass --cb-race or drop the knob");
+	}
+
+	if (cbRace != 0) {
+		trials = (positional > 0) ? pos[0] : CB_RACE_TRIALS;
+		if (positional > 1) {
+			fifoGapUs = pos[1];
+		}
+		if (positional > 2) {
+			return refuse("--cb-race takes [trials] [fifo_gap_us]; a third positional would be "
+				"read as settle_us, which this mode never uses");
+		}
+		if (trials == 0ul) {
+			return refuse("trial count must be non-zero");
+		}
+		if (preloadWords >= RING_WORDS) {
+			return refuse("--preload must stay inside the ring");
+		}
+	}
+	else {
+		if (positional > 0) {
+			trials = pos[0];
+		}
+		if (positional > 1) {
+			settleUs = pos[1];
+		}
+		if (positional > 2) {
+			gapUs = pos[2];
+		}
+		if ((trials == 0ul) || (settleUs == 0ul)) {
+			return refuse("trial count and settle must both be non-zero");
+		}
 	}
 
 	if (cycleClock != 0) {
@@ -1024,6 +1662,10 @@ int main(int argc, char **argv)
 			"audio_clockInit() does (DIVI=%u from the %u Hz oscillator), and leaving it "
 			"running on exit so a driver that starts meanwhile is not cut off.\n",
 			PWM_CLK_DIVI, CM_OSC_HZ);
+	}
+
+	if (cbRace != 0) {
+		return runCbRace(trials);
 	}
 
 	return run(trials, settleUs);

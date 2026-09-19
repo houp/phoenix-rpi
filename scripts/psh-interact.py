@@ -222,18 +222,28 @@ def main():
         # the race from every measurement. Bounded, and proceeding is safe: if the
         # clock is already plausible psh skips the sync entirely and no line ever comes.
         # See docs/misc/2026-09-19-ntp-clock-step-breaks-app-startup.md.
-        # Key on ntpclient's failure line too, but do not expect it to save much: with
-        # `-w 90` it only gives up after its full window, i.e. AFTER the 60 s bound
-        # below. So on the SD lane (dnsmasq down, no DHCP, no step ever) this costs a
-        # flat 60 s per cycle. That is the price of the netboot lane being correct, and
-        # netboot pays ~nothing: there the step lands at or near boot, so the marker is
-        # either already buffered (wait skipped) or arrives within seconds -- both
-        # observed 2026-09-19.
+        # This is BEST EFFORT, not a guarantee: psh waits up to 30 s for /bin and then
+        # runs `ntpclient -w 90`, so the step can legitimately arrive later than any
+        # bound we are willing to sit through. Observed both ways on 2026-09-19 --
+        # already buffered before this check, arriving within seconds, and timing out
+        # at 60 s on the sdflash cycle (whose `date` then printed 1970). Raised to 150 s
+        # to cover ntpclient's own window; a timeout still proceeds, so a cycle can
+        # still straddle a step. Do not claim measurements are "immune" to the race.
+        #
+        # Skipped entirely on the SD lane: no NFS takeover means dnsmasq is down, so
+        # there is no DHCP, no ntpclient reply and no step will ever come -- waiting
+        # would burn the full bound on every SD cycle for nothing. (ntpclient's own
+        # failure line does not rescue us: with `-w 90` it is printed only after its
+        # window, which is later than a bound worth waiting.)
         CLOCK_MARKER = b"System time set to"
         CLOCK_FAILED = b"clock NOT set"
-        if args.commands and CLOCK_MARKER not in buffered and CLOCK_FAILED not in buffered:
-            ck_deadline = time.time() + 60
-            print(f"waiting up to 60s for the clock step {CLOCK_MARKER!r} (or {CLOCK_FAILED!r})...")
+        clock_wait_s = int(os.environ.get("PSH_CLOCK_WAIT_S", "150"))
+        on_netboot = NFS_TAKEOVER_MARKER in buffered
+        if not on_netboot:
+            print("*** SD lane (no NFS takeover) — no clock step can arrive, not waiting")
+        elif args.commands and CLOCK_MARKER not in buffered and CLOCK_FAILED not in buffered and clock_wait_s > 0:
+            ck_deadline = time.time() + clock_wait_s
+            print(f"waiting up to {clock_wait_s}s for the clock step {CLOCK_MARKER!r} (or {CLOCK_FAILED!r})...")
             while time.time() < ck_deadline:
                 data = ser.read(256)
                 if not data:
@@ -250,7 +260,8 @@ def main():
                     print("\n*** ntpclient gave up (no network) — no step can land later, proceeding")
                     break
             else:
-                print("\n*** clock step not seen in 60s (already set, or no network) — proceeding")
+                print(f"\n*** clock step not seen in {clock_wait_s}s — PROCEEDING ANYWAY; this cycle "
+                      "may straddle a clock step (see docs/misc/2026-09-19-ntp-clock-step-breaks-app-startup.md)")
 
         # phase 2: send commands
         for cmd in args.commands:

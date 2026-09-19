@@ -342,6 +342,31 @@ authoritative current state.
 - **Trigger:** the next scheduled full clean rebuild for any other reason
   (do not schedule a full rebuild solely for this).
 
+## TD-23: `RPI4AUDIO_ARMTRIALS` is a permanent diagnostic ABI in a published header
+
+- **Status:** OPEN, deliberate. Raised by the 2026-09-18 pre-flight review of its
+  own commit; recorded rather than removed, because it is still the only
+  in-process way to sample the failing PWM1/DREQ 1/channel 5 path.
+- **Where:** `sources/phoenix-rtos-devices/audio/rpi4-audio/rpi4-audio.h`
+  (`rpi4audio_armtrials_t`, `RPI4AUDIO_ARMTRIALS`), driver side
+  `audio/rpi4-audio/rpi4-audio.c:audio_armTrials()`.
+- **What:** the code is published, so this struct and ioctl number become a
+  fixed ABI the moment anyone builds against them — for a facility whose worst
+  case blocks the driver's only message thread for ~100 s (5 000 trials × 20 ms)
+  and silences `/dev/audio0` for the duration.
+- **Why it has not been removed:** CLAUDE.md says to delete diagnostic-only code
+  whose hypothesis was disproved, and this one's *was* — ~14 000 arms showed the
+  stall is per-BOOT, not per-arm. But it remains the only instrument that can
+  sample the real channel in-process, and the defect is still open.
+  ⚠ Know its blind spot before reaching for it again: `audio_dmaArm()` rewrites
+  nothing in the control block, so every re-arm fetches identical bytes and a
+  STALE fetch returns the right values. It cannot see the control-block race
+  measured on 2026-09-18.
+- **Resolution requirements:** when `q2-sdl-openaudio-hang` closes, delete the
+  ioctl, the struct, `audio_armTrials()` and `tools/audio-armtrials/` together —
+  or, if it is to stay, gate it behind a build flag so the shipped header
+  carries no diagnostic ABI.
+
 ## TD-22: `_map_find()` can return a hinted address with less room than requested
 
 - **Status:** ✅ **RESOLVED 2026-09-19, HW-gated.** Six-app gate `td22gate`
@@ -2111,6 +2136,7 @@ markers. Its debt idiom is `BRING-UP` prose instead.
 | TD-19 | LIKELY STILL APPLIES (TLBI hardening is generally correct) | ✅ doc reconciled 2026-09-17: **neither** the generic helpers nor `_pmap_writeTtl3` has an `isb` — the doc's `dsb; isb` claim is retracted. Code deliberately unchanged; adding the `isb` is an attended decision (see TD-19 entry) |
 | TD-13-mtxbypass | ✅ RESOLVED/REMOVED | row added 2026-09-17 (entry existed, checklist did not). Verified: `grep -c TD-13-mtxbypass syscalls.c` → 0, exactly as the entry predicts. |
 | TD-14-startup-settle | NOT TAKEN | row added 2026-09-17 (entry existed, checklist did not). No marker, no code — the option was considered and declined. |
+| TD-23 | OPEN (deliberate) | `RPI4AUDIO_ARMTRIALS` is a diagnostic ioctl + struct in a **published** header, i.e. a permanent ABI, for a facility that can block the driver's only message thread ~100 s. Kept because it is the only in-process sampler of the failing channel and the defect is open; delete it with `q2-sdl-openaudio-hang`, or gate it behind a build flag. ⚠ Blind to a stale control-block fetch — a re-arm re-reads the same CB. |
 | TD-22 | ✅ RESOLVED 2026-09-19 (HW-gated) | `vm/map.c:204` — `_map_find()`'s right-hand leaf return can hand back a non-`MAP_FIXED` **hint** sitting nearer the end of a gap than `size`, overlapping the next entry. Unreachable today (libphoenix's only hinted mmaps are `MAP_FIXED`; `malloc` passes NULL). The commented-out guard cannot simply be restored — it would also gate the descent, where `rmaxgap` is a subtree maximum. Leaf-only fix written out in the section; needs its own boot + six-app gate. |
 | TD-21 | ✅ RESOLVED 2026-09-04 (HW-verified) | row added 2026-09-17 — the register's newest and most detailed item had **no checklist row at all**, while the header calls the checklist authoritative. Syscall-table divergence closed; upstream order confirmed in `include/syscalls.h:39-41` (`mutexUnlock, mutexConsistent, mutexPrioCeiling`). ⛔ Do not re-raise as pending. |
 | TD-20 | KNOWN LIMITATION (HW-gated) | A72 `dc zva` disabled in `hal_memset` pending EL2 DC-ZVA trap proof (HW-only); perf-only, correctness-safe, A72-scoped |

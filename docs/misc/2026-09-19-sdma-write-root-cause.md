@@ -73,24 +73,35 @@ than papered over.
 - **SDMA boundary interrupt.** Transfers are ≤128 KiB from a 128 KiB-aligned base; a 512 KiB
   boundary cannot be crossed. Dead on arithmetic.
 
-## Throughput — DMA is correct but currently SLOWER
+## Throughput — and a measurement that was wrong
 
-Same shape as the PIO baseline (256 MiB, same source file, same offsets):
+↩ **Retracted:** an earlier version of this file reported PIO at 0.94 MB/s and SDMA at 0.59 MB/s and
+concluded DMA was slower. **Both numbers were artefacts.** `test-cycle-psh-interact.sh --idle-secs N`
+waits N seconds of UART idle **after each command**, so bracketing a `dd` with `date` measures the
+harness's cadence. The tell: three completely unrelated operations — a card write, an NFS file read
+to `/dev/null`, and a card read — all "took" **exactly ~312 s**. An NFS read to `/dev/null` cannot
+cost the same as an SD write.
 
-| path | time | rate |
-|---|---|---|
-| PIO | 271 s | **0.94 MB/s** |
-| SDMA | 431 s | **0.59 MB/s** |
+⊕ And a second, larger factor was hiding underneath: **`/bin/dd` is busybox and runs at ~0.65 MB/s;
+`/usr/bin/dd` is coreutils and runs at ~12.3 MB/s** on the identical transfer. Every timing above had
+used busybox.
 
-So correctness is achieved but the speed goal is not: PIO stays the default until DMA is faster.
-Two candidates for the gap, neither yet measured:
+**Measured properly** — coreutils `dd` prints its own rate, which is immune to the harness:
 
-1. **The uncached bounce copy.** `_sdcard_transferBlocks` memcpys into a `MAP_UNCACHED` staging
-   buffer on every transfer; PIO writes straight from the caller's cacheable buffer with no staging.
-2. **The completion busy-wait.** The DMA path spins on `PRES_STATE` — tens of thousands of MMIO
-   reads per transfer. ⊕ And the probe shows `intr=0x00000022`, i.e. **Transfer Complete (bit 1) DOES
-   latch** on a DMA write — contradicting the code comment claiming it is unreliable, a claim that
-   predates the Auto-CMD12→CMD23 change and appears never to have been re-measured.
+```
+67108864 bytes (67 MB, 64 MiB) copied, 5.43779 s, 12.3 MB/s   [writes=SDMA confirmed in the log]
+```
 
-Both point the same way: **ADMA2**, which is what Linux actually runs on this silicon, removes the
-bounce entirely (scatter-gather over the caller's own pages) and lifts the 512 KiB request cap.
+So SDMA writes run at **12.3 MB/s**, matching the driver's own documented DDR50 figure — not 0.59.
+The 28-minute card flash was a property of the busybox binary, not the hardware; with coreutils dd a
+1.1 GB image is ~2 minutes.
+
+⚠ **Lesson worth more than the number:** never time a transfer through this harness. Read the rate
+the tool itself reports.
+
+## ADMA2
+
+Still the better long-term target — it is what Linux runs on this silicon, it removes the uncached
+bounce copy entirely (scatter-gather over the caller's own pages) and lifts the 512 KiB request cap.
+But the bounce is no longer an obvious bottleneck at 12.3 MB/s, so the case for it is now
+architectural rather than urgent.

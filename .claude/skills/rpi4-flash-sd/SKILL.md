@@ -14,13 +14,19 @@ coreutils `dd` on the export — that is the whole toolchain.
 
 First proven end-to-end 2026-09-19: `b95e983a` → `6012dd0d` with no human intervention.
 
-## Budget it honestly
+## Use `/usr/bin/dd`, NOT `/bin/dd`
 
-**~30 minutes for a 1.1 GB image.** Measured 2026-09-19: 1 087 MiB in ~28 min ≈ **0.65 MB/s**
-end-to-end. SD *writes are PIO* on this driver (`sdcard.c:1625` — DMA is reads-only; DMA writes
-show first-block corruption and are deliberately gated off). The driver comment's "~13 MB/s"
-is the raw transfer figure and does **not** describe this path, which also pays NFS read,
-libcache and per-write busy-polling. Plan around 30 min, not 2.
+⛔ **`/bin/dd` is busybox and runs at ~0.65 MB/s** — it is what made the first flash take 28
+minutes. **`/usr/bin/dd` is coreutils and runs at ~12.3 MB/s**, a ~19x difference on the identical
+transfer, and it also prints its own `bytes copied, N s, X MB/s` line, which is the only
+trustworthy timing available here (see the warning below).
+
+**Budget ~2-3 minutes for a 1.1 GB image** with coreutils dd.
+
+⚠ **Do not time transfers with the harness.** `test-cycle-psh-interact.sh --idle-secs N` waits N
+seconds of UART idle **after each command**, so bracketing a command with `date` measures the
+harness's cadence, not the device: three unrelated operations once all "took" exactly 312 s that
+way. Read the rate coreutils `dd` reports instead.
 
 ## The procedure
 
@@ -55,10 +61,11 @@ Never flash an unverified image — a bad one costs 30 min plus a recovery flash
 ```
 ./scripts/test-cycle-psh-interact.sh --label sdflash \
     --idle-secs 1500 --max-cmd-secs 1600 -- \
-    "/bin/dd if=/sdimage.img of=/dev/mmcblk0 bs=1M"
+    "/usr/bin/dd if=/sdimage.img of=/dev/mmcblk0 bs=1M"
 ```
 
-Run it with `nohup … &` and poll — it outlives the Bash tool's 10-minute cap.
+With coreutils dd this finishes in a couple of minutes, so it fits in one foreground call; keep
+`nohup … &` for the busybox path or a very large image.
 
 Success looks like `1087+1 records in / 1087+1 records out` (records = image bytes / 1 MiB).
 ⚠ **Check the record count against the image size.** A short write is the one failure that

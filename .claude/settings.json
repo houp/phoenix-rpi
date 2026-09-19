@@ -65,6 +65,7 @@
       "Bash(./scripts/make-demo-reel.sh:*)",
       "Bash(./scripts/qemu-boot-sdimage.sh:*)",
       "Bash(./scripts/record-hdmi.sh:*)",
+      "Bash(./scripts/syntax-check.sh:*)",
       "Bash(./scripts/uart-summary.sh:*)",
       "Bash(./scripts/check-netboot-blob.sh:*)",
       "Bash(./scripts/diff-boot-variants.py:*)",

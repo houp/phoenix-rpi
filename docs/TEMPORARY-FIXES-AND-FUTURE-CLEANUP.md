@@ -207,8 +207,60 @@ authoritative current state.
   ⛔ **Still do NOT edit the TLB helpers unattended.** Adding a barrier to every
   TLBI is a global change to a correctness-sensitive path whose only honest
   validation is a full gate plus a soak, and it should be made with the owner
-  watching, not overnight. Recommendation when attended: add `hal_cpuInstrBarrier()`
-  after the `dsb ish` in the five helpers, then re-gate.
+  watching, not overnight.
+- **★★ ANALYSIS 2026-09-19 — the "add `isb` to the five helpers" recommendation is
+  INSUFFICIENT, and the scope of this TD is wrong in two directions.**
+  - **The discriminator is kernel-vs-user mapping, not "is there an ERET".** That is
+    Linux's own documented rule, verbatim in
+    `external/linux/arch/arm64/include/asm/tlbflush.h:290-296`: `ISB` only
+    *"if (invalidated kernel mappings)"*. Confirmed in its code — user flushes
+    (`:372-382`, `:384-395`) end with `dsb` and **no** `isb`; every kernel flush
+    (`:356-362`, `:591-596`, `:602-610`) adds one. So the common Phoenix path
+    (user VA → `ERET` before use) really is covered, as suspected.
+  - ⛔ **But the two genuinely exposed sites are both MISSED by the blunt fix:**
+    1. **`_pmap_mapScratch` (`hal/aarch64/pmap.c:190-201`) uses a RAW inline
+       `tlbi vaale1`, not one of the five helpers.** It maps a *kernel* VA and the
+       caller dereferences it immediately — `pmap.c:535-536`
+       `_pmap_mapScratch(); hal_memset(scratch_page, 0, SIZE_PAGE);` — with
+       `pmap_common.lock` held, and `hal_spinlockSet` does `msr daifSet, #3`
+       (`hal/aarch64/spinlock.c:25-68`), so interrupts are masked and **no
+       incidental exception entry/return can supply the synchronization**. A stale
+       translation there zeroes the *previous* occupant and `:538` then installs an
+       **un-zeroed** page as a page table. ⊕ Same site is also a valid→valid output
+       -address change with **no break-before-make**, unlike `_pmap_writeTtl3:504-508`
+       which implements it.
+    2. **`_pmap_writeTtl3:510-511` for a fresh kernel VA executes NO TLBI at all** —
+       the BBM/TLBI at `:504-508` runs only when the old descriptor was valid. So it
+       is a bare store + `dsb ish`, and adding `isb` to the helpers cannot reach it.
+       This is the path behind `vm/amap.c:297` (fresh-anon zeroing) and `:293` (the
+       COW copy). Linux guards exactly this with `pte_valid_not_user →
+       emit_pte_barriers()` (`pgtable.h:43-61`, `:402-410`), for the stated reason
+       that a speculative "invalid translation" in the pipeline otherwise causes a
+       **spurious fault**.
+  - Also exposed but benign: `_pmap_preinit:987` re-permissions the executing
+    kernel's own text and continues through it with no `isb` — safe only because
+    every change is strictly *more restrictive*, not because the architecture allows
+    it; boot-time, single-core, an `isb` is free. And `_pmap_switch:433` is exposed
+    in principle but needs ~65 534 simultaneously live pmaps (`ASID_BITS 16`), so it
+    is unreachable on a Pi 4.
+  - **Archive evidence, both directions:** ⊖ **no** ESR with DFSC `0x30`/`0x31` (TLB
+    conflict abort) in 243 logs carrying `esr=`, so site 1's break-before-make
+    omission has never produced its failure mode here. ⊕ Of 265 distinct `far=`
+    values only **two** are `>= VADDR_KERNEL`, and **both are `esr=0x96000003`** —
+    EL1 level-3 translation fault on a kernel VA, which is site 2's *predicted*
+    signature. One is the deliberate use-after-free injection (`zuaf4`); the other,
+    `far=ffffffffc002f990 pc=ffffffffc000926c` in
+    `rpi4b-uart-20260909-005614-x-damagerows2.log`, is **unattributed**.
+    ⚠ Symbolizing that `pc` against *today's* kernel gives `pmap_enter`
+    (`pmap.c:561`) — suggestive, but **NOT trustworthy**: that boot ran kernel
+    `76e0adbc71d4` (2026-09-07) and the same lookup resolves `lr` to `pmap_destroy`,
+    which is not a plausible caller, so at least one resolution is wrong. ⏭ **Build
+    kernel `76e0adbc71d4` and re-symbolize** — that single step either produces the
+    first real evidence for TD-19 or removes the last candidate.
+  - **Recommended fix (when attended):** targeted `isb` at `pmap.c:201` (plus BBM
+    there), `:511` gated on `va >= VADDR_KERNEL` mirroring Linux's
+    `pte_valid_not_user`, `:987`, and `:433` — *and* the `isb` in the five helpers
+    for self-containedness. The helpers alone do not fix anything that matters.
 - **Stage:** 1 (cache enable).
 - **First observed:** 2026-05-14 cache-policy cleanup.
 - **Where:** `sources/phoenix-rtos-kernel/hal/aarch64/aarch64.h`

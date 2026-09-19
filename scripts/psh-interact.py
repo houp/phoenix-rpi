@@ -222,10 +222,17 @@ def main():
         # the race from every measurement. Bounded, and proceeding is safe: if the
         # clock is already plausible psh skips the sync entirely and no line ever comes.
         # See docs/misc/2026-09-19-ntp-clock-step-breaks-app-startup.md.
+        # Key on ntpclient's failure line too, but do not expect it to save much: with
+        # `-w 90` it only gives up after its full window, i.e. AFTER the 60 s bound
+        # below. So on the SD lane (dnsmasq down, no DHCP, no step ever) this costs a
+        # flat 60 s per cycle. That is the price of the netboot lane being correct, and
+        # netboot pays ~nothing: there the step lands during boot, long before the
+        # prompt, so the marker is already in the buffer and the wait is skipped.
         CLOCK_MARKER = b"System time set to"
-        if args.commands and CLOCK_MARKER not in buffered:
+        CLOCK_FAILED = b"clock NOT set"
+        if args.commands and CLOCK_MARKER not in buffered and CLOCK_FAILED not in buffered:
             ck_deadline = time.time() + 60
-            print(f"waiting up to 60s for the clock step {CLOCK_MARKER!r}...")
+            print(f"waiting up to 60s for the clock step {CLOCK_MARKER!r} (or {CLOCK_FAILED!r})...")
             while time.time() < ck_deadline:
                 data = ser.read(256)
                 if not data:
@@ -237,6 +244,9 @@ def main():
                 buffered.extend(data)
                 if CLOCK_MARKER in buffered:
                     print("\n*** wall clock stepped — safe to launch timing-sensitive apps")
+                    break
+                if CLOCK_FAILED in buffered:
+                    print("\n*** ntpclient gave up (no network) — no step can land later, proceeding")
                     break
             else:
                 print("\n*** clock step not seen in 60s (already set, or no network) — proceeding")

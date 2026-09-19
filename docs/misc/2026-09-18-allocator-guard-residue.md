@@ -187,6 +187,22 @@ to "this heap claims too small an extent" — intact header, no overlap, no kern
 - **TD-22** — the one place in `_map_find` where a returned range really can overlap, with the
   leaf-only fix written out. Unreachable today; held for its own gate.
 
+## Host soak: 60 M operations, the residue does not reproduce
+
+2026-09-19, `tools/malloc-harness` against the real `malloc_dl.c`: **150 seeds × 400 000 ops = 60 M
+operations, 150/150 `-> OK`**, 1.8 M mmap/munmap cycles, 9.4 billion chunk-walk steps, **0
+spontaneous violations**. The only violations in the log are the deliberate injections at the end
+(`claims heap 0x4141414141414141` is a planted `AAAA`), and they fire correctly — a positive control
+showing the corrupt-header report path, `why=` included, works end to end in this build.
+
+⚠ **A host null clears nothing here, and that was said before the run.** The harness uses the
+**host's** `mmap`, and every surviving hypothesis is about how heaps are *placed* — exactly what the
+host does differently. What this does do is extend the "not the allocator's own logic" bound from
+~8 M operations to ~68 M.
+
+⛔ It also does **not** distinguish the two mechanisms below, because neither can arise from
+allocator logic alone.
+
 ## Separate, and not enough data
 
 `w38-upstream-vkq`'s single `chunk handed out twice` (`:1153-1171`) has a fully consistent header

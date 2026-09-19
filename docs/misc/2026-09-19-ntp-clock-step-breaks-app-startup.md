@@ -52,6 +52,31 @@ so `psh_clockSync()` skips (`time(NULL) >= PSH_CLOCK_PLAUSIBLE`) and there is no
 Quake III. The rate observed here is 1 in 6, but that is one sample of a race whose width depends on
 how long DHCP takes on the day.
 
+## Archive census — how often this actually bites
+
+Across every UART log mentioning `CL_InitCGame` (Quake III is the only app in the archive that
+prints a startup duration, so it is the only one that can be counted this way):
+
+| measure | count |
+|---|---|
+| quake3 logs total | **174** |
+| clock step lands **before** game init | 133 |
+| clock step lands **after** game init began (exposed) | **5** (~3.6 % of the 138 with both markers) |
+| no clock line at all (already set, or no network) | 36 |
+| **corrupted `CL_InitCGame`** | **2** — `-1201626.86 s` and `+2141867.04 s` |
+| **app actually failed to start** | **1** (`q3dm7arm-T1`) |
+
+⚠ **Exposure is not failure.** Of the 5 exposed logs, three showed a normal init time and ran fine,
+one showed an absurd *positive* duration (`+2141867.04 s`) and still entered the game, and only one
+— the negative case — never started. The step has to land inside the specific region an app is
+timing, which is a much narrower window than "after startup began".
+
+So the honest historical rate for a *visible* failure is **~1 in 174 Quake III runs**, not the 1-in-6
+this bench happened to show. The 1-in-6 is one small sample of a race whose width depends on how long
+DHCP takes that day; the archive figure is the better estimate.
+ⓘ One of the five (`20260908-213714-q3-follow`) never entered the game **with a normal 2.64 s init**
+— so it is a *different* failure, and must not be folded into this one.
+
 ## What to do about it
 
 **In measurements — available today, no code change.** `test-cycle-psh-interact.sh` already has

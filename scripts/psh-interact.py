@@ -226,8 +226,9 @@ def main():
         # `-w 90` it only gives up after its full window, i.e. AFTER the 60 s bound
         # below. So on the SD lane (dnsmasq down, no DHCP, no step ever) this costs a
         # flat 60 s per cycle. That is the price of the netboot lane being correct, and
-        # netboot pays ~nothing: there the step lands during boot, long before the
-        # prompt, so the marker is already in the buffer and the wait is skipped.
+        # netboot pays ~nothing: there the step lands at or near boot, so the marker is
+        # either already buffered (wait skipped) or arrives within seconds -- both
+        # observed 2026-09-19.
         CLOCK_MARKER = b"System time set to"
         CLOCK_FAILED = b"clock NOT set"
         if args.commands and CLOCK_MARKER not in buffered and CLOCK_FAILED not in buffered:

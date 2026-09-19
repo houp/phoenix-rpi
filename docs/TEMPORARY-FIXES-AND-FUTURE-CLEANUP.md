@@ -344,10 +344,10 @@ authoritative current state.
 
 ## TD-22: `_map_find()` can return a hinted address with less room than requested
 
-- **Status:** FIX WRITTEN 2026-09-19, **unbuilt and ungated** — a 100-boot rate
-  bench is holding the Pi until ~07:00 and a rebuild would overwrite the TFTP
-  loader under it. Gate before believing it: every process start maps through
-  this path.
+- **Status:** ✅ **RESOLVED 2026-09-19, HW-gated.** Six-app gate `td22gate`
+  **6/6**, 0 faults, torches present, **0 `MAP OVERLAP` reports**; manifest
+  `2026-09-19-w38-td22-gated.md`. Gated on its own, because every process start
+  maps through this path — a red gate would then have had exactly one suspect.
 - **Where:** `sources/phoenix-rtos-kernel/vm/map.c:204` — the guard
   `/*&& (vaddr + size) <= (e->vaddr + e->size + e->rmaxgap)*/` is commented out.
 - **What:** on the right-hand branch the leaf return at `:208` is
@@ -2111,7 +2111,7 @@ markers. Its debt idiom is `BRING-UP` prose instead.
 | TD-19 | LIKELY STILL APPLIES (TLBI hardening is generally correct) | ✅ doc reconciled 2026-09-17: **neither** the generic helpers nor `_pmap_writeTtl3` has an `isb` — the doc's `dsb; isb` claim is retracted. Code deliberately unchanged; adding the `isb` is an attended decision (see TD-19 entry) |
 | TD-13-mtxbypass | ✅ RESOLVED/REMOVED | row added 2026-09-17 (entry existed, checklist did not). Verified: `grep -c TD-13-mtxbypass syscalls.c` → 0, exactly as the entry predicts. |
 | TD-14-startup-settle | NOT TAKEN | row added 2026-09-17 (entry existed, checklist did not). No marker, no code — the option was considered and declined. |
-| TD-22 | OPEN (latent, no reachable caller) | `vm/map.c:204` — `_map_find()`'s right-hand leaf return can hand back a non-`MAP_FIXED` **hint** sitting nearer the end of a gap than `size`, overlapping the next entry. Unreachable today (libphoenix's only hinted mmaps are `MAP_FIXED`; `malloc` passes NULL). The commented-out guard cannot simply be restored — it would also gate the descent, where `rmaxgap` is a subtree maximum. Leaf-only fix written out in the section; needs its own boot + six-app gate. |
+| TD-22 | ✅ RESOLVED 2026-09-19 (HW-gated) | `vm/map.c:204` — `_map_find()`'s right-hand leaf return can hand back a non-`MAP_FIXED` **hint** sitting nearer the end of a gap than `size`, overlapping the next entry. Unreachable today (libphoenix's only hinted mmaps are `MAP_FIXED`; `malloc` passes NULL). The commented-out guard cannot simply be restored — it would also gate the descent, where `rmaxgap` is a subtree maximum. Leaf-only fix written out in the section; needs its own boot + six-app gate. |
 | TD-21 | ✅ RESOLVED 2026-09-04 (HW-verified) | row added 2026-09-17 — the register's newest and most detailed item had **no checklist row at all**, while the header calls the checklist authoritative. Syscall-table divergence closed; upstream order confirmed in `include/syscalls.h:39-41` (`mutexUnlock, mutexConsistent, mutexPrioCeiling`). ⛔ Do not re-raise as pending. |
 | TD-20 | KNOWN LIMITATION (HW-gated) | A72 `dc zva` disabled in `hal_memset` pending EL2 DC-ZVA trap proof (HW-only); perf-only, correctness-safe, A72-scoped |
 | TD-Eth-DHCP | ✅ RESOLVED 2026-05-28 (lwip `7f0b495`) | autonomous DHCP verified end-to-end via test-cycle-netboot.sh --probe q + scripts/get-pi-ip.sh; probe captured `netif: en1 ip=10.42.0.12 gw=10.42.0.1 flags=0x1f UP LINK DHCP` (artifact 2026-05-28-...-dhcp-clean-probe.txt) |

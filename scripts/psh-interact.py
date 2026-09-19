@@ -211,6 +211,36 @@ def main():
             else:
                 print("\n*** takeover marker not seen in 25s (SD-boot / already done?) — proceeding")
 
+        # phase 1.6 (2026-09-19): psh sets the wall clock on session start by forking
+        # `ntpclient -w 90` FIRE-AND-FORGET (pshapp.c psh_clockSync), after waiting up
+        # to 30 s for /bin. So the clock can jump 1970 -> now at ANY point in roughly a
+        # two-minute window after the prompt -- including inside an app we just
+        # launched. An app that times its own startup across that step sees a ~56-year
+        # negative duration: observed as `CL_InitCGame: -1201626.86 seconds` in
+        # q3dm7arm-T1, after which Quake III never entered the game and rendered 0
+        # frames while looking otherwise healthy. Waiting for the step first removes
+        # the race from every measurement. Bounded, and proceeding is safe: if the
+        # clock is already plausible psh skips the sync entirely and no line ever comes.
+        # See docs/misc/2026-09-19-ntp-clock-step-breaks-app-startup.md.
+        CLOCK_MARKER = b"System time set to"
+        if args.commands and CLOCK_MARKER not in buffered:
+            ck_deadline = time.time() + 60
+            print(f"waiting up to 60s for the clock step {CLOCK_MARKER!r}...")
+            while time.time() < ck_deadline:
+                data = ser.read(256)
+                if not data:
+                    continue
+                sys.stdout.buffer.write(data)
+                sys.stdout.flush()
+                log.write(data)
+                log.flush()
+                buffered.extend(data)
+                if CLOCK_MARKER in buffered:
+                    print("\n*** wall clock stepped — safe to launch timing-sensitive apps")
+                    break
+            else:
+                print("\n*** clock step not seen in 60s (already set, or no network) — proceeding")
+
         # phase 2: send commands
         for cmd in args.commands:
             time.sleep(args.inter_cmd_secs)

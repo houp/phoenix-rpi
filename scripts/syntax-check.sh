@@ -41,6 +41,17 @@ tc="${repo_root}/.toolchain/aarch64-phoenix/bin"
 mkdir -p "$(dirname "${bdir}/${rel}")"
 cp "$src" "${bdir}/${rel}"
 
+# Stage the sibling HEADERS from the same directory too. A change that spans a
+# .h and its .c -- adding an inline helper and calling it, say -- would otherwise
+# compile the new .c against the OLD header and report a bogus "implicit
+# declaration". Found the first time this script met such a change (2026-09-19,
+# sdio_submitBarrier). Headers are cheap to copy and the buildroot copy is
+# rsynced over by the next real build anyway.
+for _h in "$(dirname "$src")"/*.h; do
+    [ -e "$_h" ] || continue
+    cp "$_h" "$(dirname "${bdir}/${rel}")/"
+done
+
 # Ask make what it WOULD run for that object, and take the compiler line.
 cmd=$(cd "$bdir" && PATH="${tc}:$PATH" TARGET="$target" make -n "$obj" 2>/dev/null \
         | grep -m1 -- '-phoenix-gcc ' || true)

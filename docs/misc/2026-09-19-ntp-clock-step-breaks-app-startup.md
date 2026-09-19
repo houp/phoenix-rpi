@@ -77,6 +77,27 @@ DHCP takes that day; the archive figure is the better estimate.
 ⓘ One of the five (`20260908-213714-q3-follow`) never entered the game **with a normal 2.64 s init**
 — so it is a *different* failure, and must not be folded into this one.
 
+### The "loaded but never entered" population
+
+Of the same 174 quake3 logs, **4** never print `entered the game`. Two are misclassifications —
+`20260823-095429-live-test` is an X-server failure (`xlaunch: server exited during init`) and
+`20260822-020006-q3-capture-cfg` quit deliberately after 131 screenshots. That leaves **2 genuine
+start failures in 174 runs (1.1 %)**:
+
+- `q3dm7arm-T1` — corrupted duration, clock step **established** as the cause;
+- `20260908-213714-q3-follow` — ends with the *identical* terminal signature (`CL_InitCGame: 2.64
+  seconds` → `Com_TouchMemory` → `]`, stuck at the console) but a **normal** init time.
+
+★ Both are in the 5-log "exposed" set, i.e. the clock step landed after game init began in both. So
+the step is *present* in both failures and *absent* from none of them — but causation is established
+only for T1, where the duration is visibly corrupt. For `q3-follow` the step could have broken a
+later timing (connect, spawn) without touching the one number the game prints, or the cause could be
+unrelated. **Not decided, and not counted as this defect.**
+
+⚠ **The trap this now creates:** "stuck at the console after `Com_TouchMemory`" is a *shared*
+signature, not a fingerprint. Now that the clock step has a name it will be tempting to attribute
+every such log to it. Only a corrupted duration proves it.
+
 ## What to do about it
 
 **In measurements — available today, no code change.** `test-cycle-psh-interact.sh` already has

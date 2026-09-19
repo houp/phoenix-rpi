@@ -99,7 +99,32 @@ The 28-minute card flash was a property of the busybox binary, not the hardware;
 ⚠ **Lesson worth more than the number:** never time a transfer through this harness. Read the rate
 the tool itself reports.
 
-## ADMA2
+## ADMA2 — implemented, and now the default
+
+Done the same day. Descriptor format matches Linux's `struct sdhci_adma2_32_desc`; chunks are 32 KiB
+deliberately, because the 16-bit length field encodes 65536 as a written zero and Linux records some
+controllers as not implementing that. Every engine-visible address — the descriptor table's own base
+and each chunk inside it — goes through `SDCARD_DRAM_BUS()`, which is the same translation whose
+absence caused this whole investigation and which ADMA2 offers two further chances to get wrong.
+
+Fails soft: no descriptor page, a page above the 1 GiB reach, or a list that will not fit all fall
+back to SDMA. `ADMA_ERROR_STATUS` is checked after every transfer, because ADMA2 reports
+descriptor-list faults there and *not* in the generic error bits — a malformed list would otherwise
+read as a clean transfer.
+
+**All three paths correct; ADMA2 is fastest and becomes the default:**
+
+| write path | rate |
+|---|---|
+| PIO | 12.2 MB/s |
+| SDMA | 12.3 MB/s |
+| **ADMA2** | **12.4 MB/s** (12.7 on 8 MiB) |
+
+The margins are small because the SD bus bounds all three at this transfer size. ADMA2's real
+headroom is structural: no 512 KiB request cap and no contiguous-buffer requirement, so raising
+`SDCARD_MAX_TRANSFER` and eventually dropping the bounce copy become possible.
+
+## Historical note
 
 Still the better long-term target — it is what Linux runs on this silicon, it removes the uncached
 bounce copy entirely (scatter-gather over the caller's own pages) and lifts the 512 KiB request cap.

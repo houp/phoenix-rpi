@@ -23,6 +23,13 @@ trustworthy timing available here (see the warning below).
 
 **Budget ~2-3 minutes for a 1.1 GB image** with coreutils dd.
 
+⚠ **Each binary can do only one direction.** coreutils `dd` **cannot read** `/dev/mmcblk0` —
+`dd: cannot fstat '/dev/mmcblk0': Function not implemented` — and it then produces a **0-byte file**,
+which looks exactly like a broken driver rather than a broken tool. So:
+
+* write **to** the device → `/usr/bin/dd` (coreutils, fast, reports its rate)
+* read **from** the device → `/bin/dd` (busybox)
+
 ⚠ **Do not time transfers with the harness.** `test-cycle-psh-interact.sh --idle-secs N` waits N
 seconds of UART idle **after each command**, so bracketing a command with `date` measures the
 harness's cadence, not the device: three unrelated operations once all "took" exactly 312 s that

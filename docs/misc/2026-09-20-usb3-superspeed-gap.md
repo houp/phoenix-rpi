@@ -67,3 +67,60 @@ own NAND.
 
 ⚠ Grade it by `dd`'s own reported rate on the raw device, as every other number here, and
 confirm the lane by `maxpkt=1024` in the pipe-ready line before believing any of it.
+
+
+---
+
+# Attempt 1 (same day): root cause found, fix reverted
+
+## The mechanism, exactly
+
+`PORTSC` cannot be read-modify-written. **Bit 1 (PED) is RW1CS — writing a 1
+DISABLES the port** — and bits 17..23 are RW1C change bits that a write-back
+acknowledges. `xhci_setPortFeature(PORT_POWER)` did:
+
+```c
+portsc = xhci_portRead32(...);              /* 0x00281203 -- PED=1 on a live SS port */
+xhci_portWrite32(..., portsc | PORTSC_PP);  /* writes PED=1 -> DISABLES the port */
+```
+
+Traced on hardware:
+
+```
+probe:                   PORTSC=0x00281203  ccs=1 ped=1 speed=4 (SuperSpeed, U0)
+SetPortFeature(1..5, 8)  <- PORT_POWER
+GetPortStatus(2):        PORTSC=0x00000280  ccs=0
+```
+
+So **we were switching the SuperSpeed link off ourselves, at every boot.**
+
+## And why the fix was reverted anyway
+
+With `xhci_portStateNeutral()` in place (Linux's `xhci_port_state_to_neutral`),
+port 2 correctly stayed up at speed 4 — and the board got *worse*:
+
+1. The stick stopped appearing on the USB 2 hub. **That is correct USB 3
+   behaviour**: a device operating at SuperSpeed does not use its USB 2 pins. We
+   just cannot enumerate it on the SS side yet.
+2. Port 1's reset then returned **speed=1 (Full Speed**, was High) with
+   `command completion code 36` and `Fail to get device descriptor`.
+3. **Nothing enumerated at all** — no hub, no stick, no keyboard, no mouse.
+
+★ **The finding that matters: our USB 2 enumeration has been working only
+BECAUSE we were accidentally tearing the SuperSpeed link down.** Every device on
+this board reaches us through the VL805's USB 2 hub, and that only happens while
+the SS side is dead. The moment it lives, the USB 2 personalities go away and we
+have nothing.
+
+**Half of USB 3 support is worse than none.** The PORTSC fix must therefore land
+*together* with SS enumeration, as one gated change:
+
+- `xhci_portStateNeutral()` for every PORTSC RMW;
+- Slot Context speed 4 and a route string addressing the SS root port;
+- ep0 on SuperSpeed is always 512 bytes, and `bMaxPacketSize0` is an **exponent**
+  (9), not a byte count — a USB 2 reading of that field is 9 bytes;
+- the SS Endpoint Companion descriptor's `bMaxBurst` into the endpoint context;
+- and only then remove the `XHCI_SUPERSPEED_ENUM_READY` gate.
+
+⚠ Do not re-try the PORTSC fix on its own. It is right, and it is not
+independently shippable.

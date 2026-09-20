@@ -1,0 +1,17 @@
+.gitignore
+Makefile
+_targets/Makefile.aarch64a72-generic
+drivers/bcm-genet-regs.h
+drivers/bcm-genet.c
+drivers/ephy.c
+drivers/ephy.h
+drivers/netif-driver.c
+drivers/physmmap.c
+drivers/physmmap.h
+include/netif-driver.h
+lib-lwip
+port/Makefile
+port/genet-rxcache-bench.c
+port/main.c
+port/mbox.c
+port/sockets.c

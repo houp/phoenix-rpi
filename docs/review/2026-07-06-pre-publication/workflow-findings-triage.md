@@ -1,0 +1,89 @@
+# Workflow findings (87, verified)
+
+- [high/correctness] kernel-hal-mem — hal/aarch64/_init.S:1078 — Early-exception dump block references PL011_TTY_EARLY_VADDR unguarded, breaking the link for every aarch64 target that doesn't define it
+- [high/correctness] project — _projects/aarch64a72-generic-rpi4b/preinit.plo.yaml:2637 — ddr map boundary (0x3b400000 = gpu_mem 76MB) contradicts config.txt gpu_mem=128, handing 52MB of GPU-reserved RAM to the kernel as usable rwx
+- [high/legal] tools-quakespasm — tools/quakespasm-port/platform/pl_phoenix_stubs.c:31 — net_drivers/net_landrivers tables are verbatim GPLv2 Quakespasm (net_bsd.c) source with no license header/attribution
+- [high/legal] tools-x11-other — tools/x11-port/ddx/fbdev.c:627 — GPL-2.0 Linux kernel keycode table (usb_kbd_keycode) copied verbatim into this BSD-licensed, publicly-published repo
+- [medium/correctness] kernel-hal-rest — hal/aarch64/arch/interrupts.h:30 — TIMER_WAKEUP_IRQ defined as an enum constant but consumed with #ifdef, so the entire SMP timer-wakeup IPI facility is silently compiled out
+- [medium/hack] kernel-hal-rest — hal/aarch64/generic/config.h:27 — NUM_CPUS comment claims the scheduler runs on cpu0 only with secondaries parked — stale, contradicted by _init.S and MEMORY
+- [medium/hack] kernel-hal-rest — hal/aarch64/generic/generic.c:133 — hal_cpuReboot is a spin-halt stub (never reboots) with no TODO(TD-nn) marker or explanatory comment
+- [medium/quality] kernel-hal-rest — hal/aarch64/generic/console.c:32 — hal_consolePrint routes ALL output through the hardcoded early-VADDR putch, not the DTB-probed pl011; the 'Early' name misleads on the primary print path
+- [medium/hack] kernel-vm-proc — proc/msg.c:359 — Leftover devfs IPC-timing diagnostic in proc_send() (td14 trace) must be removed before publication
+- [medium/hack] kernel-vm-proc — proc/threads.c:237 — Write-only SMP tick counter threads_smpTickCount adds an atomic to every timer ISR but is never read
+- [medium/quality] kernel-vm-proc — proc/name.c:79 — Misleading dead name_trace* scaffolding: two no-op functions plus load-bearing predicates wearing 'trace' names
+- [medium/hack] plo — hal/aarch64/generic/_init.S:594 — Entire generic (rpi4) exception vector table is leftover diagnostic scaffolding shipping in a public release
+- [medium/correctness] dev-tty — tty/usbkbd/usbkbd.c:860 — Insertion error path leaks the fifo buffer and two kernel handles (lock+cond)
+- [medium/correctness] dev-tty — tty/usbmouse/usbmouse.c:613 — Insertion error path leaks the fifo buffer and two kernel handles (lock+cond)
+- [medium/correctness] dev-storage — storage/bcm2711-emmc/sdcard.c:212 — Stale comments claim SDMA/DMA is disabled while SDCARD_ENABLE_DMA is actually defined and the DMA read path is live
+- [medium/duplication] dev-usb-pcie — pcie/server/pcie.c:172 — pcie.c gains a ~600-line BCM2711 bring-up block that is a dead, older, buggier duplicate of usb/xhci/bcm2711-pcie.c
+- [medium/correctness] dev-usb-pcie — pcie/server/pcie.c:452 — bcm2711EncodeBar2Size in pcie.c truncates a 4 GiB window to 1 MB (the bug USB-FIX-12 fixed in bcm2711-pcie.c)
+- [medium/hack] dev-usb-pcie — pcie/server/pcie.c:226 — Standalone pcie.c is saturated with diagnostic scaffolding: unbounded mailbox busy-waits, per-BAR/per-device debug() dumps, a diag-outbound MMIO probe, and a 30-iteration main() warm-up loop
+- [medium/correctness] dev-video-gpio-audio-sensors — audio/rpi4-audio/rpi4-audio.c:133 — DRAM_BUS() silently masks the DMA source/CB address to the low 1 GB with no runtime bounds check, contradicting the comment that claims one exists
+- [medium/hack] lwip — port/mbox.c:142 — Leftover 16-word raw-memory diagnostic dump (hypothesis-hunting for #121/#129) ships in a to-be-published repo
+- [medium/correctness] libphoenix — wchar/wchar.c:94 — wcstombs silently truncates wide chars > 255 instead of returning (size_t)-1
+- [medium/correctness] usb-stack — usb/hub.c:364 — Per-port give-up counter never clears for a device that never enumerated, permanently disabling the port after replug
+- [medium/hack] usb-stack — usb/mem.c:24 — ~150 lines of pure diagnostic reporting apparatus for #121 (alloc/free rings, hex dumps, caller PC) still present in a pre-publication review
+- [medium/quality] usb-stack — usb/mem.c:211 — Unconditional aarch64 `dc civac` inline asm + hardcoded 64-byte line size injected into a shared cross-arch USB file
+- [medium/correctness] usb-stack — usb/hub.c:508 — hub_conf port-power error path frees hub->devs but not the just-allocated hub->portEnumFails
+- [medium/correctness] corelibs-posixsrv — special.c:103 — Shared static random_hwrngFd is read/written by concurrent worker threads without a lock
+- [medium/correctness] tools-v3d — tools/v3d-driver-port/gl_stubs.c:123 — posix_memalign ignores the requested alignment and returns plain malloc()
+- [medium/correctness] ext-mesa-v3d — src/gallium/drivers/v3d/v3d_resource.c:909 — Size-only heuristic (>=1024x768) forces RASTER + SCANOUT-backing + Y-flip on ANY render target, including large sampled RTTs
+- [medium/correctness] ext-quakespasm — Quake/gl_screen.c:982 — Divide-by-zero in SCR_CaptureTick when scr_capture is a fractional value in (0,1)
+- [low/typo] kernel-hal-mem — hal/aarch64/pmap.c:923 — Two statements collapsed onto one line (mem.min and mem.max) — merge/formatting botch
+- [low/correctness] kernel-hal-core — hal/aarch64/cpu.c:354 — Watchpoint armed for EL0+EL1 (PAC=0b11) but only EXC_WATCHPOINT_EL0 gets the custom handler, so an EL1 hit reboots under NDEBUG
+- [low/hack] kernel-hal-core — hal/aarch64/cpu.c:322 — Debug-only watchpoint feature ships publicly through a permanent platformctl ABI with no TD marker
+- [low/hack] kernel-hal-rest — hal/aarch64/generic/generic.c:128 — _hal_cpuInit ends with a large disproved-hypothesis narrative comment describing a disabled barrier and abandoned init-order workaround
+- [low/quality] kernel-hal-rest — hal/aarch64/arch/cpu.h:89 — hal_cpuEnableInterrupts unmasks only I (daifClr #2) while hal_cpuDisableInterrupts masks I+F (daifSet #3) — intentional but asymmetric
+- [low/hack] kernel-vm-proc — vm/vm.c:43 — Boot-trace hal_consolePrint scaffolding left in _vm_init() and _map_init()
+- [low/hack] kernel-vm-proc — proc/process.c:578 — TEMP-NOMEM-DIAG lib_printf probes scattered through process_load/process_exec have no TD marker
+- [low/hack] kernel-vm-proc — include/arch/aarch64/generic/generic.h:41 — Debug-only pctl_watchpoint member baked into published platformctl_t ABI with a transient-investigation comment
+- [low/quality] kernel-vm-proc — syscalls.c:849 — Pointless err-variable churn in syscalls_msgSend and syscalls_lookup
+- [low/duplication] plo — hal/aarch64/cache.c:30 — EL-banked SCTLR read/write accessors are duplicated verbatim between cache.c and mmu.c
+- [low/quality] plo — hal/aarch64/generic/hal.c:271 — Signed/unsigned comparison in hal_memoryGetNextEntry loop bound
+- [low/hack] plo-rest — _startc.c:53 — Heap-zeroing diagnostic ships to public release mislabeled as TD-05 and without a TODO(TD-NN) code marker
+- [low/quality] plo-rest — ld/aarch64a72-generic.ldt:6 — Header comment references a 1 GB Pi 4B while the body/SIZE_DDR now describe the 4 GB layout
+- [low/quality] dev-tty — tty/usbkbd/usbkbd.c:1192 — Dead local `woke` in the kbd bridge putchar loop (never written)
+- [low/quality] dev-tty — tty/usbkbd/usbkbd.c:619 — Raw-mode keyboard read does not align to 8-byte report boundaries (mouse driver does)
+- [low/correctness] dev-tty — tty/usbkbd/usbkbd.c:653 — mtClose bypasses the owning-pid check, letting any process close another client's keyboard
+- [low/legal] dev-tty — tty/pl011-tty/teken/teken_state.h:1 — Generated teken table carries no license/provenance line
+- [low/correctness] dev-misc — misc/rpi4-vcmbox/rpi4-vcmbox.c:1149 — Write-FULL timeout in vcmbox_fifoRoundtrip returns the mislabeled outcome MBOX_EMPTY
+- [low/correctness] dev-misc — misc/rpi4-ipcprobe/rpi4-ipcprobe.c:420 — Server-side write(cfd, "PONG", 4) return value is unchecked in the named-socket probe
+- [low/quality] dev-storage — storage/bcm2711-emmc/sdcard.c:190 — sdhost_allocDMA comment says "Cap at 64 KiB (128 blocks)" but SDCARD_MAX_TRANSFER is 128 KiB
+- [low/quality] dev-storage — storage/bcm2711-emmc/sdstorage_dev.c:45 — BLK_CACHE_SECSIZE comment narrates 16 KiB / 32 blocks then defines the macro as 128 KiB
+- [low/hack] dev-storage — storage/bcm2711-emmc/sdcard.c:474 — Default-on SDREADDIAG printf diagnostics ship in the released driver (un-gated, unlike the SDCARD_DIAG_CLOCKSWEEP sweep)
+- [low/correctness] dev-usb-pcie — usb/xhci/xhci.c:4578 — xhci_allocSlotSpace overwrites the shared xhci->inputCtx on every call, leaking the previous allocation for each behind-hub slot
+- [low/quality] dev-usb-pcie — usb/xhci/xhci.c:3421 — xhci_capProbe returns -ENOSYS to signal SUCCESS, decoded by xhci_init as the go-ahead path
+- [low/correctness] dev-video-gpio-audio-sensors — audio/rpi4-audio/rpi4-audio.c:393 — Bare counter delay loop with no volatile access can be optimized away, giving zero DMA settle time
+- [low/legal] dev-video-gpio-audio-sensors — audio/rpi4-audio/rpi4-audio.c:8 — Header credits an external bare-metal tutorial ('rpi4os.com part9-sound') as the source of the bring-up sequence — confirm no code was lifted and note the tutorial's license
+- [low/correctness] lwip — drivers/bcm-genet-regs.h:172 — MDIO_READ_FAILED is defined as (1u << 29), colliding with MDIO_START_BUSY and mismatching Linux's read-fail bit
+- [low/typo] lwip — drivers/bcm-genet.c:288 — genet_readMac comment describes the UMAC_MAC0/MAC1 byte layout backwards
+- [low/quality] lwip — drivers/bcm-genet-regs.h:173 — Stale 'to be confirmed against hardware in Tier 1' comment on a now-proven MDIO bit
+- [low/quality] fs-nfs — dummyfs/srv.c:219 — Edited dummyfs main() block is space-indented, breaking the file's tab indentation (botched-edit appearance)
+- [low/correctness] fs-nfs — nfs/nfs_ops.c:95 — nfs_ops_lookup materializes distinct id-nodes for '.'/'..' path components, aliasing one object under multiple ids
+- [low/correctness] fs-nfs — nfs/nfs_ops.c:39 — nfs_err maps libnfs rc==-1 to -EIO, masking a genuine -EPERM
+- [low/quality] fs-nfs — nfs/nfs_ops.c:692 — readdir reopens+rewalks the directory on every entry (O(N^2) per full listing)
+- [low/quality] libphoenix — include/termios.h:251 — Comment on self-referential c_oflag macros overstates that they work in #if expressions
+- [low/quality] utils — nfs-smoke/nfs-smoke.c:208 — Dead vlen computation left over from a refactor in wait_for_dhcp_lease
+- [low/correctness] utils — nfs-smoke/nfs-smoke.c:299 — v3-mount-failure path returns without nfs_destroy_context, unlike sibling error paths
+- [low/correctness] usb-stack — usb/dev.c:176 — hub->portEnumFails is leaked on hub teardown (never freed in usb_devFree)
+- [low/hack] usb-stack — usb/mem.c:419 — usb_free corruption guard only validates buf->head, not the rest of the coalescing walk
+- [low/typo] ports — xterm/patches/xterm-396-phoenix.patch:976 — DEFSHELL_NAME comment self-contradicts the netboot rootfs layout it is explaining
+- [low/hack] ports — windowmaker/port.def.sh:508 — Redundant -D_SC_LINE_MAX=5 build define now that _SC_LINE_MAX is committed to libphoenix unistd.h
+- [low/typo] ports — libnfs/files/config.h:145 — HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC comment references tv_sec instead of tv_nsec
+- [low/quality] build — port_manager/port_internal.subr:28 — aarch64 branch leaves HOST_TARGET carrying the core suffix (aarch64a72), inconsistent with the arm/sparc normalization
+- [low/hack] project — _projects/aarch64a72-generic-rpi4b/phoenix-armstub8-rpi4.S:2178 — Leftover SMP-D-3 diagnostic block writes per-CPU markers to PA 0x40+cpu*4 with no TD marker
+- [low/quality] project — _projects/aarch64a72-generic-rpi4b/user.plo.yaml:2890 — Commented-out TEMP launch lines and an inconsistent default('netboot') left in the boot script
+- [low/correctness] project — _projects/aarch64a72-generic-rpi4b/phoenix-kernel8-reloc.S:2513 — Forward byte/word copy of the plo payload to a higher dest address is unsafe if payload ever exceeds the src/dest gap
+- [low/typo] tools-v3d — tools/v3d-driver-port/v3d_phoenix_winsys.c:142 — Contradictory comments on the binner-overflow pool size (64 MiB vs 32 MiB)
+- [low/legal] tools-v3d — tools/v3d-driver-port/v3d_phoenix_winsys.c:694 — Comments closely paraphrase GPL Linux v3d driver comments (pre-publication rewording advised)
+- [low/hack] tools-quakespasm — tools/quakespasm-port/platform/pl_phoenix_in.c:285 — Leftover mouse-packet debug logging tied to already-resolved task #24 fires unconditionally on every boot
+- [low/typo] tools-quakespasm — tools/quakespasm-port/platform/pl_phoenix_vid.c:517 — Stale comment claims 'winding compensated by glFrontFace(GL_CCW) below' but the code uses GL_CW and there is no such call
+- [low/quality] tools-quakespasm — tools/quakespasm-port/platform/pl_phoenix_vid.c:48 — Duplicate #include <sys/ioctl.h> and duplicate extern of v3d_phoenix_scanout_active; redundant VID_Shutdown prototype after its definition
+- [low/hack] tools-x11-other — tools/vkquake-port/platform/pl_phoenix_in.c:291 — Leftover one-time mouse-packet debug logging (task #24) with no TODO marker
+- [low/quality] tools-x11-other — tools/x11-port/ddx/fbdev.c:573 — Input-section header comment describes an InputThreadRegisterDev/SetNotifyFd model the code deliberately does NOT use
+- [low/correctness] tools-x11-other — tools/x11-port/ddx/fbdev.c:297 — Row-by-row shadow blit reads a full device pitch from a possibly-narrower shadow stride
+- [low/quality] ext-mesa-v3d — src/util/os_memory_aligned.h:47 — Unconditional `#undef HAVE_POSIX_MEMALIGN` silently changes all non-Phoenix builds
+- [low/hack] ext-mesa-v3d — src/gallium/drivers/v3d/v3d_resource.c:113 — Dead cacheable-readback infra retained with a rationale that does not hold inside Mesa, plus three stacked disproved-hypothesis comment blocks
+- [low/typo] ext-quakespasm — Quake/gl_screen.c:986 — Capture code writes .tga files but log strings and comments say .png
+- [low/quality] ext-quakespasm — Quake/r_part.c:48 — Stale doc reference: comment points to docs/inprogress/... but the file was moved to docs/done/
+- [low/hack] ext-quakespasm — Quake/gl_screen.c:918 — Debug/harness code (raw TCP frame sink, blocking connect on render path, unchecked inet_addr, leaked static IBO/socket) shipped in the engine

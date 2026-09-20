@@ -1,0 +1,6 @@
+README.md
+build-core-aarch64a53-generic.sh
+build-core-aarch64a72-generic.sh
+build-core-ia32-generic.sh
+makes/include-target.mk
+port_manager/port_internal.subr

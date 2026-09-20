@@ -45,18 +45,22 @@ lane by the **root** argument or `nfs-fs: start`, not by that string.
 | Goal | Boot mode | Card | Recipe |
 |---|---|---|---|
 | Run a binary/command at psh + capture its output | SD (self-contained) | in Pi | A |
-| Same, over the network | netboot / nfsroot | **out** of Pi | B |
+| Same, over the network | netboot / nfsroot | in Pi (**written**) | B |
 | Just capture a boot (no interaction) | either | — | C |
 | Build a fresh image + get it onto the card | — | in host | D (then A) |
 
 `sd` mounts a local ext2 root; `nfsroot` mounts the NFS export as `/`; `netboot`
 uses a RAM root.
 
-⛔ **A card in the slot stops this Pi booting AT ALL — keep the slot empty for
-netboot.** Measured 2026-09-16 with a **blank** microSD inserted: four power-ons
-produced **zero DHCP requests, zero UART bytes and a black HDMI frame**, where the
-same bench had netbooted 10/10 an hour earlier with the slot empty. It does not
-fall back to network; it simply does not come up.
+⛔ **A BLANK card in the slot stops this Pi booting AT ALL.** Measured 2026-09-16
+with a blank microSD inserted: four power-ons produced **zero DHCP requests, zero
+UART bytes and a black HDMI frame**, where the same bench had netbooted 10/10 an
+hour earlier with the slot empty. It does not fall back to network; it simply does
+not come up. ✅ **A WRITTEN card does not do this** — it netboots normally when
+dnsmasq is up (measured 2026-09-17, see the top of this file), which is why the
+bench now keeps a written card in permanently and Phoenix flashes it in place
+(`rpi4-flash-sd`). The rule is therefore: **leave a written card in; never leave a
+blank one in.**
 
 ⚠ **Retraction:** an earlier edit of this file claimed the opposite — that the
 EEPROM's `BOOT_ORDER=0xf12` (network first, SD second, written 2026-05-21) meant a
@@ -131,7 +135,8 @@ Example (this is how the libc suite is run):
 
 ## B — Run commands over netboot / nfsroot
 
-Remove the card first. Do NOT pass `--skip-server-up` (dnsmasq/TFTP must be up):
+Leave the (written) card in — dnsmasq up selects netboot. Do NOT pass
+`--skip-server-up` (dnsmasq/TFTP must be up):
 
 ```
 ./scripts/netboot-server-up.sh                    # if not already running
@@ -144,8 +149,8 @@ root has mounted.
 ## C — Capture a boot only (no commands)
 
 ```
-./scripts/test-cycle-netboot.sh --sd-boot --capture-secs 180   # SD boot
-./scripts/test-cycle-netboot.sh --capture-secs 240             # netboot (card out)
+./scripts/test-cycle-netboot.sh --sd-boot --capture-secs 180   # SD boot (dnsmasq down)
+./scripts/test-cycle-netboot.sh --capture-secs 240             # netboot (dnsmasq up)
 ```
 
 `--capture-secs` ≥ 180 to see user-space/lwip; set the Bash `timeout` to

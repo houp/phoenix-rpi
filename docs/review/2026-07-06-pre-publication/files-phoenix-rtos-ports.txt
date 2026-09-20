@@ -1,0 +1,13 @@
+libnfs/files/Makefile.phoenix
+libnfs/files/config.h
+libnfs/port.def.sh
+openssl111/30-phoenix.conf
+windowmaker/README.md
+windowmaker/port.def.sh
+xterm/README.md
+xterm/files/include/wctype.h
+xterm/files/phoenix_termcap.c
+xterm/files/phoenix_termcap.h
+xterm/files/xterm-phoenix-fdset-shim.h
+xterm/patches/xterm-396-phoenix.patch
+xterm/port.def.sh

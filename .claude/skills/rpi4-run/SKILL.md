@@ -15,8 +15,14 @@ optional HDMI capture card. **Only one Pi cycle at a time** — the UART is
 exclusive; a second concurrent cycle gets an empty log. Builds are parallelizable;
 the boot/UART step is not.
 
-Host facts (this machine): `/dev/nvme0` is the system SSD. Toolchain + buildroot are
-under the repo (`.toolchain/`, `.buildroot/`).
+Host facts (this machine): `/dev/nvme0n1` is the system SSD — never touch it.
+⛔ **Never assume what `/dev/sda` is.** Older copies of this file said "`/dev/sda` is
+*always* the SD card (safe to `dd`, no identity check)"; since **2026-09-20 `/dev/sda`
+is a 29.5 GB SanDisk Ultra USB stick** (serial `A2004263F6063324`). The SD card lives
+permanently in the Pi and is written *by Phoenix itself* (`rpi4-flash-sd`), so there
+is normally **no card reader on this host at all**. Identify every removable device
+before writing to it: `lsblk -o NAME,SIZE,TRAN,MODEL,SERIAL`. Toolchain + buildroot
+are under the repo (`.toolchain/`, `.buildroot/`).
 
 ✅ **SD boot WORKS and is verified (2026-09-16/17).** A card written with a Phoenix
 2-part image boots the Pi: plo → kernel → fbcon → pcie → xhci → psh, `mmcblk0p2`
@@ -175,8 +181,10 @@ top of this file). Kept for when a card is available; `/dev/sda` was the reader'
 node historically, so re-confirm the device before trusting it:
 
 ```
-udisksctl unmount -b /dev/sda1 2>/dev/null || true
-sudo dd if=artifacts/rpi4b/rpi4b-sd-2part.img of=/dev/sda bs=4M conv=fsync status=progress
+lsblk -o NAME,SIZE,TRAN,MODEL,SERIAL        # IDENTIFY the card; do not assume /dev/sda
+DEV=/dev/disk/by-id/<the-card-you-just-identified>
+udisksctl unmount -b "${DEV}1" 2>/dev/null || true
+sudo dd if=artifacts/rpi4b/rpi4b-sd-2part.img of="$DEV" bs=4M conv=fsync status=progress
 sync
 ```
 

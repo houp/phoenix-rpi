@@ -1,0 +1,53 @@
+# Integration State: 2026-09-20-w39-usb-stick-full-lifecycle
+
+## Summary
+
+- Date: 2026-09-20
+- Note: USB stick fully usable: enumerate/mount/read/write/umount/remount 3x verified by sha256, writes persist across umount, throughput measured
+- Generator: scripts/snapshot-integration-state.sh
+
+## Repositories
+
+| Repository | Branch | Commit SHA | Remote |
+| --- | --- | --- | --- |
+| _build | main | 97f513d9a (dirty(1)) | https://github.com/houp/phoenix-rpi.git |
+| libphoenix | master | f831e24 (clean) | https://github.com/phoenix-rtos/libphoenix.git |
+| phoenix-rtos-build | master | 99c38ea (clean) | https://github.com/phoenix-rtos/phoenix-rtos-build.git |
+| phoenix-rtos-corelibs | master | 4814fed (clean) | https://github.com/phoenix-rtos/phoenix-rtos-corelibs.git |
+| phoenix-rtos-devices | master | 4a6281d (clean) | https://github.com/phoenix-rtos/phoenix-rtos-devices.git |
+| phoenix-rtos-doc | master | d4419df (clean) | https://github.com/phoenix-rtos/phoenix-rtos-doc.git |
+| phoenix-rtos-filesystems | master | d5db203 (clean) | https://github.com/phoenix-rtos/phoenix-rtos-filesystems.git |
+| phoenix-rtos-hostutils | master | 49a1fd9 (clean) | https://github.com/phoenix-rtos/phoenix-rtos-hostutils.git |
+| phoenix-rtos-kernel | master | 7348dd99 (clean) | https://github.com/phoenix-rtos/phoenix-rtos-kernel.git |
+| phoenix-rtos-lwip | master | 492b20b (clean) | https://github.com/phoenix-rtos/phoenix-rtos-lwip.git |
+| phoenix-rtos-ports | master | 057891a (clean) | https://github.com/phoenix-rtos/phoenix-rtos-ports.git |
+| phoenix-rtos-posixsrv | master | 211d49a (clean) | https://github.com/phoenix-rtos/phoenix-rtos-posixsrv.git |
+| phoenix-rtos-project | master | fe60daf (clean) | https://github.com/phoenix-rtos/phoenix-rtos-project.git |
+| phoenix-rtos-tests | master | 35a3873 (clean) | https://github.com/phoenix-rtos/phoenix-rtos-tests.git |
+| phoenix-rtos-usb | master | 0da48fe (clean) | https://github.com/phoenix-rtos/phoenix-rtos-usb.git |
+| phoenix-rtos-utils | master | ce472cb (clean) | https://github.com/phoenix-rtos/phoenix-rtos-utils.git |
+| plo | master | 3e22b52 (clean) | https://github.com/phoenix-rtos/plo.git |
+
+## Machine-Parseable State
+
+Consumed by `scripts/restore-integration-state.sh`. Fields: `<repo>\t<sha>\t<branch>`.
+
+```integration-state-v1
+_build	97f513d9ad6469ee313130a935e070e7ef08bd0d	main
+libphoenix	f831e24b2c914a6030b7529246cac2759372b2c3	master
+phoenix-rtos-build	99c38ea55bad9c124021153725024c65ac9e758d	master
+phoenix-rtos-corelibs	4814fedee83291da75b2c1d127e7ae68a3d99349	master
+phoenix-rtos-devices	4a6281de636c210d44042dacceb8ed03a37f56d1	master
+phoenix-rtos-doc	d4419dfae5428cb3b8081404c34b12c78c86770d	master
+phoenix-rtos-filesystems	d5db203efe72d91606fe8be096d445763728a7f4	master
+phoenix-rtos-hostutils	49a1fd996e5745a19cc7ec0b22179bd1e90906cf	master
+phoenix-rtos-kernel	7348dd999d40ed2458d4b0506f575a48f1086703	master
+phoenix-rtos-lwip	492b20badec9ea1132c7ce47cfabcd9d48a2ee1b	master
+phoenix-rtos-ports	057891a98152e047839c7af4ffadcf5d2ea0bf9a	master
+phoenix-rtos-posixsrv	211d49a7a3f54b736c3c03296492ce5b7cc45539	master
+phoenix-rtos-project	fe60dafe9e69cae78f62fa6afef1cbb3d7205315	master
+phoenix-rtos-tests	35a387369fbc23c1b95d3dcc996b48ac793852a9	master
+phoenix-rtos-usb	0da48fed7afe5a7029147274c6066fa176c285dc	master
+phoenix-rtos-utils	ce472cb9050260310c57bc466eb1e682561dcad9	master
+plo	3e22b52515ce705233ee97f48ee579bd05406ca6	master
+```

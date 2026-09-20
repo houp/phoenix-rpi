@@ -52,12 +52,30 @@ for _h in "$(dirname "$src")"/*.h; do
     cp "$_h" "$(dirname "${bdir}/${rel}")/"
 done
 
-# Ask make what it WOULD run for that object, and take the compiler line.
+# Ask make what it WOULD run for that object, and take the compiler line FOR THIS
+# FILE.
+#
+# â `make -n <obj>` prints the recipes for every prerequisite in that directory,
+# not just the one asked for: requesting `sdstorage_srv.o` emitted three gcc lines
+# (sdcard.c, sdio.c, sdstorage_srv.c, in that order). The original `grep -m1` took
+# the FIRST, so unless your file happened to sort first this script compiled a
+# DIFFERENT source and reported CLEAN for it. Caught 2026-09-20 by a negative
+# control: a file the real build rejects with `error: 'SDCARD_BLOCKLEN' undeclared`
+# passed this check. Every "CLEAN" from before that date is only as good as the
+# file's position in its directory.
+#
+# So match on the source path, and require exactly one hit.
 cmd=$(cd "$bdir" && PATH="${tc}:$PATH" TARGET="$target" make -n "$obj" 2>/dev/null \
-        | grep -m1 -- '-phoenix-gcc ' || true)
+        | grep -- '-phoenix-gcc ' | grep -F -- "$(basename "$rel")" || true)
+n=$(printf '%s' "$cmd" | grep -c . || true)
 if [ -z "$cmd" ]; then
     echo "syntax-check: could not recover a compile command for ${repo}/${rel}." >&2
     echo "  (is it actually built for ${target}? some files are per-target)" >&2
+    exit 2
+fi
+if [ "$n" -ne 1 ]; then
+    echo "syntax-check: ${n} candidate compile commands mention $(basename "$rel");" >&2
+    echo "  refusing to guess -- a wrong pick reports CLEAN for another file." >&2
     exit 2
 fi
 

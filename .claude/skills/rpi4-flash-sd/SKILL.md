@@ -21,7 +21,9 @@ minutes. **`/usr/bin/dd` is coreutils and runs at ~12.3 MB/s**, a ~19x differenc
 transfer, and it also prints its own `bytes copied, N s, X MB/s` line, which is the only
 trustworthy timing available here (see the warning below).
 
-**Budget ~2-3 minutes for a 1.1 GB image** with coreutils dd.
+**Budget ~90 seconds for a 1.1 GB image** with coreutils dd on the ADMA2 driver (measured
+2026-09-20: 1 139 949 568 bytes in 88.6 s = 12.9 MB/s, card flashed by the ADMA2 write path and then
+booted from).
 
 ⚠ **Each binary can do only one direction.** coreutils `dd` **cannot read** `/dev/mmcblk0` —
 `dd: cannot fstat '/dev/mmcblk0': Function not implemented` — and it then produces a **0-byte file**,

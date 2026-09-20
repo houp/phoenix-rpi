@@ -14,14 +14,30 @@ coreutils `dd` on the export — that is the whole toolchain.
 
 First proven end-to-end 2026-09-19: `b95e983a` → `6012dd0d` with no human intervention.
 
-## Use `/usr/bin/dd`, NOT `/bin/dd`
+## Use `/usr/bin/dd` — but for its *rate line*, not for speed
 
-⛔ **`/bin/dd` is busybox and runs at ~0.65 MB/s** — it is what made the first flash take 28
-minutes. **`/usr/bin/dd` is coreutils and runs at ~12.3 MB/s**, a ~19x difference on the identical
-transfer, and it also prints its own `bytes copied, N s, X MB/s` line, which is the only
-trustworthy timing available here (see the warning below).
+↩ **RETRACTED 2026-09-20. This section used to say "`/bin/dd` is busybox and runs at ~0.65 MB/s
+against coreutils' ~12.3 — a ~19× difference". That is false, and it was never measured.**
+A direct A/B on the Pi, same source, same sink, same bytes, both binaries in one boot
+(`ddbench`, 64 MiB to `/dev/mmcblk0`):
 
-**Budget ~90 seconds for a 1.1 GB image** with coreutils dd on the ADMA2 driver (measured
+| bs | `/bin/dd` (busybox) | `/usr/bin/dd` (coreutils) |
+|---|---|---|
+| 1M | 5 s | 5 s (self-reported 12.9 MB/s) |
+| 128k | 6 s | 6 s (self-reported 11.8 MB/s) |
+
+**The two tools are the same speed.** The "28-minute flash" was **~25 minutes of
+`--idle-secs 1500` with the Pi sitting idle after `dd` had already finished** — the same
+harness artefact this file warns about two paragraphs down, which I then mis-attributed to
+busybox. The real flash took ~90 s in both eras once the ADMA2 write path landed.
+
+✅ **What survives, and is still the reason to prefer `/usr/bin/dd`:** coreutils `dd` prints its
+own `bytes copied, N s, X MB/s` line, and this busybox is built with
+`CONFIG_FEATURE_DD_THIRD_STATUS_LINE` **off**, so it prints only record counts. On a bench where
+wall-clock has now produced two wrong conclusions, a tool that times itself is worth using —
+but choose it for the measurement, not for the transfer.
+
+**Budget ~90 seconds for a 1.1 GB image** on the ADMA2 driver (measured
 2026-09-20: 1 139 949 568 bytes in 88.6 s = 12.9 MB/s, card flashed by the ADMA2 write path and then
 booted from).
 
@@ -29,8 +45,8 @@ booted from).
 `dd: cannot fstat '/dev/mmcblk0': Function not implemented` — and it then produces a **0-byte file**,
 which looks exactly like a broken driver rather than a broken tool. So:
 
-* write **to** the device → `/usr/bin/dd` (coreutils, fast, reports its rate)
-* read **from** the device → `/bin/dd` (busybox)
+* write **to** the device → `/usr/bin/dd` (coreutils — reports its rate)
+* read **from** the device → `/bin/dd` (busybox — the only one that can)
 
 ⚠ **Do not time transfers with the harness.** `test-cycle-psh-interact.sh --idle-secs N` waits N
 seconds of UART idle **after each command**, so bracketing a command with `date` measures the
@@ -69,12 +85,14 @@ Never flash an unverified image — a bad one costs 30 min plus a recovery flash
 
 ```
 ./scripts/test-cycle-psh-interact.sh --label sdflash \
-    --idle-secs 1500 --max-cmd-secs 1600 -- \
+    --idle-secs 200 --max-cmd-secs 260 -- \
     "/usr/bin/dd if=/sdimage.img of=/dev/mmcblk0 bs=1M"
 ```
 
-With coreutils dd this finishes in a couple of minutes, so it fits in one foreground call; keep
-`nohup … &` for the busybox path or a very large image.
+⚠ **Size `--idle-secs` to the transfer, not generously.** The cycle sits out the *whole* idle
+window after `dd` returns, so `--idle-secs 1500` turns a 90-second flash into a 28-minute cycle —
+which is exactly how this file came to blame busybox for a 19× slowdown that does not exist. ~200 s
+covers a 1.1 GB image with margin.
 
 Success looks like `1087+1 records in / 1087+1 records out` (records = image bytes / 1 MiB).
 ⚠ **Check the record count against the image size.** A short write is the one failure that

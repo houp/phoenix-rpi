@@ -82,9 +82,17 @@ harness's cadence. The tell: three completely unrelated operations — a card wr
 to `/dev/null`, and a card read — all "took" **exactly ~312 s**. An NFS read to `/dev/null` cannot
 cost the same as an SD write.
 
-⊕ And a second, larger factor was hiding underneath: **`/bin/dd` is busybox and runs at ~0.65 MB/s;
-`/usr/bin/dd` is coreutils and runs at ~12.3 MB/s** on the identical transfer. Every timing above had
-used busybox.
+⊕ ↩ **RETRACTED 2026-09-20.** This paragraph claimed "a second, larger factor was hiding
+underneath: `/bin/dd` is busybox and runs at ~0.65 MB/s; `/usr/bin/dd` is coreutils and runs at
+~12.3 MB/s on the identical transfer." **There is no such factor.** A direct A/B in a single boot
+(`ddbench`, 64 MiB, same source, same sink, both binaries) measured **5 s vs 5 s at `bs=1M` and 6 s
+vs 6 s at `bs=128k`** — the two `dd`s are the same speed, and both flashes had used `bs=1M` anyway.
+The "0.65 MB/s" was the 28-minute *cycle* wall-clock of a flash run with `--idle-secs 1500`, i.e.
+~25 minutes of the Pi sitting idle after `dd` had already returned. ⚠ Note what went wrong here:
+this is the **same harness artefact the paragraph above it identifies**, and I applied the lesson to
+one variable and then immediately re-committed the error on the next one. The surviving, real
+difference is only that coreutils `dd` self-reports a rate and this busybox build does not
+(`CONFIG_FEATURE_DD_THIRD_STATUS_LINE` is off).
 
 **Measured properly** — coreutils `dd` prints its own rate, which is immune to the harness:
 

@@ -52,6 +52,21 @@ for _h in "$(dirname "$src")"/*.h; do
     cp "$_h" "$(dirname "${bdir}/${rel}")/"
 done
 
+# ...and any header the file includes by a RELATIVE path outside its own
+# directory. Staging only the sibling directory was not enough: umass.c includes
+# "../pc-ata/mbr.h", so a constant added there read as undeclared here while the
+# real build compiled it fine -- a false FAILURE, the mirror image of the false
+# CLEAN this script was fixed for on 2026-09-20.
+while IFS= read -r _inc; do
+    _from="$(dirname "$src")/${_inc}"
+    _to="$(dirname "${bdir}/${rel}")/${_inc}"
+    [ -f "$_from" ] || continue
+    mkdir -p "$(dirname "$_to")"
+    cp "$_from" "$_to"
+done <<EOF
+$(grep -oE '#include[[:space:]]*"[^"]*/[^"]*"' "$src" 2>/dev/null | sed -e 's/.*"\(.*\)"/\1/')
+EOF
+
 # Ask make what it WOULD run for that object, and take the compiler line FOR THIS
 # FILE.
 #

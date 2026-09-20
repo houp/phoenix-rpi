@@ -93,11 +93,23 @@ machines without a controllable plug still run builds and manual tests. Point
 it at whatever smart plug or switchable hub you have (the author uses a Meross
 plug; any on/off script works).
 
-## Self-flash via netboot Linux
+## Self-flash: Phoenix writes its own SD card
 
-For unattended **SD-boot** testing without physically swapping cards, the author
-netboots a small Linux on the Pi, `dd`s a freshly-built Phoenix image onto the
-Pi's own `/dev/mmcblk0` from within that Linux, then reboots into the flashed
-Phoenix SD image. This avoids the flash → shuttle-card → boot loop entirely.
-It is a lab convenience layered on the netboot rig above, not part of the
-build-&-flash path.
+For unattended **SD-boot** testing without physically swapping cards, the card
+stays in the Pi permanently. **Phoenix flashes itself** — no second OS is
+involved: netboot Phoenix (a *written* card does not block netboot; dnsmasq
+picks the lane), `dd` the freshly-built image from the NFS root onto the Pi's
+own `/dev/mmcblk0` through the `bcm2711-emmc` driver, stop dnsmasq, and
+power-cycle into the image you just wrote. A 1.1 GB image takes **~90 s** at
+~12.9 MB/s over the driver's ADMA2 write path.
+
+Two details make the difference between 90 seconds and half an hour: use
+coreutils `/usr/bin/dd` rather than busybox `/bin/dd` (~19× faster on the
+identical transfer), and keep dnsmasq up for the whole flash so an interrupted
+write is always recoverable by netbooting and re-flashing. Note that coreutils
+`dd` cannot *read* a block device here (`cannot fstat`), so reads back off the
+card use the busybox one.
+
+⛔ A **blank** card stops the Pi booting at all — 0 DHCP, 0 UART — so never
+leave the card unwritten. This is a lab convenience layered on the netboot rig
+above, not part of the build-&-flash path (see `docs/BUILD.md` for that).

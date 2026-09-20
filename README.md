@@ -260,7 +260,7 @@ work; `⛔` blocked on external dependencies; `⬜` not started.
 | GENET gigabit Ethernet + lwIP | ✅ | IRQ-driven, ~0.9 ms ping RTT, autonomous DHCP |
 | USB host (PCIe → VL805 xHCI) | ✅ | Enumerates reliably from cold boot |
 | USB HID (keyboard + mouse) | ✅ | `/dev/kbd0`, `/dev/mouse0`; live keys reach psh and apps |
-| SD card (EMMC2 SDHCI) | ✅ | `/dev/mmcblk0`, MBR partitions; UHS-I DDR50 + SDMA multi-block reads (~38 MB/s), PIO multi-block writes (~17 MB/s), 0 corruption |
+| SD card (EMMC2 SDHCI) | ✅ | `/dev/mmcblk0`, MBR partitions; UHS-I DDR50, multi-block, **ADMA2 scatter-gather for reads and writes** (the engine Linux uses on this SoC), 0 corruption |
 | ext2 persistent root | ✅ | Mounts as `/`, binaries exec from the card |
 | NFS root | ✅ | `/` served over NFS (`takeover` design); over gigabit ~30 MB/s read / ~20 MB/s write (bit-exact, 0 faults) |
 | SoC thermal + throttle | ✅ | `/dev/thermal`, `/dev/throttled` via VideoCore mailbox |
@@ -344,10 +344,11 @@ Boot the image and log in to the `(psh)%` prompt, with an **HDMI display** and a
 >   the PWM if it is parked, and otherwise serves `/dev/audio0` as a paced null
 >   sink — so the app starts and runs normally, silently. Nothing to do on stage.
 > - **On 2026-09-17 builds** the same stall is bounded to ~10 s and a relaunch works.
-> - **On anything older — including the `b95e983a` SD card** — a relaunch will *not*
->   help: the driver's boot self-test blocks its own message loop for up to **~350 s**,
->   so `/dev/audio0` stays unopenable and the next launch hangs identically.
->   **Reboot** (instant), or wait ~6 minutes.
+> - **On anything older** — a relaunch will *not* help: the driver's boot self-test
+>   blocks its own message loop for up to **~350 s**, so `/dev/audio0` stays
+>   unopenable and the next launch hangs identically. **Reboot** (instant), or wait
+>   ~6 minutes. ⓘ The bench's own SD card was still one of these until 2026-09-20;
+>   it now carries a current build, so the containment above applies to it too.
 >
 > The underlying stall is not fixed, only contained; it fires on roughly 1 boot in
 > 41-70 by two independent censuses (quote the wider figure when it matters). See

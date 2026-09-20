@@ -16,13 +16,29 @@ exclusive; a second concurrent cycle gets an empty log. Builds are parallelizabl
 the boot/UART step is not.
 
 Host facts (this machine): `/dev/nvme0n1` is the system SSD — never touch it.
-⛔ **Never assume what `/dev/sda` is.** Older copies of this file said "`/dev/sda` is
-*always* the SD card (safe to `dd`, no identity check)"; since **2026-09-20 `/dev/sda`
-is a 29.5 GB SanDisk Ultra USB stick** (serial `A2004263F6063324`). The SD card lives
-permanently in the Pi and is written *by Phoenix itself* (`rpi4-flash-sd`), so there
-is normally **no card reader on this host at all**. Identify every removable device
-before writing to it: `lsblk -o NAME,SIZE,TRAN,MODEL,SERIAL`. Toolchain + buildroot
-are under the repo (`.toolchain/`, `.buildroot/`).
+
+⛔ **Address removable storage by `/dev/disk/by-id/`, never by `sdX`.**
+This file used to say "`/dev/sda` is *always* the SD card (safe to `dd`, no identity
+check)". That was **true when it was written**, and for a good reason: the card reader
+was the only removable device ever attached, so `sda` could not be anything else. It is
+not a rule about the host, it is a consequence of that one-device assumption — and the
+assumption ended on **2026-09-20**, when a USB stick joined the bench (SanDisk Ultra,
+serial `A2004263F6063324`, currently `/dev/sda` *because the reader is unplugged*).
+
+With **both** a reader and a stick attached, `sda`/`sdb` are handed out in **enumeration
+order**, which is not stable across boots or replugs. So the node name carries no
+identity at all, and a `dd` aimed at a remembered name can land on the wrong device.
+Use the stable path instead — it contains the model and serial:
+
+```
+ls -l /dev/disk/by-id/usb-*          # stable; pick the one you mean
+lsblk -o NAME,SIZE,TRAN,MODEL,SERIAL # confirm size + serial before writing
+```
+
+ⓘ Normally this does not come up: the SD card lives permanently in the Pi and is written
+*by Phoenix itself* (`rpi4-flash-sd`), so there is usually no reader on the host at all.
+
+Toolchain + buildroot are under the repo (`.toolchain/`, `.buildroot/`).
 
 ✅ **SD boot WORKS and is verified (2026-09-16/17).** A card written with a Phoenix
 2-part image boots the Pi: plo → kernel → fbcon → pcie → xhci → psh, `mmcblk0p2`

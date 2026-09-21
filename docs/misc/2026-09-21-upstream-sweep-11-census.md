@@ -77,3 +77,33 @@ fixes.
 4. Gate: boot + **psh interactive** first (console is the risk), then the
    six-app showcase gate. `termios: fix tcsetattr` also lands on that path.
 5. Manifest + resolutions appended here.
+
+## Addendum: what porting `pl011-tty` to the new libtty API actually involves
+
+Read after studying upstream's own adaptation of `zynq-uart`, which is the closest
+analogue and makes a clean template for the mechanical half:
+
+* `libtty_init()` gains a `handle_t *lock`. Upstream's order is: `condCreate` →
+  `mutexCreate` → `libtty_init(..., &uart->lock)`, so **libtty adopts the driver's
+  own mutex** and `tty->lock` and `uart->lock` become the same object.
+* Every HW-side call gains a `_` prefix and now requires that lock held:
+  `libtty_txready` → `_libtty_txready`, `libtty_popchar` → `_libtty_popchar`,
+  `libtty_putchar` → `_libtty_putchar`, `libtty_wake_writer` →
+  `_libtty_wake_writer`. `libtty_putchar_lock`/`_unlock` are replaced by
+  `libtty_lock()`/`libtty_unlock()`.
+* ioctl: `ioctl_unpack(msg, &req, NULL)` → `ioctl_unpackEx(msg, &req, NULL, &outData)`,
+  `libtty_ioctl(..., inData, outData)` (not `&outData`), and
+  `ioctl_setResponse(msg, req, err, NULL)`. `cmd` widens to `unsigned long`.
+
+⚠ **Where our driver differs, and why this is NOT mechanical for us.** `zynq-uart` is
+interrupt-driven and does nothing but MMIO under the lock. `pl011-tty` is a **polling
+thread** that, in the same drain loop, calls `pl011_fbcon_write()` — it renders to the
+framebuffer console. Holding `tty->lock` across that render would block every reader and
+writer for the duration of a glyph blit, which on this path is the console itself.
+
+So the port must take the lock only around the libtty accesses: drain into the local
+`batch[64]` under the lock, release it, and only then do the fbcon render. Upstream's
+template does not show this because none of its drivers render anything.
+
+That is the whole reason this is a console-driver port with its own boot gate rather
+than a rename, and why it was not folded into a routine sweep.

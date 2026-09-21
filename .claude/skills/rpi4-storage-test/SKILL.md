@@ -1,0 +1,138 @@
+---
+name: rpi4-storage-test
+description: >-
+  Test a block device or filesystem on the Pi 4 (USB stick /dev/umass*, SD
+  /dev/mmcblk0, ext2 via libext2) for CORRECTNESS or SPEED. Use for any change to
+  libext2, libcache, umass, or the SD driver, and for any "is the data intact" /
+  "how fast is it" question about storage. Gives the e2fsck oracle loop, the
+  known-clean reference image, and the measurement traps that have produced false
+  readings here.
+---
+
+# Testing storage and filesystems on the Pi 4
+
+The lesson this skill exists for: **on this project, storage bugs are silent.**
+Ten ext2 defects were found on 2026-09-21 and not one of them announced itself —
+files read back wrong, blocks leaked, inodes were freed under live files, and
+every single test still "passed" by return code. Grade by an external oracle, not
+by rc and not by your own filesystem's opinion of itself.
+
+## The oracle: `e2fsck` on a read-back, host-side
+
+This is the single most valuable tool here. Phoenix writes, Linux judges.
+
+```
+# on the Pi, after the workload and AFTER unmounting:
+/usr/bin/dd if=/dev/umass1 bs=1M count=1024 of=/final.img     # NFS export = host disk
+# on the host:
+cp /srv/phoenix-rpi4-nfs-gcc16/final.img /tmp/f.img && e2fsck -fn /tmp/f.img
+```
+
+Read the output precisely — the two directions mean different things:
+
+| e2fsck says | meaning |
+|---|---|
+| `Block bitmap differences: -N` | N marked USED on disk, owned by nobody ⇒ **leaked space**, not data loss |
+| `Block bitmap differences: +N` | N marked FREE but a file claims it ⇒ **live data at risk**. Serious. |
+| `Multiply-claimed block(s) in inode X: …` | two files share blocks ⇒ one has been overwritten |
+| `Inode bitmap differences: +(a--b)` | live inodes marked free ⇒ next create hands them out |
+| `Deleted inode N has zero dtime` | inode freed without stamping `i_dtime` |
+| `Inode N, i_blocks is 0, should be M` | `i_blocks` not maintained ⇒ `stat`/`du` lie |
+| no output at all before the `PHXCLEAN:` summary line | **clean.** The only acceptable result. |
+
+⚠ A `WARNING: Filesystem still has errors` line means NOT clean, even when every
+`TAG-` line in your script looked fine.
+
+## The known-clean reference
+
+- `/clean4k.img` on the NFS export — a 1 GiB **4 KiB-block** ext2 containing
+  `/phoenix/data.bin` (8 MiB) and its `SHA256SUMS`. `e2fsck`-clean by construction.
+- `/ref-data.bin` — a bare copy of that same 8 MiB file, so the Pi can `cmp`
+  against it directly without mounting anything.
+- Restore from the Pi itself, no human: `/usr/bin/dd if=/clean4k.img of=/dev/umass1 bs=1M`
+  (~60 s at 18 MB/s).
+
+**Always start a correctness test from a restore.** A filesystem damaged by the
+previous run is not a baseline, and several hours were lost reasoning about
+damage that a prior test had caused.
+
+⚠ **Confirm the restore completed**: it must print `1073741824 bytes`. One run
+stopped at 255 MiB while still printing a normal `copied` line, and the
+conclusion drawn from it ("the medium is untouched") was wrong.
+
+## Grading integrity
+
+Use `cmp` against `/ref-data.bin`, and check it **after a remount** as well as
+before — the page/block cache will happily return correct data for a file whose
+on-disk mapping is broken:
+
+```
+echo "TAG-intact: $(/usr/bin/cmp /ref-data.bin /mnt/umass1/phoenix/data.bin 2>&1 | tail -1)  (blank = identical)"
+```
+
+`cmp` also names the **first differing byte**, which localises the fault:
+`differ: char 65537` = offset 65536 = logical block 16 of a 4 KiB fs. Feed that
+to `debugfs -R "stat /path" image` host-side to learn whether that offset is
+direct, indirect or double-indirect — that is how the double-indirect leak was
+localised.
+
+⚠ **`sha256sum` on the Pi can CRASH** (`Data Abort (EL0) far=0x30`, the known
+`libc-uninit-main` fwrite-on-NULL bug). A crashed checksum prints nothing and
+reads exactly like corruption. It fooled me twice. `cmp` has been reliable;
+prefer it, and if you do use `sha256sum`, grep the log for `Data Abort` before
+believing a mismatch.
+
+## Measuring speed
+
+- **Use coreutils `/usr/bin/dd`'s own reported rate.** Never harness wall-clock,
+  never `/bin/dd` (busybox, which cannot self-report).
+- Sizes matter on flash: the test stick does **39.9 MB/s for 256 MiB** but
+  **18.2 MB/s for 1 GiB** — that is its SLC cache, not variance. Compare like
+  with like.
+- `/usr/bin/dd if=/dev/umass1 skip=<large>` fails with
+  `cannot fstat '/dev/umass1': Function not implemented` and leaves a **0-byte
+  file**. Small skips work. Check dump sizes before trusting a dump.
+
+## Measuring write amplification — the two-boot split
+
+umass prints `write amplification: asked X B, device Y B` at unmount, and those
+counters are **cumulative from boot**. A script that restores a 1 GiB image and
+then writes 72 MiB through the filesystem reports `1.01x` — which says nothing,
+because 97% of the sample is raw full-line traffic. Reading that as "amplification
+is gone" nearly closed the work on a false green.
+
+Split it across two boots, and let the stick keep state between them:
+
+```
+boot A:  restore only                      (wrA.sh — no mount, no fs traffic)
+boot B:  mount, workload, umount           (the amplification line is now clean)
+```
+
+Also pick the right workload: **bulk sequential writes are not amplified** (a
+1 MiB write fills every 64 KiB cache line), so measure with **metadata** — e.g.
+200 small files. Measured 21.02x with whole-line flush, 1.00x with ranged.
+
+## Assert the work actually happened
+
+A timing over a loop that did nothing looks excellent. Print the count FIRST and
+treat a wrong count as void, not fast:
+
+```
+n=$(/usr/bin/ls "$dir" | /usr/bin/wc -l)
+echo "TAG-$label: count=$n secs=$secs   (count must be 200 or the timing is void)"
+```
+
+This bit me directly: `mkdir` issued as a separate psh command ran **before** the
+mount, the mount hid the directory, both loops wrote nothing, and the script
+reported `0 s for 200`. Create directories inside the same script, after the
+mount.
+
+## Running it
+
+See the `rpi4-run` skill for the cycle mechanics and the Pi lock. Sizing for
+storage work specifically: a restore is ~60 s and a 1 GiB read-back ~60 s, so
+`--idle-secs 460 --max-cmd-secs 700` with a Bash `timeout` of 600000 is the
+usual shape; expect to be backgrounded and wait for the task notification.
+
+Stage scripts on the NFS export (`/srv/phoenix-rpi4-nfs-gcc16/`, the **live**
+`-gcc16` one) and invoke as `/bin/bash /yourscript.sh`.

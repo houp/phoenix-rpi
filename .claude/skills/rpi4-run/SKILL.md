@@ -311,3 +311,89 @@ To check the plug yourself: `/home/houp/meross-plug/plug.py status`.
 - The cycle powers the Pi OFF on exit (EXIT trap). A re-run with the card in needs
   no re-flash — just run recipe A again (power-cycle only).
 - If you change these scripts to make a scenario easier, update this skill too.
+
+---
+
+# ⛔ THE PI LOCK — read this before launching any cycle
+
+"One cycle at a time" above is the single most expensive rule in this project to
+get wrong, and the failure is not graceful: a second concurrent cycle makes
+`psh-interact.py` die with
+
+```
+serial.serialutil.SerialException: device reports readiness to read but returned
+no data (device disconnected or multiple access on port?)
+```
+
+and it kills **both** runs — the new one gets an empty log AND the one that was
+already measuring is destroyed. Three collisions in one night, ~20 min each.
+
+## The rule: do NOT write a waiter. Let the harness serialize you.
+
+```
+# CORRECT
+Bash(command="./scripts/test-cycle-psh-interact.sh --label foo … ", run_in_background=true)
+# then STOP. Wait for the task-notification. That notification IS the lock.
+```
+
+A cycle takes 4–10 min and will usually be backgrounded by the tool timeout
+anyway. When the notification arrives, the UART is free.
+
+**Every clever alternative is subtly broken.** These have all been tried here:
+
+| attempt | why it fails |
+|---|---|
+| `until ! pgrep -f "psh-interact"; do sleep 5; done` | the waiter's own argv contains the pattern ⇒ waits forever |
+| same, with the bracket trick `"[p]sh-interact"` | **still self-matches** when the launch command is in the same argv, because `test-cycle-psh-interact.sh` contains `psh-interact` |
+| `until grep -q "TAG-DONE\|exited with" <task>.output` | if you later `TaskStop` that task the marker is never written ⇒ no reachable exit condition |
+| a check-and-launch one-liner | the launch half poisons the check half (same argv) |
+
+Two of these orphaned a `sleep` loop for ~4 h each, on top of 11 from earlier
+sessions. See memory `feedback_waiter_loop_selfmatch`.
+
+## If you genuinely must check the lock
+
+Put it in its **own** Bash call, separate from the launch, and test the **device**
+— a device cannot self-match:
+
+```
+fuser -v /dev/ttyUSB0
+pgrep -af "picocom|psh-interact.py" | grep -v "bash -c"     # empty = free
+```
+
+## Recovering from a collision
+
+1. `TaskStop` the stale task (find it with `TaskList`, or `pgrep -af test-cycle`).
+2. Confirm the device is free by the method above.
+3. Re-run. **Discard both logs** — the interrupted one is truncated at an arbitrary
+   point, and a truncated log reads exactly like a hang or a crash.
+
+---
+
+# Reading results honestly
+
+Hard-won on 2026-09-21, when ten storage bugs were found and several early
+conclusions had to be retracted.
+
+- **Never grade by rc.** `grep -c` exits 1 when the count is 0 — which is often
+  the result you wanted. Grade by individually tagged `TAG-` lines.
+- **Assert the work happened before trusting a timing or a checksum.** A loop over
+  a missing directory reports `0 s`; a content check on a path that does not exist
+  greps clean. Print the count/size first and treat a wrong one as *void*, not as
+  a pass.
+- **A partial log is not a result.** Do not read a still-running cycle's log and
+  act on it — wait for the notification. Doing so is what caused two of the three
+  collisions.
+- **"Slow" or "truncated" is usually a crash.** Grep the whole log for
+  `Exception|Data Abort|Fatal`, and check the last HDMI frames in `artifacts/hdmi/`.
+- Some Pi-side tools crash in ways that mimic data errors: `sha256sum` dies with
+  `Data Abort (EL0) far=0x30` (the `libc-uninit-main` NULL-`FILE*` bug) and prints
+  nothing, which reads exactly like corruption. Prefer `cmp`.
+- **Rates come from coreutils `/usr/bin/dd`'s own report**, never from harness
+  wall-clock, and never from `/bin/dd` (busybox — it cannot self-report).
+- Counters that a driver prints at unmount (e.g. umass write amplification) are
+  **cumulative from boot**. Measure in a boot that does only the traffic you care
+  about, or the ratio is diluted to meaninglessness.
+
+For storage and filesystem work specifically, use the **`rpi4-storage-test`**
+skill; for taking a code change through build and gating, **`rpi4-core-change`**.

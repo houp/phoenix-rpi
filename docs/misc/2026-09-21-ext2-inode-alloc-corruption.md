@@ -58,6 +58,59 @@ remount intact (sha256 `c95413d29beacf15`).
   filesystem with `umass0` never mounted. The two-partition framing was an
   artefact of how the first runs happened to be ordered.
 
+## Bug #2, found afterwards: every block on a >1 KiB ext2 was off by one
+
+Fixing #1 let creates succeed, which exposed a second, independent defect: a
+large write silently overwrote an existing file.
+
+A group's block bitmap is indexed from the filesystem's **first data block**,
+which ext2 defines as **1 for 1 KiB blocks and 0 for every larger block size**.
+libext2's bitmap helpers take a 1-based bit index, and the block number was
+
+```c
+bno = group * groupBlocks + offset;      /* correct only if s_first_data_block == 1 */
+```
+
+so the allocator reserved bit N and handed out block **N+1**. Inside a free run
+that is invisible -- each allocation reserves the previous block. At the **end**
+of a free run it hands out the first block of the next, in-use run.
+
+Group 0's free runs on the test image (`585-623, 672-703, 896-1023, 1280-1535,
+3072-...`) are each followed by an extent of `data.bin`, so one large write
+clobbered exactly **624, 704, 1024, 1536** -- the first block of every extent and
+nothing else. That is also why a 4 MiB and a 64 MiB write produced the *same*
+bad checksum. `e2fsck -fn` on a full read-back shows both halves at once:
+
+```
+Multiply-claimed block(s) in inode 12:    624 704 1024 1536   <- the new file
+Multiply-claimed block(s) in inode 49154: 624 704 1024 1536   <- data.bin
+Block bitmap differences: -585 -672 -896 -1280 -3072 +19018
+```
+
+The negative entries are the first block of each **free** run: reserved, never
+handed to anyone.
+
+**Scope: every ext2 with a block size above 1 KiB** -- mke2fs's default for
+anything but a small volume. It was never seen on this project because the SD
+rootfs is built `mke2fs -b 1024` (`scripts/build-rpi4b-rootfs-ext2.sh`), where
+the arithmetic is accidentally correct. Fix: one conversion pair in `block.c`
+used at all six mapping sites; for `fstBlock == 1` it reduces symbol-for-symbol
+to the old expressions, so 1 KiB filesystems are bit-for-bit unaffected.
+
+After the fix, `e2fsck` on a read-back reports **no multiply-claimed blocks and
+no block bitmap differences**, and an 8 MiB non-zero payload written alongside
+reads back byte-identical.
+
+### Method note: two ways these runs lied
+
+* `dd if=/dev/umass1 skip=<large>` fails with `cannot fstat` and leaves a
+  **0-byte** file. Check dump sizes before drawing conclusions from them.
+* A 1 GiB restore stopped at 255 MiB while still printing a normal `copied`
+  line. An earlier conclusion ("the medium is untouched") came from that run and
+  was wrong. Confirm the byte count.
+
+---
+
 ---
 
 ## Original report (kept for the record; the allocator was exonerated)

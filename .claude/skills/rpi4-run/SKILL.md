@@ -339,6 +339,17 @@ Bash(command="./scripts/test-cycle-psh-interact.sh --label foo … ", run_in_bac
 A cycle takes 4–10 min and will usually be backgrounded by the tool timeout
 anyway. When the notification arrives, the UART is free.
 
+⛔ **A COMPLETE-LOOKING LOG IS NOT COMPLETION.** This is the subtlest version and
+it has caused a collision on its own: the UART log can contain every `TAG-` line
+including `TAG-DONE` while the cycle is still in its idle window and its EXIT
+trap has not yet powered the Pi off. Launching then means the OLD cycle's trap
+cuts power to the NEW cycle mid-boot — you get a ~700-byte stub ending at the
+plo banner, and the new run's `psh-interact.py` then waits out its full
+`--wait-secs` for a prompt that can never come.
+
+Read the log to learn the RESULT; wait for the NOTIFICATION to learn the port is
+free. They are different events and the gap between them is minutes.
+
 **Every clever alternative is subtly broken.** These have all been tried here:
 
 | attempt | why it fails |

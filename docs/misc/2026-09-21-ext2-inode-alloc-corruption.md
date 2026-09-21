@@ -1,7 +1,66 @@
-# libext2 hands out an in-use inode on first allocation (confirmed, data-losing)
+# libext2 freed live inodes, corrupting root and lost+found (RESOLVED)
 
-**Status: CONFIRMED on hardware, root cause NOT yet found. Do not write to a
-freshly-created large ext2 filesystem until it is.**
+**Status: ROOT-CAUSED AND FIXED, 2026-09-21.** Fix:
+`phoenix-rtos-filesystems` `ccd11e4`. HW-verified. The title below is the
+original framing and is kept for the record; see "Resolution" first -- the
+allocator was NOT at fault.
+
+## Resolution (read this first)
+
+`_ext2_obj_create()` is called two ways: with `inode == NULL` to allocate a new
+inode, and from `ext2_obj_get()` with an *existing* inode to pull it into the
+object cache. In the second case `ino = pino` names a **live file**, but the
+error path ran unconditionally:
+
+```c
+free(inode);
+ext2_inode_destroy(fs, ino, mode);   /* <- releases an inode we never allocated */
+```
+
+Any failure in that block -- the `MAX_OBJECTS` (512) LRU eviction returning
+`-ENOENT` when every object is held, `malloc`, or `mutexCreate` -- marked an
+in-use inode free. The inodes pulled into the object cache most often are the
+root directory (2) and `lost+found` (11), which is exactly what went missing:
+group 0's inode bitmap read `0x000003fd` where a healthy filesystem reads
+`0x000007ff` (bits 1 and 10 clear).
+
+One defect explains all three symptoms:
+
+* **`lost+found` becoming a 0-byte regular file** -- inode 11 was freed, then
+  reallocated to the next file created.
+* **Every regular-file create returning `EINVAL`** -- once inode 2 was free the
+  allocator handed the *root directory* to the next create and the object layer
+  refused it. `mkdir` kept working because Orlov places directories in a
+  different block group, whose bitmap was intact.
+* **The intermittency** -- it needs object-cache pressure, so it depended on how
+  much of the tree had been walked.
+
+The fix releases the inode number only when that call allocated it. `free(inode)`
+stays unconditional, because the object takes ownership on success, so the buffer
+must be released on failure either way. `ext2_inode_destroy()` was additionally
+hardened: it rejected only inode 1, and now refuses the whole ext2-reserved range
+1..10. `ext2_inode_sync()` is deliberately unchanged -- syncing root is
+legitimate.
+
+Verified on a freshly restored 1 GiB 4 KiB-block ext2 on the USB stick. Before:
+every create `EINVAL`, allocator printing `ino=2 bmp[0]=000003fd`. After:
+`touch`, shell redirect, `dd` and `mkdir` all succeed, allocator prints
+`ino=12 bmp[0]=000007ff`, 800/800 creates under object-cache pressure with zero
+failures, and root, `lost+found` and an 8 MiB reference file all survive a
+remount intact (sha256 `c95413d29beacf15`).
+
+### Two readings retracted along the way
+
+* **"The EINVAL reproduces deterministically"** -- wrong. One reproduction in two
+  valid runs; a third was clean. Pressure-dependent, consistent with the LRU
+  trigger.
+* **"Heavy `umass0` traffic is required"** -- wrong. It reproduced on a pristine
+  filesystem with `umass0` never mounted. The two-partition framing was an
+  artefact of how the first runs happened to be ordered.
+
+---
+
+## Original report (kept for the record; the allocator was exonerated)
 
 ## The symptom, unambiguously
 

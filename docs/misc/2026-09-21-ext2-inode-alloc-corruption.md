@@ -57,3 +57,64 @@ If those first bytes are not `0xff 0x07` (inodes 1..11 used) on group 0, the
 they are correct and `findzerobit` still returns 11, the **bit search** is.
 
 That is one build and one boot, and it separates the two remaining candidates.
+
+
+---
+
+# Update: the ALLOCATOR IS EXONERATED. Suspect is the FAILED-create path.
+
+## What the instrumentation showed
+
+`ext2_inode_create` was made to print what it actually sees:
+
+```
+umass0 (1 KiB): group=1 ino=1  bmpBlk=8459 bmp[0]=00000000  -> inode 4097, lost+found intact
+umass1 (4 KiB): group=0 ino=13 bmpBlk=1026 bmp[0]=00000fff  -> inode 13, correct
+```
+
+`bmp[0]=0x00000fff` marks inodes 1..12 used, and the allocator correctly returned
+13. **The bit search, the bitmap block number and the group choice are all
+right**, and this run corrupted nothing — `lost+found` was *already* a regular
+file when it started.
+
+So "libext2 hands out an in-use inode" was the wrong framing. Retracted.
+
+## The timeline points somewhere much more specific
+
+| time | event | `lost+found` |
+|---|---|---|
+| 00:35 `u1ss` | full read, `sha256sum -c` 5/5 | `drwx------ … 16384` **healthy** |
+| 01:34 `wrprobe` | three `open(O_CREAT)` **failed with `EINVAL`** | — |
+| 01:50 `wramp` | `touch` succeeded | **regular empty file** |
+
+The only thing that touched `umass1` between a healthy reading and a corrupt one
+is **three failed file creations**. So the suspect is the **error/rollback path
+of a failed create**, not normal allocation.
+
+Note `ext2_inode_create`'s own rollback: on a `gdt_syncone` failure it re-toggles
+the bitmap bit and adjusts counters, but the inode it already wrote is not
+cleaned up, and the outer create path (`ext2_create` / `ext2_link`) has its own
+unwind. That interaction is where to look.
+
+## Why `open(O_CREAT)` returned EINVAL at all is the other half
+
+`touch` on the same partition succeeded 16 minutes later, so EINVAL was not a
+property of the filesystem. In `wrprobe` the failing creates came **after**
+heavy write traffic on `umass0` in the same boot; in `wramp` they succeeded
+after `umass0` was unmounted first. State left behind by the other partition is
+the obvious thing to test.
+
+## Next step: test against a KNOWN-CLEAN filesystem
+
+`umass1`'s filesystem is now damaged, so it cannot serve as a baseline. A clean
+1 GiB ext2 image with **4 KiB blocks** (the geometry that matters) is staged on
+the NFS export as `/clean4k.img`, containing `/phoenix/data.bin` (8 MiB) and its
+`SHA256SUMS`. Write it over the partition from the Pi itself:
+
+```
+/usr/bin/dd if=/clean4k.img of=/dev/umass1 bs=1M
+```
+
+then mount it, confirm `lost+found` is a directory and the checksum passes, and
+only then try creating files — first with `umass0` untouched, then after heavy
+`umass0` traffic, to reproduce the EINVAL deliberately.

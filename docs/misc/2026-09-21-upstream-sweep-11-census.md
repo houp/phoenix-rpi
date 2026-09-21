@@ -107,3 +107,34 @@ template does not show this because none of its drivers render anything.
 
 That is the whole reason this is a console-driver port with its own boot gate rather
 than a rename, and why it was not folded into a routine sweep.
+
+## The gate to run after the build
+
+The port's failure modes are specific, so the gate targets them rather than
+just "does it boot":
+
+```
+./scripts/test-cycle-psh-interact.sh --label sweep11gate --idle-secs 200 --max-cmd-secs 420 -- \
+  "/usr/bin/uname -a" \
+  "bash" \
+  "echo GATE-bash-alive" \
+  "exit" \
+  "/usr/bin/ls /dev"
+```
+
+What each line proves:
+
+| line | proves |
+|---|---|
+| boot reaching `(psh)%` at all | `libtty_init()` took the new lock argument and the tty came up |
+| `uname -a` echoing back | console RX **and** TX through the ported polling thread |
+| `bash` then `echo GATE-bash-alive` | **FIONREAD**, which I rewrote for the new caller-provided out-buffer. Its failure mode is precise: `-EINVAL` makes interactive bash mis-detect EOF and exit at its first prompt, so a missing `GATE-bash-alive` means the ioctl port is wrong |
+| `exit` returning to psh, then `ls /dev` | the tty survived a session teardown (`_libtty_close` path) |
+| HDMI snapshots in `artifacts/hdmi/` | `pl011_fbcon_write()` still renders now that it runs outside `tty->lock` |
+
+If the console is dead the cycle produces a stub log and the Pi must be
+recovered first: check out `master` in `sources/phoenix-rtos-devices`, rebuild
+`--scope core`, and confirm the boot before touching the branch again.
+
+Only after this passes: the six-app showcase gate, then fast-forward master in
+all four repos, snapshot a manifest, push.

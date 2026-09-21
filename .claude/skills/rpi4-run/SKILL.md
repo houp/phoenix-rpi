@@ -350,6 +350,18 @@ plo banner, and the new run's `psh-interact.py` then waits out its full
 Read the log to learn the RESULT; wait for the NOTIFICATION to learn the port is
 free. They are different events and the gap between them is minutes.
 
+⛔ **THE SAME RULE COVERS BUILDS.** "Never build while a cycle runs" is not a
+separate rule — it is this one. A `rebuild-*.sh` ends in the image stage and
+overwrites the TFTP `loader.disk`, so starting a build after reading a
+complete-looking log destroys the still-running cycle exactly as a second cycle
+would. Reading a result and immediately kicking off a build is the most natural
+thing to do and it has broken a run here. **Wait for the notification before a
+cycle OR a build.**
+
+ⓘ Watch for a long cycle: N commands at `--idle-secs S` can run for N×S seconds.
+A four-command run at `--idle-secs 300` holds the port for up to 20 minutes while
+its log has looked finished for most of them.
+
 **Every clever alternative is subtly broken.** These have all been tried here:
 
 | attempt | why it fails |

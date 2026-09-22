@@ -47,6 +47,40 @@ Spend the Pi cycle on *confirming*, not discovering. The host harness is not a
 substitute for the gate: it cannot see the driver, the cache policy the driver
 picks, DMA, or anything above the callback boundary.
 
+## ⚠ Reading a partition back off the Pi: two traps that cost cycles
+
+Both of these produced a short image that looked exactly like a corrupted or
+truncated device (2026-09-22).
+
+**1. `bs=1M` cannot reach the end of a partition that is not a whole number of
+MiB.** `/dev/mmcblk0p2` is 2102724 sectors = 1026.72 MiB, so a 1 MiB read at
+offset 1026 MiB overruns the end by 286 KiB and is refused. `dd ... bs=1M` with
+no `count` therefore stops after the last WHOLE megabyte, prints **no summary
+line**, and leaves an image ~756 KB short — and `e2fsck` then says "The physical
+size of the device is ... blocks. Either the superblock or the partition table
+is likely to be corrupt", which reads like a real defect and is not.
+
+* compute the exact byte count from `fdisk -l` (`sectors x 512`) and use a
+  `bs`/`count` that divides it, or
+* **check for `dd`'s `records out` line before trusting the image.** Its absence
+  means dd aborted, whatever the file size looks like.
+
+(Fixed in the driver as of `822e933`: a crossing read now returns a short read
+and `offs >= size` returns 0, so `dd` with no `count` works. The trap remains
+worth knowing for any older image.)
+
+**2. The SD root can NEVER be unmounted, so it is always slightly dirty.** `/`
+*is* the card, and the harness cuts power at the end of a cycle, so metadata
+still in libcache never reaches it. Measured: **2 leaked inodes and 2 leaked
+blocks** per power-cut cycle, plus deleted inodes with `dtime` set that `e2fsck`
+reports as "part of a corrupted orphan linked list".
+
+★ **`sync` fixes it, measured:** the same workload ending in `/usr/bin/sync`
+left the free counts **unchanged (delta 0/0)** where without it they dropped by
+2/2. **End every SD-lane cycle with `/usr/bin/sync`.** Every USB-stick `e2fsck`
+this week was clean because those scripts call `/bin/umount` first — the SD lane
+has no equivalent, and that difference is easy to miss.
+
 ## The oracle: `e2fsck` on a read-back, host-side
 
 This is what the host harness automates, and it is still how you grade the real

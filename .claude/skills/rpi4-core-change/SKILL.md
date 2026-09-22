@@ -82,6 +82,28 @@ every host, not the one you happened to test on.
 an image-only rebuild prints the new SHA over old objects — the version stamp and
 the binary are independent. Grade the binary.
 
+## 3b. If the fix is NOT Pi-specific, record it for upstream
+
+`docs/PHOENIX-RTOS-RPI4-CHANGES.md` is written for **Phoenix-RTOS maintainers**, and its
+"★ Start here: fixes to Phoenix that are not Pi-specific" shortlist is the part they will actually
+read. A defect in shared code — libphoenix, the kernel, corelibs, libext2, lwip, a subsystem any
+target uses — belongs there **as part of finishing the fix**, not as a later cleanup.
+
+Ask: *would this bite a target that is not a Pi 4?* If yes:
+
+1. add a numbered row to the shortlist table — `# | defect | where (repo + SHA) | why it matters to you`;
+2. add the root-cause narrative to the matching `### ★ General bug fixes` section, which is what
+   the shortlist's "described with its root cause in the section that follows" promises;
+3. say what makes it **general** — the mechanism, not the symptom. "Every storage driver reads
+   `msg->oid.id` and none reads `i.raw`" travels; "fsync was broken on the Pi" does not.
+
+Match the file's style: specific, evidence-first, with the measurement. It states its own numbers
+honestly (including what it excludes from the diff stats), so do not inflate.
+
+⚠ Also record fixes whose *mechanism* generalises even when the register does not, and negative
+results where they save someone a search. The owner asked for this explicitly (2026-09-22): the
+non-Pi-specific fixes are the ones upstream maintainers care about.
+
 ## 4. Gate it — and make the gate able to fail
 
 - For a behaviour change, **A/B one variable**: same blob, one constant flipped.

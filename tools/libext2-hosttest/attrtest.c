@@ -109,6 +109,24 @@ int main(int argc, char **argv)
         /* >= expect because indirect blocks count too; a small margin above. */
         ck("free blocks dropped by at least the data size", used >= expect);
         ck("...and not absurdly more (indirect blocks only)", used <= expect + 64);
+
+        /* f_fsid must be an IDENTIFIER, not our own heap address.
+         *
+         * It used to be `(unsigned long)fs`, which leaked a pointer into every
+         * statvfs() reply and changed on every mount of the same filesystem --
+         * so it identified the mount attempt, not the filesystem. The remount
+         * below is the check that actually distinguishes the two: a pointer
+         * would (almost certainly) come back different. */
+        ck("f_fsid is not the heap pointer", a.f_fsid != (unsigned long)fs);
+        ck("f_fsid is stable within a mount", a.f_fsid == b.f_fsid);
+
+        unsigned long first = a.f_fsid;
+        um(fs);
+        fs = mnt();
+        ck("remounted", fs != NULL);
+        ck("statfs after remount", ext2_statfs(fs, &a, sizeof(a)) >= 0);
+        ck("f_fsid survives a remount", a.f_fsid == first);
+        ck("...and is still not the (new) heap pointer", a.f_fsid != (unsigned long)fs);
     }
 
     um(fs); fsync(devFd); close(devFd);

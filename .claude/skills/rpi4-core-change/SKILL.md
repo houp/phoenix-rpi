@@ -142,3 +142,27 @@ must come out before the step closes, with a rebuild and a `strings` check provi
 it. A print in an allocator or a write path is per-operation noise on the console.
 
 Record the *finding* in `docs/misc/` and the weekly log, not in the code.
+
+**Two kinds of diagnostic, two different endings.** Sort each one by what happened
+to the hypothesis it was testing:
+
+* **Hypothesis disproved ⇒ delete it.** It now prints noise about something that
+  is not true. The `sdcard: DMAWR blocks=… dspin=…` probe tested "the DAT-idle
+  poll is not really waiting"; ADMA2 shipping both directions at 12.7-12.9 MB/s
+  *with that poll in place* refuted it, so the probe went (`devices 97959be`) and
+  the finding stayed in the log.
+* **Hypothesis confirmed, and it classifies a silent failure ⇒ keep the
+  information, drop the debris.** Move it to the **error path** and give it a
+  sentence a stranger can read. The MBR probe printed a hex dump on *every* boot
+  under a `DIAGNOSTIC <date>` comment; it now prints only when sector 0 read fine
+  but yielded no usable partition table — the one SD failure that otherwise logs
+  nothing at all.
+
+⚠ And check the diagnostic still *discriminates* before you keep it. That MBR probe
+reported `first8=0000000000000000` on a **healthy** card too — the bootstrap area of
+a non-bootable MBR is zeroed — so its own documented reading ("all-zero ⇒ the
+transfer never wrote the buffer") would have mis-classified a good boot. A probe
+that prints the same thing in the good and bad cases is not evidence.
+
+⚠ If the report dumps bytes, snapshot them **before** any in-place deserialize, or
+you are printing your own byte-swapping rather than what the device sent.

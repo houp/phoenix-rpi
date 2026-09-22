@@ -194,6 +194,36 @@ Also pick the right workload: **bulk sequential writes are not amplified** (a
 1 MiB write fills every 64 KiB cache line), so measure with **metadata** — e.g.
 200 small files. Measured 21.02x with whole-line flush, 1.00x with ranged.
 
+## Testing `fsync()`: the tool can fail BEFORE the syscall you are testing
+
+`fsync()` on a **raw block-device fd** is the only thing the kernel oid fix
+(`482b54c2`) changes — a regular file goes to `libext2_handler`, which dispatches
+`libext2_sync(fdata)` and never reads `msg->oid`. So SQLite is **not** a test of it.
+
+Use coreutils `sync FILE` (verified against `coreutils-9.5/src/sync.c`): with an
+operand and no flags it takes `MODE_FILE` → **`fsync(fd)`**, opening `O_RDONLY |
+O_NONBLOCK`, so it is non-destructive. `--data` would give `fdatasync`, and no
+operand at all gives plain `sync()` — a different test.
+
+⚠ **But it does `fcntl(F_GETFL)` / `fcntl(F_SETFL)` between the open and the
+`fsync`, and bails out if either fails.** A build where `fcntl` does not work on a
+block-device fd therefore never reaches `fsync` and still exits non-zero — which
+would read as "fsync failed" if you graded by rc. Grade by which of the three
+tagged lines appears:
+
+| output | meaning |
+|---|---|
+| `error opening …` | never got an fd — check the path |
+| `couldn't reset non-blocking mode …` | ⚠ **VOID** — it bailed before `fsync()`; this measured `fcntl` |
+| `error syncing …` | `fsync()` ran and failed |
+| *(silent)* | `fsync()` ran and succeeded |
+
+And always pair it with a **positive control** — `sync /nonexistent` must print
+`error opening`. An absence-of-error result with no control is not a measurement.
+
+Run it on the **netboot** lane: the card still enumerates (`2 partition(s)`), but
+`/` is NFS, so `/dev/mmcblk0p2` is an unmounted raw device you can safely sync.
+
 ## Assert the work actually happened
 
 A timing over a loop that did nothing looks excellent. Print the count FIRST and

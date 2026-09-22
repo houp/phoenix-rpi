@@ -13,6 +13,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include "ext2.h"
 #include "sb.h"
 #include "gdt.h"
@@ -81,6 +82,34 @@ int main(int argc, char **argv)
     }
     printf("  entries still found after that: %d of 40\n", found);
     ck("the directory survived setattr(atSize)", found == 40);
+
+    /* --- statfs must TRACK allocation, not just return plausible numbers --- */
+    {
+        struct statvfs a, b;
+        ck("statfs works", ext2_statfs(fs, &a, sizeof(a)) >= 0);
+        ck("statfs rejects a wrong size", ext2_statfs(fs, &b, sizeof(b) - 1) == -EINVAL);
+        ck("f_bsize is the block size", a.f_bsize == fs->blocksz);
+        ck("f_bfree <= f_blocks", a.f_bfree <= a.f_blocks);
+        ck("f_bavail <= f_bfree", a.f_bavail <= a.f_bfree);
+        ck("f_ffree <= f_files", a.f_ffree <= a.f_files);
+
+        /* Allocate a known amount and see the free count move by about that. */
+        id_t big;
+        size_t want = 256u * 1024u;
+        char *z = calloc(want, 1);
+        ck("create a file to consume space", ext2_create(fs, ROOT_INO, "sf", 2, NULL, S_IFREG | 0644, &big) >= 0);
+        ck("write 256 KiB", ext2_write(fs, big, 0, z, want) == (ssize_t)want);
+        free(z);
+        ck("statfs again", ext2_statfs(fs, &b, sizeof(b)) >= 0);
+
+        long long used = (long long)a.f_bfree - (long long)b.f_bfree;
+        long long expect = (long long)(want / fs->blocksz);
+        printf("  256 KiB written: f_bfree dropped by %lld blocks, data alone needs %lld\n",
+               used, expect);
+        /* >= expect because indirect blocks count too; a small margin above. */
+        ck("free blocks dropped by at least the data size", used >= expect);
+        ck("...and not absurdly more (indirect blocks only)", used <= expect + 64);
+    }
 
     um(fs); fsync(devFd); close(devFd);
     printf("%s\n", fails ? "ATTRTEST: checks failed" : "ATTRTEST: all checks passed");

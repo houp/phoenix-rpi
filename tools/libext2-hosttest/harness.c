@@ -123,7 +123,9 @@ int main(int argc, char **argv)
     char buf[64];
     memset(buf, 0, sizeof(buf));
     ck("read back 11 bytes", ext2_read(fs, f1, 0, buf, 11) == 11);
-    ck("content matches", memcmp(buf, "hello world", 11) == 0);
+    /* The overwrite above replaced the original text; compare against what was
+     * written last, not what was written first. */
+    ck("content matches last write", memcmp(buf, "HELLO WORLD", 11) == 0);
 
     /* ---- a hole must read as zeros ---- */
     id_t f2;

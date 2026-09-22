@@ -56,6 +56,24 @@ int main(int argc, char **argv)
         ext2_link(fs, ROOT_INO, "h2", 2, id);
         ext2_unlink(fs, ROOT_INO, "h2", 2);
     }
+    /* Enumerate the in-use object tree before teardown: which objects are
+     * there, and does walking it agree with fs->objs->count? */
+    {
+        rbnode_t *n = lib_rbMinimum(fs->objs->used.root);
+        int seen = 0;
+        printf("  tree before unmount (count field = %u):\n", (unsigned)fs->objs->count);
+        while (n != NULL && seen < 20) {
+            ext2_obj_t *o = lib_treeof(ext2_obj_t, node, n);
+            printf("    id=%-4llu refs=%-3u links=%-3u flags=0x%x%s\n",
+                   (unsigned long long)o->id, (unsigned)o->refs,
+                   (unsigned)o->inode->links, (unsigned)o->flags,
+                   (o == fs->root) ? "   <- fs->root" : "");
+            n = lib_rbNext(n);
+            seen++;
+        }
+        printf("    walked %d node(s)\n", seen);
+    }
+
     ext2_objs_destroy(fs); ext2_gdt_destroy(fs); ext2_sb_destroy(fs); free(fs);
     fsync(devFd); close(devFd);
     printf("case %d: completed\n", which);

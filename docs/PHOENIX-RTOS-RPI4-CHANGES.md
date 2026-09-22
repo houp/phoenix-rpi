@@ -316,6 +316,7 @@ most cases the failure was *silent or misattributed* — the fault surfaced far 
 | --- | --- | --- |
 | ★ `839b24b` vasprintf heap overflow | `stdio/asprintf.c` | `malloc(1024)` + unbounded `vsprintf` — any `asprintf`/`g_strdup_printf` over 1 KB smashed the next chunk's metadata and crashed a *later* `malloc`. Now sized by `vsnprintf(NULL, 0, ...)`. |
 | ★ `aae70f0` `free()` amplified an overflow | `stdlib/malloc_dl.c` | `free()` derived `malloc_chunkSetFooter`'s write address from the chunk header, so one caller overflow became a second, unbounded write at an arbitrary address. Added `malloc_chunkValid()` (page-aligned heap, chunk in range, size 8-aligned ≥ `CHUNK_MIN_SIZE`, no run past heap end); on failure it reports the *smashed* block via `debug()` and leaks it. The diagnostic deliberately avoids `printf` (re-entering malloc under its own lock). |
+| ★ `fa8521d` `setvbuf()` rejected `setlinebuf`, and cleared no flags | `stdio/file.c` | Two defects in one call. **(a)** `setvbuf(f, NULL, _IOLBF, 0)` returned **−1**, and that call *is* glibc's `setlinebuf(f)` — bash's `sh_setlinebuf` is one of many things that make it, so line buffering silently failed to take. POSIX allows a null buffer with a size, and the implementation now allocates `BUFSIZ`. **(b)** the flag reset used `&` where `|` belonged, so the mask was `~0` and it **cleared nothing** — a stream switched from line- to full-buffering kept `F_LINE`, and a user buffer never cleared `F_USRBUF`. Found only because the upstream sweep touched libphoenix and the libc suite was re-run; the console and showcase gates do not reach stdio. 694 tests, 0 failures afterwards. |
 | ★ `6465a4a` `malloc(0)` returned NULL | `stdlib/malloc_dl.c` | Legal per C, but glibc/BSD/dlmalloc all return a unique freeable pointer and portable code relies on it (jq's `jv_mem_calloc` mis-reported OOM on every empty collection). Size 0 is now treated as 1. |
 | ★ `5fa3847` double `fclose()` was a NULL write | `sys/list.c`, `stdio/file.c` | Fixed at both layers: `lib_listRemove()` treated a node with NULL links as still linked and did `t->prev->next = ...` through NULL; and `fclose()` now *unlinks first* (`file_unlink`/`file_release` split, membership by walking the open list) and returns `EOF`/`EBADF` for an already-closed FILE instead of re-flushing freed memory, closing a recycled fd and double-freeing. Found as a `far=0x10` EL0 Data Abort in quake3e. |
 | ★ `9029813` `fflush` re-transmitted an already-written prefix | `stdio/file.c` | `__fflush_one()` treated a short write from `full_write()` as "keep the entire buffer": it set `F_ERROR` and left `bufpos` spanning everything, *including the bytes already gone out*. But `full_write()` deliberately returns a short count on `EAGAIN` (`return (errno == EAGAIN) ? total : -1;`) — which is what a tty does whenever a program prints faster than the UART drains. The next flush restarted from `stream->buffer` with the same `bufpos`, so the written prefix went out twice and the unwritten remainder was never resumed; `F_ERROR` also stuck permanently on a stream that had only met backpressure. `write_buffer()` — the flush path taken when the buffer *fills*, ten lines below in the same file — already did `bufpos -= err` and memmoved the remainder down, so the two paths disagreed about what a short write means. Evidence: a vkQuake run printing at frame rate produced **234 113 identical copies of one 31-byte buffer tail** on the UART (7 MB in ~200 s), perfectly contiguous. Ships with a regression test. Stated in-commit: the observed symptom is a repeated *tail* while this defect explains a repeated *prefix*, so the fix is correct but not proven to be the whole story. |
@@ -857,6 +858,22 @@ Pi 4 drivers whose *mechanism* generalises even where the register does not.
   called `fsync()` and checked the result was told the data was durable. Meanwhile the driver had
   published `.sync = sdstorage_cachedFlush` since it was written, and nothing had ever sent it a
   message. Any filesystem in your tree that omits `mtSync` has the same silent-success shape.
+- ★ `storage` `822e933` — **a read that crosses the end of a device returned `-EINVAL` instead of a
+  short read.** `storage_read()` rejected any request with `(offs + len) > strg->size`. POSIX
+  `read()` at or past the end is EOF (0), and a read that *crosses* the end returns the bytes that
+  are there; returning `-EINVAL` for both means **reading a device to EOF fails**. Concretely:
+  `/dev/mmcblk0p2` is 2102724 sectors = 1026.72 MiB, so `dd bs=1M` cannot address the final
+  0.72 MiB — `dd if=/dev/mmcblk0p2 of=img` with no `count` aborts after the last whole megabyte,
+  prints **no summary line**, and leaves an image short of the filesystem. `e2fsck` then reports
+  "The physical size of the device is … blocks. Either the superblock or the partition table is
+  likely to be corrupt", which reads exactly like a corrupted medium and is not. It cost two Pi
+  cycles and came within a sentence of a bogus defect report. Fixed for the Pi driver only: `offs
+  >= size` returns 0 and `len` is clamped to what remains. ★ **The identical pattern is in
+  `zynq7000-sdcard/sdstorage_srv.c` and `zynq-flash.c`** and is deliberately untouched here — they
+  are not exercised on this hardware — but any tool that images a partition will hit it there too.
+  `storage_write()` has the same shape; left alone on purpose, because a *short write* on a storage
+  device silently truncates the caller's data and choosing between that and `ENOSPC` is a design
+  call rather than a bug fix.
 - ★ `nfs` `fc2f62b` — an upstream **libnfs 6.0.2** bug worth knowing about: `readlink_cb` records
   `-ENAMETOOLONG` for an over-long target, then `cb_data_is_finished()` overwrites `status` with the RPC
   success code, so `nfs_readlink` returns phantom success with the buffer *unmodified*. Any

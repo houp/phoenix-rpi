@@ -69,17 +69,34 @@ is likely to be corrupt", which reads like a real defect and is not.
 and `offs >= size` returns 0, so `dd` with no `count` works. The trap remains
 worth knowing for any older image.)
 
-**2. The SD root can NEVER be unmounted, so it is always slightly dirty.** `/`
-*is* the card, and the harness cuts power at the end of a cycle, so metadata
-still in libcache never reaches it. Measured: **2 leaked inodes and 2 leaked
-blocks** per power-cut cycle, plus deleted inodes with `dtime` set that `e2fsck`
-reports as "part of a corrupted orphan linked list".
+**2. The SD card looks dirty after a boot, and MOST OF IT IS NORMAL.** ↩ An
+earlier version of this skill said the card leaks 2 inodes + 2 blocks per
+power-cut cycle and that `sync` fixes it. **Both claims were wrong** and are
+retracted; here is what is actually true, each measured:
 
-★ **`sync` fixes it, measured:** the same workload ending in `/usr/bin/sync`
-left the free counts **unchanged (delta 0/0)** where without it they dropped by
-2/2. **End every SD-lane cycle with `/usr/bin/sync`.** Every USB-stick `e2fsck`
-this week was clean because those scripts call `/bin/umount` first — the SD lane
-has no equivalent, and that difference is easy to miss.
+* **`/var/tmp` is created at boot.** That is +1 inode and +1 block on every
+  freshly flashed card, and it is a real directory, not a leak. Four hours went
+  into "explaining" it. One command settles this class of question:
+  `debugfs -R "ncheck <inode>" img` — **ask what the inode's NAME is before
+  counting inodes.**
+* **`e2fsck`'s "Inode N was part of the orphaned inode list" does not mean N is
+  allocated.** Check with `testi`: here all three flagged inodes were **free in
+  both** the pristine and the used image. A correctly freed inode carries a
+  non-zero `dtime`, and `e2fsck` walks the orphan chain whenever
+  `s_last_orphan != 0` — which is a **host image-build artefact**, present in
+  the pristine image too. Benign noise.
+* **Compare against the pristine image OF THE SAME BUILD.** Every build makes a
+  fresh filesystem with its own counts. The tell when you get this wrong is the
+  **total** block count moving (1051314 vs 1051284), which cannot happen from
+  use. Extract it: `dd if=artifacts/rpi4b/rpi4b-sd-2part.img of=/tmp/cur_p2.img
+  bs=512 skip=135168 count=2102724`.
+
+`/` *is* the card and the harness cuts power, so there is no clean unmount —
+that is still true, and **`/usr/bin/sync` is still worth ending a cycle with**
+now that it does something (it was an empty libphoenix stub until `40a1efb`;
+`fsync` also sent a zeroed oid, and no filesystem handled `mtSync` at all). But
+with the full chain in place the counts were **unchanged**, which falsified the
+unflushed-metadata story rather than confirming it.
 
 ## The oracle: `e2fsck` on a read-back, host-side
 

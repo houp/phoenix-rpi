@@ -82,6 +82,9 @@ exercised it hard, and each is described with its root cause in the section that
 | 16 | **`process_getName` faults the kernel on a corrupt `argv`** | `proc/process.c` `3c8009b7` | Three defects in one function, all reachable from an ordinary `top`: `argv` entries were dereferenced unvalidated (they are one kernel `vm_kmalloc` block, so a single garbage slot faults **EL1** inside `hal_strlen`), the loop had **no bound** on `argc` (a missing NULL terminator walks off the array), and `*(sbuf - 1) = '\0'` ran unconditionally — writing **one byte before the caller's buffer** when `argv[0]` was NULL. Observed as **2982 identical EL1 aborts in a single run**, because `top` re-enumerates every process on each refresh. |
 | 17 | **`strncmp`/`strncasecmp` read one byte past `n`** | libphoenix `f2d2789` | Both looped on `*p && k < n`, and C evaluates left to right, so the byte at index `n` is dereferenced **before** the bound is tested: the loop compares `s1[k]`, advances `p`, then re-reads `*p` to decide whether to continue — even when `k` has already reached `n`. The standard permits reading at most `n` bytes from each operand. Harmless until that byte is the first of an **unmapped page**, so it presents as an *intermittent* crash in whatever called it: measured here as `Data Abort (EL0)` with `far` at a page base, `n=1`, `s1` the last byte of a mapped page, inside AngelScript's tokenizer while SuperTuxKart loaded its scripts. Affects any target where a string can end flush against a page boundary. `strncpy`/`stpncpy`/`strncat` in the same file already ordered the bound first; only these two comparisons were inverted, and **`strncasecmp` had no test coverage at all**. |
 | 18 | **A DMA master programmed with a CPU-physical address the bus fabric does not accept** | `devices/storage/bcm2711-emmc/sdcard.c` `e9d465e`, `876e9605` | The SDHCI engine was handed a raw CPU-physical address where the SoC's `emmc2bus` node requires a **bus** address (`dma-ranges`: bus `0xC0000000 + X` ↔ CPU-phys `X` over the low 1 GiB). Every other DMA master in the tree applies that translation — the audio driver has its own `DRAM_BUS()`, the kernel has `dtb_armToBus()` — this one did not. The defect is invisible on **reads**, because a read that fetches from the wrong place still returns *something* and the staging buffer is then copied out; it only shows on **writes**, as data that lands but is wrong throughout. ★ Why it matters beyond this driver: it was misdiagnosed for months as a **silicon quirk** ("SDMA writes corrupt the first block on this Arasan controller"), and the recorded symptom was wrong too — not "first block, 1–2 runs in 10" but whole-transfer, every time. A wrong symptom plus a hardware attribution is a defect that never gets re-opened. Any port on a SoC whose DT declares `dma-ranges` for a peripheral bus has this exposure per master, and each master must be checked individually. |
+| 19 | **ten more ext2 defects, four of which destroy data — all in SPARSE FILES** | `phoenix-rtos-filesystems/ext2/*` `1ef6f56`…`017eb3a` | Found in one day by running libext2 **on the host** against a file, with `e2fsck` as oracle (`tools/libext2-hosttest/`). **(a)** `_ext2_file_truncate()` coalesced runs by tracking the last block number, so a hole set `lbno = 0` and the run was released as `lbno + 1 - n` = **`1 - n`, a uint32 underflow** — it read past `fs->gdt[]` (SEGV in the storage driver) *and freed blocks belonging to other files*. **(b)** truncate left the surviving remainder of the last **partial block** on disk, so deleted content became readable again after the file was re-extended — a data *leak*. **(c)** `ext2_block_sync()` flushed a hole-terminated run using `i` instead of `block + i` (one of four sites missing the base), writing the data over whoever owned that block. **(d)** `ext2_setattr(atSize)` reached `_ext2_file_truncate()` by a **second route** that skipped `ext2_truncate()`'s `-EISDIR` guard, so truncating a **directory** *returned success* and freed its contents — 0 of 40 entries left. Plus: `i_blocks` never decremented for freed indirect blocks; two bounds-checks-after-use in `inode_init`/`inode_sync` (one on the **write** path); a stale `ind[]` cache written over a reallocated block; a post-discontiguity run's first block left unrecorded; `unlink` adjusting directory link counts **in memory only**; and `objs_destroy()` freeing the root object while `fs->root` still pointed at it. ★ **Why it matters to you:** none is Pi-specific, and the reason they survived is general — the previous validation was a *sequential* create/write/delete script, which never produces a hole. A randomised stress with a shadow model found all of it in seconds. Now ~182 000 random ops over 115 runs, 1 KiB and 4 KiB, clean. |
+| 20 | **`sync()` and `fsync()` both silently did nothing — broken at THREE levels** | libphoenix `40a1efb`, kernel `482b54c2`, ext2 `017eb3a` | **(a)** `void sync(void) { }` — an empty stub, so nothing in the system could ask for a flush. **(b)** `posix_fsync()` built its message with `hal_memset(&msg, 0, …)` and then passed the oid only in `msg.i.raw`, under a `FIXME: Replace this hack`. That FIXME was describing a **bug**: every storage driver implementing `mtSync` reads **`msg->oid.id`** (`bcm2711-emmc`, `zynq7000-sdcard`, `pc-ata`, `flashdrv`) and **none** reads `i.raw` — so `fsync()` reached the right port and asked it to sync **storage id 0**, not the file's device. **(c)** No filesystem handled `mtSync` at all, so `libext2_handler()` fell to `default: break;` and left `o.err` at the 0 the caller memset — **`fsync()` returned SUCCESS while flushing nothing**, which is worse than failing. The driver side was always ready (`.sync = sdstorage_cachedFlush` → `cache_flush()`); nothing called it. ★ Affects every target: **SQLite is ported here and calls `fsync()` for durability.** Acute on any root filesystem that cannot be unmounted. |
+| 21 | **libcache wrote back lines whose contents had not changed** | `phoenix-rtos-corelibs/libcache` `a46399c` | An in-place ext2 overwrite costs 3 device writes and **2 of them store bytes already on the medium** — the superblock (nothing allocated, so no count moved) and the inode block (`time()` has 1-second resolution, so a same-second rewrite of equal length is byte-identical). `cache_write()` now compares against the cached line first and neither dirties it nor runs the write policy on a match; guarded by `contentsKnown`, because a full-line miss deliberately skips the fetch. **12.6x** on partial-line rewrites measured on hardware with the warm-cache confound controlled, and 3.33 ms per avoided device write against an independently measured 3.1 ms per command. Pure endurance and latency win for every flash-backed target, no correctness question — a write that stores identical bytes is unobservable. |
 
 ## Platform gaps that every future port will hit
 
@@ -801,6 +804,59 @@ Pi 4 drivers whose *mechanism* generalises even where the register does not.
   corrupt the bitmaps — a deterministic Data Abort in `ext2_block_destroyone` under concurrent-write
   stress. Fixed with one per-fs mutex taken at the `libext2_*` entry points, which are never re-entrant,
   so it is trivially the outermost lock (`fs->lock > {obj->lock, objs->lock} > storage`).
+- ★★★ `ext2` `1ef6f56`…`017eb3a` — **ten further defects, four of them data-destroying, and every
+  one of them reachable only through SPARSE FILES.** They are listed in shortlist entry 19; what is
+  worth your time is *why they survived*. The previous validation was an end-to-end sequential
+  create/write/delete script graded by `e2fsck` on a device read-back — a genuinely good oracle, run
+  against a workload that **never produces a hole**. Holes were where the data loss lived:
+
+  - `_ext2_file_truncate()` coalesced runs by tracking the *last* block number, so a hole set
+    `lbno = 0` and the run was released as `lbno + 1 - n`, i.e. **`1 - n`** — a uint32 underflow
+    yielding a block number near 4e9. `ext2_blockToGroup()` of that indexed **past the end of
+    `fs->gdt[]`** (a Data Abort that killed the storage driver, taking the filesystem with it), and
+    where it did not fault it **freed blocks belonging to other files**.
+  - Truncation releases whole blocks from `start` on, so when the new size fell *inside* a block the
+    remainder stayed on disk. Nothing reads it while the file is short — `_ext2_file_read()` clamps to
+    `i_size` — but **re-extending the file made it readable again**. Deleted content coming back is a
+    leak, not just a correctness bug. The aligned control (truncate to a block boundary, always
+    correct) is what identified the partial tail block as the mechanism.
+  - One of four sites in `ext2_block_sync()` that resolve a pending run's first block omitted the
+    base — `i` rather than `block + i` — so a run terminated by a **hole** was written to the physical
+    block owned by file block `i`: lost at the offset written, and **overwriting whoever owned that
+    block**.
+  - `ext2_setattr(atSize)` reaches `_ext2_file_truncate()` **directly**, bypassing `ext2_truncate()`'s
+    `-EISDIR` guard, and the inner guard covers only device nodes and short symlinks (whose block array
+    holds an rdev or a target). A directory's block array holds real block numbers, so
+    `setattr(atSize, 0)` on one **returned success and freed the directory's contents**. The general
+    lesson: when a primitive needs a guard, check every caller of the *inner* function, not just the
+    obvious API.
+
+  The remaining six are accounting and lifetime: `i_blocks` never decremented for freed indirect
+  blocks (allocation counted them); `ext2_inode_init()` **and** `ext2_inode_sync()` deriving
+  `fs->gdt[group]` *before* validating `ino` — the `_sync` one on the **write** path, where a block
+  number from a heap over-read would write an inode table entry over an arbitrary block; a freed
+  indirect block left in `obj->ind[]` and later written back over a **reallocated** block;
+  `ext2_block_sync()` leaving a post-discontiguity run's first block unrecorded so a discontiguous
+  pair was written as contiguous; `unlink` adjusting directory link counts **in memory only** (no
+  `OFLAG_DIRTY`, no parent sync), so the on-disk count stayed one too high for every directory that
+  had held a subdirectory; and `ext2_objs_destroy()` freeing the root object while `fs->root` still
+  pointed at it, after which every later object's sync read freed memory.
+
+  ★ **The reusable part is the harness, not the bugs.** libext2 reaches storage through two plain
+  callbacks (`dev_read`/`dev_write`), so it runs unmodified on a host against a `mke2fs` image with
+  `e2fsck` as oracle — only the Phoenix *headers* need shimming. That turned a 5-10 minute Pi cycle
+  per attempt into **under a second**, and a randomised stress with a shadow content model found all
+  ten in a day. It also has a real-mutex mode, which showed libext2 **is** safe under the two message
+  threads the umass driver actually uses. Lives in the coordination repo (`tools/libext2-hosttest/`)
+  because it is a test of your code, not a change to it; it would drop into `phoenix-rtos-tests`
+  unchanged if you wanted it.
+- ★★ `ext2` `017eb3a` + libphoenix `40a1efb` + kernel `482b54c2` — **`sync()` and `fsync()` were
+  broken at three independent levels**, detailed in shortlist entry 20. The part worth repeating
+  here: the failure mode was **silent success**. `libext2_handler()` had no `mtSync` case, so it fell
+  through `default: break;` and returned the `o.err = 0` the caller had memset. An application that
+  called `fsync()` and checked the result was told the data was durable. Meanwhile the driver had
+  published `.sync = sdstorage_cachedFlush` since it was written, and nothing had ever sent it a
+  message. Any filesystem in your tree that omits `mtSync` has the same silent-success shape.
 - ★ `nfs` `fc2f62b` — an upstream **libnfs 6.0.2** bug worth knowing about: `readlink_cb` records
   `-ENAMETOOLONG` for an over-long target, then `cb_data_is_finished()` overwrites `status` with the RPC
   success code, so `nfs_readlink` returns phantom success with the buffer *unmodified*. Any

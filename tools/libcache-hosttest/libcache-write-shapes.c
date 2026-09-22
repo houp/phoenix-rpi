@@ -63,7 +63,31 @@ int main(int argc, char **argv)
     }
     if (!bad) printf("  [ ok ] device matches what was written, byte for byte\n");
 
-    printf("  user bytes written : %llu\n", userBytes);
+    /* ---- does a rewrite of IDENTICAL bytes cost device traffic? ----
+     * This is the case the ext2 measurement says dominates: 2 of the 3 device
+     * commands for an in-place overwrite store bytes already present (the
+     * superblock, and the inode whose mtime has 1-second resolution).
+     * Baseline libcache re-writes them; the intended behaviour is to notice
+     * and skip. Written so it FAILS LOUDLY either way rather than passing
+     * silently. */
+    unsigned long long wrBefore = wrBytes, callsBefore = wrCalls;
+    unsigned char same[128];
+    for (size_t k = 0; k < sizeof(same); k++) same[k] = (unsigned char)(k * 3 + 1);
+    cache_write(c, 4096, same, sizeof(same), LIBCACHE_WRITE_THROUGH);   /* first: must reach device */
+    cache_flush(c, 0, DEV_SIZE);
+    unsigned long long afterFirst = wrBytes;
+    for (int r = 0; r < 20; r++) cache_write(c, 4096, same, sizeof(same), LIBCACHE_WRITE_THROUGH);
+    cache_flush(c, 0, DEV_SIZE);
+    unsigned long long afterRepeats = wrBytes;
+    printf("\n  rewrite-identical: first write %llu bytes, then 20 IDENTICAL rewrites cost %llu bytes\n",
+           afterFirst - wrBefore, afterRepeats - afterFirst);
+    printf("  -> %s\n", (afterRepeats == afterFirst) ? "SKIPPED (no device traffic for unchanged bytes)"
+                                                      : "re-written (baseline behaviour)");
+    (void)callsBefore;
+    if (memcmp(dev + 4096, same, sizeof(same)) != 0) { printf("  [FAIL] identical-rewrite corrupted the device\n"); bad = 1; }
+    else printf("  [ ok ] device still correct after identical rewrites\n");
+
+    printf("\n  user bytes written : %llu\n", userBytes);
     printf("  device bytes written: %llu in %llu calls\n", wrBytes, wrCalls);
     printf("  AMPLIFICATION: %.2fx\n", (double)wrBytes / (double)userBytes);
     printf("\n%s\n", bad ? "RESULT: write path BROKEN" : "RESULT: write path correct");

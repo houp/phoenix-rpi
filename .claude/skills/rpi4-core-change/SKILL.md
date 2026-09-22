@@ -62,6 +62,26 @@ This is also how you prove **removal** — e.g. that temporary instrumentation i
 gone (expect `0`). A commit message citing "0 occurrences in the build log" was
 amended once for exactly this reason.
 
+### When the change has no greppable string
+
+Numeric changes — a cap, a constant, a bound — leave nothing for `strings`. Grade
+the **artifact mtimes** against the commit time instead: every object on the path
+from the edited file to the shipped blob must be NEWER than the commit.
+
+```
+git -C sources/<repo> log -1 --format=%cd --date=iso <the/edited/file.c>
+stat -c '%y  %n' .buildroot/_build/aarch64a72-generic-rpi4b/lib/<lib>.a                  .buildroot/_build/aarch64a72-generic-rpi4b/prog/<host program>                  .buildroot/_boot/aarch64a72-generic-rpi4b/rpi4b-bootfs/loader.disk
+```
+
+⚠ **Know which programs HOST your library** — a filesystem library is not a
+program. libext2 is linked into **both** `prog/bcm2711-emmc` (SD root) and
+`prog/usb` (which absorbs `libusbdrv-umass.a`; there is no `prog/umass`). Check
+every host, not the one you happened to test on.
+
+⚠ **`/etc/build-versions` does NOT prove this.** It is stamped at image time, so
+an image-only rebuild prints the new SHA over old objects — the version stamp and
+the binary are independent. Grade the binary.
+
 ## 4. Gate it — and make the gate able to fail
 
 - For a behaviour change, **A/B one variable**: same blob, one constant flipped.

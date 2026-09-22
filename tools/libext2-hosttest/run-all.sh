@@ -27,7 +27,7 @@ mkimg() {  # mkimg <path> <mb> <blocksz>
 	mke2fs -q -t ext2 -b "$3" -I 128 -N 4096 -F "$1" >/dev/null 2>&1
 }
 
-for p in harness stress dirstress linkstress uaf devnode bigdir attrtest noumount; do build "$p"; done
+for p in harness stress dirstress linkstress uaf devnode bigdir attrtest noumount busy; do build "$p"; done
 
 # The concurrency harness needs REAL mutexes and pthreads. Everything else runs
 # on the no-op lock path, which keeps those runs simple; this one must not.
@@ -102,6 +102,19 @@ for b in 1024 4096; do
 		fi
 		rm -f "$img"
 	done
+done
+
+# Is the filesystem still in use? umount needs this and a wrong answer either way
+# is bad: a false "busy" makes umount never work, a false "idle" is the data-loss
+# defect it exists to prevent (issue C3).
+echo "=== busy predicate ==="
+for b in 1024 4096; do
+	img=/tmp/ra-busy.img; mkimg "$img" 48 "$b"
+	out=$(ASAN_OPTIONS=detect_leaks=0 "$here/busy" "$img" 2>&1); rc=$?
+	ok=$(printf '%s' "$out" | grep -c '\[ ok \]')
+	printf "  busy      %s: rc=%s checks_passed=%s\n" "$b" "$rc" "$ok"
+	{ [ "$rc" -eq 0 ] && [ "$ok" -ge 14 ]; } || { printf '%s\n' "$out"; fails=1; }
+	rm -f "$img"
 done
 
 # Every harness above ends with ext2_objs_destroy(), which IS an unmount -- so

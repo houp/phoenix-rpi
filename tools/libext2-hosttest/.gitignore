@@ -7,3 +7,4 @@ isolate
 *.img
 bigdir
 devnode
+attrtest

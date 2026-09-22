@@ -14,7 +14,7 @@
 | `phoenix-rtos-corelibs` | `a46399c` | **yes** — 12.6x measured with the warm-cache confound controlled |
 | `phoenix-rtos-devices` | `56fe0a5` | short read **yes** at `822e933` (`dd` to EOF: `1026+1 records`, byte-exact 1076594688); `56fe0a5` is a no-behaviour-change clamp hoist, **not** separately run |
 | `libphoenix` | `a1bce81` | `sync()` **in flight** |
-| `phoenix-rtos-kernel` | `482b54c2` | `fsync()` oid **not yet gated** — SQLite is the natural test, since it calls `fsync()` for durability |
+| `phoenix-rtos-kernel` | `482b54c2` | `fsync()` oid. ↩ **SQLite is NOT the test** — it `fsync()`s regular files, which reach `libext2_handler` and are dispatched to `libext2_sync(fdata)` **ignoring `msg->oid`**, so the zeroed oid never bit them. The fix bites only **raw block-device fds**: `storage_sync(0)` fails `IS_BLOCK_DEVICE_ID(0)` (`0 & DEVTYPE_BLOCK` == 0) and falls to the `else` branch, so `fsync()` on `/dev/mmcblk0*` returned **`-EINVAL` unconditionally**. Gate = `sync /dev/mmcblk0p2` with a positive control. |
 
 **Open, deliberately** (all in the weekly log with reasons): a lock-order inversion reachable only
 if unmount races an in-flight request; `storage_write()`'s `-EINVAL` where POSIX wants a short

@@ -166,6 +166,25 @@ echo "    label prefix : ${label}"
 echo "    per-app budget: wait ${wait_secs}s + idle ${idle_secs}s"
 echo
 
+# A label reused from an earlier gate leaves BOTH runs matching the same
+# `*-<label>-*.log` and `artifacts/hdmi/*<label>*` globs. The per-app log pick
+# below is already protected (it compares against `${marker}`'s mtime), but the
+# HDMI frames are NOT: `check-torch-rois.py --label <label>-vkq` reported
+# "114 older frame(s) ... were NOT scored" on 2026-09-22, i.e. it silently found
+# a mixed set and had to exclude most of it. Warn, do not refuse -- re-running a
+# label deliberately is legitimate, the reader just has to know which frames are
+# whose.
+prior_logs=$(ls -1 "${repo_root}/artifacts/rpi4b-uart"/rpi4b-uart-*-"${label}"-*.log 2>/dev/null | wc -l)
+prior_frames=$(ls -1 "${repo_root}"/artifacts/hdmi/*"${label}"-*.png 2>/dev/null | wc -l)
+if [ "${prior_logs}" -gt 0 ] || [ "${prior_frames}" -gt 0 ]; then
+	printf '\n!! LABEL REUSED: %d existing log(s) and %d existing frame(s) already match "%s-*".\n' \
+		"${prior_logs}" "${prior_frames}" "${label}" >&2
+	printf '!! Per-app logs are picked by mtime so they are safe, but scope every later\n' >&2
+	printf '!! frame grep by date (artifacts/hdmi/%s-*-%s-*.png) or you will be looking\n' \
+		"$(date +%Y%m%d)" "${label}" >&2
+	printf '!! at an earlier run.\n\n' >&2
+fi
+
 sd_flag=""
 [ "${sd_boot}" = 1 ] && sd_flag="--skip-server-up"
 

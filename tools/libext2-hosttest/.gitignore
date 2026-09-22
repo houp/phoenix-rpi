@@ -10,6 +10,7 @@ isolate
 libext2-*
 libext2-host
 libext2-stress
+noumount
 linkstress
 stress
 tailtest

@@ -86,6 +86,10 @@ int main(int argc, char **argv)
     const char *img = argv[1];
     unsigned seed = (argc > 2) ? (unsigned)strtoul(argv[2], NULL, 0) : 1;
     int ops = (argc > 3) ? atoi(argv[3]) : 400;
+    /* Max write length. Defaults to 4096, which at a 4 KiB block size fits in
+     * ONE block and so barely exercises ext2_block_sync()'s multi-block run
+     * logic -- scale it with the block size to compare like with like. */
+    size_t maxw = (argc > 4) ? (size_t)strtoul(argv[4], NULL, 0) : 4096;
     srand(seed);
 
     devFd = open(img, O_RDWR);
@@ -107,7 +111,7 @@ int main(int argc, char **argv)
 
         if (action < 45) {                       /* write at a random offset */
             size_t off = (size_t)(rand() % (int)(MAXSZ - 1024));
-            size_t len = 1 + (size_t)(rand() % 4096);
+            size_t len = 1 + (size_t)(rand() % (int)maxw);
             if (off + len > MAXSZ) len = MAXSZ - off;
             unsigned char *b = malloc(len);
             for (size_t k = 0; k < len; k++) b[k] = (unsigned char)(rand());
@@ -118,7 +122,7 @@ int main(int argc, char **argv)
             free(b);
         }
         else if (action < 60) {                  /* append */
-            size_t len = 1 + (size_t)(rand() % 8192);
+            size_t len = 1 + (size_t)(rand() % (int)(maxw * 2));
             if (modelLen[i] + len > MAXSZ) len = MAXSZ - modelLen[i];
             if (len == 0) continue;
             unsigned char *b = malloc(len);

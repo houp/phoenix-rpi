@@ -1976,6 +1976,23 @@ static void hz_experiment(const char *what)
 		memset((void *)((uintptr_t)b + 64), 0x41, 64);
 		phx_free(b);
 	}
+	else if (strcmp(what, "hi32-write") == 0) {
+		/* Reproduce the FIELD STATE seen on hardware (gate-stk, 2026-09-22): a
+		 * four-byte write at heap+4 leaves heap->size with a legal low half and
+		 * garbage in the high half (0x80000000_0000d000 / 0x80000001_0000d000).
+		 *
+		 * This does NOT reproduce the writer -- that lives outside the allocator
+		 * -- it reproduces the state, which is the only thing the new
+		 * hlo32/hhi32/hfixed report has to describe correctly. Without this the
+		 * next real occurrence would be the first time that code ever ran. */
+		heap_t *h = cb->heap;
+		size_t before = h->size;
+
+		((uint32_t *)h)[1] = 0x80000001u; /* bytes 4..7 == the high half, LE */
+		printf("  injected at heap+4: %p size %#zx -> %#zx (expect hlo32=%#zx hhi32=0x80000001 hfixed=1)\n",
+			(void *)h, before, h->size, (size_t)(before & 0xffffffffu));
+		phx_free(b);
+	}
 	else if (strcmp(what, "orphan-uaf") == 0) {
 		/* The counter-hypothesis, made real: force the exact bug the task
 		 * suspects -- a chunk left in a GLOBAL bin while its heap is
@@ -2232,6 +2249,7 @@ int main(int argc, char **argv)
 		hz_experiment("heapptr");
 	hz_experiment("stk-signature");
 	hz_experiment("orphan-uaf");
+	hz_experiment("hi32-write");
 	}
 
 	return rc;

@@ -29,6 +29,15 @@ mkimg() {  # mkimg <path> <mb> <blocksz>
 
 for p in harness stress dirstress linkstress uaf devnode bigdir attrtest; do build "$p"; done
 
+# The concurrency harness needs REAL mutexes and pthreads. Everything else runs
+# on the no-op lock path, which keeps those runs simple; this one must not.
+gcc -O1 -g -fsanitize=address,undefined -DEOK=0 -DSHIM_REAL_MUTEX \
+	-I "$here/shim" -I "$E" "$here/concurrent.c" \
+	"$E"/sb.c "$E"/gdt.c "$E"/inode.c "$E"/block.c "$E"/dir.c "$E"/obj.c "$E"/file.c "$E"/ext2.c \
+	"$root/sources/libphoenix/sys/list.c" "$root/sources/libphoenix/sys/rb.c" \
+	"$here/shim/attrstub.c" "$here/shim/mutexstore.c" -lpthread \
+	-o "$here/concurrent" || { echo "BUILD FAILED: concurrent"; exit 2; }
+
 echo "=== single-shot ==="
 for b in 1024 4096; do
 	printf "  %-10s %s: " harness "$b"; "$here/run.sh" "$b" 2>&1 | grep -o "OVERALL: .*" || fails=1
@@ -76,6 +85,23 @@ for b in 1024 4096; do
 		rm -f "$img"
 	done
 	echo "  dirstress $b: $bad failure(s)"; [ "$bad" -eq 0 ] || fails=1
+done
+
+echo "=== concurrency (real mutexes, as UMASS_N_MSG_THREADS=2) ==="
+for b in 1024 4096; do
+	for nt in 2 4; do
+		img=/tmp/ra-cc.img; mkimg "$img" 64 "$b"
+		timeout 240 env ASAN_OPTIONS=detect_leaks=0 "$here/concurrent" "$img" "$nt" 400 >/tmp/ra-cc.out 2>&1
+		rc=$?
+		e2fsck -fn "$img" >/dev/null 2>&1; frc=$?
+		if [ "$rc" -eq 124 ]; then
+			echo "  threads $nt ($b): TIMED OUT -- possible deadlock"; fails=1
+		else
+			printf "  threads %s (%s): rc=%s e2fsck=%s\n" "$nt" "$b" "$rc" "$frc"
+			[ "$rc" -eq 0 ] && [ "$frc" -eq 0 ] || fails=1
+		fi
+		rm -f "$img"
+	done
 done
 
 echo

@@ -37,9 +37,20 @@ static ssize_t hostRead(id_t id, off_t offs, char *buff, size_t len)
     return r;
 }
 
+static unsigned long long noopWrites, noopBytes;
+
 static ssize_t hostWrite(id_t id, off_t offs, const char *buff, size_t len)
 {
     (void)id;
+    /* Count write-backs that store bytes already on the device. A device
+     * command that changes nothing is pure wear, and on an overwrite the
+     * superblock write is exactly that -- measured here, not assumed. */
+    if (countingOn && len <= 4096) {
+        char cur[4096];
+        if (pread(devFd, cur, len, offs) == (ssize_t)len && memcmp(cur, buff, len) == 0) {
+            noopWrites++; noopBytes += (unsigned long long)len;
+        }
+    }
     ssize_t r = pwrite(devFd, buff, len, offs);
     if (r > 0 && countingOn) { wrOps++; wrBytes += (unsigned long long)r; }
     return r;
@@ -95,8 +106,18 @@ int main(int argc, char **argv)
     rdOps = wrOps = rdBytes = wrBytes = 0;
     ssize_t w = ext2_write(fs, f1, 0, "hello world", 11);
     ck("write 11 bytes", w == 11);
-    printf("     -> ONE 11-byte write cost %llu device writes (%llu bytes) + %llu reads\n\n",
+    printf("     -> ONE 11-byte write that ALLOCATES a block: %llu device writes (%llu bytes), %llu reads\n",
            wrOps, wrBytes, rdOps);
+
+    /* Now an OVERWRITE in place: allocates nothing, so it should cost strictly
+     * less. This separates the allocator's cost from the write() tail, and is
+     * the case where the superblock write-back is provably a no-op. */
+    rdOps = wrOps = rdBytes = wrBytes = noopWrites = noopBytes = 0;
+    ck("overwrite in place", ext2_write(fs, f1, 0, "HELLO WORLD", 11) == 11);
+    printf("     -> ONE 11-byte OVERWRITE (no allocation):     %llu device writes (%llu bytes), %llu reads\n",
+           wrOps, wrBytes, rdOps);
+    printf("     -> of those, %llu wrote bytes ALREADY on the device (%llu bytes) = pure wear\n\n",
+           noopWrites, noopBytes);
 
     /* ---- correctness: read back ---- */
     char buf[64];

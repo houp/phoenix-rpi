@@ -1,6 +1,7 @@
 attrtest
 bigdir
 blockmath
+concurrent
 devnode
 dirstress
 harness

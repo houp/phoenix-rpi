@@ -149,7 +149,47 @@ int main(int argc, char **argv)
     }
 
     for (int i = 0; i < NFILES; i++) fails += verify(fs, i);
-    um(fs); fsync(devFd); close(devFd);
+
+    /* ---- REMOUNT and verify again ----
+     * Everything above is checked while the filesystem is still mounted, so it
+     * reads back through the same in-memory objects that were just written.
+     * A change that never reached the DEVICE looks perfect there -- defect 19
+     * was exactly that, and only e2fsck could see it. Unmounting and mounting
+     * again makes Phoenix's own read path the judge of what actually persisted. */
+    um(fs);
+    fsync(devFd);
+    fs = mnt();
+    if (fs == NULL) {
+        printf("  [FAIL] REMOUNT failed\n");
+        fails++;
+    }
+    else {
+        int before = fails;
+        for (int i = 0; i < NFILES; i++) {
+            if (!live[i]) continue;
+            /* ext2_lookup re-resolves the name from disk rather than trusting
+             * the id we cached before the unmount. */
+            char nm[16]; name_of(i, nm, sizeof(nm));
+            oid_t res, dev;
+            if (ext2_lookup(fs, ROOT_INO, nm, strlen(nm), &res, &dev) < 0) {
+                printf("  [FAIL] %s: gone after remount\n", nm);
+                fails++;
+                continue;
+            }
+            ino[i] = res.id;
+            fails += verify(fs, i);
+        }
+        if (fails == before) {
+            int n = 0;
+            for (int i = 0; i < NFILES; i++) {
+                if (live[i]) n++;
+            }
+            printf("  remount: all %d surviving file(s) verified from disk\n", n);
+        }
+        um(fs);
+    }
+
+    fsync(devFd); close(devFd);
     printf("%s\n", fails ? "STRESS: content mismatches found" : "STRESS: all surviving files match the model");
     return fails ? 1 : 0;
 }

@@ -61,6 +61,19 @@ static int verify(ext2_t *fs, int i)
     else if (memcmp(buf, model[i], modelLen[i]) != 0) {
         size_t k = 0; while (k < modelLen[i] && buf[k] == model[i][k]) k++;
         printf("  [FAIL] %s content differs at +%zu (got %02x want %02x)\n", nm, k, buf[k], model[i][k]);
+        /* How far does the divergence run, and does the data we got belong to
+         * another file? Block-level aliasing looks very different from a lost
+         * write, and the distinction says which code path to look at. */
+        size_t run = 0;
+        while (k + run < modelLen[i] && buf[k + run] != model[i][k + run]) run++;
+        printf("         divergence runs %zu bytes (%.2f blocks)\n", run, (double)run / 1024.0);
+        for (int o = 0; o < NFILES; o++) {
+            if (o == i || !live[o] || modelLen[o] < k + 64) continue;
+            if (memcmp(buf + k, model[o] + k, 64) == 0) {
+                char on[16]; name_of(o, on, sizeof(on));
+                printf("         >>> those bytes are %s's content at the SAME offset = block aliasing\n", on);
+            }
+        }
         bad = 1;
     }
     free(buf);

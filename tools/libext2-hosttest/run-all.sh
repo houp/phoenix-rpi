@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# Every libext2 host harness, both block sizes. One command, ~2 minutes.
+#
+# Run this BEFORE spending a Pi cycle on any libext2/libcache change. It found
+# ten defects (12-21) on 2026-09-22, four of which destroyed data, and it is
+# the only check that covers sparse files, directory link counts, hard links,
+# object teardown and the setattr paths.
+#
+# usage: run-all.sh [seeds]     (default 10)
+set -uo pipefail
+here="$(cd "$(dirname "$0")" && pwd)"
+root="$(cd "$here/../.." && pwd)"
+E="$root/sources/phoenix-rtos-filesystems/ext2"
+seeds="${1:-10}"
+fails=0
+
+build() {
+	gcc -O1 -g -fsanitize=address,undefined -DEOK=0 -I "$here/shim" -I "$E" \
+		"$here/$1.c" "$E"/sb.c "$E"/gdt.c "$E"/inode.c "$E"/block.c "$E"/dir.c \
+		"$E"/obj.c "$E"/file.c "$E"/ext2.c \
+		"$root/sources/libphoenix/sys/list.c" "$root/sources/libphoenix/sys/rb.c" \
+		"$here/shim/attrstub.c" -o "$here/$1" || { echo "BUILD FAILED: $1"; exit 2; }
+}
+
+mkimg() {  # mkimg <path> <mb> <blocksz>
+	rm -f "$1"; dd if=/dev/zero of="$1" bs=1M count="$2" status=none
+	mke2fs -q -t ext2 -b "$3" -I 128 -N 4096 -F "$1" >/dev/null 2>&1
+}
+
+for p in harness stress dirstress linkstress uaf devnode bigdir attrtest; do build "$p"; done
+
+echo "=== single-shot ==="
+for b in 1024 4096; do
+	printf "  %-10s %s: " harness "$b"; "$here/run.sh" "$b" 2>&1 | grep -o "OVERALL: .*" || fails=1
+	for p in linkstress devnode attrtest; do
+		img=/tmp/ra-$p-$b.img; mkimg "$img" 48 "$b"
+		ASAN_OPTIONS=detect_leaks=0 "$here/$p" "$img" >/dev/null 2>&1; rc=$?
+		e2fsck -fn "$img" >/dev/null 2>&1; frc=$?
+		printf "  %-10s %s: rc=%s e2fsck=%s\n" "$p" "$b" "$rc" "$frc"
+		[ "$rc" -eq 0 ] && [ "$frc" -eq 0 ] || fails=1
+		rm -f "$img"
+	done
+	img=/tmp/ra-bigdir-$b.img; mkimg "$img" 64 "$b"
+	ASAN_OPTIONS=detect_leaks=0 "$here/bigdir" "$img" 800 >/dev/null 2>&1; rc=$?
+	e2fsck -fn "$img" >/dev/null 2>&1; frc=$?
+	printf "  %-10s %s: rc=%s e2fsck=%s\n" bigdir "$b" "$rc" "$frc"
+	[ "$rc" -eq 0 ] && [ "$frc" -eq 0 ] || fails=1
+	rm -f "$img"
+	# object teardown, case by case
+	for c in 1 2 3 4 5; do
+		img=/tmp/ra-uaf.img; mkimg "$img" 16 "$b"
+		out=$(ASAN_OPTIONS=detect_leaks=0 "$here/uaf" "$img" "$c" 2>&1); rc=$?
+		e2fsck -fn "$img" >/dev/null 2>&1; frc=$?
+		[ "$rc" -eq 0 ] && [ "$frc" -eq 0 ] || { echo "  uaf case $c ($b): rc=$rc e2fsck=$frc"; fails=1; }
+		rm -f "$img"
+	done
+	printf "  %-10s %s: 5/5 cases\n" uaf "$b"
+done
+
+echo "=== randomised, $seeds seeds each ==="
+for b in 1024 4096; do
+	mw=4096; [ "$b" = 4096 ] && mw=16384
+	bad=0
+	for s in $(seq 1 "$seeds"); do
+		img=/tmp/ra-st.img; mkimg "$img" 64 "$b"
+		ASAN_OPTIONS=detect_leaks=0 "$here/stress" "$img" "$s" 800 "$mw" >/dev/null 2>&1 || bad=$((bad+1))
+		e2fsck -fn "$img" >/dev/null 2>&1 || bad=$((bad+1))
+		rm -f "$img"
+	done
+	echo "  stress    $b: $bad failure(s)"; [ "$bad" -eq 0 ] || fails=1
+	bad=0
+	for s in $(seq 1 "$seeds"); do
+		img=/tmp/ra-dir.img; mkimg "$img" 32 "$b"
+		ASAN_OPTIONS=detect_leaks=0 "$here/dirstress" "$img" "$s" 300 >/dev/null 2>&1 || bad=$((bad+1))
+		e2fsck -fn "$img" >/dev/null 2>&1 || bad=$((bad+1))
+		rm -f "$img"
+	done
+	echo "  dirstress $b: $bad failure(s)"; [ "$bad" -eq 0 ] || fails=1
+done
+
+echo
+[ "$fails" -eq 0 ] && echo "ALL GREEN" || echo "FAILURES -- see above"
+exit "$fails"

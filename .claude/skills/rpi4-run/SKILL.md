@@ -254,6 +254,31 @@ condition. ⚠ A truncated run is easy to misread as a failure of the thing unde
 test: check for the script's own final summary before concluding anything, and
 `rc=143` means killed, not failed.
 
+## ⛔ First check every cycle: did it produce data at all?
+
+`check-capture-complete.py` already prints the one line that matters, and it is easy to scroll
+past because the cycle still ends with `power off` and `done`:
+
+```
+CAPTURE: could not find the last command in the log — the cycle may not have
+reached the psh prompt at all
+```
+
+**That is a VOID RUN.** The command was never echoed, so nothing ran — whatever else the log
+contains says nothing about your change. It has appeared **12 times in one session**, so it is a
+regular transient, not an exotic failure. Re-run it; do not interpret it, and do not "read around"
+it by grepping for a number that happens to be present from the boot banner.
+
+Two companions, both of which have produced confident wrong readings here:
+
+- **`dd` with no `records out` line aborted**, whatever the output file's size looks like. Check
+  for the summary before trusting an image.
+- **Assert the work happened.** A loop over a missing directory reports 0 s; a `grep -c` on a file
+  the cycle never wrote reports 0 matches, which can be the result you were hoping for.
+
+⚠ When a cycle is void, say so and re-run. A void run reported as a result is worse than no run,
+because it becomes a number somebody else quotes later.
+
 ## Reading results
 
 ```

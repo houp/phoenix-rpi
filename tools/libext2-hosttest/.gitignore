@@ -1,2 +1,7 @@
 libext2-host
+libext2-stress
+libext2-*
+blockmath
+tailtest
+isolate
 *.img

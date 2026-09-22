@@ -27,7 +27,7 @@ mkimg() {  # mkimg <path> <mb> <blocksz>
 	mke2fs -q -t ext2 -b "$3" -I 128 -N 4096 -F "$1" >/dev/null 2>&1
 }
 
-for p in harness stress dirstress linkstress uaf devnode bigdir attrtest; do build "$p"; done
+for p in harness stress dirstress linkstress uaf devnode bigdir attrtest noumount; do build "$p"; done
 
 # The concurrency harness needs REAL mutexes and pthreads. Everything else runs
 # on the no-op lock path, which keeps those runs simple; this one must not.
@@ -100,6 +100,33 @@ for b in 1024 4096; do
 			printf "  threads %s (%s): rc=%s e2fsck=%s\n" "$nt" "$b" "$rc" "$frc"
 			[ "$rc" -eq 0 ] && [ "$frc" -eq 0 ] || fails=1
 		fi
+		rm -f "$img"
+	done
+done
+
+# Every harness above ends with ext2_objs_destroy(), which IS an unmount -- so
+# none of them models the SD root, which is "/" and is never unmounted. This one
+# does the workload and then just stops, like a power cut.
+#
+# The grade is against a PRISTINE image of the same mke2fs, not against "e2fsck
+# is happy": a filesystem that never allocated anything also passes e2fsck. The
+# tagged "(ino N)" lines assert the workload actually ran, so a harness that
+# silently did nothing fails here instead of reading as a clean power cut.
+echo "=== no-unmount (power-cut model) ==="
+for b in 1024 4096; do
+	ref=/tmp/ra-nu-ref.img; mkimg "$ref" 48 "$b"
+	want=$(e2fsck -fn "$ref" 2>&1 | grep -oE '[0-9]+/[0-9]+ files.*blocks' | tail -1)
+	rm -f "$ref"
+	for m in 1 2 3; do
+		img=/tmp/ra-nu.img; mkimg "$img" 48 "$b"
+		out=$(ASAN_OPTIONS=detect_leaks=0 "$here/noumount" "$img" "$m" 2>&1); rc=$?
+		e2fsck -fn "$img" >/dev/null 2>&1; frc=$?
+		got=$(e2fsck -fn "$img" 2>&1 | grep -oE '[0-9]+/[0-9]+ files.*blocks' | tail -1)
+		did=$(printf '%s' "$out" | grep -c '(ino ')
+		printf "  mode %s (%s): rc=%s e2fsck=%s allocations=%s residue=%s\n" \
+			"$m" "$b" "$rc" "$frc" "$did" \
+			"$([ "$got" = "$want" ] && echo none || echo "$got vs pristine $want")"
+		{ [ "$rc" -eq 0 ] && [ "$frc" -eq 0 ] && [ "$did" -gt 0 ] && [ "$got" = "$want" ]; } || fails=1
 		rm -f "$img"
 	done
 done

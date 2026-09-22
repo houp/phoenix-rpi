@@ -269,6 +269,35 @@ harness. "Slow boot"/"truncated" is usually a crash: grep the whole log for
 `Exception`/`Data Abort` and check the last few HDMI frames (the final one is
 often black from power-off).
 
+### On a Data Abort, ADDR2LINE THE PC FIRST
+
+The dump prints `pc`, and the unstripped binary from the build that made the
+image is right there:
+
+```
+.toolchain/aarch64-phoenix/bin/aarch64-phoenix-addr2line -f -C \
+    -e .buildroot/_build/aarch64a72-generic-rpi4b/prog/<process> 0x<pc>
+```
+
+One command, and it names the function and line. Do this **before** forming any
+theory from the register values. A fault was mis-attributed for a whole session
+to a recent change — same session, same stressed code path, and an `x19` that
+looked like a plausible byte count for it — when `addr2line` would have pointed
+at an entirely different function immediately.
+
+Two companions:
+
+- **Grade the fault by the faulting PROCESS**, printed as
+  `in thread N, process "name" (PID: n)`. A test that dies because the driver
+  serving its root filesystem died is a bystander, not the culprit.
+- **Read the registers as an equation.** Divide a suspicious offset by the
+  `sizeof` of the array being indexed and see whether the quotient appears in
+  another register. Two registers agreeing on one number is proof; one register
+  that "looks about right" is not.
+- A **static inline** resolves to its own line. If `addr2line` lands on pure
+  arithmetic that cannot fault, the faulting access is the caller's — that is
+  the answer, not a wrong one.
+
 ## Recording the screen (for a demo / published video)
 
 The cycles grab periodic PNGs (`artifacts/hdmi/*-tick.png`) — right for grading, useless as a

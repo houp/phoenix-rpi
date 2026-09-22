@@ -6,6 +6,15 @@
 - Note: Seven ext2 defects (12-18) found by the new host harness and fixed; libcache skips unchanged write-backs. SD lane gate PASSES: test_sparse /root OK twice, 0 faults (was 2 in bcm2711-emmc). Host: ~182k random ops over 115 runs, 0 mismatches / 0 e2fsck errors / 0 SEGV at 1 KiB and 4 KiB.
 - Generator: scripts/snapshot-integration-state.sh
 
+⚠ **What was actually gated on hardware.** The SD-lane gate ran
+`phoenix-rtos-filesystems` **74823c9**, not the `fcfb121` recorded above.
+`fcfb121` is the out-of-range block-number guard, committed after the image was
+built; it is host-verified (applied alone to the pre-fix tree it turned 2 SEGVs
+into 0 and rejected 9 and 48 bogus block numbers) but has **not** run on the Pi.
+`phoenix-rtos-corelibs a46399c` (the libcache skip) *is* in the gated image, but
+only its correctness was exercised — its throughput effect is not yet measured
+on hardware. Restore from this manifest expecting those two caveats.
+
 ## Repositories
 
 | Repository | Branch | Commit SHA | Remote |

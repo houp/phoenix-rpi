@@ -362,6 +362,23 @@ cycle OR a build.**
 A four-command run at `--idle-secs 300` holds the port for up to 20 minutes while
 its log has looked finished for most of them.
 
+## The rule that actually prevents this: LAUNCH LAST
+
+Six collisions in one session, and every one had the same shape: read a log
+mid-turn, then **keep acting** — start a build, launch the next cycle. Knowing
+the rule did not stop it, because the momentum of "I have the answer, now do the
+next thing" is what causes it.
+
+**So make it structural: a cycle launch is the LAST action of the turn.** After
+`Bash(run_in_background=true)` on a Pi cycle, do nothing further that touches the
+bench — no build, no second cycle — and let the turn end. Non-Pi work (docs,
+reading, host analysis, merges on branches) is fine and encouraged; a build is
+NOT, because the image stage overwrites `loader.disk`.
+
+If a result arrives and you want to act on it, check first whether that cycle's
+notification has actually been delivered. If it has not, the port is still held,
+however finished the log looks.
+
 **Every clever alternative is subtly broken.** These have all been tried here:
 
 | attempt | why it fails |

@@ -17,9 +17,40 @@ files read back wrong, blocks leaked, inodes were freed under live files, and
 every single test still "passed" by return code. Grade by an external oracle, not
 by rc and not by your own filesystem's opinion of itself.
 
+## ★ FIRST: run it on the HOST. No Pi cycle needed.
+
+`tools/libext2-hosttest/run.sh [blocksz]` runs **the real libext2** — the same
+eight `.c` files that ship — against a file-backed device, then hands the image
+to `e2fsck -fn`. Under ASan+UBSan, in under a second. `tools/libcache-hosttest/`
+does the same for libcache's read and write paths.
+
+```
+./tools/libext2-hosttest/run.sh 1024     # SD root's block size
+./tools/libext2-hosttest/run.sh 4096     # the stick's
+./tools/libcache-hosttest/run.sh         # read shapes
+./tools/libcache-hosttest/run-write.sh   # ranged write-back A/B
+```
+
+It works because libext2 reaches storage through two plain callbacks
+(`fs->legacy.read/write`), so `pread`/`pwrite` on a `mke2fs` image is a complete
+substitute; only the Phoenix *headers* are shimmed. The callbacks also **count
+device operations**, which no Pi measurement gives you directly.
+
+⛔ **Do not open a storage investigation with a Pi cycle any more.** The eleven
+defects of 2026-09-21 each cost 5-10 min per attempt. On its first two runs the
+host harness found two more (`i_blocks` not decremented for freed indirect
+blocks; `ext2_inode_init`/`_sync` indexing `fs->gdt[]` before validating `ino`).
+**Test both block sizes** — they take different arithmetic paths, and defect 12
+showed at 1 KiB and 4 KiB with different residuals.
+
+Spend the Pi cycle on *confirming*, not discovering. The host harness is not a
+substitute for the gate: it cannot see the driver, the cache policy the driver
+picks, DMA, or anything above the callback boundary.
+
 ## The oracle: `e2fsck` on a read-back, host-side
 
-This is the single most valuable tool here. Phoenix writes, Linux judges.
+This is what the host harness automates, and it is still how you grade the real
+device. Phoenix writes, Linux judges.
 
 ```
 # on the Pi, after the workload and AFTER unmounting:

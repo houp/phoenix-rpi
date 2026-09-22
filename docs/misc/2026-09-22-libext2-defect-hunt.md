@@ -96,6 +96,15 @@ Both need more than a host harness.
   524287, which appeared *independently* in `x25`; back-solving the group gave
   `0xFFFFE001` = `1 - 8192`. Two registers agreeing is proof; one that "looks
   about right" is not.
+* **Ask an object its NAME before counting objects.** The SD "leak" above cost
+  ~4 hours, three Pi cycles and four wrong claims; `ncheck` on the inode settled
+  it instantly. Cheapest-first order for this class: diff per-group free counts
+  → diff the inode **bitmaps** to name the inode → `ncheck` → `stat`. All
+  host-side, all seconds, all before theorising about flush paths.
+* **Compare against the pristine artefact OF THE SAME BUILD.** I compared a
+  freshly flashed card against the *previous* build's counts. The tell was in
+  the data: **total** blocks 1051314 vs 1051284, and a filesystem's total cannot
+  change from use.
 * **A measurement artefact looks exactly like a defect.** Twice: `bs=1M` cannot
   address the last 0.72 MiB of a 1026.72 MiB partition, so `dd` stopped early,
   printed no summary, and `e2fsck` then claimed the partition table was corrupt.
@@ -114,9 +123,26 @@ Both need more than a host harness.
   `e2fsck` read-backs short and nearly produced a bogus "truncated partition"
   report. Gate: `dd` with no count now reports `1026+1 records` and a byte-exact
   1076594688-byte image.
-* **The SD root can never be unmounted**, so a power-cut cycle leaks 2 inodes and
-  2 blocks. Ending the cycle with `/usr/bin/sync` leaves the free counts
-  unchanged (measured: delta 0/0 vs −2/−2).
+* **`sync()` and `fsync()` both silently did nothing** — an empty libphoenix
+  stub, a kernel message carrying the oid in `i.raw` while every driver reads
+  `msg->oid.id`, and no filesystem handling `mtSync` at all, so the handler's
+  `default: break;` returned the caller's memset `o.err = 0`. **Success while
+  flushing nothing.** Fixed at all three levels (libphoenix `40a1efb`, kernel
+  `482b54c2`, ext2 `017eb3a`); the driver had published
+  `.sync = sdstorage_cachedFlush` all along and nothing had ever sent it a
+  message.
+
+  ↩ **Why that was found is worth more than the fix.** I was chasing a
+  "1 inode + 1 block leak" on the SD card across three Pi cycles and a host
+  harness built to model power cuts, and I made **four wrong claims** about it
+  before `debugfs -R "ncheck 386841"` answered in one line: `/var/tmp`. A
+  directory the system legitimately creates at boot. **There was no leak.** The
+  `e2fsck` "orphaned inode list" complaints alongside it were equally benign —
+  `testi` showed all three inodes free in *both* the pristine and the used image
+  (a correctly freed inode carries a non-zero `dtime`, and `e2fsck` walks that
+  chain whenever `s_last_orphan != 0`, which is a host image-build artefact).
+
+  The premise dissolved; the three defects it uncovered are real and stand.
 
 ## 7. Open, deliberately
 

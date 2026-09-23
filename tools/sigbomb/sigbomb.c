@@ -19,6 +19,11 @@
  *   control   handler installed + ordinary NULL deref on a HEALTHY stack --
  *             proves the handler path works at all, so a silent "stack" run
  *             means something rather than a broken harness
+ *   deep      handler installed + NULL deref ~740 KiB DOWN a 1 MiB stack, so the
+ *             signal is delivered with the SP far into pages that were demand-
+ *             paged moments ago. This is the anti-regression case: a guard that
+ *             tested page RESIDENCY instead of VMA membership would pass every
+ *             other mode here and silently kill this one.
  *   nohandler stack exhausted with NO handler -- today's stack-bomb, for contrast
  *
  * Read the result from the tagged lines, never from the exit code:
@@ -73,6 +78,32 @@ static unsigned long recurse(unsigned long depth)
 }
 
 
+/* ~740 KiB of a 1 MiB stack: deep enough that the fault happens in pages the
+ * kernel demand-paged moments earlier, with enough headroom left that the signal
+ * frame genuinely fits. If this ever starts failing, check SIZE_USTACK first. */
+#define DEEP_FRAMES 180U
+
+static unsigned long descend(unsigned long depth)
+{
+	volatile char frame[4096];
+
+	frame[0] = (char)depth;
+	frame[4095] = (char)(depth >> 8);
+	g_depth = depth;
+
+	if (depth < DEEP_FRAMES) {
+		g_sink += descend(depth + 1U);
+	}
+	else {
+		volatile int *p = NULL;
+
+		*p = 1;
+	}
+
+	return g_sink + (unsigned long)frame[0];
+}
+
+
 int main(int argc, char **argv)
 {
 	const char *mode = (argc > 1) ? argv[1] : "stack";
@@ -107,6 +138,15 @@ int main(int argc, char **argv)
 		fflush(stdout);
 		*p = 1;
 		printf("SIGBOMB: survived the NULL write -- handler did not fire\n");
+		fflush(stdout);
+		return 0;
+	}
+
+	if (strcmp(mode, "deep") == 0) {
+		printf("SIGBOMB: descending %u frames, then faulting down there\n", DEEP_FRAMES);
+		fflush(stdout);
+		g_sink = descend(0U);
+		printf("SIGBOMB: survived the deep NULL write -- handler did not fire\n");
 		fflush(stdout);
 		return 0;
 	}

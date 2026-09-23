@@ -105,8 +105,15 @@ cmd=$(printf '%s\n' "$cmd" \
           -e 's/ -MD//g' -e 's/ -MP//g' \
           -e 's/ -MF [^ ]*//g' -e 's/ -MT "[^"]*"//g' -e 's/ -MT [^ ]*//g')
 
+# A few sources are compiled by a build OTHER than their repo's own Makefile and
+# so need include paths that `make -n` here never shows. gpu/rpi4-v3d/mesa/*.c is
+# the case in hand: it is built inside the Mesa tree (build-showcase-apps.sh) and
+# includes "drm-uapi/v3d_drm.h", which resolves from external/mesa/include. Set
+# SYNTAX_CHECK_CFLAGS to supply those; everything else still comes from the real
+# command line, so -Werror and the warning set are unchanged.
 printf 'syntax-check: %s/%s  (target %s)\n' "$repo" "$rel" "$target"
-if (cd "$bdir" && PATH="${tc}:$PATH" eval "$cmd -fsyntax-only -I${proj}"); then
+[ -n "${SYNTAX_CHECK_CFLAGS:-}" ] && printf 'syntax-check: extra flags: %s\n' "$SYNTAX_CHECK_CFLAGS"
+if (cd "$bdir" && PATH="${tc}:$PATH" eval "$cmd -fsyntax-only -I${proj} ${SYNTAX_CHECK_CFLAGS:-}"); then
     printf 'syntax-check: CLEAN (compiles under the real flags, -Werror included)\n'
 else
     rc=$?

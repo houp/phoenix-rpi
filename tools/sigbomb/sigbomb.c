@@ -24,6 +24,8 @@
  *             paged moments ago. This is the anti-regression case: a guard that
  *             tested page RESIDENCY instead of VMA membership would pass every
  *             other mode here and silently kill this one.
+ *   wildsp    handler installed + SP moved to an address that was never mapped --
+ *             the half of the hole the low-bound guard cannot see
  *   nohandler stack exhausted with NO handler -- today's stack-bomb, for contrast
  *
  * Read the result from the tagged lines, never from the exit code:
@@ -138,6 +140,29 @@ int main(int argc, char **argv)
 		fflush(stdout);
 		*p = 1;
 		printf("SIGBOMB: survived the NULL write -- handler did not fire\n");
+		fflush(stdout);
+		return 0;
+	}
+
+	/* The other way to make the frame land on unmapped memory: don't exhaust the
+	 * stack, just point SP somewhere that was never mapped. The low-bound guard
+	 * cannot see this one -- it only knows where the stack BEGINS -- so this is
+	 * the honest test of whether the C2 fix actually closed the hole or only the
+	 * half of it that had a reproducer. */
+	if (strcmp(mode, "wildsp") == 0) {
+		printf("SIGBOMB: moving SP to an unmapped address, then faulting\n");
+		fflush(stdout);
+		/* xzr cannot be a base register on aarch64 (that encoding means SP), so
+		 * the null pointer goes through an ordinary register. */
+		__asm__ volatile(
+			"mov x9, %0\n"
+			"mov sp, x9\n"
+			"mov x10, #0\n"
+			"str wzr, [x10]\n"
+			:
+			: "r"(0x0000400000000000UL)
+			: "x9", "x10", "memory");
+		printf("SIGBOMB: survived a wild SP -- unexpected\n");
 		fflush(stdout);
 		return 0;
 	}

@@ -16,6 +16,10 @@ TARGET=aarch64a72-generic-rpi4b
 BUILD="$REPO/.buildroot/_build/$TARGET"
 SYSROOT="$BUILD/sysroot"
 CC="$REPO/.toolchain/aarch64-phoenix/bin/aarch64-phoenix-gcc"
+# Optimisation level, overridable: a tool that deliberately drives the machine into
+# a corner (deep recursion, a faulting access) needs -O0, or the compiler folds away
+# the very thing it is there to provoke. Everything else wants -O2.
+TOOL_OPT="${TOOL_OPT:--O2}"
 # Resolve the LIVE export the same way make-pristine-nfs-export.sh does: the
 # fsid=0 entry, scanning exports.d too. Hardcoding a path is how tools ended up
 # staged into a dead directory while the Pi mounted a different one.
@@ -37,7 +41,7 @@ for name in "$@"; do
 		-mno-outline-atomics --sysroot="$SYSROOT/" -B"$SYSROOT/lib/" \
 		-iprefix "$SYSROOT/" -I"$BUILD/include/" \
 		-Wl,-z,max-page-size=0x1000 -Wl,--no-warn-rwx-segments \
-		-L"$BUILD/lib/" -std=gnu17 -O2 -Wall -Wextra -g \
+		-L"$BUILD/lib/" -std=gnu17 $TOOL_OPT -Wall -Wextra -g \
 		"$src" -o "$out"
 
 	if [ -d "$EXPORT_ROOT/bin" ]; then

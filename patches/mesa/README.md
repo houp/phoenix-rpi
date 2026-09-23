@@ -23,12 +23,25 @@ git apply /path/to/patches/mesa/phoenix-rpi4-v3d.patch   # -> our exact validate
 ## Contents
 
 `phoenix-rpi4-v3d.patch` is `git diff mesa-26.2.0..HEAD` of our port branch — the net change
-from the released tag to our validated tree (20 files, ~924 lines): the BCM2711 V3D 4.2 GL +
+from the released tag to our validated tree (23 files, ~1669 lines): the BCM2711 V3D 4.2 GL +
 Vulkan (v3dv) port and its Phoenix winsys integration, including the NPOT-mipmap-generation
 fix (`v3d_generate_mipmap` declines NPOT → render fallback; fixes scrambled Quake II model
 skins). Now that the base is the released `mesa-26.2.0` tag, the patch is purely our port
 commits (no incidental rc1→final upstream folding). Verified to `git apply --check` cleanly
 onto the tag.
+
+⚠ **Regenerate this file whenever the port branch gains a commit.** It is the only durable
+copy: the build reads `external/mesa` directly, so a change committed there works on this
+machine and is silently lost by a clean bootstrap. Found stale on 2026-09-23 — three files
+were missing, and two of them (`src/broadcom/compiler/v3d_shader_dump.c` and its
+`src/broadcom/meson.build` hook, from the off-device shader-dump harness) had been committed
+to the branch weeks earlier and would not have survived a fresh clone. Regenerate with:
+
+```sh
+git -C external/mesa diff mesa-26.2.0..HEAD > patches/mesa/phoenix-rpi4-v3d.patch
+```
+
+and re-verify by applying it to a pristine checkout of the tag.
 
 ## License
 

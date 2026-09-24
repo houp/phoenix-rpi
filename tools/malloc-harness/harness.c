@@ -1930,6 +1930,62 @@ static int hz_whySelftest(void)
  * page-aligned address)?  This discriminates "allocator bug" from "caller heap
  * overflow", which is the question the crash actually poses. */
 
+
+/* Can the widened page poison actually FAIL?
+ *
+ * The instrument used to poison one word per 4 KiB page, at +4, so it could only
+ * ever detect corruption at that offset -- and "C1 always lands at page+4" was an
+ * artefact of where we looked. It now samples four offsets. Before any conclusion
+ * is drawn from "only +4 fired on hardware", each probe has to be shown capable of
+ * firing at all: a bounds-check that quietly excluded the three new offsets would
+ * produce exactly the same evidence as a genuinely offset-specific writer.
+ *
+ * So corrupt each probe in turn, in its own alloc/free/corrupt/alloc cycle, and
+ * require the verifier to name that offset. */
+static int hz_p4Probes(void)
+{
+	static const unsigned long offs[] = { 4u, 0x404u, 0x804u, 0xc04u };
+	size_t i;
+	int bad = 0;
+
+	hz_reset();
+	printf("\n--- page-poison probes: can each offset fail? ---\n");
+	for (i = 0; i < sizeof(offs) / sizeof(offs[0]); i++) {
+		unsigned char *b = phx_malloc(64u * 1024u);
+		void *keep;
+		uintptr_t page;
+		void *again;
+
+		/* Hold a live block allocated AFTER b, so freeing b leaves its chunk on a
+		 * free list without the heap being munmap()ed under us -- otherwise the
+		 * write below faults and takes the harness down via the SIGSEGV handler
+		 * (_exit(3), which also discards buffered stdout and hides where it died). */
+		keep = phx_malloc(64u);
+		if ((b == NULL) || (keep == NULL)) {
+			printf("  probe +0x%-5lx -> setup failed (malloc)\n", offs[i]);
+			bad++;
+			continue;
+		}
+		phx_free(b);   /* arms the poison across this chunk's pages */
+
+		page = ((uintptr_t)b + 4095u) & ~(uintptr_t)4095u;
+		/* The write under test: four bytes, exactly as hardware shows it. */
+		*(volatile uint32_t *)(page + offs[i]) = 0x80000001u;
+
+		printf("  probe +0x%-5lx : corrupted %p -- verifier must report p4off = 0x%lx\n",
+			offs[i], (void *)(page + offs[i]), offs[i]);
+		fflush(stdout);
+
+		again = phx_malloc(64u * 1024u);   /* takes the chunk back -> runs the verify */
+		if (again != NULL) {
+			phx_free(again);
+		}
+		phx_free(keep);
+	}
+	printf("  (a probe with no 'PAGE POISON BROKEN / p4off' line above is BLIND)\n");
+	return bad;
+}
+
 static void hz_experiment(const char *what)
 {
 	void *a, *b, *c;
@@ -2243,6 +2299,7 @@ int main(int argc, char **argv)
 	if (doExp != 0) {
 		printf("\n--- edge cases ---\n");
 		hz_edgeCases();
+		(void)hz_p4Probes();
 		printf("\n--- fault injection (is the STK signature an allocator bug or a caller overflow?) ---\n");
 		hz_experiment("footer");
 		hz_experiment("nextheader");

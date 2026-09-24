@@ -19,6 +19,11 @@
 # through the TMU can park anything there. Zero flagged jobs means this workload
 # has no such writer and the quarantine's silence says nothing at all.
 #
+# NB on verifying a build actually shipped: the binary that carries the winsys is
+# /usr/bin/supertuxkart, NOT /bin/stk (a launcher). Checking the wrong one reports
+# a stale build as missing the change. And use `rg --no-ignore` -- our grep honours
+# .gitignore, so a -r search under .buildroot silently finds nothing.
+#
 # Usage: scripts/c1-quarantine-report.sh [label|path]   (default: newest log)
 set -uo pipefail
 
@@ -48,6 +53,7 @@ flagged=$(grep -a 'CL FLUSH_CACHE job #' "$log" | tail -1)
 cleaning=$(grep -ac 'CL FLUSH_CACHE job #.*-- cleaning' "$log")
 flips=$(grep -ao 'total [0-9]*)' "$log" | tail -1)
 p4=$(grep -ac 'PAGE+4 POISON BROKEN' "$log")
+mmu=$(grep -acE 'PT_INVALID|MMU_VIO|PTI_ABORT|mmu.*abort' "$log")
 
 say() { # say <ok?> <text>
 	if [ "$1" = 1 ]; then echo "  [OK]   $2"; else echo "  [FAIL] $2"; fi
@@ -69,6 +75,33 @@ elif [ -n "$flagged" ]; then
 else
 	echo "  <indeterminate -- no flagged job seen>"
 fi
+echo
+
+# A quarantine run is only interpretable as a PAIR of numbers: the heap tripwire
+# says whether a C1 event happened at all this run, and the quarantine says
+# whether it came through a closed BO's pages. Either alone is unreadable --
+# strays=0 on a run that never fired proves nothing, which is the whole reason
+# this line exists.
+echo "== VERDICT (read p4 and strays TOGETHER) =="
+if [ -z "$flips" ]; then
+	v="VOID -- workload did not run"
+elif [ "$found" -eq 0 ]; then
+	v="VOID -- the scan never found its own plant"
+elif [ "$p4" -gt 0 ] && [ "$strays" -gt 0 ]; then
+	v="ROUTE CONFIRMED -- fired, and a closed BO was written"
+elif [ "$p4" -gt 0 ] && [ "$strays" -eq 0 ]; then
+	v="ROUTE EXCLUDED -- fired, but NO closed BO was written (points away from the BO pages)"
+elif [ "$p4" -eq 0 ] && [ "$strays" -gt 0 ]; then
+	v="a closed BO was written without a heap fire -- interesting, chase it"
+else
+	v="QUIET -- no event this run; proves nothing either way"
+fi
+echo "  p4=$p4  strays=$strays  flagged=${flagged:-none}  frames=${flips:-none}"
+echo "  => $v"
+echo
+
+echo "== side-effects of the instrument =="
+echo "  MMU/PT aborts   : $mmu   (>0 with quarantine on = Mesa is reading BOs it closed)"
 echo
 
 echo "== result =="
